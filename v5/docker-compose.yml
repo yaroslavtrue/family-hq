@@ -1,0 +1,13 @@
+services:
+  app:
+    build: .
+    restart: always
+    ports:
+      - "8100:8000"
+    environment:
+      - BOT_TOKEN=${BOT_TOKEN}
+      - WEBAPP_URL=${WEBAPP_URL}
+      - TZ=${TZ:-Europe/Belgrade}
+      - DB_PATH=/data/family.db
+    volumes:
+      - ./data:/data
