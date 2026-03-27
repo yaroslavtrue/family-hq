@@ -26,7 +26,7 @@ let taskTab="active",calTab="events",shopFold=null;
 let D={tasks:[],recurring:[],shopping:[],folders:[],events:[],birthdays:[],subs:[],dashboard:{},members:[],zones:[],settings:{}};
 let allSubs={task:{},event:{}};
 // Modal state
-let _assign=0,_pri="normal",_rems=[],_zRems=[],_bdRems=[],_subRems=[];
+let _assign=0,zOpen={},_pri="normal",_rems=[],_zRems=[],_bdRems=[],_subRems=[];
 
 // ─── API ────────────────────────────────────────────────────
 async function A(m,p,b){
@@ -55,7 +55,7 @@ function td(){const d=new Date();return d.getFullYear()+"-"+String(d.getMonth()+
 const dN=["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
 const dF=["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"];
 const mN=["January","February","March","April","May","June","July","August","September","October","November","December"];
-function fD(ds){const p=(ds||"").split(" ")[0];const pts=p.split("-").map(Number);if(!pts[0]||!pts[1]||!pts[2])return{day:"?",date:"?"};const dt=new Date(pts[0],pts[1]-1,pts[2]);return{day:dN[dt.getDay()],date:pts[2]+" "+mN[pts[1]-1].slice(0,3)}}
+function fD(ds){const p=(ds||"").split(" ")[0];const pts=p.split("-").map(Number);if(!pts[0]||!pts[1]||!pts[2])return{day:"?",date:"?",full:"?"};const dt=new Date(pts[0],pts[1]-1,pts[2]);return{day:dN[dt.getDay()],date:pts[2]+" "+mN[pts[1]-1].slice(0,3),full:dN[dt.getDay()]+" "+pts[2]+" "+mN[pts[1]-1].slice(0,3)}}
 
 // Member helpers
 function mAv(uid,sz){const m=D.members.find(function(x){return x.user_id===uid});
@@ -190,12 +190,12 @@ var d=D.dashboard,n=new Date();
 var h='<p style="color:var(--ht);font-size:14px;margin:0 0 16px;font-weight:500">'+dF[n.getDay()]+", "+mN[n.getMonth()]+" "+n.getDate()+'</p>';
 h+='<div class="sts"><div class="st" onclick="go(\'tasks\')" style="border-left:3px solid var(--pr)"><div class="sn" style="color:var(--pr)">'+(d.tasks_pending||0)+'</div><div class="sl">Tasks</div></div>';
 h+='<div class="st" onclick="go(\'shop\')" style="border-left:3px solid var(--ac)"><div class="sn" style="color:var(--ac)">'+(d.shop_pending||0)+'</div><div class="sl">Shopping</div></div>';
-h+='<div class="st" onclick="go(\'clean\')" style="border-left:3px solid var(--wn)"><div class="sn" style="color:var(--wn)">'+(d.cleaning_todo||0)+"/"+(d.cleaning_total||0)+'</div><div class="sl">Cleaning</div></div>';
+h+='<div class="st" onclick="go(\'clean\')" style="border-left:3px solid var(--wn)"><div class="sn" style="color:var(--wn)">'+(d.cleaning_dirty||0)+"/"+(d.cleaning_total||0)+'</div><div class="sl">Cleaning</div></div>';
 h+='<div class="st" onclick="go(\'cal\')" style="border-left:3px solid var(--ok)"><div class="sn" style="color:var(--ok)">'+(d.events_count||0)+'</div><div class="sl">Events</div></div></div>';
 // Upcoming tasks
 var pt=D.tasks.filter(function(x){return!x.done}).slice(0,3);
 if(pt.length){h+='<div class="sc">Upcoming Tasks</div>';pt.forEach(function(t){
-h+='<div class="c"><div class="cb cb-o" onclick="tgTk('+t.id+')"></div><div class="bd"><div class="tt">'+es(t.text)+'</div><div class="mt">'+mChip(t.assigned_to,true)+(t.due_date?' <span style="font-size:11px;color:var(--wn)">📅 '+t.due_date.split(" ")[0]+'</span>':"")+'</div></div></div>';});}
+h+='<div class="c"><div class="cb cb-o" onclick="tgTk('+t.id+')"></div><div class="bd"><div class="tt">'+es(t.text)+'</div><div class="mt">'+mChip(t.assigned_to,true)+(t.due_date?' <span style="font-size:11px;color:var(--wn)">📅 '+fD(t.due_date).full+'</span>':"")+'</div></div></div>';});}
 // Birthdays soon
 var ub=D.birthdays.filter(function(b){return b.days_until<=7}).slice(0,2);
 if(ub.length){h+='<div class="sc" style="margin-top:16px">🎂 Birthdays Soon</div>';ub.forEach(function(b){
@@ -219,7 +219,7 @@ var pend=all.filter(function(x){return!x.done}),done=all.filter(function(x){retu
 if(!all.length)return h+em("📋","No tasks yet","Tap + to add one");
 if(pend.length){h+='<div class="sc">Active · '+pend.length+'</div>';pend.forEach(function(t){
 var rmC=t.reminders&&t.reminders.length?'<span class="bg" style="background:color-mix(in srgb,var(--wn),transparent 85%);color:var(--wn)">'+I.bl+" "+t.reminders.length+'</span>':"";
-h+='<div style="margin-bottom:10px"><div class="c" style="margin-bottom:0"><div class="cb cb-o" onclick="tgTk('+t.id+')"></div><div class="bd"><div class="tt">'+es(t.text)+'</div><div class="mt">'+mChip(t.assigned_to,true)+" "+pri(t.priority)+(t.due_date?' <span style="font-size:11px;color:var(--wn)">📅 '+t.due_date.split(" ")[0]+'</span>':"")+" "+rmC+" "+sC("task",t.id)+' <button class="xb" onclick="tX(\'task\','+t.id+')">'+(ex["task_"+t.id]?"▾":"▸")+'</button></div></div><button class="bi" onclick="edTk('+t.id+')">'+I.ed+'</button><button class="bi" onclick="dlTk('+t.id+')">'+I.tr+'</button></div>'+rSu("task",t.id)+'</div>';});}
+h+='<div style="margin-bottom:10px"><div class="c" style="margin-bottom:0"><div class="cb cb-o" onclick="tgTk('+t.id+')"></div><div class="bd"><div class="tt">'+es(t.text)+'</div><div class="mt">'+mChip(t.assigned_to,true)+" "+pri(t.priority)+(t.due_date?' <span style="font-size:11px;color:var(--wn)">📅 '+fD(t.due_date).full+'</span>':"")+" "+rmC+" "+sC("task",t.id)+' <button class="xb" onclick="tX(\'task\','+t.id+')">'+(ex["task_"+t.id]?"▾":"▸")+'</button></div></div><button class="bi" onclick="edTk('+t.id+')">'+I.ed+'</button><button class="bi" onclick="dlTk('+t.id+')">'+I.tr+'</button></div>'+rSu("task",t.id)+'</div>';});}
 if(done.length){h+='<div class="sc" style="margin-top:16px">Done · '+done.length+'</div>';done.forEach(function(t){
 h+='<div class="c d"><div class="cb cb-k" onclick="tgTk('+t.id+')">'+I.ck+'</div><div class="bd"><div class="tt sk">'+es(t.text)+'</div></div><button class="bi" onclick="dlTk('+t.id+')">'+I.tr+'</button></div>';});}
 return h;}
@@ -263,22 +263,34 @@ cMo();hp();await load();}
 // ═══════════════════════════════════════════════════════════
 function rSh(){
 // Folder tabs
-var h='<div class="fb2"><button class="fi '+(shopFold===null?"a":"")+'" onclick="shopFold=null;ren()">All</button>';
+var h='<div class="fb2"><button class="fi '+(shopFold===null?"a":"")+'" onclick="shopFold=null;ren()">All</button><button class="fi '+(shopFold==="stock"?"a":"")+'" onclick="shopFold=\'stock\';ren()">📦 In Stock</button>';
 D.folders.forEach(function(f){h+='<button class="fi '+(shopFold===f.id?"a":"")+'" onclick="shopFold='+f.id+';ren()">'+f.emoji+" "+es(f.name)+'</button>';});
 h+='<button class="fi" onclick="shAddFolder()">'+I.pl+' Folder</button></div>';
 var items=D.shopping;
-if(shopFold!==null)items=items.filter(function(x){return x.folder_id===shopFold});
+if(shopFold==="stock")items=items.filter(function(x){return x.bought});
+else if(shopFold!==null)items=items.filter(function(x){return x.folder_id===shopFold&&!x.bought});
+var folderTotal=0;items.forEach(function(x){if(!x.bought&&x.price)folderTotal+=x.price});
+if(folderTotal>0)h+='<div class="c" style="border-left:3px solid var(--wn);padding:10px 16px"><div class="bd"><div class="mt" style="font-size:14px;color:var(--wn);font-weight:700">Total: '+folderTotal.toFixed(0)+' дин.</div></div></div>';
 var p=items.filter(function(x){return!x.bought}),b=items.filter(function(x){return x.bought});
 if(!items.length)return h+em("🛒","List is empty","Tap + to add");
 if(p.length){h+='<div class="sc">To Buy · '+p.length+'</div>';p.forEach(function(s){
 var qtyHtml=s.quantity?'<span class="qty">'+es(s.quantity)+'</span>':"";
-h+='<div class="c"><div class="cb cb-o" onclick="tgSh('+s.id+')"></div><div class="bd"><div class="tt">'+es(s.item)+" "+qtyHtml+'</div><div class="mt">'+es(s.added_by||"")+'</div></div><button class="bi" onclick="dSh('+s.id+')">'+I.tr+'</button></div>';});}
+var prHtml=s.price?'<span style="font-size:11px;color:var(--wn);font-weight:600">'+s.price+' дин.</span>':"";
+h+='<div class="c"><div class="cb cb-o" onclick="tgSh('+s.id+')"></div><div class="bd"><div class="tt">'+es(s.item)+" "+qtyHtml+'</div><div class="mt">'+es(s.added_by||"")+" "+prHtml+'</div></div><button class="bi" onclick="edShop('+s.id+')">'+I.ed+'</button><button class="bi" onclick="dSh('+s.id+')">'+I.tr+'</button></div>';});}
 if(b.length){h+='<div class="sc" style="margin-top:16px"><span>Bought · '+b.length+'</span><button class="at" onclick="clSh()">Clear</button></div>';b.forEach(function(s){
 h+='<div class="c d"><div class="cb cb-k" onclick="tgSh('+s.id+')">'+I.ck+'</div><div class="bd"><div class="tt sk">'+es(s.item)+'</div></div><button class="bi" onclick="dSh('+s.id+')">'+I.tr+'</button></div>';});}
 return h;}
 async function tgSh(id){hp();await A("PATCH","/api/shopping/"+id+"/toggle");await load();}
 async function dSh(id){hp();await A("DELETE","/api/shopping/"+id);await load();}
 async function clSh(){hp();await A("DELETE","/api/shopping/clear-bought");await load();}
+function edShop(sid){
+var s=D.shopping.find(function(x){return x.id===sid});if(!s)return;
+oMC("Edit Item",'<input class="inp" id="se-n" value="'+es(s.item)+'"><div class="dr"><div><div class="dl">Quantity</div><input class="inp" id="se-q" value="'+(s.quantity||"")+'" placeholder="e.g. 1kg"></div><div><div class="dl">Price (дин.)</div><input class="inp" id="se-p" type="number" value="'+(s.price||"")+'" placeholder="0"></div></div>'+(D.folders.length?'<div class="lb">Folder</div><div class="or"><button class="ob '+((!s.folder_id)?"s":"")+'" onclick="_shopFoldEdit=0;this.parentNode.querySelectorAll(\'.ob\').forEach(function(b){b.classList.remove(\'s\')});this.classList.add(\'s\')">None</button>'+D.folders.map(function(f){return '<button class="ob '+(s.folder_id===f.id?"s":"")+'" onclick="_shopFoldEdit='+f.id+';this.parentNode.querySelectorAll(\'.ob\').forEach(function(b){b.classList.remove(\'s\')});this.classList.add(\'s\')">'+f.emoji+" "+es(f.name)+'</button>'}).join("")+'</div>':'')+'<button class="btn" onclick="svShop('+sid+')">Save</button>');
+window._shopFoldEdit=s.folder_id||0;}
+async function svShop(sid){
+var n=document.getElementById("se-n").value.trim();var q=document.getElementById("se-q").value.trim();var p=parseFloat(document.getElementById("se-p").value)||null;
+if(!n)return;await A("PUT","/api/shopping/"+sid,{item:n,quantity:q||null,price:p,folder_id:window._shopFoldEdit||null});cMo();hp();await load();}
+
 function shAddFolder(){oMC("New Folder",'<input class="inp" id="ff-n" placeholder="Folder name"><input class="inp" id="ff-e" placeholder="Emoji 📁" value="📁" style="width:80px"><button class="btn" onclick="doAddFolder()">Create</button>');}
 async function doAddFolder(){var n=document.getElementById("ff-n").value.trim();var e=document.getElementById("ff-e").value.trim()||"📁";if(!n)return;await A("POST","/api/shopping/folders",{name:n,emoji:e});cMo();hp();await load();}
 
@@ -298,7 +310,7 @@ function rZn(z){
 var st=z.dirty?'<span class="zs no">Dirty</span>':'<span class="zs ok">Clean</span>';
 var asn=z.assigned_to?" · "+mName(z.assigned_to):"";
 var rmC=z.reminders&&z.reminders.length?'<span class="bg" style="background:color-mix(in srgb,var(--wn),transparent 85%);color:var(--wn)">'+I.bl+" "+z.reminders.length+'</span>':"";
-var h='<div class="zn"><div class="zh"><span class="zi">'+z.icon+'</span><span class="zn2">'+es(z.name)+'</span><button class="bi" onclick="edZn('+z.id+')" style="margin-right:4px">'+I.ed+'</button>'+st+'</div><div class="zm">'+asn+' '+rmC+'</div><div style="border-top:1px solid var(--bd);padding-top:8px">';
+var isOpen=zOpen[z.id]!==false;var tasksDone=(z.tasks||[]).filter(function(t){return t.done}).length;var tasksTotal=(z.tasks||[]).length;var progTxt=tasksDone+"/"+tasksTotal;var h='<div class="zn"><div class="zh" style="cursor:pointer" onclick="zOpen['+z.id+']='+(!isOpen)+';ren()"><span class="zi">'+z.icon+'</span><span class="zn2">'+es(z.name)+' <span style="font-size:12px;color:var(--ht)">'+progTxt+'</span></span><button class="bi" onclick="event.stopPropagation();edZn('+z.id+')" style="margin-right:4px">'+I.ed+'</button>'+st+'<span style="font-size:14px;color:var(--ht)">\'+(isOpen?"▾":"▸")+'</span></div>';if(!isOpen){h+='</div>';return h;}h+='<div class="zm">'+asn+' '+rmC+'</div><div style="border-top:1px solid var(--bd);padding-top:8px">';
 (z.tasks||[]).forEach(function(t){
 var resetInfo=t.reset_days?t.reset_days+"d":"7d";
 var daysInfo="";
@@ -335,9 +347,9 @@ cMo();hp();await load();}
 function edZT(tid){
 var t=null;D.zones.forEach(function(z){(z.tasks||[]).forEach(function(tk){if(tk.id===tid)t=tk})});
 if(!t)return;_assign=t.assigned_to||0;
-oMC("Edit Cleaning Task",'<input class="inp" id="zt-t" value="'+es(t.text)+'"><div class="dr"><div><div class="dl">Emoji</div><input class="inp" id="zt-i" value="'+(t.icon||"🧹")+'" style="text-align:center;font-size:24px"></div><div><div class="dl">Reset (days)</div><input class="inp" id="zt-d" type="number" value="'+(t.reset_days||7)+'" min="1" max="90"></div></div><div class="lb">Assigned to</div>'+assignPk("ztap",t.assigned_to)+'<button class="btn" onclick="svZT('+tid+')">Save</button>');}
+oMC("Edit Cleaning Task",'<input class="inp" id="zt-t" value="'+es(t.text)+'"><div class="dr"><div><div class="dl">Reset (days)</div><input class="inp" id="zt-d" type="number" value="'+(t.reset_days||7)+'" min="1" max="90"></div></div><div class="lb">Assigned to</div>'+assignPk("ztap",t.assigned_to)+'<button class="btn" onclick="svZT('+tid+')">Save</button>');}
 async function svZT(tid){
-var text=document.getElementById("zt-t").value.trim();var icon=document.getElementById("zt-i").value.trim();
+var text=document.getElementById("zt-t").value.trim();var icon="🧹";
 var rd=parseInt(document.getElementById("zt-d").value)||7;
 if(!text)return;
 await A("PUT","/api/cleaning/tasks/"+tid,{text:text,icon:icon,assigned_to:_assign||null,reset_days:rd});

@@ -201,21 +201,27 @@ def update_member(uid: int, body: MemberUpdate, user=Depends(get_uf), db=Depends
 @app.get("/api/dashboard")
 def dashboard(user=Depends(get_uf), db=Depends(get_db)):
     f = user["family_id"]
-    # Count cleaning tasks that are overdue or never done
+    # Count dirty zones
     today = datetime.now(ZoneInfo(TIMEZONE)).date()
-    cleaning_todo = 0
-    for t in db.execute("SELECT done, last_done, reset_days FROM cleaning_tasks WHERE family_id=?", (f,)).fetchall():
-        if not t["done"] and not t["last_done"]: cleaning_todo += 1
-        elif t["done"] and t["last_done"]:
-            try:
-                if (today - datetime.strptime(t["last_done"], "%Y-%m-%d").date()).days >= (t["reset_days"] or 7): cleaning_todo += 1
-            except: pass
-    total_ct = db.execute("SELECT COUNT(*) c FROM cleaning_tasks WHERE family_id=?", (f,)).fetchone()["c"]
+    zones_all = db.execute("SELECT id FROM cleaning_zones WHERE family_id=?", (f,)).fetchall()
+    cleaning_dirty = 0
+    for z in zones_all:
+        tasks = db.execute("SELECT done, last_done, reset_days FROM cleaning_tasks WHERE zone_id=? AND family_id=?", (z["id"], f)).fetchall()
+        dirty = False
+        for t in tasks:
+            if not t["done"] and not t.get("last_done"): dirty = True
+            elif t["done"] and t.get("last_done"):
+                try:
+                    if (today - datetime.strptime(t["last_done"], "%Y-%m-%d").date()).days >= (t.get("reset_days") or 7): dirty = True
+                except: dirty = True
+            elif not t["done"]: dirty = True
+        if dirty: cleaning_dirty += 1
+    total_ct = len(zones_all)
     return {
         "tasks_pending": db.execute("SELECT COUNT(*) c FROM tasks WHERE family_id=? AND done=0", (f,)).fetchone()["c"],
         "shop_pending": db.execute("SELECT COUNT(*) c FROM shopping WHERE family_id=? AND bought=0", (f,)).fetchone()["c"],
         "events_count": db.execute("SELECT COUNT(*) c FROM events WHERE family_id=?", (f,)).fetchone()["c"],
-        "cleaning_todo": cleaning_todo, "cleaning_total": total_ct,
+        "cleaning_dirty": cleaning_dirty, "cleaning_total": total_ct,
         "birthdays_count": db.execute("SELECT COUNT(*) c FROM birthdays WHERE family_id=?", (f,)).fetchone()["c"],
         "subs_count": db.execute("SELECT COUNT(*) c FROM subscriptions WHERE family_id=?", (f,)).fetchone()["c"],
         "user": user["first_name"],
@@ -330,6 +336,27 @@ def toggle_shop(sid: int, user=Depends(get_uf), db=Depends(get_db)):
 @app.delete("/api/shopping/{sid}")
 def del_shop(sid: int, user=Depends(get_uf), db=Depends(get_db)):
     db.execute("DELETE FROM shopping WHERE id=? AND family_id=?", (sid, user["family_id"])); db.commit(); return {"ok": True}
+
+class ShopEdit(BaseModel):
+    item: str | None = None
+    quantity: str | None = None
+    price: float | None = None
+    folder_id: int | None = None
+
+@app.put("/api/shopping/{sid}")
+def edit_shop(sid: int, body: ShopEdit, user=Depends(get_uf), db=Depends(get_db)):
+    ups, ps = [], []
+    if body.item is not None: ups.append("item=?"); ps.append(body.item)
+    if body.quantity is not None: ups.append("quantity=?"); ps.append(body.quantity)
+    if body.price is not None: ups.append("price=?"); ps.append(body.price)
+    if body.folder_id is not None: ups.append("folder_id=?"); ps.append(body.folder_id if body.folder_id != 0 else None)
+    if ups: ps.extend([sid, user["family_id"]]); db.execute(f"UPDATE shopping SET {','.join(ups)} WHERE id=? AND family_id=?", ps); db.commit()
+    return {"ok": True}
+
+@app.get("/api/shopping/folder-totals")
+def folder_totals(user=Depends(get_uf), db=Depends(get_db)):
+    rows = db.execute("SELECT folder_id, SUM(COALESCE(price,0)*CASE WHEN bought=0 THEN 1 ELSE 0 END) as total FROM shopping WHERE family_id=? GROUP BY folder_id", (user["family_id"],)).fetchall()
+    return {str(r["folder_id"] or "all"): round(r["total"],2) for r in rows}
 
 @app.delete("/api/shopping/clear-bought")
 def clear_bought(user=Depends(get_uf), db=Depends(get_db)):
