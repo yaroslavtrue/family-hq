@@ -26,7 +26,7 @@ let taskTab="active",calTab="events",shopFold=null;
 let D={tasks:[],recurring:[],shopping:[],folders:[],events:[],birthdays:[],subs:[],dashboard:{},members:[],zones:[],settings:{}};
 let allSubs={task:{},event:{}};
 // Modal state
-let _assign=0,zOpen={},_pri="normal",_rems=[],_zRems=[],_bdRems=[],_subRems=[];
+let _assign=0,zOpen={},zOpen={},_pri="normal",_rems=[],_zRems=[],_bdRems=[],_subRems=[];
 
 // ─── API ────────────────────────────────────────────────────
 async function A(m,p,b){
@@ -283,6 +283,14 @@ return h;}
 async function tgSh(id){hp();await A("PATCH","/api/shopping/"+id+"/toggle");await load();}
 async function dSh(id){hp();await A("DELETE","/api/shopping/"+id);await load();}
 async function clSh(){hp();await A("DELETE","/api/shopping/clear-bought");await load();}
+function edShop(sid){
+var s=D.shopping.find(function(x){return x.id===sid});if(!s)return;
+oMC("Edit Item",'<input class="inp" id="se-n" value="'+es(s.item)+'"><div class="dr"><div><div class="dl">Quantity</div><input class="inp" id="se-q" value="'+(s.quantity||"")+'" placeholder="e.g. 1kg"></div><div><div class="dl">Price (дин.)</div><input class="inp" id="se-p" type="number" value="'+(s.price||"")+'" placeholder="0"></div></div>'+(D.folders.length?'<div class="lb">Folder</div><div class="or"><button class="ob '+((!s.folder_id)?"s":"")+'" onclick="_shopFoldEdit=0;this.parentNode.querySelectorAll(\'.ob\').forEach(function(b){b.classList.remove(\'s\')});this.classList.add(\'s\')">None</button>'+D.folders.map(function(f){return '<button class="ob '+(s.folder_id===f.id?"s":"")+'" onclick="_shopFoldEdit='+f.id+';this.parentNode.querySelectorAll(\'.ob\').forEach(function(b){b.classList.remove(\'s\')});this.classList.add(\'s\')">'+f.emoji+" "+es(f.name)+'</button>'}).join("")+'</div>':'')+'<button class="btn" onclick="svShop('+sid+')">Save</button>');
+window._shopFoldEdit=s.folder_id||0;}
+async function svShop(sid){
+var n=document.getElementById("se-n").value.trim();var q=document.getElementById("se-q").value.trim();var p=parseFloat(document.getElementById("se-p").value)||null;
+if(!n)return;await A("PUT","/api/shopping/"+sid,{item:n,quantity:q||null,price:p,folder_id:window._shopFoldEdit||null});cMo();hp();await load();}
+
 function edShop(sid){
 var s=D.shopping.find(function(x){return x.id===sid});if(!s)return;
 oMC("Edit Item",'<input class="inp" id="se-n" value="'+es(s.item)+'"><div class="dr"><div><div class="dl">Quantity</div><input class="inp" id="se-q" value="'+(s.quantity||"")+'" placeholder="e.g. 1kg"></div><div><div class="dl">Price (дин.)</div><input class="inp" id="se-p" type="number" value="'+(s.price||"")+'" placeholder="0"></div></div>'+(D.folders.length?'<div class="lb">Folder</div><div class="or"><button class="ob '+((!s.folder_id)?"s":"")+'" onclick="_shopFoldEdit=0;this.parentNode.querySelectorAll(\'.ob\').forEach(function(b){b.classList.remove(\'s\')});this.classList.add(\'s\')">None</button>'+D.folders.map(function(f){return '<button class="ob '+(s.folder_id===f.id?"s":"")+'" onclick="_shopFoldEdit='+f.id+';this.parentNode.querySelectorAll(\'.ob\').forEach(function(b){b.classList.remove(\'s\')});this.classList.add(\'s\')">'+f.emoji+" "+es(f.name)+'</button>'}).join("")+'</div>':'')+'<button class="btn" onclick="svShop('+sid+')">Save</button>');

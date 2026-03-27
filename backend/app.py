@@ -358,6 +358,27 @@ def folder_totals(user=Depends(get_uf), db=Depends(get_db)):
     rows = db.execute("SELECT folder_id, SUM(COALESCE(price,0)*CASE WHEN bought=0 THEN 1 ELSE 0 END) as total FROM shopping WHERE family_id=? GROUP BY folder_id", (user["family_id"],)).fetchall()
     return {str(r["folder_id"] or "all"): round(r["total"],2) for r in rows}
 
+class ShopEdit(BaseModel):
+    item: str | None = None
+    quantity: str | None = None
+    price: float | None = None
+    folder_id: int | None = None
+
+@app.put("/api/shopping/{sid}")
+def edit_shop(sid: int, body: ShopEdit, user=Depends(get_uf), db=Depends(get_db)):
+    ups, ps = [], []
+    if body.item is not None: ups.append("item=?"); ps.append(body.item)
+    if body.quantity is not None: ups.append("quantity=?"); ps.append(body.quantity)
+    if body.price is not None: ups.append("price=?"); ps.append(body.price)
+    if body.folder_id is not None: ups.append("folder_id=?"); ps.append(body.folder_id if body.folder_id != 0 else None)
+    if ups: ps.extend([sid, user["family_id"]]); db.execute(f"UPDATE shopping SET {','.join(ups)} WHERE id=? AND family_id=?", ps); db.commit()
+    return {"ok": True}
+
+@app.get("/api/shopping/folder-totals")
+def folder_totals(user=Depends(get_uf), db=Depends(get_db)):
+    rows = db.execute("SELECT folder_id, SUM(COALESCE(price,0)*CASE WHEN bought=0 THEN 1 ELSE 0 END) as total FROM shopping WHERE family_id=? GROUP BY folder_id", (user["family_id"],)).fetchall()
+    return {str(r["folder_id"] or "all"): round(r["total"],2) for r in rows}
+
 @app.delete("/api/shopping/clear-bought")
 def clear_bought(user=Depends(get_uf), db=Depends(get_db)):
     db.execute("DELETE FROM shopping WHERE family_id=? AND bought=1", (user["family_id"],)); db.commit(); return {"ok": True}
