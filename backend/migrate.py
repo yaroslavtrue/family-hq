@@ -192,10 +192,12 @@ def migrate(db_path):
             safe_add_col(c, "cleaning_tasks", "last_done", "TEXT"),
             safe_add_col(c, "cleaning_tasks", "icon", "TEXT DEFAULT '🧹'"),
         ],
-        # v3: shopping quantities + folders
+        # v3: shopping quantities + folders + price
         lambda c: [
             safe_add_col(c, "shopping", "quantity", "TEXT"),
             safe_add_col(c, "shopping", "folder_id", "INTEGER"),
+            safe_add_col(c, "shopping", "price", "REAL"),
+            safe_add_col(c, "shopping", "currency", "TEXT DEFAULT 'RSD'"),
         ],
     ]
 

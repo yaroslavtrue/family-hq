@@ -1,7 +1,7 @@
 """
 🏠 Family HQ v5 — Backend API
 """
-import os, sqlite3, hashlib, hmac, json, logging, random, re
+import os, sqlite3, hashlib, hmac, json, logging, random, re, time
 from datetime import datetime
 from urllib.parse import parse_qs
 from contextlib import asynccontextmanager
@@ -12,6 +12,7 @@ from fastapi.responses import FileResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
+import httpx
 
 from backend.migrate import migrate
 from backend import scheduler as sched
@@ -20,7 +21,61 @@ BOT_TOKEN = os.environ.get("BOT_TOKEN", "YOUR_TOKEN_HERE")
 DB_PATH = os.environ.get("DB_PATH", "family.db")
 TIMEZONE = os.environ.get("TZ", "Europe/Belgrade")
 WEBAPP_URL = os.environ.get("WEBAPP_URL", "https://your-domain.com")
+# Belgrade coords (default); override via env if needed
+WEATHER_LAT = float(os.environ.get("WEATHER_LAT", "44.8"))
+WEATHER_LON = float(os.environ.get("WEATHER_LON", "20.46"))
 log = logging.getLogger("uvicorn.error")
+
+# Weather cache (refresh every 30 min)
+_weather_cache = {"data": None, "ts": 0}
+
+async def get_weather():
+    now = time.time()
+    if _weather_cache["data"] and now - _weather_cache["ts"] < 1800:
+        return _weather_cache["data"]
+    try:
+        url = (f"https://api.open-meteo.com/v1/forecast?"
+               f"latitude={WEATHER_LAT}&longitude={WEATHER_LON}"
+               f"&daily=temperature_2m_max,temperature_2m_min,weathercode"
+               f"&current=temperature_2m,weathercode,apparent_temperature"
+               f"&timezone={TIMEZONE}&forecast_days=3")
+        async with httpx.AsyncClient(timeout=5) as c:
+            r = await c.get(url)
+            d = r.json()
+        # WMO weather code → emoji + label
+        WMO = {0:"☀️ Clear",1:"🌤 Mostly clear",2:"⛅ Partly cloudy",3:"☁️ Cloudy",
+               45:"🌫 Fog",48:"🌫 Rime fog",51:"🌦 Light drizzle",53:"🌦 Drizzle",55:"🌧 Heavy drizzle",
+               61:"🌧 Light rain",63:"🌧 Rain",65:"🌧 Heavy rain",66:"🌧 Freezing rain",67:"🌧 Heavy freezing rain",
+               71:"🌨 Light snow",73:"🌨 Snow",75:"❄️ Heavy snow",77:"❄️ Snow grains",
+               80:"🌦 Light showers",81:"🌧 Showers",82:"⛈ Heavy showers",
+               85:"🌨 Snow showers",86:"❄️ Heavy snow showers",
+               95:"⛈ Thunderstorm",96:"⛈ Thunderstorm + hail",99:"⛈ Heavy hail"}
+        current = d.get("current", {})
+        daily = d.get("daily", {})
+        days = []
+        for i in range(len(daily.get("time", []))):
+            wc = daily["weathercode"][i]
+            wmo = WMO.get(wc, "🌤 " + str(wc))
+            days.append({
+                "date": daily["time"][i],
+                "max": round(daily["temperature_2m_max"][i]),
+                "min": round(daily["temperature_2m_min"][i]),
+                "code": wc,
+                "label": wmo
+            })
+        cur_wc = current.get("weathercode", 0)
+        result = {
+            "now": round(current.get("temperature_2m", 0)),
+            "feels": round(current.get("apparent_temperature", 0)),
+            "label": WMO.get(cur_wc, "🌤"),
+            "days": days
+        }
+        _weather_cache["data"] = result
+        _weather_cache["ts"] = now
+        return result
+    except Exception as e:
+        log.error(f"Weather fetch error: {e}")
+        return _weather_cache["data"]  # return stale if available
 
 # Currency conversion rates to EUR (approximate, editable)
 FX = {"EUR": 1.0, "USD": 0.92, "GBP": 1.16, "RUB": 0.0095, "RSD": 0.0085}
@@ -207,15 +262,15 @@ def dashboard(user=Depends(get_uf), db=Depends(get_db)):
     cleaning_dirty = 0
     for z in zones_all:
         tasks = db.execute("SELECT done, last_done, reset_days FROM cleaning_tasks WHERE zone_id=? AND family_id=?", (z["id"], f)).fetchall()
-        dirty = False
+        zd = False
         for t in tasks:
-            if not t["done"] and not t.get("last_done"): dirty = True
+            if not t["done"] and not t.get("last_done"): zd = True
             elif t["done"] and t.get("last_done"):
                 try:
-                    if (today - datetime.strptime(t["last_done"], "%Y-%m-%d").date()).days >= (t.get("reset_days") or 7): dirty = True
-                except: dirty = True
-            elif not t["done"]: dirty = True
-        if dirty: cleaning_dirty += 1
+                    if (today - datetime.strptime(t["last_done"], "%Y-%m-%d").date()).days >= (t.get("reset_days") or 7): zd = True
+                except: zd = True
+            elif not t["done"]: zd = True
+        if zd: cleaning_dirty += 1
     total_ct = len(zones_all)
     return {
         "tasks_pending": db.execute("SELECT COUNT(*) c FROM tasks WHERE family_id=? AND done=0", (f,)).fetchone()["c"],
@@ -350,34 +405,16 @@ def edit_shop(sid: int, body: ShopEdit, user=Depends(get_uf), db=Depends(get_db)
     if body.quantity is not None: ups.append("quantity=?"); ps.append(body.quantity)
     if body.price is not None: ups.append("price=?"); ps.append(body.price)
     if body.folder_id is not None: ups.append("folder_id=?"); ps.append(body.folder_id if body.folder_id != 0 else None)
-    if ups: ps.extend([sid, user["family_id"]]); db.execute(f"UPDATE shopping SET {','.join(ups)} WHERE id=? AND family_id=?", ps); db.commit()
+    if ups:
+        ps.extend([sid, user["family_id"]])
+        db.execute(f"UPDATE shopping SET {','.join(ups)} WHERE id=? AND family_id=?", ps)
+        db.commit()
     return {"ok": True}
 
 @app.get("/api/shopping/folder-totals")
 def folder_totals(user=Depends(get_uf), db=Depends(get_db)):
     rows = db.execute("SELECT folder_id, SUM(COALESCE(price,0)*CASE WHEN bought=0 THEN 1 ELSE 0 END) as total FROM shopping WHERE family_id=? GROUP BY folder_id", (user["family_id"],)).fetchall()
-    return {str(r["folder_id"] or "all"): round(r["total"],2) for r in rows}
-
-class ShopEdit(BaseModel):
-    item: str | None = None
-    quantity: str | None = None
-    price: float | None = None
-    folder_id: int | None = None
-
-@app.put("/api/shopping/{sid}")
-def edit_shop(sid: int, body: ShopEdit, user=Depends(get_uf), db=Depends(get_db)):
-    ups, ps = [], []
-    if body.item is not None: ups.append("item=?"); ps.append(body.item)
-    if body.quantity is not None: ups.append("quantity=?"); ps.append(body.quantity)
-    if body.price is not None: ups.append("price=?"); ps.append(body.price)
-    if body.folder_id is not None: ups.append("folder_id=?"); ps.append(body.folder_id if body.folder_id != 0 else None)
-    if ups: ps.extend([sid, user["family_id"]]); db.execute(f"UPDATE shopping SET {','.join(ups)} WHERE id=? AND family_id=?", ps); db.commit()
-    return {"ok": True}
-
-@app.get("/api/shopping/folder-totals")
-def folder_totals(user=Depends(get_uf), db=Depends(get_db)):
-    rows = db.execute("SELECT folder_id, SUM(COALESCE(price,0)*CASE WHEN bought=0 THEN 1 ELSE 0 END) as total FROM shopping WHERE family_id=? GROUP BY folder_id", (user["family_id"],)).fetchall()
-    return {str(r["folder_id"] or "all"): round(r["total"],2) for r in rows}
+    return {str(r["folder_id"] or "all"): round(r["total"], 2) for r in rows}
 
 @app.delete("/api/shopping/clear-bought")
 def clear_bought(user=Depends(get_uf), db=Depends(get_db)):
@@ -399,6 +436,17 @@ def create_folder(body: FolderCreate, user=Depends(get_uf), db=Depends(get_db)):
 def del_folder(fid: int, user=Depends(get_uf), db=Depends(get_db)):
     db.execute("UPDATE shopping SET folder_id=NULL WHERE folder_id=? AND family_id=?", (fid, user["family_id"]))
     db.execute("DELETE FROM shopping_folders WHERE id=? AND family_id=?", (fid, user["family_id"])); db.commit(); return {"ok": True}
+
+class FolderEdit(BaseModel):
+    name: str | None = None; emoji: str | None = None
+
+@app.put("/api/shopping/folders/{fid}")
+def edit_folder(fid: int, body: FolderEdit, user=Depends(get_uf), db=Depends(get_db)):
+    ups, ps = [], []
+    if body.name is not None: ups.append("name=?"); ps.append(body.name)
+    if body.emoji is not None: ups.append("emoji=?"); ps.append(body.emoji)
+    if ups: ps.extend([fid, user["family_id"]]); db.execute(f"UPDATE shopping_folders SET {','.join(ups)} WHERE id=? AND family_id=?", ps); db.commit()
+    return {"ok": True}
 
 # ═════════════════════════════════════════════════════════════════════════
 # EVENTS
@@ -663,13 +711,149 @@ def update_settings(body: SettingsUpdate, user=Depends(get_uf), db=Depends(get_d
     if body.digest_time: db.execute("UPDATE settings SET digest_time=? WHERE family_id=?", (body.digest_time, user["family_id"]))
     db.commit(); return {"ok": True}
 
+# ═════════════════════════════════════════════════════════════════════════
+# BUNDLE (all data in one request)
+# ═════════════════════════════════════════════════════════════════════════
+def _calc_dirty(db, fid, tz):
+    today = datetime.now(ZoneInfo(tz)).date()
+    zones_all = db.execute("SELECT id FROM cleaning_zones WHERE family_id=?", (fid,)).fetchall()
+    dirty = 0
+    for z in zones_all:
+        tasks = db.execute("SELECT done, last_done, reset_days FROM cleaning_tasks WHERE zone_id=? AND family_id=?", (z["id"], fid)).fetchall()
+        zd = False
+        for t in tasks:
+            if not t["done"] and not t.get("last_done"): zd = True
+            elif t["done"] and t.get("last_done"):
+                try:
+                    if (today - datetime.strptime(t["last_done"], "%Y-%m-%d").date()).days >= (t.get("reset_days") or 7): zd = True
+                except: zd = True
+            elif not t["done"]: zd = True
+        if zd: dirty += 1
+    return dirty, len(zones_all)
+
+@app.get("/api/bundle")
+async def bundle(user=Depends(get_uf), db=Depends(get_db)):
+    f = user["family_id"]
+    tz = TIMEZONE
+    today = datetime.now(ZoneInfo(tz)).date()
+    # Tasks
+    tasks = [dict(r) for r in db.execute("SELECT * FROM tasks WHERE family_id=? ORDER BY done, CASE priority WHEN 'high' THEN 0 WHEN 'normal' THEN 1 ELSE 2 END, id DESC", (f,)).fetchall()]
+    for t in tasks:
+        t["reminders"] = [dict(r) for r in db.execute("SELECT id, remind_at, sent FROM task_reminders WHERE task_id=?", (t["id"],)).fetchall()]
+    # Recurring
+    recurring = [dict(r) for r in db.execute("SELECT * FROM recurring_tasks WHERE family_id=? ORDER BY id DESC", (f,)).fetchall()]
+    # Shopping
+    shopping = [dict(r) for r in db.execute("SELECT * FROM shopping WHERE family_id=? ORDER BY bought, id DESC", (f,)).fetchall()]
+    folders = [dict(r) for r in db.execute("SELECT * FROM shopping_folders WHERE family_id=? ORDER BY sort_order", (f,)).fetchall()]
+    # Events
+    events = [dict(r) for r in db.execute("SELECT * FROM events WHERE family_id=? ORDER BY event_date", (f,)).fetchall()]
+    # Birthdays
+    bdays = [dict(r) for r in db.execute("SELECT * FROM birthdays WHERE family_id=?", (f,)).fetchall()]
+    for b in bdays:
+        b["reminders"] = [dict(r) for r in db.execute("SELECT id, days_before, time FROM birthday_reminders WHERE birthday_id=?", (b["id"],)).fetchall()]
+        try:
+            p = b["birth_date"].split("-")
+            bd = datetime(today.year, int(p[1]), int(p[2])).date()
+            diff = (bd - today).days
+            if diff < 0: diff = (datetime(today.year + 1, int(p[1]), int(p[2])).date() - today).days
+            b["days_until"] = diff
+        except: b["days_until"] = 999
+    bdays.sort(key=lambda x: x["days_until"])
+    # Subscriptions
+    subs = [dict(r) for r in db.execute("SELECT * FROM subscriptions WHERE family_id=? ORDER BY billing_day", (f,)).fetchall()]
+    for s in subs:
+        s["reminders"] = [dict(r) for r in db.execute("SELECT id, days_before, time FROM subscription_reminders WHERE sub_id=?", (s["id"],)).fetchall()]
+        try:
+            bd2 = datetime(today.year, today.month, min(s["billing_day"], 28)).date()
+            diff2 = (bd2 - today).days
+            if diff2 < 0:
+                if today.month == 12: bd2 = datetime(today.year + 1, 1, min(s["billing_day"], 28)).date()
+                else: bd2 = datetime(today.year, today.month + 1, min(s["billing_day"], 28)).date()
+                diff2 = (bd2 - today).days
+            s["days_until"] = diff2
+        except: s["days_until"] = 99
+    # Members
+    members = [dict(m) for m in db.execute("SELECT user_id, user_name, emoji, color, photo_url FROM family_members WHERE family_id=?", (f,)).fetchall()]
+    # Settings
+    srow = db.execute("SELECT * FROM settings WHERE family_id=?", (f,)).fetchone()
+    if not srow:
+        db.execute("INSERT INTO settings (family_id) VALUES (?)", (f,)); db.commit()
+        settings = {"family_id": f, "theme": "midnight", "digest_time": "09:00"}
+    else: settings = dict(srow)
+    # Family status
+    frow = db.execute("SELECT fm.family_id, f.name, f.invite_code FROM family_members fm JOIN families f ON f.id=fm.family_id WHERE fm.user_id=?", (user["id"],)).fetchone()
+    family = {"joined": True, "family_id": frow["family_id"], "name": frow["name"], "invite_code": frow["invite_code"], "members": members, "my_id": user["id"]}
+    # Zones
+    zones = [dict(r) for r in db.execute("SELECT * FROM cleaning_zones WHERE family_id=? ORDER BY sort_order", (f,)).fetchall()]
+    for z in zones:
+        z["tasks"] = [dict(r) for r in db.execute("SELECT * FROM cleaning_tasks WHERE zone_id=? AND family_id=? ORDER BY id", (z["id"], f)).fetchall()]
+        z["reminders"] = [dict(r) for r in db.execute("SELECT id, remind_at, sent FROM zone_reminders WHERE zone_id=? AND family_id=?", (z["id"], f)).fetchall()]
+        dirty_z = False
+        for t in z["tasks"]:
+            if not t["done"] and not t.get("last_done"): dirty_z = True
+            elif t["done"] and t.get("last_done"):
+                try:
+                    if (today - datetime.strptime(t["last_done"], "%Y-%m-%d").date()).days >= (t.get("reset_days") or 7): dirty_z = True
+                except: dirty_z = True
+            elif not t["done"]: dirty_z = True
+        z["dirty"] = dirty_z
+    # Subtasks
+    def _subs(pt):
+        rows = db.execute("SELECT * FROM subtasks WHERE parent_type=? AND family_id=? ORDER BY parent_id, id", (pt, f)).fetchall()
+        result = {}
+        for r in rows:
+            pid = r["parent_id"]
+            if pid not in result: result[pid] = []
+            result[pid].append(dict(r))
+        return result
+    # Dashboard
+    dirty_cnt, total_cnt = _calc_dirty(db, f, tz)
+    dashboard = {
+        "tasks_pending": db.execute("SELECT COUNT(*) c FROM tasks WHERE family_id=? AND done=0", (f,)).fetchone()["c"],
+        "shop_pending": db.execute("SELECT COUNT(*) c FROM shopping WHERE family_id=? AND bought=0", (f,)).fetchone()["c"],
+        "events_count": db.execute("SELECT COUNT(*) c FROM events WHERE family_id=?", (f,)).fetchone()["c"],
+        "cleaning_dirty": dirty_cnt, "cleaning_total": total_cnt,
+        "birthdays_count": db.execute("SELECT COUNT(*) c FROM birthdays WHERE family_id=?", (f,)).fetchone()["c"],
+        "subs_count": db.execute("SELECT COUNT(*) c FROM subscriptions WHERE family_id=?", (f,)).fetchone()["c"],
+        "user": user["first_name"],
+    }
+    # Weather (async, cached 30min)
+    weather = await get_weather()
+    return {
+        "tasks": tasks, "recurring": recurring, "shopping": shopping, "folders": folders,
+        "events": events, "birthdays": bdays, "subs": subs, "dashboard": dashboard,
+        "members": members, "settings": settings, "family": family, "zones": zones,
+        "subtasks_task": _subs("task"), "subtasks_event": _subs("event"),
+        "weather": weather,
+    }
+
+# ═════════════════════════════════════════════════════════════════════════
+# WEATHER
+# ═════════════════════════════════════════════════════════════════════════
+@app.get("/api/weather")
+async def weather_endpoint():
+    w = await get_weather()
+    if not w: return {"error": "unavailable"}
+    return w
+
 # ─── Debug & Serve ───────────────────────────────────────────────────────
 @app.get("/api/debug/ping")
-def ping(): return {"ok": True, "version": "v5", "time": datetime.now(ZoneInfo(TIMEZONE)).isoformat()}
+def ping(): return {"ok": True, "version": "v5.3", "time": datetime.now(ZoneInfo(TIMEZONE)).isoformat()}
 
 FRONTEND_DIR = os.path.join(os.path.dirname(__file__), "..", "frontend")
 
 @app.get("/")
-def serve_index(): return FileResponse(os.path.join(FRONTEND_DIR, "index.html"))
+def serve_index():
+    r = FileResponse(os.path.join(FRONTEND_DIR, "index.html"))
+    r.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+    return r
 
-app.mount("/static", StaticFiles(directory=FRONTEND_DIR), name="static")
+@app.get("/static/{fn}")
+def serve_static(fn: str):
+    import mimetypes
+    fp = os.path.join(FRONTEND_DIR, fn)
+    if not os.path.isfile(fp): raise HTTPException(404)
+    mt = mimetypes.guess_type(fn)[0] or "application/octet-stream"
+    r = FileResponse(fp, media_type=mt)
+    r.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+    return r
