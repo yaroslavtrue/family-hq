@@ -996,7 +996,7 @@ async def weather_endpoint():
 
 # ─── Debug & Serve ───────────────────────────────────────────────────────
 @app.get("/api/debug/ping")
-def ping(): return {"ok": True, "version": "v6.0", "time": datetime.now(ZoneInfo(TIMEZONE)).isoformat()}
+def ping(): return {"ok": True, "version": "v6.1", "time": datetime.now(ZoneInfo(TIMEZONE)).isoformat()}
 
 FRONTEND_DIR = os.path.join(os.path.dirname(__file__), "..", "frontend")
 
