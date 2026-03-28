@@ -199,7 +199,7 @@ D.birthdays.forEach(function(b){if(b.days_until>=0&&b.days_until<=7)upcoming.pus
 D.subs.forEach(function(s){if(s.days_until>=0&&s.days_until<=7)upcoming.push({type:"sub",days:s.days_until,icon:s.emoji,title:es(s.name),sub:s.amount+" "+s.currency,color:"var(--pr)"})});
 upcoming.sort(function(a,b){return a.days-b.days});
 if(upcoming.length){h+='<div class="sc" style="margin-top:16px">Upcoming 7 Days</div>';upcoming.forEach(function(u){
-var dayLabel=u.days===0?"Today":u.days===1?"Tomorrow":dN[new Date(Date.now()+u.days*86400000).getDay()];
+var _ud=new Date(Date.now()+u.days*86400000);var dayLabel=u.days===0?"Today":u.days===1?"Tomorrow":dN[_ud.getDay()]+" "+_ud.getDate()+" "+mN[_ud.getMonth()].slice(0,3);
 h+='<div class="c"><span style="font-size:24px">'+u.icon+'</span><div class="bd"><div class="tt">'+u.title+'</div><div class="mt"><span class="bg" style="background:color-mix(in srgb,'+u.color+',transparent 85%);color:'+u.color+'">'+dayLabel+'</span> <span style="font-size:11px;color:var(--ht)">'+u.sub+'</span></div></div></div>'})}
 return h}
 
@@ -239,7 +239,7 @@ var items=D.shopping;
 if(shopFold==="stock")items=items.filter(function(x){return x.bought});
 else if(shopFold!==null)items=items.filter(function(x){return x.folder_id===shopFold&&!x.bought});
 if(searchQ)items=items.filter(function(x){return matchQ(x.item)});
-var folderTotal=0;items.forEach(function(x){if(!x.bought&&x.price)folderTotal+=x.price});
+var folderTotal=0;items.forEach(function(x){if(x.price&&(shopFold==="stock"||!x.bought))folderTotal+=x.price});
 if(folderTotal>0)h+='<div class="c" style="border-left:3px solid var(--wn);padding:10px 16px"><div class="bd"><div class="mt" style="font-size:14px;color:var(--wn);font-weight:700">Total: '+folderTotal.toFixed(0)+' din.</div></div></div>';
 var p=items.filter(function(x){return!x.bought}),b=items.filter(function(x){return x.bought});
 if(!items.length)return h+em("🛒","List is empty","Tap + to add");
@@ -393,6 +393,12 @@ h+='<div class="sc">Members</div>';(fS.members||[]).forEach(function(m){h+='<div
 h+='<div style="margin-bottom:20px"><button class="btn btn-s" style="font-size:13px" onclick="if(confirm(\'Leave family?\'))leaveFam()">Leave Family</button></div>'}
 h+='<div class="sc">Theme</div><div class="tg">';Object.keys(TH).forEach(function(id){var t=TH[id];var sel=cTheme===id;h+='<div class="tc" onclick="setTh(\''+id+'\')" style="background:'+t.cd+';border:2px solid '+(sel?t.pr:t.bd)+'"><div class="te">'+t.e+'</div><div class="tn" style="color:'+t.tx+'">'+t.n+'</div><div class="td">'+[t.pr,t.ac,t.ok,t.wn].map(function(c){return '<div class="tdd" style="background:'+c+'"></div>'}).join("")+'</div></div>'});h+='</div>';
 h+='<div class="sc">Morning Digest</div><div style="margin-bottom:24px"><input type="time" id="dgt" value="'+(D.settings.digest_time||"09:00")+'" step="60" onchange="setDg(this.value)"></div>';
+h+='<div class="sc">Expense Categories</div>';
+D.categories.filter(function(c){return c.type==="expense"}).forEach(function(c){h+='<div class="c"><span style="font-size:20px">'+c.emoji+'</span><div class="bd"><div class="tt">'+es(c.name)+'</div></div><button class="bi" onclick="edCat('+c.id+')">'+I.ed+'</button><button class="bi" onclick="dlCat('+c.id+')">'+I.tr+'</button></div>'});
+h+='<button class="btn btn-s" style="margin-bottom:20px" onclick="addCat(\'expense\')">+ Add Expense Category</button>';
+h+='<div class="sc">Income Categories</div>';
+D.categories.filter(function(c){return c.type==="income"}).forEach(function(c){h+='<div class="c"><span style="font-size:20px">'+c.emoji+'</span><div class="bd"><div class="tt">'+es(c.name)+'</div></div><button class="bi" onclick="edCat('+c.id+')">'+I.ed+'</button><button class="bi" onclick="dlCat('+c.id+')">'+I.tr+'</button></div>'});
+h+='<button class="btn btn-s" style="margin-bottom:20px" onclick="addCat(\'income\')">+ Add Income Category</button>';
 h+='<div class="sc">Debug</div><div class="c" style="cursor:pointer" onclick="dbgOn=!dbgOn;document.getElementById(\'dbg\').classList.toggle(\'hidden\',!dbgOn);ren()"><span style="font-size:20px">🐛</span><div class="bd"><div class="tt">Debug Mode '+(dbgOn?"ON":"OFF")+'</div></div></div>';
 h+='<div style="margin-top:8px;text-align:center;font-size:11px;color:var(--ht)">Family HQ v6.1</div>';return h}
 async function setTh(id){aT(id);hp();await A("PATCH","/api/settings",{theme:id});ren()}
@@ -412,6 +418,14 @@ async function dlCat(cid){if(!confirm("Delete category?"))return;await A("DELETE
 // ═══════════════════════════════════════════════════════════
 // MODAL
 // ═══════════════════════════════════════════════════════════
+function txCatRefresh(){var el=document.getElementById("tx-cats");if(!el)return;var cats=D.categories.filter(function(c){return c.type===window._txType});var h="";cats.forEach(function(c){h+='<button class="ob'+(window._txCat===c.id?" s":"")+'" onclick="window._txCat='+c.id+';this.parentNode.querySelectorAll(\'.ob\').forEach(function(b){b.classList.remove(\'s\')});this.classList.add(\'s\')">'+c.emoji+" "+es(c.name)+"</button>"});h+='<button class="ob" onclick="addCatInline()" style="border:1.5px dashed var(--ht)">+ New</button>';el.innerHTML=h;window._txCat=0}
+function addCatInline(){var t=window._txType;oMC("New Category",'<input class="inp" id="nc-n" placeholder="Category name"><input class="inp" id="nc-e" placeholder="📦" value="📦" style="width:80px"><button class="btn" onclick="doAddCatInline(\''+t+'\')">Create</button>')}
+async function doAddCatInline(type){var n=document.getElementById("nc-n").value.trim();var e=document.getElementById("nc-e").value.trim()||"📦";if(!n)return;await A("POST","/api/categories",{name:n,emoji:e,type:type});cMo();hp();await load();go("money");oMo()}
+function addCat(type){oMC("New Category",'<input class="inp" id="nc-n" placeholder="Category name"><input class="inp" id="nc-e" placeholder="📦" value="📦" style="width:80px"><button class="btn" onclick="doAddCat(\''+type+'\')">Create</button>')}
+async function doAddCat(type){var n=document.getElementById("nc-n").value.trim();var e=document.getElementById("nc-e").value.trim()||"📦";if(!n)return;await A("POST","/api/categories",{name:n,emoji:e,type:type});cMo();hp();await load()}
+function edCat(cid){var c=D.categories.find(function(x){return x.id===cid});if(!c)return;oMC("Edit Category",'<input class="inp" id="ec-n" value="'+es(c.name)+'"><input class="inp" id="ec-e" value="'+c.emoji+'" style="width:80px"><button class="btn" onclick="svCat('+cid+')">Save</button>')}
+async function svCat(cid){var n=document.getElementById("ec-n").value.trim();var e=document.getElementById("ec-e").value.trim();if(!n)return;await A("PUT","/api/categories/"+cid,{name:n,emoji:e});cMo();hp();await load()}
+async function dlCat(cid){if(!confirm("Delete category?"))return;await A("DELETE","/api/categories/"+cid);hp();await load();toast("Deleted")}
 function oMC(t,h){document.getElementById("mt3").textContent=t;document.getElementById("mb").innerHTML=h;document.getElementById("mo").classList.add("op");setTimeout(function(){var i=document.querySelector("#mb input");if(i)i.focus()},300)}
 function cMo(){document.getElementById("mo").classList.remove("op")}
 
@@ -432,11 +446,8 @@ case"shop":
     window._newShopFold=0;
     oMC("Add Item",'<input class="inp" id="ns-n" placeholder="Item name"><div class="dr"><div><div class="dl">Quantity</div><input class="inp" id="ns-q" placeholder="e.g. 1kg"></div><div><div class="dl">Price (din.)</div><input class="inp" id="ns-p" type="number" placeholder="0"></div></div>'+(D.folders.length?'<div class="lb">Folder</div><div class="or">'+folderOpts+'</div>':'')+'<button class="btn" onclick="doShNew()">Add</button>');break;
 case"money":{
-    // Add transaction
     _assign=0;window._txType="expense";window._txCat=0;
-    var expCats=D.categories.filter(function(c){return c.type==="expense"}).map(function(c){return '<button class="ob" onclick="window._txCat='+c.id+';this.parentNode.querySelectorAll(\'.ob\').forEach(function(b){b.classList.remove(\'s\')});this.classList.add(\'s\')">'+c.emoji+" "+es(c.name)+'</button>'}).join("");
-    var incCats=D.categories.filter(function(c){return c.type==="income"}).map(function(c){return '<button class="ob" onclick="window._txCat='+c.id+';this.parentNode.querySelectorAll(\'.ob\').forEach(function(b){b.classList.remove(\'s\')});this.classList.add(\'s\')">'+c.emoji+" "+es(c.name)+'</button>'}).join("");
-    oMC("Add Transaction",'<div class="or" style="margin-bottom:8px"><button class="ob s" onclick="window._txType=\'expense\';this.parentNode.querySelectorAll(\'.ob\').forEach(function(b){b.classList.remove(\'s\')});this.classList.add(\'s\');document.getElementById(\'tx-cats\').innerHTML=\''+expCats.replace(/'/g,"\\'")+'\'">💸 Expense</button><button class="ob" onclick="window._txType=\'income\';this.parentNode.querySelectorAll(\'.ob\').forEach(function(b){b.classList.remove(\'s\')});this.classList.add(\'s\');document.getElementById(\'tx-cats\').innerHTML=\''+incCats.replace(/'/g,"\\'")+'\'">💰 Income</button></div><div class="dr"><div><div class="dl">Amount</div><input class="inp" id="tx-a" type="number" step="0.01" placeholder="0"></div><div><div class="dl">Currency</div><select id="tx-c"><option value="RSD">din.</option><option value="EUR">€</option><option value="USD">$</option><option value="GBP">£</option><option value="RUB">₽</option></select></div></div><div class="lb">Description</div><input class="inp" id="tx-d" placeholder="What for?"><div class="lb">Category</div><div class="or" id="tx-cats">'+expCats+'</div><div class="lb">Date</div><input type="date" id="tx-dt" value="'+dy+'"><div class="lb">Who</div>'+assignPk("txm",null)+'<button class="btn" onclick="doTx()">Add</button>')}break}
+    oMC("Add Transaction",'<div class="or" style="margin-bottom:8px"><button class="ob s" id="tb-exp" onclick="window._txType=\'expense\';document.getElementById(\'tb-exp\').classList.add(\'s\');document.getElementById(\'tb-inc\').classList.remove(\'s\');txCatRefresh()">💸 Expense</button><button class="ob" id="tb-inc" onclick="window._txType=\'income\';document.getElementById(\'tb-inc\').classList.add(\'s\');document.getElementById(\'tb-exp\').classList.remove(\'s\');txCatRefresh()">💰 Income</button></div><div class="dr"><div><div class="dl">Amount</div><input class="inp" id="tx-a" type="number" step="0.01" placeholder="0"></div><div><div class="dl">Currency</div><select id="tx-c"><option value="RSD">din.</option><option value="EUR">€</option><option value="USD">$</option><option value="GBP">£</option><option value="RUB">₽</option></select></div></div><div class="lb">Description</div><input class="inp" id="tx-d" placeholder="What for?"><div class="lb">Category</div><div class="or" id="tx-cats"></div><div class="lb">Date</div><input type="date" id="tx-dt" value="'+dy+'"><div class="lb">Who</div>'+assignPk("txm",null)+'<button class="btn" onclick="doTx()">Add</button>');setTimeout(txCatRefresh,50)}break}
 document.getElementById("mo").classList.add("op");setTimeout(function(){var i=document.querySelector("#mb input[type=text],#mb input.inp");if(i)i.focus()},300)}
 
 // Submit handlers
