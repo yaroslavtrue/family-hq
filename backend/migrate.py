@@ -10,6 +10,21 @@ def safe_add_col(con, table, col, ctype):
     try: con.execute(f"ALTER TABLE {table} ADD COLUMN {col} {ctype}"); con.commit()
     except: pass
 
+def _seed_categories(con):
+    """Seed default expense/income categories for all existing families."""
+    defaults_expense = [("🍔", "Food", 0), ("🏠", "Home / bills", 1), ("🎉", "Entertainment", 2), ("🚕", "Transport", 3), ("🛒", "Shopping", 4), ("💊", "Health", 5), ("📦", "Other", 6)]
+    defaults_income = [("💼", "Salary", 0), ("💻", "Freelance", 1), ("🎁", "Gift", 2), ("📦", "Other", 3)]
+    fams = con.execute("SELECT id FROM families").fetchall()
+    for f in fams:
+        fid = f[0]
+        existing = con.execute("SELECT COUNT(*) FROM categories WHERE family_id=?", (fid,)).fetchone()[0]
+        if existing > 0: continue
+        for emoji, name, sort in defaults_expense:
+            con.execute("INSERT INTO categories (family_id,name,emoji,type,is_default,sort_order) VALUES (?,?,?,?,1,?)", (fid, name, emoji, "expense", sort))
+        for emoji, name, sort in defaults_income:
+            con.execute("INSERT INTO categories (family_id,name,emoji,type,is_default,sort_order) VALUES (?,?,?,?,1,?)", (fid, name, emoji, "income", sort))
+    con.commit()
+
 def migrate(db_path):
     con = sqlite3.connect(db_path, check_same_thread=False)
     
@@ -169,6 +184,35 @@ def migrate(db_path):
             theme TEXT DEFAULT 'midnight',
             digest_time TEXT DEFAULT '09:00'
         );
+        CREATE TABLE IF NOT EXISTS categories (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            family_id INTEGER NOT NULL,
+            name TEXT NOT NULL,
+            emoji TEXT DEFAULT '📦',
+            type TEXT NOT NULL DEFAULT 'expense',
+            is_default INTEGER DEFAULT 0,
+            sort_order INTEGER DEFAULT 0
+        );
+        CREATE TABLE IF NOT EXISTS transactions (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            family_id INTEGER NOT NULL,
+            type TEXT NOT NULL DEFAULT 'expense',
+            amount REAL NOT NULL,
+            currency TEXT DEFAULT 'RSD',
+            amount_eur REAL,
+            category_id INTEGER,
+            description TEXT,
+            date TEXT NOT NULL,
+            member_id INTEGER,
+            created_at TEXT DEFAULT (datetime('now'))
+        );
+        CREATE TABLE IF NOT EXISTS category_limits (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            family_id INTEGER NOT NULL,
+            category_id INTEGER NOT NULL,
+            monthly_limit REAL NOT NULL,
+            UNIQUE(family_id, category_id)
+        );
     """)
     con.commit()
 
@@ -199,6 +243,8 @@ def migrate(db_path):
             safe_add_col(c, "shopping", "price", "REAL"),
             safe_add_col(c, "shopping", "currency", "TEXT DEFAULT 'RSD'"),
         ],
+        # v4: money — seed default categories for all families
+        lambda c: _seed_categories(c),
     ]
 
     for i, mig in enumerate(migrations):

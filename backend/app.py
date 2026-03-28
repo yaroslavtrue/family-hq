@@ -191,6 +191,20 @@ class ZoneTaskEdit(BaseModel):
     text: str | None = None; icon: str | None = None; assigned_to: int | None = None; reset_days: int | None = None
 class SettingsUpdate(BaseModel):
     theme: str | None = None; digest_time: str | None = None
+class TransactionCreate(BaseModel):
+    type: str = "expense"; amount: float; currency: str = "RSD"
+    category_id: int | None = None; description: str = ""; date: str | None = None
+    member_id: int | None = None
+class TransactionEdit(BaseModel):
+    type: str | None = None; amount: float | None = None; currency: str | None = None
+    category_id: int | None = None; description: str | None = None; date: str | None = None
+    member_id: int | None = None
+class CategoryCreate(BaseModel):
+    name: str; emoji: str = "📦"; type: str = "expense"
+class CategoryEdit(BaseModel):
+    name: str | None = None; emoji: str | None = None
+class LimitSet(BaseModel):
+    monthly_limit: float
 
 # ═════════════════════════════════════════════════════════════════════════
 # FAMILY
@@ -215,7 +229,9 @@ def create_family(body: FamilyCreate, user=Depends(get_user), db=Depends(get_db)
         zid = db.execute("INSERT INTO cleaning_zones (family_id,name,icon,sort_order) VALUES (?,?,?,?)", (fid, n, ic, i)).lastrowid
         for t in ["Dust surfaces", "Vacuum/sweep", "Mop floor", "Clean mirrors"]:
             db.execute("INSERT INTO cleaning_tasks (zone_id,family_id,text) VALUES (?,?,?)", (zid, fid, t))
-    db.execute("INSERT INTO settings (family_id) VALUES (?)", (fid,)); db.commit()
+    db.execute("INSERT INTO settings (family_id) VALUES (?)", (fid,))
+    _ensure_categories(db, fid)
+    db.commit()
     return {"family_id": fid, "invite_code": code, "name": body.name}
 
 @app.post("/api/family/join")
@@ -712,6 +728,144 @@ def update_settings(body: SettingsUpdate, user=Depends(get_uf), db=Depends(get_d
     db.commit(); return {"ok": True}
 
 # ═════════════════════════════════════════════════════════════════════════
+# MONEY — Categories, Transactions, Limits
+# ═════════════════════════════════════════════════════════════════════════
+def _ensure_categories(db, fid):
+    """Seed defaults if family has no categories yet."""
+    if db.execute("SELECT COUNT(*) c FROM categories WHERE family_id=?", (fid,)).fetchone()["c"] > 0: return
+    for i, (em, nm) in enumerate([("🍔","Food"),("🏠","Home / bills"),("🎉","Entertainment"),("🚕","Transport"),("🛒","Shopping"),("💊","Health"),("📦","Other")]):
+        db.execute("INSERT INTO categories (family_id,name,emoji,type,is_default,sort_order) VALUES (?,?,?,'expense',1,?)", (fid, nm, em, i))
+    for i, (em, nm) in enumerate([("💼","Salary"),("💻","Freelance"),("🎁","Gift"),("📦","Other")]):
+        db.execute("INSERT INTO categories (family_id,name,emoji,type,is_default,sort_order) VALUES (?,?,?,'income',1,?)", (fid, nm, em, i))
+    db.commit()
+
+@app.get("/api/categories")
+def list_categories(user=Depends(get_uf), db=Depends(get_db)):
+    _ensure_categories(db, user["family_id"])
+    return [dict(r) for r in db.execute("SELECT * FROM categories WHERE family_id=? ORDER BY type, sort_order", (user["family_id"],)).fetchall()]
+
+@app.post("/api/categories")
+def create_category(body: CategoryCreate, user=Depends(get_uf), db=Depends(get_db)):
+    mx = db.execute("SELECT COALESCE(MAX(sort_order),0) m FROM categories WHERE family_id=? AND type=?", (user["family_id"], body.type)).fetchone()["m"]
+    cid = db.execute("INSERT INTO categories (family_id,name,emoji,type,sort_order) VALUES (?,?,?,?,?)",
+        (user["family_id"], body.name, body.emoji, body.type, mx+1)).lastrowid
+    db.commit(); return {"id": cid}
+
+@app.put("/api/categories/{cid}")
+def edit_category(cid: int, body: CategoryEdit, user=Depends(get_uf), db=Depends(get_db)):
+    ups, ps = [], []
+    if body.name is not None: ups.append("name=?"); ps.append(body.name)
+    if body.emoji is not None: ups.append("emoji=?"); ps.append(body.emoji)
+    if ups: ps.extend([cid, user["family_id"]]); db.execute(f"UPDATE categories SET {','.join(ups)} WHERE id=? AND family_id=?", ps); db.commit()
+    return {"ok": True}
+
+@app.delete("/api/categories/{cid}")
+def del_category(cid: int, user=Depends(get_uf), db=Depends(get_db)):
+    db.execute("UPDATE transactions SET category_id=NULL WHERE category_id=? AND family_id=?", (cid, user["family_id"]))
+    db.execute("DELETE FROM category_limits WHERE category_id=? AND family_id=?", (cid, user["family_id"]))
+    db.execute("DELETE FROM categories WHERE id=? AND family_id=? AND is_default=0", (cid, user["family_id"]))
+    db.commit(); return {"ok": True}
+
+# Transactions
+@app.get("/api/transactions")
+def list_transactions(user=Depends(get_uf), db=Depends(get_db)):
+    return [dict(r) for r in db.execute("SELECT * FROM transactions WHERE family_id=? ORDER BY date DESC, id DESC", (user["family_id"],)).fetchall()]
+
+@app.post("/api/transactions")
+async def create_transaction(body: TransactionCreate, user=Depends(get_uf), db=Depends(get_db)):
+    eur = round(body.amount * FX.get(body.currency, 1.0), 2)
+    dt = body.date or datetime.now(ZoneInfo(TIMEZONE)).strftime("%Y-%m-%d")
+    db.execute("INSERT INTO transactions (family_id,type,amount,currency,amount_eur,category_id,description,date,member_id) VALUES (?,?,?,?,?,?,?,?,?)",
+        (user["family_id"], body.type, body.amount, body.currency, eur, body.category_id, body.description, dt, body.member_id or user["id"]))
+    db.commit()
+    # Notify
+    cat = ""
+    if body.category_id:
+        cr = db.execute("SELECT emoji, name FROM categories WHERE id=?", (body.category_id,)).fetchone()
+        if cr: cat = f" {cr['emoji']} {cr['name']}"
+    sign = "💸" if body.type == "expense" else "💰"
+    await notify_all(user["family_id"], f"{sign} *{user['first_name']}*: {body.amount} {body.currency}{cat}", db)
+    return {"ok": True}
+
+@app.put("/api/transactions/{tid}")
+def edit_transaction(tid: int, body: TransactionEdit, user=Depends(get_uf), db=Depends(get_db)):
+    ups, ps = [], []
+    if body.type is not None: ups.append("type=?"); ps.append(body.type)
+    if body.amount is not None: ups.append("amount=?"); ps.append(body.amount)
+    if body.currency is not None: ups.append("currency=?"); ps.append(body.currency)
+    if body.category_id is not None: ups.append("category_id=?"); ps.append(body.category_id if body.category_id != 0 else None)
+    if body.description is not None: ups.append("description=?"); ps.append(body.description)
+    if body.date is not None: ups.append("date=?"); ps.append(body.date)
+    if body.member_id is not None: ups.append("member_id=?"); ps.append(body.member_id if body.member_id != 0 else None)
+    if body.amount is not None or body.currency is not None:
+        amt = body.amount or db.execute("SELECT amount FROM transactions WHERE id=?", (tid,)).fetchone()["amount"]
+        cur = body.currency or db.execute("SELECT currency FROM transactions WHERE id=?", (tid,)).fetchone()["currency"]
+        ups.append("amount_eur=?"); ps.append(round(amt * FX.get(cur, 1.0), 2))
+    if ups: ps.extend([tid, user["family_id"]]); db.execute(f"UPDATE transactions SET {','.join(ups)} WHERE id=? AND family_id=?", ps); db.commit()
+    return {"ok": True}
+
+@app.delete("/api/transactions/{tid}")
+def del_transaction(tid: int, user=Depends(get_uf), db=Depends(get_db)):
+    db.execute("DELETE FROM transactions WHERE id=? AND family_id=?", (tid, user["family_id"])); db.commit(); return {"ok": True}
+
+# Analytics — monthly summary
+@app.get("/api/money/summary")
+def money_summary(user=Depends(get_uf), db=Depends(get_db)):
+    f = user["family_id"]
+    _ensure_categories(db, f)
+    now = datetime.now(ZoneInfo(TIMEZONE))
+    cur_month = now.strftime("%Y-%m")
+    # Current month totals
+    inc = db.execute("SELECT COALESCE(SUM(amount_eur),0) s FROM transactions WHERE family_id=? AND type='income' AND date LIKE ?", (f, cur_month+"%")).fetchone()["s"]
+    exp = db.execute("SELECT COALESCE(SUM(amount_eur),0) s FROM transactions WHERE family_id=? AND type='expense' AND date LIKE ?", (f, cur_month+"%")).fetchone()["s"]
+    # Subs as monthly expense
+    subs_eur = db.execute("SELECT COALESCE(SUM(amount_eur),0) s FROM subscriptions WHERE family_id=?", (f,)).fetchone()["s"]
+    # By category (current month)
+    by_cat = [dict(r) for r in db.execute("""
+        SELECT c.id, c.emoji, c.name, COALESCE(SUM(t.amount_eur),0) total
+        FROM categories c LEFT JOIN transactions t ON t.category_id=c.id AND t.family_id=c.family_id AND t.type='expense' AND t.date LIKE ?
+        WHERE c.family_id=? AND c.type='expense' GROUP BY c.id ORDER BY total DESC
+    """, (cur_month+"%", f)).fetchall()]
+    # Monthly chart (last 6 months)
+    months = []
+    for i in range(5, -1, -1):
+        m = now.month - i
+        y = now.year
+        while m <= 0: m += 12; y -= 1
+        mk = f"{y}-{m:02d}"
+        mi = db.execute("SELECT COALESCE(SUM(amount_eur),0) s FROM transactions WHERE family_id=? AND type='income' AND date LIKE ?", (f, mk+"%")).fetchone()["s"]
+        me = db.execute("SELECT COALESCE(SUM(amount_eur),0) s FROM transactions WHERE family_id=? AND type='expense' AND date LIKE ?", (f, mk+"%")).fetchone()["s"]
+        months.append({"month": mk, "income": round(mi, 2), "expense": round(me, 2)})
+    # Limits
+    limits = [dict(r) for r in db.execute("""
+        SELECT cl.id, cl.category_id, cl.monthly_limit, c.emoji, c.name,
+        COALESCE((SELECT SUM(t.amount_eur) FROM transactions t WHERE t.category_id=cl.category_id AND t.family_id=cl.family_id AND t.type='expense' AND t.date LIKE ?),0) spent
+        FROM category_limits cl JOIN categories c ON c.id=cl.category_id WHERE cl.family_id=?
+    """, (cur_month+"%", f)).fetchall()]
+    # This week spend
+    from datetime import timedelta
+    week_start = (now - timedelta(days=now.weekday())).strftime("%Y-%m-%d")
+    week_exp = db.execute("SELECT COALESCE(SUM(amount_eur),0) s FROM transactions WHERE family_id=? AND type='expense' AND date>=?", (f, week_start)).fetchone()["s"]
+    return {
+        "month": cur_month, "income": round(inc, 2), "expense": round(exp, 2),
+        "subs_eur": round(subs_eur, 2), "balance": round(inc - exp, 2),
+        "by_category": by_cat, "months": months, "limits": limits,
+        "week_expense": round(week_exp, 2),
+    }
+
+# Category limits
+@app.put("/api/money/limits/{cid}")
+def set_limit(cid: int, body: LimitSet, user=Depends(get_uf), db=Depends(get_db)):
+    db.execute("INSERT INTO category_limits (family_id,category_id,monthly_limit) VALUES (?,?,?) ON CONFLICT(family_id,category_id) DO UPDATE SET monthly_limit=?",
+        (user["family_id"], cid, body.monthly_limit, body.monthly_limit)); db.commit()
+    return {"ok": True}
+
+@app.delete("/api/money/limits/{cid}")
+def del_limit(cid: int, user=Depends(get_uf), db=Depends(get_db)):
+    db.execute("DELETE FROM category_limits WHERE category_id=? AND family_id=?", (cid, user["family_id"])); db.commit()
+    return {"ok": True}
+
+# ═════════════════════════════════════════════════════════════════════════
 # BUNDLE (all data in one request)
 # ═════════════════════════════════════════════════════════════════════════
 def _calc_dirty(db, fid, tz):
@@ -719,7 +873,7 @@ def _calc_dirty(db, fid, tz):
     zones_all = db.execute("SELECT id FROM cleaning_zones WHERE family_id=?", (fid,)).fetchall()
     dirty = 0
     for z in zones_all:
-        tasks = db.execute("SELECT done, last_done, reset_days FROM cleaning_tasks WHERE zone_id=? AND family_id=?", (z["id"], fid)).fetchall()
+        tasks = [dict(t) for t in db.execute("SELECT done, last_done, reset_days FROM cleaning_tasks WHERE zone_id=? AND family_id=?", (z["id"], fid)).fetchall()]
         zd = False
         for t in tasks:
             if not t["done"] and not t.get("last_done"): zd = True
@@ -817,6 +971,10 @@ async def bundle(user=Depends(get_uf), db=Depends(get_db)):
         "subs_count": db.execute("SELECT COUNT(*) c FROM subscriptions WHERE family_id=?", (f,)).fetchone()["c"],
         "user": user["first_name"],
     }
+    # Money data
+    _ensure_categories(db, f)
+    categories = [dict(r) for r in db.execute("SELECT * FROM categories WHERE family_id=? ORDER BY type, sort_order", (f,)).fetchall()]
+    transactions = [dict(r) for r in db.execute("SELECT * FROM transactions WHERE family_id=? ORDER BY date DESC, id DESC LIMIT 100", (f,)).fetchall()]
     # Weather (async, cached 30min)
     weather = await get_weather()
     return {
@@ -824,7 +982,7 @@ async def bundle(user=Depends(get_uf), db=Depends(get_db)):
         "events": events, "birthdays": bdays, "subs": subs, "dashboard": dashboard,
         "members": members, "settings": settings, "family": family, "zones": zones,
         "subtasks_task": _subs("task"), "subtasks_event": _subs("event"),
-        "weather": weather,
+        "weather": weather, "categories": categories, "transactions": transactions,
     }
 
 # ═════════════════════════════════════════════════════════════════════════
@@ -838,7 +996,7 @@ async def weather_endpoint():
 
 # ─── Debug & Serve ───────────────────────────────────────────────────────
 @app.get("/api/debug/ping")
-def ping(): return {"ok": True, "version": "v5.3", "time": datetime.now(ZoneInfo(TIMEZONE)).isoformat()}
+def ping(): return {"ok": True, "version": "v6.0", "time": datetime.now(ZoneInfo(TIMEZONE)).isoformat()}
 
 FRONTEND_DIR = os.path.join(os.path.dirname(__file__), "..", "frontend")
 
