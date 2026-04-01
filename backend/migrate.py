@@ -245,6 +245,10 @@ def migrate(db_path):
         ],
         # v4: money — seed default categories for all families
         lambda c: _seed_categories(c),
+        # v5: trello sync — card id on tasks
+        lambda c: [
+            safe_add_col(c, "tasks", "trello_card_id", "TEXT"),
+        ],
     ]
 
     for i, mig in enumerate(migrations):

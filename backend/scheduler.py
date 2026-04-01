@@ -13,6 +13,12 @@ log = logging.getLogger("uvicorn.error")
 BOT_TOKEN = ""
 DB_PATH = ""
 TIMEZONE = ""
+TRELLO_API_KEY = ""
+TRELLO_TOKEN = ""
+TRELLO_BOARD_ID = ""
+TRELLO_FAMILY_ID = 1
+
+TRELLO_LISTS = ["Монтаж видео", "Сайты", "Бренд", "Видеосъемка"]
 
 def _con():
     c = sqlite3.connect(DB_PATH, check_same_thread=False)
@@ -186,6 +192,79 @@ async def check_event_reminders():
             lbl = "tomorrow" if d == 1 else "in 3 days"
             await _notify_all(ev["family_id"], f"📅 *Event {lbl}:* {ev['text']}", con)
     con.close()
+
+# ─── Trello Sync (every 30 min) ─────────────────────────────────────────
+async def sync_trello():
+    if not TRELLO_API_KEY or not TRELLO_TOKEN or not TRELLO_BOARD_ID:
+        log.info("Trello sync skipped: no credentials configured")
+        return
+    try:
+        async with httpx.AsyncClient(timeout=10) as c:
+            r = await c.get(
+                f"https://api.trello.com/1/boards/{TRELLO_BOARD_ID}/lists",
+                params={"key": TRELLO_API_KEY, "token": TRELLO_TOKEN, "fields": "id,name"})
+            lists = r.json()
+            target_ids = {l["id"] for l in lists if l["name"] in TRELLO_LISTS}
+
+            r2 = await c.get(
+                f"https://api.trello.com/1/boards/{TRELLO_BOARD_ID}/cards",
+                params={"key": TRELLO_API_KEY, "token": TRELLO_TOKEN,
+                        "fields": "id,name,due,dueComplete,idList", "filter": "open"})
+            cards = r2.json()
+    except Exception as e:
+        log.error(f"Trello fetch error: {e}")
+        return
+
+    con = _con()
+    today = datetime.now(ZoneInfo(TIMEZONE))
+    relevant = [card for card in cards if card.get("due") and card["idList"] in target_ids]
+    relevant_ids = {card["id"] for card in relevant}
+
+    for card in relevant:
+        cid = card["id"]
+        text = card["name"]
+        due = card["due"][:10] if card["due"] else None
+        trello_done = 1 if card.get("dueComplete") else 0
+
+        existing = con.execute(
+            "SELECT id, done FROM tasks WHERE trello_card_id=?", (cid,)).fetchone()
+        if existing:
+            if dict(existing)["done"] != trello_done:
+                con.execute(
+                    "UPDATE tasks SET done=? WHERE trello_card_id=?", (trello_done, cid))
+        else:
+            con.execute(
+                "INSERT INTO tasks (family_id, text, due_date, priority, created_by, trello_card_id)"
+                " VALUES (?,?,?,?,?,?)",
+                (TRELLO_FAMILY_ID, text, due, "normal", "🔵 Trello", cid))
+
+    # Push local done → Trello (bi-directional)
+    local_rows = con.execute(
+        "SELECT trello_card_id, done FROM tasks WHERE trello_card_id IS NOT NULL").fetchall()
+    for row in local_rows:
+        row = dict(row)
+        if row["trello_card_id"] not in relevant_ids or not row["done"]:
+            continue
+        card = next((c for c in cards if c["id"] == row["trello_card_id"]), None)
+        if card and not card.get("dueComplete"):
+            try:
+                async with httpx.AsyncClient(timeout=5) as c:
+                    await c.put(
+                        f"https://api.trello.com/1/cards/{row['trello_card_id']}",
+                        params={"key": TRELLO_API_KEY, "token": TRELLO_TOKEN,
+                                "dueComplete": "true"})
+            except Exception as e:
+                log.error(f"Trello card update error: {e}")
+
+    # Auto-cleanup: remove done Trello tasks older than 7 days
+    cutoff = (today - timedelta(days=7)).strftime("%Y-%m-%d")
+    con.execute(
+        "DELETE FROM tasks WHERE trello_card_id IS NOT NULL AND done=1 AND created_at < ?",
+        (cutoff,))
+
+    con.commit()
+    con.close()
+    log.info(f"Trello sync done: {len(relevant)} cards processed")
 
 # ─── Morning Digest (every hour, checks per-family time) ────────────────
 async def morning_digest():

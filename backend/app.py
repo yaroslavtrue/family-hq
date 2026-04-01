@@ -21,6 +21,10 @@ BOT_TOKEN = os.environ.get("BOT_TOKEN", "YOUR_TOKEN_HERE")
 DB_PATH = os.environ.get("DB_PATH", "family.db")
 TIMEZONE = os.environ.get("TZ", "Europe/Belgrade")
 WEBAPP_URL = os.environ.get("WEBAPP_URL", "https://your-domain.com")
+TRELLO_API_KEY = os.environ.get("TRELLO_API_KEY", "")
+TRELLO_TOKEN = os.environ.get("TRELLO_TOKEN", "")
+TRELLO_BOARD_ID = os.environ.get("TRELLO_BOARD_ID", "")
+TRELLO_FAMILY_ID = int(os.environ.get("TRELLO_FAMILY_ID", "1"))
 # Belgrade coords (default); override via env if needed
 WEATHER_LAT = float(os.environ.get("WEATHER_LAT", "44.8"))
 WEATHER_LON = float(os.environ.get("WEATHER_LON", "20.46"))
@@ -130,6 +134,8 @@ aps = AsyncIOScheduler(timezone=TIMEZONE)
 async def lifespan(app: FastAPI):
     migrate(DB_PATH)
     sched.BOT_TOKEN = BOT_TOKEN; sched.DB_PATH = DB_PATH; sched.TIMEZONE = TIMEZONE
+    sched.TRELLO_API_KEY = TRELLO_API_KEY; sched.TRELLO_TOKEN = TRELLO_TOKEN
+    sched.TRELLO_BOARD_ID = TRELLO_BOARD_ID; sched.TRELLO_FAMILY_ID = TRELLO_FAMILY_ID
     aps.add_job(sched.check_task_reminders, "interval", minutes=1)
     aps.add_job(sched.check_zone_reminders, "interval", minutes=1)
     aps.add_job(sched.check_birthday_reminders, "cron", minute=0)
@@ -138,6 +144,7 @@ async def lifespan(app: FastAPI):
     aps.add_job(sched.check_cleaning_resets, "cron", hour=0, minute=5)
     aps.add_job(sched.generate_recurring_tasks, "cron", hour=0, minute=5)
     aps.add_job(sched.morning_digest, "cron", minute=0)
+    aps.add_job(sched.sync_trello, "interval", minutes=30)
     aps.start(); log.info("✅ Family HQ v5"); yield; aps.shutdown()
 
 app = FastAPI(title="Family HQ v5", lifespan=lifespan)
@@ -726,6 +733,14 @@ def update_settings(body: SettingsUpdate, user=Depends(get_uf), db=Depends(get_d
     if body.theme: db.execute("UPDATE settings SET theme=? WHERE family_id=?", (body.theme, user["family_id"]))
     if body.digest_time: db.execute("UPDATE settings SET digest_time=? WHERE family_id=?", (body.digest_time, user["family_id"]))
     db.commit(); return {"ok": True}
+
+# ═════════════════════════════════════════════════════════════════════════
+# TRELLO
+# ═════════════════════════════════════════════════════════════════════════
+@app.post("/api/trello/sync")
+async def manual_trello_sync(user=Depends(get_uf)):
+    await sched.sync_trello()
+    return {"ok": True}
 
 # ═════════════════════════════════════════════════════════════════════════
 # MONEY — Categories, Transactions, Limits
