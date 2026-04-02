@@ -398,17 +398,22 @@ h+='<div class="sc">Members</div>';(fS.members||[]).forEach(function(m){h+='<div
 h+='<div style="margin-bottom:20px"><button class="btn btn-s" style="font-size:13px" onclick="if(confirm(\'Leave family?\'))leaveFam()">Leave Family</button></div>'}
 h+='<div class="sc">Theme</div><div class="tg">';Object.keys(TH).forEach(function(id){var t=TH[id];var sel=cTheme===id;h+='<div class="tc" onclick="setTh(\''+id+'\')" style="background:'+t.cd+';border:2px solid '+(sel?t.pr:t.bd)+'"><div class="te">'+t.e+'</div><div class="tn" style="color:'+t.tx+'">'+t.n+'</div><div class="td">'+[t.pr,t.ac,t.ok,t.wn].map(function(c){return '<div class="tdd" style="background:'+c+'"></div>'}).join("")+'</div></div>'});h+='</div>';
 h+='<div class="sc">Morning Digest</div><div style="margin-bottom:24px"><input type="time" id="dgt" value="'+(D.settings.digest_time||"09:00")+'" step="60" onchange="setDg(this.value)"></div>';
-h+='<div class="sc">Expense Categories</div>';
-D.categories.filter(function(c){return c.type==="expense"}).forEach(function(c){h+='<div class="c"><span style="font-size:20px">'+c.emoji+'</span><div class="bd"><div class="tt">'+es(c.name)+'</div></div><button class="bi" onclick="edCat('+c.id+')">'+I.ed+'</button><button class="bi" onclick="dlCat('+c.id+')">'+I.tr+'</button></div>'});
-h+='<button class="btn btn-s" style="margin-bottom:20px" onclick="addCat(\'expense\')">+ Add Expense Category</button>';
-h+='<div class="sc">Income Categories</div>';
-D.categories.filter(function(c){return c.type==="income"}).forEach(function(c){h+='<div class="c"><span style="font-size:20px">'+c.emoji+'</span><div class="bd"><div class="tt">'+es(c.name)+'</div></div><button class="bi" onclick="edCat('+c.id+')">'+I.ed+'</button><button class="bi" onclick="dlCat('+c.id+')">'+I.tr+'</button></div>'});
-h+='<button class="btn btn-s" style="margin-bottom:20px" onclick="addCat(\'income\')">+ Add Income Category</button>';
+var nExp=D.categories.filter(function(c){return c.type==="expense"}).length;
+var nInc=D.categories.filter(function(c){return c.type==="income"}).length;
+h+='<div class="sc">Categories</div><div class="c" onclick="openCatMgr()" style="cursor:pointer"><span style="font-size:20px">📂</span><div class="bd"><div class="tt">Manage Categories</div><div style="font-size:12px;color:var(--ht)">'+nExp+' expense · '+nInc+' income</div></div><span style="color:var(--ht);font-size:18px">›</span></div>';
 h+='<div class="sc">Integrations</div><div class="c" onclick="syncTrello()" style="cursor:pointer"><span style="font-size:20px">🔵</span><div class="bd"><div class="tt">Trello Sync</div><div style="font-size:12px;color:var(--ht)">Board: Работа</div></div><span id="trello-btn" style="padding:6px 14px;border-radius:10px;font-size:12px;font-weight:600;background:var(--pg);color:var(--pr);white-space:nowrap">Sync Now</span></div>';
 h+='<div class="sc">Debug</div><div class="c" style="cursor:pointer" onclick="dbgOn=!dbgOn;document.getElementById(\'dbg\').classList.toggle(\'hidden\',!dbgOn);ren()"><span style="font-size:20px">🐛</span><div class="bd"><div class="tt">Debug Mode '+(dbgOn?"ON":"OFF")+'</div></div></div>';
 h+='<div style="margin-top:8px;text-align:center;font-size:11px;color:var(--ht)">Family HQ v6.1</div>';return h}
 async function setTh(id){aT(id);hp();await A("PATCH","/api/settings",{theme:id});ren()}
 async function setDg(v){await A("PATCH","/api/settings",{digest_time:v});hp()}
+var _catTab="expense";
+function openCatMgr(){_catTab="expense";oMC("Categories",catMgrHtml())}
+function catMgrHtml(){
+var h='<div class="tabs" style="margin-bottom:16px"><button class="tab '+(_catTab==="expense"?"a":"")+'" onclick="_catTab=\'expense\';document.getElementById(\'mb\').innerHTML=catMgrHtml()">💸 Expense</button><button class="tab '+(_catTab==="income"?"a":"")+'" onclick="_catTab=\'income\';document.getElementById(\'mb\').innerHTML=catMgrHtml()">💰 Income</button></div>';
+D.categories.filter(function(c){return c.type===_catTab}).forEach(function(c){
+h+='<div class="c"><span style="font-size:20px">'+c.emoji+'</span><div class="bd"><div class="tt">'+es(c.name)+'</div></div><button class="bi" onclick="cMo();edCat('+c.id+')">'+I.ed+'</button><button class="bi" onclick="dlCat('+c.id+');openCatMgr()">'+I.tr+'</button></div>'});
+h+='<button class="btn btn-s" onclick="cMo();addCat(\''+_catTab+'\')">+ Add Category</button>';
+return h}
 async function syncTrello(){var btn=document.getElementById("trello-btn");if(btn)btn.textContent="Syncing...";try{await A("POST","/api/trello/sync");await load();toast("✓ Trello synced")}catch(e){toast("Trello sync failed")}if(btn)btn.textContent="Sync Now"}
 async function leaveFam(){await A("POST","/api/family/leave");location.reload()}
 function edMe(uid,name,emoji,color){oMC("Edit Profile",'<input class="inp" id="me-n" value="'+name+'" placeholder="Name"><div class="dr"><div><div class="dl">Emoji</div><input class="inp" id="me-e" value="'+emoji+'" style="text-align:center;font-size:24px"></div><div><div class="dl">Color</div><input type="color" id="me-c" value="'+color+'" style="width:100%;height:48px;border-radius:12px;border:none;cursor:pointer"></div></div><button class="btn" onclick="svMe('+uid+')">Save</button>')}
