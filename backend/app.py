@@ -997,7 +997,7 @@ async def bundle(user=Depends(get_uf), db=Depends(get_db)):
         "tasks": tasks, "recurring": recurring, "shopping": shopping, "folders": folders,
         "events": events, "birthdays": bdays, "subs": subs, "dashboard": dashboard,
         "members": members, "settings": settings, "family": family, "zones": zones,
-        "subtasks_task": _subs("task"), "subtasks_event": _subs("event"),
+        "subtasks_task": _subs("task"), "subtasks_event": _subs("event"), "subtasks_transaction": _subs("transaction"),
         "weather": weather, "categories": categories, "transactions": transactions,
     }
 

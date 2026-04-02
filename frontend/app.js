@@ -23,7 +23,7 @@ document.body.classList.toggle("ls",!!t.l);cTheme=id;}
 let tab="home",cTheme="midnight",filt=null,fS=null,ex={},dbgOn=false,dbgLog=[];
 let taskTab="active",calTab="events",moneyTab="transactions",shopFold=null,searchQ="",searchOpen=false,menuOpen=false;
 let D={tasks:[],recurring:[],shopping:[],folders:[],events:[],birthdays:[],subs:[],dashboard:{},members:[],zones:[],settings:{},weather:null,categories:[],transactions:[]};
-let allSubs={task:{},event:{}};
+let allSubs={task:{},event:{},transaction:{}};
 let _assign=0,_pri="normal",_rems=[],_zRems=[],_bdRems=[],_subRems=[],zOpen={};
 
 // ─── API ────────────────────────────────────────────────────
@@ -154,7 +154,7 @@ D.tasks=b.tasks||[];D.recurring=b.recurring||[];D.shopping=b.shopping||[];D.fold
 D.events=b.events||[];D.birthdays=b.birthdays||[];D.subs=b.subs||[];
 D.dashboard=b.dashboard||{};D.members=b.members||[];D.settings=b.settings||{};
 if(b.family&&b.family.joined)fS=b.family;D.zones=b.zones||[];
-allSubs.task=b.subtasks_task||{};allSubs.event=b.subtasks_event||{};
+allSubs.task=b.subtasks_task||{};allSubs.event=b.subtasks_event||{};allSubs.transaction=b.subtasks_transaction||{};
 D.weather=b.weather||null;D.categories=b.categories||[];D.transactions=b.transactions||[];
 if(D.settings.theme)aT(D.settings.theme);ren()}
 
@@ -282,7 +282,9 @@ var cat=cats[tx.category_id];var catLabel=cat?(cat.emoji+" "+cat.name):"";
 var isInc=tx.type==="income";
 var amtColor=isInc?"var(--ok)":"var(--ac)";
 var sign=isInc?"+":"−";
-h+='<div class="c"><div class="bd"><div class="tt" style="font-weight:600"><span style="color:'+amtColor+'">'+sign+tx.amount+' '+tx.currency+'</span>'+(tx.description?' <span style="font-weight:400;color:var(--ht)">'+es(tx.description)+'</span>':"")+'</div><div class="mt">'+catLabel+' · '+fD(tx.date).full+" "+mChip(tx.member_id,true)+'</div></div><button class="bi" onclick="edTx('+tx.id+')">'+I.ed+'</button><button class="bi" onclick="dlTx('+tx.id+')">'+I.tr+'</button></div>'});
+var riCnt=allSubs.transaction[tx.id]?allSubs.transaction[tx.id].length:0;
+var riBadge=riCnt?'<span style="font-size:11px;color:var(--ht);font-weight:600;margin-left:2px">'+riCnt+'</span>':"";
+h+='<div class="c"><div class="bd"><div class="tt" style="font-weight:600"><span style="color:'+amtColor+'">'+sign+tx.amount+' '+tx.currency+'</span>'+(tx.description?' <span style="font-weight:400;color:var(--ht)">'+es(tx.description)+'</span>':"")+'</div><div class="mt">'+catLabel+' · '+fD(tx.date).full+" "+mChip(tx.member_id,true)+'</div></div><button class="bi" onclick="tX(\'transaction\','+tx.id+')" title="Receipt items">🧾'+riBadge+'</button><button class="bi" onclick="edTx('+tx.id+')">'+I.ed+'</button><button class="bi" onclick="dlTx('+tx.id+')">'+I.tr+'</button>'+rSu("transaction",tx.id)+'</div>'});
 return h}
 
 async function dlTx(id){hp();await A("DELETE","/api/transactions/"+id);await load();toast("🗑 Deleted")}
