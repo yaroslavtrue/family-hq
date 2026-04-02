@@ -269,11 +269,11 @@ function rTransactions(){
 var txs=D.transactions;if(searchQ)txs=txs.filter(function(x){return matchQ(x.description)});
 if(filt)txs=txs.filter(function(x){return x.member_id===filt});
 var cats={};D.categories.forEach(function(c){cats[c.id]=c});
-// Balance card
-var cm=new Date().toISOString().slice(0,7);var mInc=0,mExp=0;
-D.transactions.forEach(function(tx){if(tx.date&&tx.date.startsWith(cm)){if(tx.type==="income")mInc+=(tx.amount_eur||0);else mExp+=(tx.amount_eur||0)}});
-var bal=mInc-mExp;var balC=bal>=0?"var(--ok)":"var(--ac)";
-var h='<div class="c" style="border-left:3px solid '+balC+'"><div class="bd"><div style="display:flex;justify-content:space-between;align-items:baseline"><div style="font-size:12px;color:var(--ht)">Balance '+cm+'</div><div style="font-size:20px;font-weight:800;color:'+balC+'">'+(bal>=0?"+":"")+'€'+bal.toFixed(0)+'</div></div><div class="mt" style="gap:16px;margin-top:4px"><span style="color:var(--ok)">+€'+mInc.toFixed(0)+'</span><span style="color:var(--ac)">−€'+mExp.toFixed(0)+'</span></div></div></div>';
+// Balance card — all transactions
+var tInc=0,tExp=0;
+D.transactions.forEach(function(tx){if(tx.type==="income")tInc+=(tx.amount_eur||0);else tExp+=(tx.amount_eur||0)});
+var bal=tInc-tExp;var balC=bal>=0?"var(--ok)":"var(--ac)";
+var h='<div class="c" style="border-left:3px solid '+balC+'"><div class="bd"><div style="display:flex;justify-content:space-between;align-items:baseline"><div style="font-size:12px;color:var(--ht)">Balance</div><div style="font-size:20px;font-weight:800;color:'+balC+'">'+(bal>=0?"+":"")+'€'+bal.toFixed(2)+'</div></div><div class="mt" style="gap:16px;margin-top:4px"><span style="color:var(--ok)">+€'+tInc.toFixed(2)+'</span><span style="color:var(--ac)">−€'+tExp.toFixed(2)+'</span></div></div></div>';
 if(!txs.length)return h+em("💸","No transactions","Tap + to add");
 h+='<div class="fb2"><button class="fi '+(!filt?"a":"")+'" onclick="filt=null;ren()">All</button>';
 D.members.forEach(function(m){h+='<button class="fi '+(filt===m.user_id?"a":"")+'" onclick="filt='+m.user_id+';ren()">'+m.emoji+'</button>'});h+='</div>';
