@@ -136,6 +136,7 @@ async def lifespan(app: FastAPI):
     sched.BOT_TOKEN = BOT_TOKEN; sched.DB_PATH = DB_PATH; sched.TIMEZONE = TIMEZONE
     sched.TRELLO_API_KEY = TRELLO_API_KEY; sched.TRELLO_TOKEN = TRELLO_TOKEN
     sched.TRELLO_BOARD_ID = TRELLO_BOARD_ID; sched.TRELLO_FAMILY_ID = TRELLO_FAMILY_ID
+    sched.WEATHER_LAT = str(WEATHER_LAT); sched.WEATHER_LON = str(WEATHER_LON)
     aps.add_job(sched.check_task_reminders, "interval", minutes=1)
     aps.add_job(sched.check_zone_reminders, "interval", minutes=1)
     aps.add_job(sched.check_birthday_reminders, "cron", minute=0)

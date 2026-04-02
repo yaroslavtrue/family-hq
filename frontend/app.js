@@ -269,8 +269,13 @@ function rTransactions(){
 var txs=D.transactions;if(searchQ)txs=txs.filter(function(x){return matchQ(x.description)});
 if(filt)txs=txs.filter(function(x){return x.member_id===filt});
 var cats={};D.categories.forEach(function(c){cats[c.id]=c});
-if(!txs.length)return em("💸","No transactions","Tap + to add");
-var h='<div class="fb2"><button class="fi '+(!filt?"a":"")+'" onclick="filt=null;ren()">All</button>';
+// Balance card
+var cm=new Date().toISOString().slice(0,7);var mInc=0,mExp=0;
+D.transactions.forEach(function(tx){if(tx.date&&tx.date.startsWith(cm)){if(tx.type==="income")mInc+=(tx.amount_eur||0);else mExp+=(tx.amount_eur||0)}});
+var bal=mInc-mExp;var balC=bal>=0?"var(--ok)":"var(--ac)";
+var h='<div class="c" style="border-left:3px solid '+balC+'"><div class="bd"><div style="display:flex;justify-content:space-between;align-items:baseline"><div style="font-size:12px;color:var(--ht)">Balance '+cm+'</div><div style="font-size:20px;font-weight:800;color:'+balC+'">'+(bal>=0?"+":"")+'€'+bal.toFixed(0)+'</div></div><div class="mt" style="gap:16px;margin-top:4px"><span style="color:var(--ok)">+€'+mInc.toFixed(0)+'</span><span style="color:var(--ac)">−€'+mExp.toFixed(0)+'</span></div></div></div>';
+if(!txs.length)return h+em("💸","No transactions","Tap + to add");
+h+='<div class="fb2"><button class="fi '+(!filt?"a":"")+'" onclick="filt=null;ren()">All</button>';
 D.members.forEach(function(m){h+='<button class="fi '+(filt===m.user_id?"a":"")+'" onclick="filt='+m.user_id+';ren()">'+m.emoji+'</button>'});h+='</div>';
 txs.forEach(function(tx){
 var cat=cats[tx.category_id];var catLabel=cat?(cat.emoji+" "+cat.name):"";
@@ -399,12 +404,12 @@ h+='<button class="btn btn-s" style="margin-bottom:20px" onclick="addCat(\'expen
 h+='<div class="sc">Income Categories</div>';
 D.categories.filter(function(c){return c.type==="income"}).forEach(function(c){h+='<div class="c"><span style="font-size:20px">'+c.emoji+'</span><div class="bd"><div class="tt">'+es(c.name)+'</div></div><button class="bi" onclick="edCat('+c.id+')">'+I.ed+'</button><button class="bi" onclick="dlCat('+c.id+')">'+I.tr+'</button></div>'});
 h+='<button class="btn btn-s" style="margin-bottom:20px" onclick="addCat(\'income\')">+ Add Income Category</button>';
-h+='<div class="sc">Integrations</div><div class="c" style="flex-wrap:wrap"><span style="font-size:20px">🔵</span><div class="bd"><div class="tt">Trello Sync</div><div style="font-size:12px;color:var(--ht)">Board: Работа</div></div></div><button class="btn" id="trello-btn" onclick="syncTrello()" style="margin-top:-8px;margin-bottom:16px">Sync Now</button>';
+h+='<div class="sc">Integrations</div><div class="c" onclick="syncTrello()" style="cursor:pointer"><span style="font-size:20px">🔵</span><div class="bd"><div class="tt">Trello Sync</div><div style="font-size:12px;color:var(--ht)">Board: Работа</div></div><span id="trello-btn" style="padding:6px 14px;border-radius:10px;font-size:12px;font-weight:600;background:var(--pg);color:var(--pr);white-space:nowrap">Sync Now</span></div>';
 h+='<div class="sc">Debug</div><div class="c" style="cursor:pointer" onclick="dbgOn=!dbgOn;document.getElementById(\'dbg\').classList.toggle(\'hidden\',!dbgOn);ren()"><span style="font-size:20px">🐛</span><div class="bd"><div class="tt">Debug Mode '+(dbgOn?"ON":"OFF")+'</div></div></div>';
 h+='<div style="margin-top:8px;text-align:center;font-size:11px;color:var(--ht)">Family HQ v6.1</div>';return h}
 async function setTh(id){aT(id);hp();await A("PATCH","/api/settings",{theme:id});ren()}
 async function setDg(v){await A("PATCH","/api/settings",{digest_time:v});hp()}
-async function syncTrello(){var btn=document.getElementById("trello-btn");if(btn){btn.disabled=true;btn.textContent="Syncing..."}try{await A("POST","/api/trello/sync");await load();toast("✓ Trello synced")}catch(e){toast("Trello sync failed")}if(btn){btn.disabled=false;btn.textContent="Sync Now"}}
+async function syncTrello(){var btn=document.getElementById("trello-btn");if(btn)btn.textContent="Syncing...";try{await A("POST","/api/trello/sync");await load();toast("✓ Trello synced")}catch(e){toast("Trello sync failed")}if(btn)btn.textContent="Sync Now"}
 async function leaveFam(){await A("POST","/api/family/leave");location.reload()}
 function edMe(uid,name,emoji,color){oMC("Edit Profile",'<input class="inp" id="me-n" value="'+name+'" placeholder="Name"><div class="dr"><div><div class="dl">Emoji</div><input class="inp" id="me-e" value="'+emoji+'" style="text-align:center;font-size:24px"></div><div><div class="dl">Color</div><input type="color" id="me-c" value="'+color+'" style="width:100%;height:48px;border-radius:12px;border:none;cursor:pointer"></div></div><button class="btn" onclick="svMe('+uid+')">Save</button>')}
 async function svMe(uid){var n=document.getElementById("me-n").value.trim();var e=document.getElementById("me-e").value.trim();var c=document.getElementById("me-c").value;if(!n)return;await A("PATCH","/api/members/"+uid,{user_name:n,emoji:e,color:c});cMo();hp();await load()}

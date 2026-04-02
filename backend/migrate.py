@@ -249,6 +249,10 @@ def migrate(db_path):
         lambda c: [
             safe_add_col(c, "tasks", "trello_card_id", "TEXT"),
         ],
+        # v6: digest dedup
+        lambda c: [
+            safe_add_col(c, "settings", "last_digest", "TEXT"),
+        ],
     ]
 
     for i, mig in enumerate(migrations):

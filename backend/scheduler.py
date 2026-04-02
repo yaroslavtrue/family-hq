@@ -20,6 +20,26 @@ TRELLO_FAMILY_ID = 1
 
 TRELLO_LISTS = ["Монтаж видео", "Сайты", "Бренд", "Видеосъемка"]
 
+WEATHER_LAT = "44.8"
+WEATHER_LON = "20.46"
+
+WMO = {0:"☀️",1:"🌤",2:"⛅",3:"☁️",45:"🌫",48:"🌫",51:"🌦",53:"🌦",55:"🌧",
+       61:"🌧",63:"🌧",65:"🌧",66:"🌧",67:"🌧",71:"🌨",73:"🌨",75:"❄️",77:"❄️",
+       80:"🌦",81:"🌧",82:"⛈",85:"🌨",86:"❄️",95:"⛈",96:"⛈",99:"⛈"}
+
+async def _get_weather():
+    try:
+        url = (f"https://api.open-meteo.com/v1/forecast?"
+               f"latitude={WEATHER_LAT}&longitude={WEATHER_LON}"
+               f"&daily=temperature_2m_max,temperature_2m_min,weathercode"
+               f"&current=temperature_2m,weathercode"
+               f"&timezone={TIMEZONE}&forecast_days=3")
+        async with httpx.AsyncClient(timeout=5) as c:
+            r = await c.get(url)
+            return r.json()
+    except:
+        return None
+
 def _con():
     c = sqlite3.connect(DB_PATH, check_same_thread=False)
     c.row_factory = sqlite3.Row
@@ -272,30 +292,64 @@ async def morning_digest():
     tz = ZoneInfo(TIMEZONE)
     now = datetime.now(tz)
     today_str = now.strftime("%Y-%m-%d")
+    tomorrow_str = (now + timedelta(days=1)).strftime("%Y-%m-%d")
     ct = now.strftime("%H:%M")
-    
+
     for fam in con.execute("SELECT DISTINCT family_id FROM family_members").fetchall():
         fid = fam["family_id"]
-        s = con.execute("SELECT digest_time FROM settings WHERE family_id=?", (fid,)).fetchone()
+        s = con.execute("SELECT digest_time, last_digest FROM settings WHERE family_id=?", (fid,)).fetchone()
         dt = s["digest_time"] if s and s["digest_time"] else "09:00"
         if ct != dt: continue
-        
+        # Dedup: skip if already sent today
+        if s and s["last_digest"] == today_str: continue
+        con.execute("UPDATE settings SET last_digest=? WHERE family_id=?", (today_str, fid))
+        con.commit()
+
+        # Fetch weather once for the family
+        weather = await _get_weather()
+        w_lines = []
+        if weather:
+            cur = weather.get("current", {})
+            daily = weather.get("daily", {})
+            wc = cur.get("weathercode", 0)
+            w_lines.append(f"{WMO.get(wc, '🌤')} *{round(cur.get('temperature_2m', 0))}°C* сейчас")
+            days_names = ["Сегодня", "Завтра", "Послезавтра"]
+            for i in range(min(3, len(daily.get("time", [])))):
+                dwc = daily["weathercode"][i]
+                hi = round(daily["temperature_2m_max"][i])
+                lo = round(daily["temperature_2m_min"][i])
+                w_lines.append(f"  {days_names[i] if i < 3 else daily['time'][i]}: {WMO.get(dwc, '🌤')} {lo}°..{hi}°")
+
         members = con.execute("SELECT user_id, user_name, tg_chat_id FROM family_members WHERE family_id=?", (fid,)).fetchall()
         for member in members:
             if not member["tg_chat_id"]: continue
             uid = member["user_id"]
-            lines = [f"☀️ *Good morning, {member['user_name']}!*\n"]
-            has = False
-            
-            # Tasks
-            tasks = con.execute("SELECT text, due_date FROM tasks WHERE family_id=? AND done=0 AND (assigned_to=? OR assigned_to IS NULL) AND due_date LIKE ?",
-                (fid, uid, today_str + "%")).fetchall()
-            if tasks:
-                has = True; lines.append("📋 *Your tasks today:*")
-                for t in tasks: lines.append(f"  • {t['text']}")
+            lines = [f"☀️ *Доброе утро, {member['user_name']}!*"]
+
+            # Weather
+            if w_lines:
                 lines.append("")
-            
-            # Overdue cleaning
+                lines.extend(w_lines)
+
+            # Tasks today
+            tasks_today = con.execute(
+                "SELECT text FROM tasks WHERE family_id=? AND done=0 AND (assigned_to=? OR assigned_to IS NULL) AND due_date LIKE ?",
+                (fid, uid, today_str + "%")).fetchall()
+            if tasks_today:
+                lines.append("")
+                lines.append("📋 *Задачи на сегодня:*")
+                for t in tasks_today: lines.append(f"  • {t['text']}")
+
+            # Tasks tomorrow
+            tasks_tmrw = con.execute(
+                "SELECT text FROM tasks WHERE family_id=? AND done=0 AND (assigned_to=? OR assigned_to IS NULL) AND due_date LIKE ?",
+                (fid, uid, tomorrow_str + "%")).fetchall()
+            if tasks_tmrw:
+                lines.append("")
+                lines.append("📋 *Задачи на завтра:*")
+                for t in tasks_tmrw: lines.append(f"  • {t['text']}")
+
+            # Cleaning needed
             ct_tasks = con.execute("""
                 SELECT ct.text, cz.name, ct.last_done, ct.reset_days
                 FROM cleaning_tasks ct JOIN cleaning_zones cz ON cz.id=ct.zone_id
@@ -308,7 +362,6 @@ async def morning_digest():
                     d = (now.date() - datetime.strptime(ct2["last_done"], "%Y-%m-%d").date()).days
                     if d >= (ct2["reset_days"] or 7): overdue.append(f"{ct2['name']}: {ct2['text']}")
                 except: pass
-            # Also tasks never done
             never = con.execute("""
                 SELECT ct.text, cz.name FROM cleaning_tasks ct JOIN cleaning_zones cz ON cz.id=ct.zone_id
                 WHERE ct.family_id=? AND ct.done=0
@@ -316,35 +369,57 @@ async def morning_digest():
             """, (fid, uid, uid)).fetchall()
             for n in never: overdue.append(f"{n['name']}: {n['text']}")
             if overdue:
-                has = True; lines.append("🧹 *Cleaning needed:*")
-                for o in overdue[:5]: lines.append(f"  • {o}")
                 lines.append("")
-            
+                lines.append("🧹 *Уборка:*")
+                for o in overdue[:5]: lines.append(f"  • {o}")
+
             # Events next 3 days
             future = (now + timedelta(days=3)).strftime("%Y-%m-%d 23:59")
             evts = con.execute("SELECT text, event_date FROM events WHERE family_id=? AND event_date>=? AND event_date<=? ORDER BY event_date",
                 (fid, today_str, future)).fetchall()
             if evts:
-                has = True; lines.append("📅 *Coming up:*")
-                for e in evts: lines.append(f"  • {e['text']} — {e['event_date']}")
                 lines.append("")
-            
+                lines.append("📅 *Ближайшие события:*")
+                for e in evts:
+                    ed = e["event_date"].split(" ")[0]
+                    lbl = "сегодня" if ed == today_str else ("завтра" if ed == tomorrow_str else ed)
+                    lines.append(f"  • {e['text']} — {lbl}")
+
+            # Subscriptions next 5 days
+            subs = con.execute("SELECT name, emoji, amount, currency, billing_day, assigned_to FROM subscriptions WHERE family_id=?", (fid,)).fetchall()
+            upcoming_subs = []
+            for s2 in subs:
+                if s2["assigned_to"] and s2["assigned_to"] != uid: continue
+                try:
+                    bill_date = now.date().replace(day=min(s2["billing_day"], 28))
+                    diff = (bill_date - now.date()).days
+                    if diff < 0: diff += 30  # next month
+                    if 0 <= diff <= 5:
+                        lbl = "сегодня" if diff == 0 else (f"через {diff}д")
+                        upcoming_subs.append(f"{s2['emoji']} {s2['name']} — {s2['amount']} {s2['currency']} ({lbl})")
+                except: pass
+            if upcoming_subs:
+                lines.append("")
+                lines.append("💳 *Подписки:*")
+                for s2 in upcoming_subs: lines.append(f"  • {s2}")
+
             # Birthdays next 7 days
             bdays = con.execute("SELECT name, emoji, birth_date FROM birthdays WHERE family_id=?", (fid,)).fetchall()
-            upcoming = []
+            upcoming_bd = []
             for b in bdays:
                 try:
                     p = b["birth_date"].split("-")
                     bd = datetime(now.date().year, int(p[1]), int(p[2])).date()
                     diff = (bd - now.date()).days
-                    if 0 <= diff <= 7: upcoming.append((diff, b))
+                    if 0 <= diff <= 7:
+                        w = "сегодня! 🎉" if diff == 0 else f"через {diff}д"
+                        upcoming_bd.append((diff, f"{b['emoji']} {b['name']} — {w}"))
                 except: pass
-            upcoming.sort()
-            if upcoming:
-                has = True; lines.append("🎂 *Birthdays:*")
-                for diff, b in upcoming:
-                    w = "Today!" if diff == 0 else f"in {diff}d"
-                    lines.append(f"  • {b['emoji']} {b['name']} — {w}")
-            
-            if has: await _send(member["tg_chat_id"], "\n".join(lines))
+            upcoming_bd.sort()
+            if upcoming_bd:
+                lines.append("")
+                lines.append("🎂 *Дни рождения:*")
+                for _, l in upcoming_bd: lines.append(f"  • {l}")
+
+            await _send(member["tg_chat_id"], "\n".join(lines))
     con.close()
