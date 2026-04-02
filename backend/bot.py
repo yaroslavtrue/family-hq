@@ -149,7 +149,7 @@ Income categories: {income_cats}
 {existing_data}
 
 RULES:
-- Detect language (Russian or English) and respond in same language
+- IMPORTANT: ALL data you create or edit (descriptions, task names, shopping items, event titles) MUST be in English, even if the user writes in Russian. Translate to English. But your "reply" in unknown action can match the user's language.
 - Always return valid JSON, nothing else
 - For amounts, extract the number and currency. Default currency: RSD for dinars, USD for dollars, EUR for euros, RUB for rubles/рублей
 - Match category by meaning (food/еда → Food, transport/такси → Transport, etc). Use category ID from the list.
