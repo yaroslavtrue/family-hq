@@ -617,12 +617,13 @@ def list_subs_all(pt: str, user=Depends(get_uf), db=Depends(get_db)):
 @app.post("/api/subtasks/{pt}/{pid}")
 async def create_subtask(pt: str, pid: int, body: SubCreate, user=Depends(get_uf), db=Depends(get_db)):
     db.execute("INSERT INTO subtasks (parent_type,parent_id,family_id,text) VALUES (?,?,?,?)", (pt, pid, user["family_id"], body.text)); db.commit()
-    tbl = {"task": "tasks", "event": "events"}.get(pt)
-    pn = ""
-    if tbl:
-        row = db.execute(f"SELECT text FROM {tbl} WHERE id=?", (pid,)).fetchone()
-        if row: pn = row["text"]
-    await notify_all(user["family_id"], f"📝 *{user['first_name']}* added step _{body.text}_ to *{pn}*", db)
+    if pt != "transaction":
+        tbl = {"task": "tasks", "event": "events"}.get(pt)
+        pn = ""
+        if tbl:
+            row = db.execute(f"SELECT text FROM {tbl} WHERE id=?", (pid,)).fetchone()
+            if row: pn = row["text"]
+        await notify_all(user["family_id"], f"📝 *{user['first_name']}* added step _{body.text}_ to *{pn}*", db)
     return {"ok": True}
 
 @app.patch("/api/subtasks/{sid}/toggle")
@@ -631,7 +632,8 @@ async def toggle_subtask(sid: int, user=Depends(get_uf), db=Depends(get_db)):
     if not s: raise HTTPException(404)
     nd = 0 if s["done"] else 1
     db.execute("UPDATE subtasks SET done=? WHERE id=?", (nd, sid)); db.commit()
-    if nd: await notify_all(user["family_id"], f"✅ *{user['first_name']}* completed step _{s['text']}_", db)
+    if nd and s["parent_type"] != "transaction":
+        await notify_all(user["family_id"], f"✅ *{user['first_name']}* completed step _{s['text']}_", db)
     return {"ok": True}
 
 @app.delete("/api/subtasks/{sid}")

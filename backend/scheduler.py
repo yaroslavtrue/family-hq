@@ -9,6 +9,40 @@ import httpx, logging
 
 log = logging.getLogger("uvicorn.error")
 
+DAILY_TIPS = [
+    "💡 Review your budget once a week to stay on track.",
+    "💡 Plan tomorrow's meals today — saves time and money.",
+    "💡 Take 10 minutes to declutter one small area.",
+    "💡 Batch similar errands together to save time.",
+    "💡 Check your fridge before shopping to avoid buying duplicates.",
+    "💡 Set aside 15 minutes for a quick family check-in.",
+    "💡 Prep lunches the night before for a smoother morning.",
+    "💡 Unsubscribe from one thing you no longer use.",
+    "💡 Write down 3 things you're grateful for today.",
+    "💡 Drink a glass of water first thing in the morning.",
+    "💡 Try the 2-minute rule: if it takes less than 2 min, do it now.",
+    "💡 Review upcoming birthdays and plan gifts early.",
+    "💡 Sort your inbox — delete, reply, or archive.",
+    "💡 Take a 5-minute walk to clear your mind.",
+    "💡 Check if any subscriptions can be downgraded or cancelled.",
+    "💡 Set a timer for cleaning — 15 minutes can do a lot.",
+    "💡 Back up your important files and photos today.",
+    "💡 Cook double portions and freeze half for busy days.",
+    "💡 Review your goals for the month — adjust if needed.",
+    "💡 End the day by writing tomorrow's top 3 priorities.",
+    "💡 Compare prices before big purchases — a few minutes can save a lot.",
+    "💡 Call or message someone you haven't talked to in a while.",
+    "💡 Check expiration dates in your pantry and fridge.",
+    "💡 Put your phone on Do Not Disturb for 1 hour of focus time.",
+    "💡 Start a 30-day savings challenge — even small amounts add up.",
+    "💡 Tidy up your workspace before starting work.",
+    "💡 Plan one fun family activity for the weekend.",
+    "💡 Review your cleaning schedule — is anything overdue?",
+    "💡 Automate one recurring task or bill payment.",
+    "💡 Stretch for 5 minutes — your body will thank you.",
+    "💡 Track your spending today — awareness is the first step.",
+]
+
 # These get set by app.py on startup
 BOT_TOKEN = ""
 DB_PATH = ""
@@ -421,6 +455,11 @@ async def morning_digest():
                 lines.append("")
                 lines.append("🎂 *Birthdays:*")
                 for _, l in upcoming_bd: lines.append(f"  • {l}")
+
+            # Tip of the day (same for everyone, rotates by day-of-year)
+            tip = DAILY_TIPS[now.timetuple().tm_yday % len(DAILY_TIPS)]
+            lines.append("")
+            lines.append(tip)
 
             await _send(member["tg_chat_id"], "\n".join(lines))
     con.close()

@@ -200,7 +200,8 @@ D.subs.forEach(function(s){if(s.days_until>=0&&s.days_until<=7)upcoming.push({ty
 upcoming.sort(function(a,b){return a.days-b.days});
 if(upcoming.length){h+='<div class="sc" style="margin-top:16px">Upcoming 7 Days</div>';upcoming.forEach(function(u){
 var _ud=new Date(Date.now()+u.days*86400000);var dayLabel=u.days===0?"Today":u.days===1?"Tomorrow":dN[_ud.getDay()]+" "+_ud.getDate()+" "+mN[_ud.getMonth()].slice(0,3);
-h+='<div class="c"><span style="font-size:24px">'+u.icon+'</span><div class="bd"><div class="tt">'+u.title+'</div><div class="mt"><span class="bg" style="background:color-mix(in srgb,'+u.color+',transparent 85%);color:'+u.color+'">'+dayLabel+'</span> <span style="font-size:11px;color:var(--ht)">'+u.sub+'</span></div></div></div>'})}
+var dayBadge=u.days===0?'':'<span style="font-size:11px;color:var(--ht);margin-left:auto;white-space:nowrap">in '+u.days+'d</span>';
+h+='<div class="c"><span style="font-size:24px">'+u.icon+'</span><div class="bd"><div class="tt">'+u.title+'</div><div class="mt"><span class="bg" style="background:color-mix(in srgb,'+u.color+',transparent 85%);color:'+u.color+'">'+dayLabel+'</span> <span style="font-size:11px;color:var(--ht)">'+u.sub+'</span></div></div>'+dayBadge+'</div>'})}
 return h}
 
 // ═══════════════════════════════════════════════════════════
@@ -308,20 +309,20 @@ if(tx.description)h+='<div style="color:var(--ht);font-size:13px;margin-bottom:1
 if(!items.length)h+='<div style="text-align:center;padding:24px 0;color:var(--ht)">No items yet. Add what was in this receipt.</div>';
 else{h+='<div style="display:flex;flex-direction:column;gap:6px">';
 items.forEach(function(it){
-h+='<div style="display:flex;align-items:center;gap:8px;padding:8px 12px;background:var(--cd);border-radius:10px">';
-h+='<div class="cb cb-s '+(it.done?"cb-k":"cb-o")+'" onclick="tRi('+it.id+','+txId+')">'+(it.done?I.ck:"")+'</div>';
-h+='<span style="flex:1;'+(it.done?"text-decoration:line-through;opacity:0.5":"")+'">'+es(it.text)+'</span>';
+h+='<div style="display:flex;align-items:center;gap:10px;padding:8px 12px;background:var(--cd);border-radius:10px">';
+h+='<span style="flex:1">'+es(it.text)+'</span>';
 h+='<button class="bi" onclick="dRi('+it.id+','+txId+')">'+I.x+'</button>';
 h+='</div>'});
 h+='</div>'}
-h+='<div style="display:flex;gap:8px;margin-top:12px"><input class="inp" id="ri-input" placeholder="e.g. Milk 150 din" style="flex:1" onkeydown="if(event.key===\'Enter\')addRi('+txId+')"><button class="btn btn-s" onclick="addRi('+txId+')">Add</button></div>';
+h+='<div style="display:flex;gap:6px;margin-top:12px;align-items:center"><input class="inp" id="ri-name" placeholder="Name" style="flex:2" onkeydown="if(event.key===\'Enter\')addRi('+txId+')"><input class="inp" id="ri-price" type="number" placeholder="Price" style="flex:1"><input class="inp" id="ri-qty" placeholder="Qty" style="flex:1"><button class="btn btn-s" style="padding:8px 12px;white-space:nowrap" onclick="addRi('+txId+')">+</button></div>';
 return h}
 
-async function addRi(txId){var i=document.getElementById("ri-input");if(!i||!i.value.trim())return;
-await A("POST","/api/subtasks/transaction/"+txId,{text:i.value.trim()});
+async function addRi(txId){var n=document.getElementById("ri-name");if(!n||!n.value.trim())return;
+var p=document.getElementById("ri-price").value.trim();var q=document.getElementById("ri-qty").value.trim();
+var txt=n.value.trim()+(p?" — "+p:"")+(q?" x"+q:"");
+await A("POST","/api/subtasks/transaction/"+txId,{text:txt});
 await load();openReceipt(txId)}
 async function dRi(sid,txId){await A("DELETE","/api/subtasks/"+sid);await load();openReceipt(txId)}
-async function tRi(sid,txId){await A("PATCH","/api/subtasks/"+sid+"/toggle");await load();openReceipt(txId)}
 
 // Subs (moved from Calendar)
 function rSubAddBtn(){return '<button class="btn btn-s" style="margin-bottom:16px" onclick="oMoSub()">+ Add Subscription</button>'}
