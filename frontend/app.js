@@ -283,8 +283,8 @@ var isInc=tx.type==="income";
 var amtColor=isInc?"var(--ok)":"var(--ac)";
 var sign=isInc?"+":"−";
 var riCnt=allSubs.transaction[tx.id]?allSubs.transaction[tx.id].length:0;
-var riBadge=riCnt?'<span style="font-size:11px;color:var(--ht);font-weight:600;margin-left:2px">'+riCnt+'</span>':"";
-h+='<div class="c"><div class="bd"><div class="tt" style="font-weight:600"><span style="color:'+amtColor+'">'+sign+tx.amount+' '+tx.currency+'</span>'+(tx.description?' <span style="font-weight:400;color:var(--ht)">'+es(tx.description)+'</span>':"")+'</div><div class="mt">'+catLabel+' · '+fD(tx.date).full+" "+mChip(tx.member_id,true)+'</div></div><button class="bi" onclick="tX(\'transaction\','+tx.id+')" title="Receipt items">🧾'+riBadge+'</button><button class="bi" onclick="edTx('+tx.id+')">'+I.ed+'</button><button class="bi" onclick="dlTx('+tx.id+')">'+I.tr+'</button>'+rSu("transaction",tx.id)+'</div>'});
+var riBadge=riCnt?' <span style="font-size:11px;background:var(--pg);color:var(--pr);border-radius:10px;padding:1px 6px;font-weight:600">'+riCnt+'</span>':"";
+h+='<div class="c"><div class="bd"><div class="tt" style="font-weight:600"><span style="color:'+amtColor+'">'+sign+tx.amount+' '+tx.currency+'</span>'+(tx.description?' <span style="font-weight:400;color:var(--ht)">'+es(tx.description)+'</span>':"")+'</div><div class="mt">'+catLabel+' · '+fD(tx.date).full+" "+mChip(tx.member_id,true)+'</div></div><button class="bi" onclick="openReceipt('+tx.id+')" title="Receipt items">🧾'+riBadge+'</button><button class="bi" onclick="edTx('+tx.id+')">'+I.ed+'</button><button class="bi" onclick="dlTx('+tx.id+')">'+I.tr+'</button></div>'});
 return h}
 
 async function dlTx(id){hp();await A("DELETE","/api/transactions/"+id);await load();toast("🗑 Deleted")}
@@ -293,6 +293,35 @@ var catOpts=D.categories.filter(function(c){return c.type===tx.type}).map(functi
 window._txCat=tx.category_id||0;window._txType=tx.type;
 oMC("Edit Transaction",'<div class="dr"><div><div class="dl">Amount</div><input class="inp" id="tx-a" type="number" step="0.01" value="'+tx.amount+'"></div><div><div class="dl">Currency</div><select id="tx-c"><option value="RSD"'+(tx.currency==="RSD"?" selected":"")+'>din. RSD</option><option value="EUR"'+(tx.currency==="EUR"?" selected":"")+'>€ EUR</option><option value="USD"'+(tx.currency==="USD"?" selected":"")+'>$ USD</option><option value="GBP"'+(tx.currency==="GBP"?" selected":"")+'>£ GBP</option><option value="RUB"'+(tx.currency==="RUB"?" selected":"")+'>₽ RUB</option></select></div></div><div class="lb">Description</div><input class="inp" id="tx-d" value="'+es(tx.description||"")+'"><div class="lb">Category</div><div class="or">'+catOpts+'</div><div class="lb">Date</div><input type="date" id="tx-dt" value="'+tx.date+'"><div class="lb">Who</div>'+assignPk("txm",tx.member_id)+'<button class="btn" onclick="svTx('+id+')">Save</button>')}
 async function svTx(id){var a=parseFloat(document.getElementById("tx-a").value);var c=document.getElementById("tx-c").value;var d=document.getElementById("tx-d").value.trim();var dt=document.getElementById("tx-dt").value;if(!a)return;await A("PUT","/api/transactions/"+id,{amount:a,currency:c,description:d,date:dt,category_id:window._txCat||null,member_id:_assign||null});cMo();hp();await load()}
+
+// ─── Receipt items modal ─────────────────────────────────────
+function openReceipt(txId){
+var tx=D.transactions.find(function(x){return x.id===txId});if(!tx)return;
+window._riTxId=txId;
+var isInc=tx.type==="income";var sign=isInc?"+":"−";
+oMC("🧾 Receipt — "+sign+tx.amount+" "+tx.currency,receiptHtml(txId,tx))}
+
+function receiptHtml(txId,tx){
+var items=allSubs.transaction[txId]||[];
+var h='';
+if(tx.description)h+='<div style="color:var(--ht);font-size:13px;margin-bottom:12px">'+es(tx.description)+'</div>';
+if(!items.length)h+='<div style="text-align:center;padding:24px 0;color:var(--ht)">No items yet. Add what was in this receipt.</div>';
+else{h+='<div style="display:flex;flex-direction:column;gap:6px">';
+items.forEach(function(it){
+h+='<div style="display:flex;align-items:center;gap:8px;padding:8px 12px;background:var(--cd);border-radius:10px">';
+h+='<div class="cb cb-s '+(it.done?"cb-k":"cb-o")+'" onclick="tRi('+it.id+','+txId+')">'+(it.done?I.ck:"")+'</div>';
+h+='<span style="flex:1;'+(it.done?"text-decoration:line-through;opacity:0.5":"")+'">'+es(it.text)+'</span>';
+h+='<button class="bi" onclick="dRi('+it.id+','+txId+')">'+I.x+'</button>';
+h+='</div>'});
+h+='</div>'}
+h+='<div style="display:flex;gap:8px;margin-top:12px"><input class="inp" id="ri-input" placeholder="e.g. Milk 150 din" style="flex:1" onkeydown="if(event.key===\'Enter\')addRi('+txId+')"><button class="btn btn-s" onclick="addRi('+txId+')">Add</button></div>';
+return h}
+
+async function addRi(txId){var i=document.getElementById("ri-input");if(!i||!i.value.trim())return;
+await A("POST","/api/subtasks/transaction/"+txId,{text:i.value.trim()});
+await load();openReceipt(txId)}
+async function dRi(sid,txId){await A("DELETE","/api/subtasks/"+sid);await load();openReceipt(txId)}
+async function tRi(sid,txId){await A("PATCH","/api/subtasks/"+sid+"/toggle");await load();openReceipt(txId)}
 
 // Subs (moved from Calendar)
 function rSubAddBtn(){return '<button class="btn btn-s" style="margin-bottom:16px" onclick="oMoSub()">+ Add Subscription</button>'}
