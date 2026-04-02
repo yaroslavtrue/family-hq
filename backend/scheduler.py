@@ -312,8 +312,8 @@ async def morning_digest():
             cur = weather.get("current", {})
             daily = weather.get("daily", {})
             wc = cur.get("weathercode", 0)
-            w_lines.append(f"{WMO.get(wc, '🌤')} *{round(cur.get('temperature_2m', 0))}°C* сейчас")
-            days_names = ["Сегодня", "Завтра", "Послезавтра"]
+            w_lines.append(f"{WMO.get(wc, '🌤')} *{round(cur.get('temperature_2m', 0))}°C* now")
+            days_names = ["Today", "Tomorrow", "Day after"]
             for i in range(min(3, len(daily.get("time", [])))):
                 dwc = daily["weathercode"][i]
                 hi = round(daily["temperature_2m_max"][i])
@@ -324,7 +324,7 @@ async def morning_digest():
         for member in members:
             if not member["tg_chat_id"]: continue
             uid = member["user_id"]
-            lines = [f"☀️ *Доброе утро, {member['user_name']}!*"]
+            lines = [f"☀️ *Good morning, {member['user_name']}!*"]
 
             # Weather
             if w_lines:
@@ -337,7 +337,7 @@ async def morning_digest():
                 (fid, uid, today_str + "%")).fetchall()
             if tasks_today:
                 lines.append("")
-                lines.append("📋 *Задачи на сегодня:*")
+                lines.append("📋 *Tasks today:*")
                 for t in tasks_today: lines.append(f"  • {t['text']}")
 
             # Tasks tomorrow
@@ -346,7 +346,7 @@ async def morning_digest():
                 (fid, uid, tomorrow_str + "%")).fetchall()
             if tasks_tmrw:
                 lines.append("")
-                lines.append("📋 *Задачи на завтра:*")
+                lines.append("📋 *Tasks tomorrow:*")
                 for t in tasks_tmrw: lines.append(f"  • {t['text']}")
 
             # Cleaning needed
@@ -370,7 +370,7 @@ async def morning_digest():
             for n in never: overdue.append(f"{n['name']}: {n['text']}")
             if overdue:
                 lines.append("")
-                lines.append("🧹 *Уборка:*")
+                lines.append("🧹 *Cleaning needed:*")
                 for o in overdue[:5]: lines.append(f"  • {o}")
 
             # Events next 3 days
@@ -379,10 +379,10 @@ async def morning_digest():
                 (fid, today_str, future)).fetchall()
             if evts:
                 lines.append("")
-                lines.append("📅 *Ближайшие события:*")
+                lines.append("📅 *Upcoming events:*")
                 for e in evts:
                     ed = e["event_date"].split(" ")[0]
-                    lbl = "сегодня" if ed == today_str else ("завтра" if ed == tomorrow_str else ed)
+                    lbl = "today" if ed == today_str else ("tomorrow" if ed == tomorrow_str else ed)
                     lines.append(f"  • {e['text']} — {lbl}")
 
             # Subscriptions next 5 days
@@ -395,12 +395,12 @@ async def morning_digest():
                     diff = (bill_date - now.date()).days
                     if diff < 0: diff += 30  # next month
                     if 0 <= diff <= 5:
-                        lbl = "сегодня" if diff == 0 else (f"через {diff}д")
+                        lbl = "today" if diff == 0 else (f"in {diff}d")
                         upcoming_subs.append(f"{s2['emoji']} {s2['name']} — {s2['amount']} {s2['currency']} ({lbl})")
                 except: pass
             if upcoming_subs:
                 lines.append("")
-                lines.append("💳 *Подписки:*")
+                lines.append("💳 *Subscriptions:*")
                 for s2 in upcoming_subs: lines.append(f"  • {s2}")
 
             # Birthdays next 7 days
@@ -412,13 +412,13 @@ async def morning_digest():
                     bd = datetime(now.date().year, int(p[1]), int(p[2])).date()
                     diff = (bd - now.date()).days
                     if 0 <= diff <= 7:
-                        w = "сегодня! 🎉" if diff == 0 else f"через {diff}д"
+                        w = "today! 🎉" if diff == 0 else f"in {diff}d"
                         upcoming_bd.append((diff, f"{b['emoji']} {b['name']} — {w}"))
                 except: pass
             upcoming_bd.sort()
             if upcoming_bd:
                 lines.append("")
-                lines.append("🎂 *Дни рождения:*")
+                lines.append("🎂 *Birthdays:*")
                 for _, l in upcoming_bd: lines.append(f"  • {l}")
 
             await _send(member["tg_chat_id"], "\n".join(lines))
