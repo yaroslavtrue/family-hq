@@ -134,6 +134,7 @@ document.getElementById("ht").textContent=(TT[t]||["",""])[0];
 document.getElementById("hs").textContent=(TT[t]||["",""])[1];
 var noFab=["home","settings","clean","events","birthdays","subs"];
 document.getElementById("fab").classList.toggle("hidden",noFab.indexOf(t)>=0);
+document.getElementById("side-btn").classList.toggle("hidden",t!=="money");
 ren();hp()}
 
 // Hamburger menu
@@ -168,7 +169,8 @@ switch(tab){
 case"home":c.innerHTML=rH();break;case"tasks":c.innerHTML=rT();break;
 case"shop":c.innerHTML=rSh();break;case"money":c.innerHTML=rMoney();break;
 case"events":c.innerHTML=rEvts();break;case"birthdays":c.innerHTML=rBdays();break;
-case"clean":c.innerHTML=rC();break;case"settings":c.innerHTML=rSet();break;case"subs":c.innerHTML=rSubsList();break}}
+case"clean":c.innerHTML=rC();break;case"settings":c.innerHTML=rSet();break;case"subs":c.innerHTML=rSubsList();break}
+var sbt=document.getElementById("side-btn-txt");if(sbt)sbt.textContent=moneyTab==="transactions"?"📊":"💸"}
 function sB(t,n){var e=document.getElementById("b-"+t);if(!e)return;if(n>0&&tab!==t){e.textContent=n;e.classList.remove("hidden")}else e.classList.add("hidden")}
 
 // ═══════════════════════════════════════════════════════════
@@ -261,6 +263,7 @@ async function dlFolder(fid){await A("DELETE","/api/shopping/folders/"+fid);cMo(
 // MONEY — Transactions | Subs | Analytics
 // ═══════════════════════════════════════════════════════════
 function rMoney(){
+if(!_moneySummary){loadMoneySummary()}
 var h='<div class="tabs"><button class="tab '+(moneyTab==="transactions"?"a":"")+'" onclick="moneyTab=\'transactions\';ren()">💸 Transactions</button><button class="tab '+(moneyTab==="analytics"?"a":"")+'" onclick="moneyTab=\'analytics\';ren()">📊 Analytics</button></div>';
 if(moneyTab==="analytics")return h+rAnalytics();
 return h+rTransactions()}
@@ -269,8 +272,12 @@ function rTransactions(){
 var txs=D.transactions;if(searchQ)txs=txs.filter(function(x){return matchQ(x.description)});
 if(filt)txs=txs.filter(function(x){return x.member_id===filt});
 var cats={};D.categories.forEach(function(c){cats[c.id]=c});
-if(!txs.length)return em("💸","No transactions","Tap + to add");
-var h='<div class="fb2"><button class="fi '+(!filt?"a":"")+'" onclick="filt=null;ren()">All</button>';
+// Balance card
+var balH='';
+if(_moneySummary){var s=_moneySummary;var balColor=s.balance>=0?"var(--ok)":"var(--ac)";
+balH='<div class="c" style="border-left:3px solid '+balColor+';margin-bottom:14px"><div class="bd"><div style="display:flex;justify-content:space-between;align-items:center"><div><div style="font-size:11px;color:var(--ht);font-weight:600;text-transform:uppercase;letter-spacing:.8px">'+s.month+'</div><div style="font-size:22px;font-weight:800;color:'+balColor+';margin-top:2px">'+(s.balance>=0?"+":"")+'€'+s.balance.toFixed(0)+'</div></div><div style="text-align:right;font-size:12px;color:var(--ht)"><div><span style="color:var(--ok);font-weight:600">↑€'+s.income.toFixed(0)+'</span></div><div style="margin-top:2px"><span style="color:var(--ac);font-weight:600">↓€'+s.expense.toFixed(0)+'</span></div></div></div></div></div>'}
+if(!txs.length)return balH+em("💸","No transactions","Tap + to add");
+var h=balH+'<div class="fb2"><button class="fi '+(!filt?"a":"")+'" onclick="filt=null;ren()">All</button>';
 D.members.forEach(function(m){h+='<button class="fi '+(filt===m.user_id?"a":"")+'" onclick="filt='+m.user_id+';ren()">'+m.emoji+'</button>'});h+='</div>';
 txs.forEach(function(tx){
 var cat=cats[tx.category_id];var catLabel=cat?(cat.emoji+" "+cat.name):"";
