@@ -56,6 +56,73 @@ def _get_members(family_id):
     return [dict(m) for m in members]
 
 
+def _get_existing_data(family_id):
+    """Get recent items for Claude to match when editing."""
+    con = _db()
+    now = datetime.now(ZoneInfo(TIMEZONE))
+
+    # Active tasks (last 50)
+    tasks = con.execute(
+        "SELECT id, text, due_date, priority, assigned_to FROM tasks WHERE family_id=? AND done=0 ORDER BY id DESC LIMIT 50",
+        (family_id,)).fetchall()
+
+    # Shopping (not bought, last 50)
+    shop = con.execute(
+        "SELECT id, item, quantity, price, currency FROM shopping WHERE family_id=? AND bought=0 ORDER BY id DESC LIMIT 50",
+        (family_id,)).fetchall()
+
+    # Recent transactions (last 30)
+    txns = con.execute(
+        "SELECT t.id, t.type, t.amount, t.currency, t.description, t.date, c.name as cat_name "
+        "FROM transactions t LEFT JOIN categories c ON c.id=t.category_id "
+        "WHERE t.family_id=? ORDER BY t.id DESC LIMIT 30",
+        (family_id,)).fetchall()
+
+    # Upcoming events
+    events = con.execute(
+        "SELECT id, text, event_date, end_date FROM events WHERE family_id=? AND event_date>=? ORDER BY event_date LIMIT 20",
+        (family_id, now.strftime("%Y-%m-%d"))).fetchall()
+
+    # Birthdays
+    bdays = con.execute(
+        "SELECT id, name, emoji, birth_date FROM birthdays WHERE family_id=?",
+        (family_id,)).fetchall()
+
+    # Subscriptions
+    subs = con.execute(
+        "SELECT id, name, emoji, amount, currency, billing_day FROM subscriptions WHERE family_id=?",
+        (family_id,)).fetchall()
+
+    con.close()
+
+    def fmt_tasks(rows):
+        return "\n".join(f"  id={r['id']}: \"{r['text']}\" due={r['due_date']} priority={r['priority']}" for r in rows) or "  (none)"
+
+    def fmt_shop(rows):
+        return "\n".join(f"  id={r['id']}: \"{r['item']}\" qty={r['quantity']} price={r['price']} {r['currency'] or 'RSD'}" for r in rows) or "  (none)"
+
+    def fmt_txns(rows):
+        return "\n".join(f"  id={r['id']}: {r['type']} {r['amount']} {r['currency']} \"{r['description'] or ''}\" cat={r['cat_name'] or '?'} date={r['date']}" for r in rows) or "  (none)"
+
+    def fmt_events(rows):
+        return "\n".join(f"  id={r['id']}: \"{r['text']}\" date={r['event_date']}" + (f" end={r['end_date']}" if r['end_date'] else "") for r in rows) or "  (none)"
+
+    def fmt_bdays(rows):
+        return "\n".join(f"  id={r['id']}: {r['emoji']} {r['name']} born={r['birth_date']}" for r in rows) or "  (none)"
+
+    def fmt_subs(rows):
+        return "\n".join(f"  id={r['id']}: {r['emoji']} {r['name']} {r['amount']} {r['currency']} day={r['billing_day']}" for r in rows) or "  (none)"
+
+    return (
+        f"ACTIVE TASKS:\n{fmt_tasks(tasks)}\n\n"
+        f"SHOPPING LIST:\n{fmt_shop(shop)}\n\n"
+        f"RECENT TRANSACTIONS:\n{fmt_txns(txns)}\n\n"
+        f"UPCOMING EVENTS:\n{fmt_events(events)}\n\n"
+        f"BIRTHDAYS:\n{fmt_bdays(bdays)}\n\n"
+        f"SUBSCRIPTIONS:\n{fmt_subs(subs)}"
+    )
+
+
 async def _notify_other(family_id, exclude_chat_id, text):
     """Notify other family members."""
     con = _db()
@@ -79,6 +146,8 @@ Family members: {members}
 Expense categories: {expense_cats}
 Income categories: {income_cats}
 
+{existing_data}
+
 RULES:
 - Detect language (Russian or English) and respond in same language
 - Always return valid JSON, nothing else
@@ -86,6 +155,10 @@ RULES:
 - Match category by meaning (food/еда → Food, transport/такси → Transport, etc). Use category ID from the list.
 - If user mentions a family member name, set assigned_to to their user_id
 - For dates: "today"→{today}, "tomorrow"→{tomorrow}, "yesterday"→{yesterday}. If no date specified, use today.
+- When user asks to edit/change/update an item, find the matching item by name/description from the existing data above and use its ID. Only include fields that need to change.
+- When user asks to delete/remove an item, find its ID from existing data.
+- When user asks to complete/mark done a task, use toggle_task.
+- If you cannot find a matching item, return {{"action": "unknown", "reply": "explain what you couldn't find"}}
 - If you cannot understand the request, return {{"action": "unknown", "reply": "your helpful reply"}}
 
 ACTIONS:
@@ -100,7 +173,26 @@ ACTIONS:
 
 5. Status request: {{"action": "status"}}
 
-6. Unknown: {{"action": "unknown", "reply": "I can help with expenses, income, tasks, and shopping."}}"""
+6. Edit task: {{"action": "edit_task", "id": 123, "text": "new text", "due_date": "2026-04-10", "priority": "high", "assigned_to": null}}
+   Only include fields that change. "id" is required.
+
+7. Edit transaction: {{"action": "edit_transaction", "id": 456, "amount": 300, "currency": "RSD", "category_id": 2, "description": "new desc", "date": "2026-04-05"}}
+   Only include fields that change. "id" is required.
+
+8. Edit shopping item: {{"action": "edit_shopping", "id": 789, "item": "new name", "quantity": "2", "price": 300}}
+   Only include fields that change. "id" is required.
+
+9. Edit event: {{"action": "edit_event", "id": 101, "text": "new title", "event_date": "2026-04-10", "end_date": "2026-04-11"}}
+   Only include fields that change. "id" is required.
+
+10. Edit subscription: {{"action": "edit_sub", "id": 55, "name": "Netflix", "amount": 15, "currency": "EUR", "billing_day": 10}}
+    Only include fields that change. "id" is required.
+
+11. Toggle task done: {{"action": "toggle_task", "id": 123}}
+
+12. Delete item: {{"action": "delete", "type": "task|transaction|shopping|event|birthday|subscription", "id": 123}}
+
+13. Unknown: {{"action": "unknown", "reply": "I can help with expenses, income, tasks, and shopping."}}"""
 
 
 async def _ask_claude(message: str, family_id: int) -> dict | None:
@@ -120,9 +212,12 @@ async def _ask_claude(message: str, family_id: int) -> dict | None:
     income_cats = ", ".join(f"{c['emoji']} {c['name']} (id={c['id']})" for c in cats if c['type'] == 'income')
     members_str = ", ".join(f"{m['user_name']} (user_id={m['user_id']})" for m in members)
 
+    existing = _get_existing_data(family_id)
+
     system = SYSTEM_PROMPT.format(
         today=today, tomorrow=tomorrow, yesterday=yesterday,
-        members=members_str, expense_cats=expense_cats, income_cats=income_cats
+        members=members_str, expense_cats=expense_cats, income_cats=income_cats,
+        existing_data=existing
     )
 
     try:
@@ -133,7 +228,7 @@ async def _ask_claude(message: str, family_id: int) -> dict | None:
                 "content-type": "application/json"
             }, json={
                 "model": "claude-haiku-4-5-20251001",
-                "max_tokens": 300,
+                "max_tokens": 500,
                 "system": system,
                 "messages": [{"role": "user", "content": message}]
             })
@@ -246,6 +341,221 @@ async def _do_shopping(data: dict, family_id: int, user_name: str, chat_id: int)
     names = ", ".join(items)
     await _notify_other(family_id, chat_id, f"🛒 *{user_name}* added: *{names}*")
     return f"🛒 *Added to shopping:*\n" + "\n".join(f"  • {i}" for i in items)
+
+
+async def _do_edit_task(data: dict, family_id: int, user_name: str, chat_id: int) -> str:
+    con = _db()
+    tid = data["id"]
+    task = con.execute("SELECT text FROM tasks WHERE id=? AND family_id=?", (tid, family_id)).fetchone()
+    if not task:
+        con.close()
+        return "Task not found."
+
+    ups, ps = [], []
+    if "text" in data and data["text"]: ups.append("text=?"); ps.append(data["text"])
+    if "due_date" in data: ups.append("due_date=?"); ps.append(data["due_date"])
+    if "priority" in data: ups.append("priority=?"); ps.append(data["priority"])
+    if "assigned_to" in data: ups.append("assigned_to=?"); ps.append(data["assigned_to"])
+
+    if ups:
+        ps.extend([tid, family_id])
+        con.execute(f"UPDATE tasks SET {','.join(ups)} WHERE id=? AND family_id=?", ps)
+        con.commit()
+
+    old_name = task["text"]
+    new_task = con.execute("SELECT text, due_date, priority FROM tasks WHERE id=?", (tid,)).fetchone()
+    con.close()
+
+    parts = [f"✏️ *Task updated: {new_task['text']}*"]
+    if new_task["due_date"]: parts.append(f"📅 {new_task['due_date']}")
+    if new_task["priority"] != "normal": parts.append(f"⚡ {new_task['priority']}")
+    await _notify_other(family_id, chat_id, f"✏️ *{user_name}* updated task: *{new_task['text']}*")
+    return "\n".join(parts)
+
+
+async def _do_toggle_task(data: dict, family_id: int, user_name: str, chat_id: int) -> str:
+    con = _db()
+    tid = data["id"]
+    task = con.execute("SELECT text, done FROM tasks WHERE id=? AND family_id=?", (tid, family_id)).fetchone()
+    if not task:
+        con.close()
+        return "Task not found."
+    new_done = 0 if task["done"] else 1
+    con.execute("UPDATE tasks SET done=? WHERE id=? AND family_id=?", (new_done, tid, family_id))
+    con.commit()
+    con.close()
+
+    if new_done:
+        await _notify_other(family_id, chat_id, f"✅ *{user_name}* completed: *{task['text']}*")
+        return f"✅ *Completed: {task['text']}*"
+    else:
+        return f"🔄 *Reopened: {task['text']}*"
+
+
+async def _do_edit_transaction(data: dict, family_id: int, user_name: str, chat_id: int) -> str:
+    con = _db()
+    tid = data["id"]
+    txn = con.execute("SELECT * FROM transactions WHERE id=? AND family_id=?", (tid, family_id)).fetchone()
+    if not txn:
+        con.close()
+        return "Transaction not found."
+
+    ups, ps = [], []
+    if "amount" in data: ups.append("amount=?"); ps.append(data["amount"])
+    if "currency" in data: ups.append("currency=?"); ps.append(data["currency"])
+    if "category_id" in data: ups.append("category_id=?"); ps.append(data["category_id"])
+    if "description" in data: ups.append("description=?"); ps.append(data["description"])
+    if "date" in data: ups.append("date=?"); ps.append(data["date"])
+    if "type" in data: ups.append("type=?"); ps.append(data["type"])
+
+    # Recalc EUR
+    amt = data.get("amount", txn["amount"])
+    cur = data.get("currency", txn["currency"])
+    ups.append("amount_eur=?"); ps.append(round(amt * FX.get(cur, 1.0), 2))
+
+    if ups:
+        ps.extend([tid, family_id])
+        con.execute(f"UPDATE transactions SET {','.join(ups)} WHERE id=? AND family_id=?", ps)
+        con.commit()
+
+    updated = con.execute(
+        "SELECT t.*, c.emoji, c.name as cat_name FROM transactions t LEFT JOIN categories c ON c.id=t.category_id WHERE t.id=?",
+        (tid,)).fetchone()
+    con.close()
+
+    cat_str = f"\n📂 {updated['emoji']} {updated['cat_name']}" if updated["cat_name"] else ""
+    desc_str = f"\n🏷 {updated['description']}" if updated["description"] else ""
+    sign = "💸" if updated["type"] == "expense" else "💰"
+    return f"✏️ *Transaction updated:*\n{sign} {updated['amount']} {updated['currency']}{cat_str}{desc_str}\n📅 {updated['date']}"
+
+
+async def _do_edit_shopping(data: dict, family_id: int, user_name: str, chat_id: int) -> str:
+    con = _db()
+    sid = data["id"]
+    item = con.execute("SELECT item FROM shopping WHERE id=? AND family_id=?", (sid, family_id)).fetchone()
+    if not item:
+        con.close()
+        return "Shopping item not found."
+
+    ups, ps = [], []
+    if "item" in data and data["item"]: ups.append("item=?"); ps.append(data["item"])
+    if "quantity" in data: ups.append("quantity=?"); ps.append(data["quantity"])
+    if "price" in data: ups.append("price=?"); ps.append(data["price"])
+    if "folder_id" in data: ups.append("folder_id=?"); ps.append(data["folder_id"])
+
+    if ups:
+        ps.extend([sid, family_id])
+        con.execute(f"UPDATE shopping SET {','.join(ups)} WHERE id=? AND family_id=?", ps)
+        con.commit()
+
+    updated = con.execute("SELECT * FROM shopping WHERE id=?", (sid,)).fetchone()
+    con.close()
+
+    price_str = f" — {updated['price']} {updated['currency'] or 'RSD'}" if updated["price"] else ""
+    qty_str = f" x{updated['quantity']}" if updated["quantity"] else ""
+    return f"✏️ *Shopping updated: {updated['item']}*{qty_str}{price_str}"
+
+
+async def _do_edit_event(data: dict, family_id: int, user_name: str, chat_id: int) -> str:
+    con = _db()
+    eid = data["id"]
+    ev = con.execute("SELECT text FROM events WHERE id=? AND family_id=?", (eid, family_id)).fetchone()
+    if not ev:
+        con.close()
+        return "Event not found."
+
+    ups, ps = [], []
+    if "text" in data and data["text"]: ups.append("text=?"); ps.append(data["text"])
+    if "event_date" in data: ups.append("event_date=?"); ps.append(data["event_date"])
+    if "end_date" in data: ups.append("end_date=?"); ps.append(data["end_date"])
+
+    if ups:
+        ps.extend([eid, family_id])
+        con.execute(f"UPDATE events SET {','.join(ups)} WHERE id=? AND family_id=?", ps)
+        con.commit()
+
+    updated = con.execute("SELECT * FROM events WHERE id=?", (eid,)).fetchone()
+    con.close()
+
+    end_str = f" → {updated['end_date']}" if updated["end_date"] else ""
+    await _notify_other(family_id, chat_id, f"✏️ *{user_name}* updated event: *{updated['text']}*")
+    return f"✏️ *Event updated: {updated['text']}*\n📅 {updated['event_date']}{end_str}"
+
+
+async def _do_edit_sub(data: dict, family_id: int, user_name: str, chat_id: int) -> str:
+    con = _db()
+    sid = data["id"]
+    sub = con.execute("SELECT name FROM subscriptions WHERE id=? AND family_id=?", (sid, family_id)).fetchone()
+    if not sub:
+        con.close()
+        return "Subscription not found."
+
+    ups, ps = [], []
+    if "name" in data and data["name"]: ups.append("name=?"); ps.append(data["name"])
+    if "amount" in data: ups.append("amount=?"); ps.append(data["amount"])
+    if "currency" in data: ups.append("currency=?"); ps.append(data["currency"])
+    if "billing_day" in data: ups.append("billing_day=?"); ps.append(data["billing_day"])
+    if "emoji" in data: ups.append("emoji=?"); ps.append(data["emoji"])
+
+    # Recalc EUR
+    if "amount" in data or "currency" in data:
+        amt = data.get("amount", sub["amount"] if "amount" in dict(sub).keys() else 0)
+        cur = data.get("currency", "EUR")
+        ups.append("amount_eur=?"); ps.append(round(amt * FX.get(cur, 1.0), 2))
+
+    if ups:
+        ps.extend([sid, family_id])
+        con.execute(f"UPDATE subscriptions SET {','.join(ups)} WHERE id=? AND family_id=?", ps)
+        con.commit()
+
+    updated = con.execute("SELECT * FROM subscriptions WHERE id=?", (sid,)).fetchone()
+    con.close()
+    return f"✏️ *Subscription updated: {updated['emoji']} {updated['name']}*\n💰 {updated['amount']} {updated['currency']} — day {updated['billing_day']}"
+
+
+async def _do_delete(data: dict, family_id: int, user_name: str, chat_id: int) -> str:
+    con = _db()
+    item_type = data.get("type")
+    item_id = data.get("id")
+
+    table_map = {
+        "task": ("tasks", "text"),
+        "transaction": ("transactions", "description"),
+        "shopping": ("shopping", "item"),
+        "event": ("events", "text"),
+        "birthday": ("birthdays", "name"),
+        "subscription": ("subscriptions", "name"),
+    }
+
+    if item_type not in table_map:
+        con.close()
+        return "Unknown item type."
+
+    table, name_col = table_map[item_type]
+    row = con.execute(f"SELECT {name_col} FROM {table} WHERE id=? AND family_id=?", (item_id, family_id)).fetchone()
+    if not row:
+        con.close()
+        return f"{item_type.title()} not found."
+
+    name = row[name_col] or f"#{item_id}"
+
+    # Cleanup related data
+    if item_type == "task":
+        con.execute("DELETE FROM task_reminders WHERE task_id=? AND family_id=?", (item_id, family_id))
+        con.execute("DELETE FROM subtasks WHERE parent_type='task' AND parent_id=? AND family_id=?", (item_id, family_id))
+    elif item_type == "birthday":
+        con.execute("DELETE FROM birthday_reminders WHERE birthday_id=? AND family_id=?", (item_id, family_id))
+    elif item_type == "subscription":
+        con.execute("DELETE FROM subscription_reminders WHERE sub_id=? AND family_id=?", (item_id, family_id))
+
+    con.execute(f"DELETE FROM {table} WHERE id=? AND family_id=?", (item_id, family_id))
+    con.commit()
+    con.close()
+
+    emoji_map = {"task": "📋", "transaction": "💸", "shopping": "🛒", "event": "📅", "birthday": "🎂", "subscription": "💳"}
+    e = emoji_map.get(item_type, "🗑")
+    await _notify_other(family_id, chat_id, f"🗑 *{user_name}* deleted {item_type}: *{name}*")
+    return f"🗑 *Deleted {item_type}: {name}*"
 
 
 def _get_status(family_id: int) -> str:
@@ -365,6 +675,20 @@ async def handle_message(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
             reply = await _do_shopping(result, fid, user_name, chat_id)
         elif action == "status":
             reply = _get_status(fid)
+        elif action == "edit_task":
+            reply = await _do_edit_task(result, fid, user_name, chat_id)
+        elif action == "toggle_task":
+            reply = await _do_toggle_task(result, fid, user_name, chat_id)
+        elif action == "edit_transaction":
+            reply = await _do_edit_transaction(result, fid, user_name, chat_id)
+        elif action == "edit_shopping":
+            reply = await _do_edit_shopping(result, fid, user_name, chat_id)
+        elif action == "edit_event":
+            reply = await _do_edit_event(result, fid, user_name, chat_id)
+        elif action == "edit_sub":
+            reply = await _do_edit_sub(result, fid, user_name, chat_id)
+        elif action == "delete":
+            reply = await _do_delete(result, fid, user_name, chat_id)
         else:
             reply = result.get("reply", "I can help with expenses, income, tasks, and shopping. Just type naturally!")
 
