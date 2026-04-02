@@ -324,7 +324,8 @@ async def morning_digest():
         for member in members:
             if not member["tg_chat_id"]: continue
             uid = member["user_id"]
-            lines = [f"☀️ *Good morning, {member['user_name']}!*"]
+            date_line = now.strftime("%A, %B %-d")
+            lines = [f"☀️ *Good morning, {member['user_name']}!*", f"📆 {date_line}"]
 
             # Weather
             if w_lines:
