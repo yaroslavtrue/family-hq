@@ -368,7 +368,7 @@ var title="📋 "+(tx.description?es(tx.description):"Receipt")+" — "+sign+tx.
 oMC(title,receiptHtml(txId,tx))}
 
 function _curSel(id,def){var curs=[["RSD","din."],["EUR","€"],["USD","$"],["GBP","£"],["RUB","₽"]];
-var h='<select id="'+id+'" style="padding:8px 6px;background:var(--sf);color:var(--tx);border:1px solid var(--bd);border-radius:8px;font-size:13px;min-width:58px">';
+var h='<select id="'+id+'" style="padding:10px 8px;background:var(--sf);color:var(--tx);border:1px solid var(--bd);border-radius:10px;font-size:14px;min-width:64px;height:44px">';
 curs.forEach(function(c){h+='<option value="'+c[0]+'"'+(c[0]===def?' selected':'')+'>'+c[1]+'</option>'});
 return h+'</select>'}
 
@@ -399,10 +399,10 @@ h+='</div>'});h+='</div>'}
 h+='<div style="margin-top:14px;padding-top:14px;border-top:1px solid var(--bd)">';
 h+='<div style="font-size:11px;color:var(--ht);margin-bottom:8px;font-weight:600;text-transform:uppercase;letter-spacing:.5px">Add item</div>';
 h+='<input class="inp" id="ri-name" placeholder="e.g. Milk, Bread..." style="margin-bottom:8px" onkeydown="if(event.key===\'Enter\')document.getElementById(\'ri-amt\').focus()">';
-h+='<div style="display:flex;gap:8px;align-items:center">';
-h+='<input class="inp" id="ri-amt" type="number" step="0.01" placeholder="Amount" style="flex:1" onkeydown="if(event.key===\'Enter\')addRi('+txId+')">';
+h+='<div style="display:flex;gap:8px;align-items:stretch">';
+h+='<input class="inp" id="ri-amt" type="number" step="0.01" placeholder="Amount" style="flex:1;min-width:0" onkeydown="if(event.key===\'Enter\')addRi('+txId+')">';
 h+=_curSel("ri-cur",tx.currency);
-h+='<button class="btn btn-s" style="padding:7px 16px;font-size:13px" onclick="addRi('+txId+')">Add</button>';
+h+='<button class="btn btn-s" style="padding:10px 20px;font-size:14px;white-space:nowrap" onclick="addRi('+txId+')">Add</button>';
 h+='</div></div>';
 return h}
 
