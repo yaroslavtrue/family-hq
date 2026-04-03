@@ -213,6 +213,15 @@ def migrate(db_path):
             monthly_limit REAL NOT NULL,
             UNIQUE(family_id, category_id)
         );
+        CREATE TABLE IF NOT EXISTS transaction_items (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            transaction_id INTEGER NOT NULL,
+            family_id INTEGER NOT NULL,
+            name TEXT NOT NULL,
+            amount REAL NOT NULL DEFAULT 0,
+            currency TEXT DEFAULT 'RSD',
+            created_at TEXT DEFAULT (datetime('now'))
+        );
     """)
     con.commit()
 
@@ -257,6 +266,16 @@ def migrate(db_path):
         lambda c: [
             safe_add_col(c, "settings", "digest_sections", "TEXT"),
         ],
+        # v8: transaction items table (structured receipt breakdown)
+        lambda c: c.executescript("""CREATE TABLE IF NOT EXISTS transaction_items (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            transaction_id INTEGER NOT NULL,
+            family_id INTEGER NOT NULL,
+            name TEXT NOT NULL,
+            amount REAL NOT NULL DEFAULT 0,
+            currency TEXT DEFAULT 'RSD',
+            created_at TEXT DEFAULT (datetime('now'))
+        )"""),
     ]
 
     for i, mig in enumerate(migrations):

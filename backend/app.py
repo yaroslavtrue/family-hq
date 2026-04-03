@@ -213,6 +213,10 @@ class CategoryEdit(BaseModel):
     name: str | None = None; emoji: str | None = None
 class LimitSet(BaseModel):
     monthly_limit: float
+class TxItemCreate(BaseModel):
+    name: str; amount: float = 0; currency: str = "RSD"
+class TxItemEdit(BaseModel):
+    name: str | None = None; amount: float | None = None; currency: str | None = None
 
 # ═════════════════════════════════════════════════════════════════════════
 # FAMILY
@@ -641,6 +645,35 @@ def del_subtask(sid: int, user=Depends(get_uf), db=Depends(get_db)):
     db.execute("DELETE FROM subtasks WHERE id=? AND family_id=?", (sid, user["family_id"])); db.commit(); return {"ok": True}
 
 # ═════════════════════════════════════════════════════════════════════════
+# TRANSACTION ITEMS (receipt breakdown)
+# ═════════════════════════════════════════════════════════════════════════
+@app.post("/api/transactions/{tid}/items")
+def create_tx_item(tid: int, body: TxItemCreate, user=Depends(get_uf), db=Depends(get_db)):
+    tx = db.execute("SELECT id FROM transactions WHERE id=? AND family_id=?", (tid, user["family_id"])).fetchone()
+    if not tx: raise HTTPException(404)
+    db.execute("INSERT INTO transaction_items (transaction_id,family_id,name,amount,currency) VALUES (?,?,?,?,?)",
+        (tid, user["family_id"], body.name, body.amount, body.currency)); db.commit()
+    return {"ok": True}
+
+@app.put("/api/transactions/items/{iid}")
+def edit_tx_item(iid: int, body: TxItemEdit, user=Depends(get_uf), db=Depends(get_db)):
+    item = db.execute("SELECT * FROM transaction_items WHERE id=? AND family_id=?", (iid, user["family_id"])).fetchone()
+    if not item: raise HTTPException(404)
+    updates, vals = [], []
+    if body.name is not None: updates.append("name=?"); vals.append(body.name)
+    if body.amount is not None: updates.append("amount=?"); vals.append(body.amount)
+    if body.currency is not None: updates.append("currency=?"); vals.append(body.currency)
+    if updates:
+        vals.append(iid)
+        db.execute(f"UPDATE transaction_items SET {','.join(updates)} WHERE id=?", vals); db.commit()
+    return {"ok": True}
+
+@app.delete("/api/transactions/items/{iid}")
+def del_tx_item(iid: int, user=Depends(get_uf), db=Depends(get_db)):
+    db.execute("DELETE FROM transaction_items WHERE id=? AND family_id=?", (iid, user["family_id"])); db.commit()
+    return {"ok": True}
+
+# ═════════════════════════════════════════════════════════════════════════
 # CLEANING
 # ═════════════════════════════════════════════════════════════════════════
 @app.get("/api/cleaning/zones")
@@ -1004,14 +1037,22 @@ async def bundle(user=Depends(get_uf), db=Depends(get_db)):
     _ensure_categories(db, f)
     categories = [dict(r) for r in db.execute("SELECT * FROM categories WHERE family_id=? ORDER BY type, sort_order", (f,)).fetchall()]
     transactions = [dict(r) for r in db.execute("SELECT * FROM transactions WHERE family_id=? ORDER BY date DESC, id DESC LIMIT 100", (f,)).fetchall()]
+    # Transaction items (receipt breakdown)
+    tx_items_raw = db.execute("SELECT * FROM transaction_items WHERE family_id=? ORDER BY transaction_id, id", (f,)).fetchall()
+    tx_items = {}
+    for r in tx_items_raw:
+        tid = r["transaction_id"]
+        if tid not in tx_items: tx_items[tid] = []
+        tx_items[tid].append(dict(r))
     # Weather (async, cached 30min)
     weather = await get_weather()
     return {
         "tasks": tasks, "recurring": recurring, "shopping": shopping, "folders": folders,
         "events": events, "birthdays": bdays, "subs": subs, "dashboard": dashboard,
         "members": members, "settings": settings, "family": family, "zones": zones,
-        "subtasks_task": _subs("task"), "subtasks_event": _subs("event"), "subtasks_transaction": _subs("transaction"),
+        "subtasks_task": _subs("task"), "subtasks_event": _subs("event"),
         "weather": weather, "categories": categories, "transactions": transactions,
+        "tx_items": tx_items,
     }
 
 # ═════════════════════════════════════════════════════════════════════════
