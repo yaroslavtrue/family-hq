@@ -2,7 +2,7 @@
 Background schedulers: task reminders, birthday reminders, cleaning resets,
 subscription reminders, recurring task generation, morning digest.
 """
-import sqlite3
+import sqlite3, json
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 import httpx, logging
@@ -320,146 +320,206 @@ async def sync_trello():
     con.close()
     log.info(f"Trello sync done: {len(relevant)} cards processed")
 
+DEFAULT_SECTIONS = ["greeting","weather","tasks_today","tasks_tomorrow","cleaning","events","subs","birthdays","tip"]
+
+def _build_digest_sections(con, fid, uid, user_name, now, section_order=None):
+    """Build digest sections in the configured order. Returns list of lines."""
+    today_str = now.strftime("%Y-%m-%d")
+    tomorrow_str = (now + timedelta(days=1)).strftime("%Y-%m-%d")
+    order = section_order or DEFAULT_SECTIONS
+
+    builders = {}
+
+    # Greeting
+    def _greeting():
+        date_line = now.strftime("%A, %B %-d")
+        return [f"☀️ *Good morning, {user_name}!*", f"📆 {date_line}"]
+    builders["greeting"] = _greeting
+
+    # Weather
+    async def _weather_lines():
+        weather = await _get_weather()
+        if not weather: return []
+        cur = weather.get("current", {})
+        daily = weather.get("daily", {})
+        wc = cur.get("weathercode", 0)
+        wl = [f"{WMO.get(wc, '🌤')} *{round(cur.get('temperature_2m', 0))}°C* now"]
+        days_names = ["Today", "Tomorrow", "Day after"]
+        for i in range(min(3, len(daily.get("time", [])))):
+            dwc = daily["weathercode"][i]
+            hi = round(daily["temperature_2m_max"][i])
+            lo = round(daily["temperature_2m_min"][i])
+            wl.append(f"  {days_names[i]}: {WMO.get(dwc, '🌤')} {lo}°..{hi}°")
+        return wl
+    builders["weather"] = _weather_lines
+
+    # Tasks today (include overdue)
+    def _tasks_today():
+        rows = con.execute(
+            "SELECT text FROM tasks WHERE family_id=? AND done=0 AND (assigned_to=? OR assigned_to IS NULL) AND due_date<=?",
+            (fid, uid, today_str + " 23:59")).fetchall()
+        if not rows: return []
+        return ["📋 *Tasks today:*"] + [f"  • {t['text']}" for t in rows]
+    builders["tasks_today"] = _tasks_today
+
+    # Tasks tomorrow
+    def _tasks_tomorrow():
+        rows = con.execute(
+            "SELECT text FROM tasks WHERE family_id=? AND done=0 AND (assigned_to=? OR assigned_to IS NULL) AND due_date LIKE ?",
+            (fid, uid, tomorrow_str + "%")).fetchall()
+        if not rows: return []
+        return ["📋 *Tasks tomorrow:*"] + [f"  • {t['text']}" for t in rows]
+    builders["tasks_tomorrow"] = _tasks_tomorrow
+
+    # Cleaning
+    def _cleaning():
+        ct_tasks = con.execute("""
+            SELECT ct.text, cz.name, ct.last_done, ct.reset_days
+            FROM cleaning_tasks ct JOIN cleaning_zones cz ON cz.id=ct.zone_id
+            WHERE ct.family_id=? AND ct.done=1 AND ct.last_done IS NOT NULL
+            AND (ct.assigned_to=? OR ct.assigned_to IS NULL OR cz.assigned_to=? OR cz.assigned_to IS NULL)
+        """, (fid, uid, uid)).fetchall()
+        overdue = []
+        for ct2 in ct_tasks:
+            try:
+                d = (now.date() - datetime.strptime(ct2["last_done"], "%Y-%m-%d").date()).days
+                if d >= (ct2["reset_days"] or 7): overdue.append(f"{ct2['name']}: {ct2['text']}")
+            except: pass
+        never = con.execute("""
+            SELECT ct.text, cz.name FROM cleaning_tasks ct JOIN cleaning_zones cz ON cz.id=ct.zone_id
+            WHERE ct.family_id=? AND ct.done=0
+            AND (ct.assigned_to=? OR ct.assigned_to IS NULL OR cz.assigned_to=? OR cz.assigned_to IS NULL)
+        """, (fid, uid, uid)).fetchall()
+        for n in never: overdue.append(f"{n['name']}: {n['text']}")
+        if not overdue: return []
+        return ["🧹 *Cleaning needed:*"] + [f"  • {o}" for o in overdue[:5]]
+    builders["cleaning"] = _cleaning
+
+    # Events
+    def _events():
+        future = (now + timedelta(days=3)).strftime("%Y-%m-%d 23:59")
+        evts = con.execute("SELECT text, event_date FROM events WHERE family_id=? AND event_date>=? AND event_date<=? ORDER BY event_date",
+            (fid, today_str, future)).fetchall()
+        if not evts: return []
+        lines = ["📅 *Upcoming events:*"]
+        for e in evts:
+            ed = e["event_date"].split(" ")[0]
+            lbl = "today" if ed == today_str else ("tomorrow" if ed == tomorrow_str else ed)
+            lines.append(f"  • {e['text']} — {lbl}")
+        return lines
+    builders["events"] = _events
+
+    # Subscriptions
+    def _subs():
+        subs = con.execute("SELECT name, emoji, amount, currency, billing_day, assigned_to FROM subscriptions WHERE family_id=?", (fid,)).fetchall()
+        upcoming = []
+        for s2 in subs:
+            if s2["assigned_to"] and s2["assigned_to"] != uid: continue
+            try:
+                bill_date = now.date().replace(day=min(s2["billing_day"], 28))
+                diff = (bill_date - now.date()).days
+                if diff < 0: diff += 30
+                if 0 <= diff <= 5:
+                    lbl = "today" if diff == 0 else f"in {diff}d"
+                    upcoming.append(f"{s2['emoji']} {s2['name']} — {s2['amount']} {s2['currency']} ({lbl})")
+            except: pass
+        if not upcoming: return []
+        return ["💳 *Subscriptions:*"] + [f"  • {s}" for s in upcoming]
+    builders["subs"] = _subs
+
+    # Birthdays
+    def _birthdays():
+        bdays = con.execute("SELECT name, emoji, birth_date FROM birthdays WHERE family_id=?", (fid,)).fetchall()
+        upcoming = []
+        for b in bdays:
+            try:
+                p = b["birth_date"].split("-")
+                bd = datetime(now.date().year, int(p[1]), int(p[2])).date()
+                diff = (bd - now.date()).days
+                if 0 <= diff <= 7:
+                    w = "today! 🎉" if diff == 0 else f"in {diff}d"
+                    upcoming.append((diff, f"{b['emoji']} {b['name']} — {w}"))
+            except: pass
+        upcoming.sort()
+        if not upcoming: return []
+        return ["🎂 *Birthdays:*"] + [f"  • {l}" for _, l in upcoming]
+    builders["birthdays"] = _birthdays
+
+    # Tip
+    def _tip():
+        tip = DAILY_TIPS[now.timetuple().tm_yday % len(DAILY_TIPS)]
+        return [tip]
+    builders["tip"] = _tip
+
+    return builders, order
+
+
+async def _render_digest(con, fid, uid, user_name, now, section_order=None):
+    builders, order = _build_digest_sections(con, fid, uid, user_name, now, section_order)
+    lines = []
+    for sec in order:
+        fn = builders.get(sec)
+        if not fn: continue
+        import asyncio
+        result = fn()
+        if asyncio.iscoroutine(result):
+            result = await result
+        if result:
+            if lines and sec != "greeting":
+                lines.append("")
+            lines.extend(result)
+    return "\n".join(lines)
+
+
+async def send_digest_to(family_id, user_id, is_test=False):
+    """Send digest to a single user (for test button)."""
+    con = _con()
+    tz = ZoneInfo(TIMEZONE)
+    now = datetime.now(tz)
+    member = con.execute("SELECT user_name, tg_chat_id FROM family_members WHERE user_id=? AND family_id=?",
+        (user_id, family_id)).fetchone()
+    if not member or not member["tg_chat_id"]:
+        con.close()
+        return
+
+    s = con.execute("SELECT digest_sections FROM settings WHERE family_id=?", (family_id,)).fetchone()
+    section_order = None
+    if s and s["digest_sections"]:
+        try: section_order = json.loads(s["digest_sections"])
+        except: pass
+
+    text = await _render_digest(con, family_id, user_id, member["user_name"], now, section_order)
+    if is_test:
+        text = "🧪 *TEST DIGEST*\n\n" + text
+    await _send(member["tg_chat_id"], text)
+    con.close()
+
+
 # ─── Morning Digest (every hour, checks per-family time) ────────────────
 async def morning_digest():
     con = _con()
     tz = ZoneInfo(TIMEZONE)
     now = datetime.now(tz)
     today_str = now.strftime("%Y-%m-%d")
-    tomorrow_str = (now + timedelta(days=1)).strftime("%Y-%m-%d")
     ct = now.strftime("%H:%M")
 
     for fam in con.execute("SELECT DISTINCT family_id FROM family_members").fetchall():
         fid = fam["family_id"]
-        s = con.execute("SELECT digest_time, last_digest FROM settings WHERE family_id=?", (fid,)).fetchone()
+        s = con.execute("SELECT digest_time, last_digest, digest_sections FROM settings WHERE family_id=?", (fid,)).fetchone()
         dt = s["digest_time"] if s and s["digest_time"] else "09:00"
         if ct != dt: continue
-        # Dedup: skip if already sent today
         if s and s["last_digest"] == today_str: continue
         con.execute("UPDATE settings SET last_digest=? WHERE family_id=?", (today_str, fid))
         con.commit()
 
-        # Fetch weather once for the family
-        weather = await _get_weather()
-        w_lines = []
-        if weather:
-            cur = weather.get("current", {})
-            daily = weather.get("daily", {})
-            wc = cur.get("weathercode", 0)
-            w_lines.append(f"{WMO.get(wc, '🌤')} *{round(cur.get('temperature_2m', 0))}°C* now")
-            days_names = ["Today", "Tomorrow", "Day after"]
-            for i in range(min(3, len(daily.get("time", [])))):
-                dwc = daily["weathercode"][i]
-                hi = round(daily["temperature_2m_max"][i])
-                lo = round(daily["temperature_2m_min"][i])
-                w_lines.append(f"  {days_names[i] if i < 3 else daily['time'][i]}: {WMO.get(dwc, '🌤')} {lo}°..{hi}°")
+        section_order = None
+        if s and s.get("digest_sections"):
+            try: section_order = json.loads(s["digest_sections"])
+            except: pass
 
         members = con.execute("SELECT user_id, user_name, tg_chat_id FROM family_members WHERE family_id=?", (fid,)).fetchall()
         for member in members:
             if not member["tg_chat_id"]: continue
-            uid = member["user_id"]
-            date_line = now.strftime("%A, %B %-d")
-            lines = [f"☀️ *Good morning, {member['user_name']}!*", f"📆 {date_line}"]
-
-            # Weather
-            if w_lines:
-                lines.append("")
-                lines.extend(w_lines)
-
-            # Tasks today
-            tasks_today = con.execute(
-                "SELECT text FROM tasks WHERE family_id=? AND done=0 AND (assigned_to=? OR assigned_to IS NULL) AND due_date LIKE ?",
-                (fid, uid, today_str + "%")).fetchall()
-            if tasks_today:
-                lines.append("")
-                lines.append("📋 *Tasks today:*")
-                for t in tasks_today: lines.append(f"  • {t['text']}")
-
-            # Tasks tomorrow
-            tasks_tmrw = con.execute(
-                "SELECT text FROM tasks WHERE family_id=? AND done=0 AND (assigned_to=? OR assigned_to IS NULL) AND due_date LIKE ?",
-                (fid, uid, tomorrow_str + "%")).fetchall()
-            if tasks_tmrw:
-                lines.append("")
-                lines.append("📋 *Tasks tomorrow:*")
-                for t in tasks_tmrw: lines.append(f"  • {t['text']}")
-
-            # Cleaning needed
-            ct_tasks = con.execute("""
-                SELECT ct.text, cz.name, ct.last_done, ct.reset_days
-                FROM cleaning_tasks ct JOIN cleaning_zones cz ON cz.id=ct.zone_id
-                WHERE ct.family_id=? AND ct.done=1 AND ct.last_done IS NOT NULL
-                AND (ct.assigned_to=? OR ct.assigned_to IS NULL OR cz.assigned_to=? OR cz.assigned_to IS NULL)
-            """, (fid, uid, uid)).fetchall()
-            overdue = []
-            for ct2 in ct_tasks:
-                try:
-                    d = (now.date() - datetime.strptime(ct2["last_done"], "%Y-%m-%d").date()).days
-                    if d >= (ct2["reset_days"] or 7): overdue.append(f"{ct2['name']}: {ct2['text']}")
-                except: pass
-            never = con.execute("""
-                SELECT ct.text, cz.name FROM cleaning_tasks ct JOIN cleaning_zones cz ON cz.id=ct.zone_id
-                WHERE ct.family_id=? AND ct.done=0
-                AND (ct.assigned_to=? OR ct.assigned_to IS NULL OR cz.assigned_to=? OR cz.assigned_to IS NULL)
-            """, (fid, uid, uid)).fetchall()
-            for n in never: overdue.append(f"{n['name']}: {n['text']}")
-            if overdue:
-                lines.append("")
-                lines.append("🧹 *Cleaning needed:*")
-                for o in overdue[:5]: lines.append(f"  • {o}")
-
-            # Events next 3 days
-            future = (now + timedelta(days=3)).strftime("%Y-%m-%d 23:59")
-            evts = con.execute("SELECT text, event_date FROM events WHERE family_id=? AND event_date>=? AND event_date<=? ORDER BY event_date",
-                (fid, today_str, future)).fetchall()
-            if evts:
-                lines.append("")
-                lines.append("📅 *Upcoming events:*")
-                for e in evts:
-                    ed = e["event_date"].split(" ")[0]
-                    lbl = "today" if ed == today_str else ("tomorrow" if ed == tomorrow_str else ed)
-                    lines.append(f"  • {e['text']} — {lbl}")
-
-            # Subscriptions next 5 days
-            subs = con.execute("SELECT name, emoji, amount, currency, billing_day, assigned_to FROM subscriptions WHERE family_id=?", (fid,)).fetchall()
-            upcoming_subs = []
-            for s2 in subs:
-                if s2["assigned_to"] and s2["assigned_to"] != uid: continue
-                try:
-                    bill_date = now.date().replace(day=min(s2["billing_day"], 28))
-                    diff = (bill_date - now.date()).days
-                    if diff < 0: diff += 30  # next month
-                    if 0 <= diff <= 5:
-                        lbl = "today" if diff == 0 else (f"in {diff}d")
-                        upcoming_subs.append(f"{s2['emoji']} {s2['name']} — {s2['amount']} {s2['currency']} ({lbl})")
-                except: pass
-            if upcoming_subs:
-                lines.append("")
-                lines.append("💳 *Subscriptions:*")
-                for s2 in upcoming_subs: lines.append(f"  • {s2}")
-
-            # Birthdays next 7 days
-            bdays = con.execute("SELECT name, emoji, birth_date FROM birthdays WHERE family_id=?", (fid,)).fetchall()
-            upcoming_bd = []
-            for b in bdays:
-                try:
-                    p = b["birth_date"].split("-")
-                    bd = datetime(now.date().year, int(p[1]), int(p[2])).date()
-                    diff = (bd - now.date()).days
-                    if 0 <= diff <= 7:
-                        w = "today! 🎉" if diff == 0 else f"in {diff}d"
-                        upcoming_bd.append((diff, f"{b['emoji']} {b['name']} — {w}"))
-                except: pass
-            upcoming_bd.sort()
-            if upcoming_bd:
-                lines.append("")
-                lines.append("🎂 *Birthdays:*")
-                for _, l in upcoming_bd: lines.append(f"  • {l}")
-
-            # Tip of the day (same for everyone, rotates by day-of-year)
-            tip = DAILY_TIPS[now.timetuple().tm_yday % len(DAILY_TIPS)]
-            lines.append("")
-            lines.append(tip)
-
-            await _send(member["tg_chat_id"], "\n".join(lines))
+            text = await _render_digest(con, fid, member["user_id"], member["user_name"], now, section_order)
+            await _send(member["tg_chat_id"], text)
     con.close()

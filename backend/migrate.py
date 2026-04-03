@@ -253,6 +253,10 @@ def migrate(db_path):
         lambda c: [
             safe_add_col(c, "settings", "last_digest", "TEXT"),
         ],
+        # v7: digest config — section order + enabled/disabled
+        lambda c: [
+            safe_add_col(c, "settings", "digest_sections", "TEXT"),
+        ],
     ]
 
     for i, mig in enumerate(migrations):

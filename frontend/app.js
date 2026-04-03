@@ -295,6 +295,71 @@ window._txCat=tx.category_id||0;window._txType=tx.type;
 oMC("Edit Transaction",'<div class="dr"><div><div class="dl">Amount</div><input class="inp" id="tx-a" type="number" step="0.01" value="'+tx.amount+'"></div><div><div class="dl">Currency</div><select id="tx-c"><option value="RSD"'+(tx.currency==="RSD"?" selected":"")+'>din. RSD</option><option value="EUR"'+(tx.currency==="EUR"?" selected":"")+'>€ EUR</option><option value="USD"'+(tx.currency==="USD"?" selected":"")+'>$ USD</option><option value="GBP"'+(tx.currency==="GBP"?" selected":"")+'>£ GBP</option><option value="RUB"'+(tx.currency==="RUB"?" selected":"")+'>₽ RUB</option></select></div></div><div class="lb">Description</div><input class="inp" id="tx-d" value="'+es(tx.description||"")+'"><div class="lb">Category</div><div class="or">'+catOpts+'</div><div class="lb">Date</div><input type="date" id="tx-dt" value="'+tx.date+'"><div class="lb">Who</div>'+assignPk("txm",tx.member_id)+'<button class="btn" onclick="svTx('+id+')">Save</button>')}
 async function svTx(id){var a=parseFloat(document.getElementById("tx-a").value);var c=document.getElementById("tx-c").value;var d=document.getElementById("tx-d").value.trim();var dt=document.getElementById("tx-dt").value;if(!a)return;await A("PUT","/api/transactions/"+id,{amount:a,currency:c,description:d,date:dt,category_id:window._txCat||null,member_id:_assign||null});cMo();hp();await load()}
 
+// ─── Digest config modal ─────────────────────────────────────
+var DIGEST_SECS=[
+{id:"greeting",emoji:"☀️",name:"Greeting",color:"var(--wn)"},
+{id:"weather",emoji:"🌤",name:"Weather Forecast",color:"#5bc0de"},
+{id:"tasks_today",emoji:"📋",name:"Tasks Today",color:"var(--pr)"},
+{id:"tasks_tomorrow",emoji:"📋",name:"Tasks Tomorrow",color:"var(--ok)"},
+{id:"cleaning",emoji:"🧹",name:"Cleaning",color:"#a78bfa"},
+{id:"events",emoji:"📅",name:"Upcoming Events",color:"var(--ok)"},
+{id:"subs",emoji:"💳",name:"Subscriptions",color:"var(--pr)"},
+{id:"birthdays",emoji:"🎂",name:"Birthdays",color:"var(--wn)"},
+{id:"tip",emoji:"💡",name:"Tip of the Day",color:"var(--ht)"}
+];
+var _dgOrder=null;
+
+function _getDigestOrder(){
+if(_dgOrder)return _dgOrder;
+try{_dgOrder=JSON.parse(D.settings.digest_sections||"null")}catch(e){}
+if(!_dgOrder)_dgOrder=DIGEST_SECS.map(function(s){return s.id});
+return _dgOrder}
+
+function openDigestCfg(){
+_dgOrder=_getDigestOrder().slice();
+oMC("📨 Morning Digest",digestCfgHtml())}
+
+function digestCfgHtml(){
+var h='<div class="lb">Delivery Time</div><input type="time" id="dg-time" value="'+(D.settings.digest_time||"09:00")+'" step="60" style="margin-bottom:16px">';
+h+='<div class="lb">Sections (drag to reorder)</div>';
+h+='<div id="dg-list" style="display:flex;flex-direction:column;gap:6px;margin-bottom:16px">';
+_dgOrder.forEach(function(secId,idx){
+var sec=DIGEST_SECS.find(function(s){return s.id===secId});
+if(!sec)return;
+h+='<div style="display:flex;align-items:center;gap:8px;padding:10px 12px;background:var(--cd);border-radius:10px;border-left:3px solid '+sec.color+'">';
+h+='<span style="font-size:18px">'+sec.emoji+'</span>';
+h+='<span style="flex:1;font-weight:500">'+sec.name+'</span>';
+if(idx>0)h+='<button class="bi" onclick="dgMove('+idx+',-1)" style="font-size:14px">▲</button>';
+if(idx<_dgOrder.length-1)h+='<button class="bi" onclick="dgMove('+idx+',1)" style="font-size:14px">▼</button>';
+h+='</div>'});
+h+='</div>';
+h+='<div class="lb">Test Send</div>';
+h+='<div style="display:flex;gap:8px;margin-bottom:16px">';
+D.members.forEach(function(m){
+h+='<button class="btn btn-s" style="flex:1" onclick="dgTest('+m.user_id+')">'+m.emoji+' '+es(m.user_name)+'</button>'});
+h+='</div>';
+h+='<button class="btn" onclick="dgSave()">Save</button>';
+return h}
+
+function dgMove(idx,dir){
+var tmp=_dgOrder[idx];_dgOrder[idx]=_dgOrder[idx+dir];_dgOrder[idx+dir]=tmp;
+document.getElementById("mb").innerHTML=digestCfgHtml()}
+
+async function dgTest(uid){
+var btn=event.target;btn.textContent="Sending...";btn.disabled=true;
+// Save first
+var tm=document.getElementById("dg-time").value;
+await A("PATCH","/api/settings",{digest_time:tm,digest_sections:JSON.stringify(_dgOrder)});
+D.settings.digest_time=tm;D.settings.digest_sections=JSON.stringify(_dgOrder);
+await A("POST","/api/digest/test");
+btn.textContent="Sent!";setTimeout(function(){openDigestCfg()},1000)}
+
+async function dgSave(){
+var tm=document.getElementById("dg-time").value;
+await A("PATCH","/api/settings",{digest_time:tm,digest_sections:JSON.stringify(_dgOrder)});
+D.settings.digest_time=tm;D.settings.digest_sections=JSON.stringify(_dgOrder);
+cMo();toast("Digest saved");ren()}
+
 // ─── Receipt items modal ─────────────────────────────────────
 function openReceipt(txId){
 var tx=D.transactions.find(function(x){return x.id===txId});if(!tx)return;
@@ -429,7 +494,7 @@ if(fS&&fS.joined){h+='<div class="sc">Family</div><div class="c"><span style="fo
 h+='<div class="sc">Members</div>';(fS.members||[]).forEach(function(m){h+='<div class="c">'+mAv(m.user_id,40)+'<div class="bd"><div class="tt" style="font-weight:600">'+es(m.user_name)+'</div><div style="width:24px;height:4px;border-radius:2px;background:'+m.color+';margin-top:3px"></div></div><button class="bi" onclick="edMe('+m.user_id+',\''+es(m.user_name)+'\',\''+m.emoji+'\',\''+m.color+'\')">'+I.ed+'</button></div>'});
 h+='<div style="margin-bottom:20px"><button class="btn btn-s" style="font-size:13px" onclick="if(confirm(\'Leave family?\'))leaveFam()">Leave Family</button></div>'}
 h+='<div class="sc">Theme</div><div class="tg">';Object.keys(TH).forEach(function(id){var t=TH[id];var sel=cTheme===id;h+='<div class="tc" onclick="setTh(\''+id+'\')" style="background:'+t.cd+';border:2px solid '+(sel?t.pr:t.bd)+'"><div class="te">'+t.e+'</div><div class="tn" style="color:'+t.tx+'">'+t.n+'</div><div class="td">'+[t.pr,t.ac,t.ok,t.wn].map(function(c){return '<div class="tdd" style="background:'+c+'"></div>'}).join("")+'</div></div>'});h+='</div>';
-h+='<div class="sc">Morning Digest</div><div style="margin-bottom:24px"><input type="time" id="dgt" value="'+(D.settings.digest_time||"09:00")+'" step="60" onchange="setDg(this.value)"></div>';
+h+='<div class="sc">Morning Digest</div><div class="c" onclick="openDigestCfg()" style="cursor:pointer"><span style="font-size:20px">📨</span><div class="bd"><div class="tt">Configure Digest</div><div style="font-size:12px;color:var(--ht)">Time: '+(D.settings.digest_time||"09:00")+' · Sections & order</div></div><span style="color:var(--ht);font-size:18px">›</span></div>';
 var nExp=D.categories.filter(function(c){return c.type==="expense"}).length;
 var nInc=D.categories.filter(function(c){return c.type==="income"}).length;
 h+='<div class="sc">Categories</div><div class="c" onclick="openCatMgr()" style="cursor:pointer"><span style="font-size:20px">📂</span><div class="bd"><div class="tt">Manage Categories</div><div style="font-size:12px;color:var(--ht)">'+nExp+' expense · '+nInc+' income</div></div><span style="color:var(--ht);font-size:18px">›</span></div>';

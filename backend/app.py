@@ -198,7 +198,7 @@ class ZoneTaskCreate(BaseModel):
 class ZoneTaskEdit(BaseModel):
     text: str | None = None; icon: str | None = None; assigned_to: int | None = None; reset_days: int | None = None
 class SettingsUpdate(BaseModel):
-    theme: str | None = None; digest_time: str | None = None
+    theme: str | None = None; digest_time: str | None = None; digest_sections: str | None = None
 class TransactionCreate(BaseModel):
     type: str = "expense"; amount: float; currency: str = "RSD"
     category_id: int | None = None; description: str = ""; date: str | None = None
@@ -735,7 +735,18 @@ def update_settings(body: SettingsUpdate, user=Depends(get_uf), db=Depends(get_d
     db.execute("INSERT OR IGNORE INTO settings (family_id) VALUES (?)", (user["family_id"],))
     if body.theme: db.execute("UPDATE settings SET theme=? WHERE family_id=?", (body.theme, user["family_id"]))
     if body.digest_time: db.execute("UPDATE settings SET digest_time=? WHERE family_id=?", (body.digest_time, user["family_id"]))
+    if body.digest_sections is not None: db.execute("UPDATE settings SET digest_sections=? WHERE family_id=?", (body.digest_sections, user["family_id"]))
     db.commit(); return {"ok": True}
+
+@app.post("/api/digest/test")
+async def test_digest(user=Depends(get_uf), db=Depends(get_db)):
+    """Send a test digest to the requesting user only."""
+    member = db.execute("SELECT tg_chat_id FROM family_members WHERE user_id=? AND family_id=?",
+        (user["id"], user["family_id"])).fetchone()
+    if not member or not member["tg_chat_id"]:
+        raise HTTPException(400, "No Telegram chat linked")
+    await sched.send_digest_to(user["family_id"], user["id"], is_test=True)
+    return {"ok": True}
 
 # ═════════════════════════════════════════════════════════════════════════
 # TRELLO
