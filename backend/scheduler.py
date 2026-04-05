@@ -52,7 +52,7 @@ TRELLO_TOKEN = ""
 TRELLO_BOARD_ID = ""
 TRELLO_FAMILY_ID = 1
 
-TRELLO_LISTS = ["Монтаж видео", "Сайты", "Бренд", "Видеосъемка"]
+TRELLO_LISTS = ["Video Editing", "Монтаж видео", "Сайты", "Бренд", "Видеосъемка"]
 
 WEATHER_LAT = "44.8"
 WEATHER_LON = "20.46"
@@ -271,7 +271,7 @@ async def sync_trello():
 
     con = _con()
     today = datetime.now(ZoneInfo(TIMEZONE))
-    relevant = [card for card in cards if card.get("due") and card["idList"] in target_ids]
+    relevant = [card for card in cards if card.get("due") and card["idList"] in target_ids and not card.get("dueComplete")]
     relevant_ids = {card["id"] for card in relevant}
 
     for card in relevant:
@@ -293,11 +293,12 @@ async def sync_trello():
                 (TRELLO_FAMILY_ID, text, due, "normal", "🔵 Trello", cid))
 
     # Push local done → Trello (bi-directional)
+    all_card_ids = {card["id"] for card in cards if card["idList"] in target_ids}
     local_rows = con.execute(
         "SELECT trello_card_id, done FROM tasks WHERE trello_card_id IS NOT NULL").fetchall()
     for row in local_rows:
         row = dict(row)
-        if row["trello_card_id"] not in relevant_ids or not row["done"]:
+        if row["trello_card_id"] not in all_card_ids or not row["done"]:
             continue
         card = next((c for c in cards if c["id"] == row["trello_card_id"]), None)
         if card and not card.get("dueComplete"):
