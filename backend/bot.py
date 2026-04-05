@@ -177,7 +177,10 @@ RULES:
 
 ACTIONS (inside "actions" array):
 
-1. Expense: {{"action": "expense", "amount": 500, "currency": "RSD", "category_id": 1, "description": "taxi ride", "date": "2026-04-02", "member_id": null}}
+1. Expense: {{"action": "expense", "amount": 500, "currency": "RSD", "category_id": 1, "description": "taxi ride", "date": "2026-04-02", "member_id": null, "items": []}}
+   Optional "items" field for receipt breakdown. Each item: {{"name": "Beer", "quantity": 4, "amount": 950}}
+   If user mentions what they bought but NOT individual prices, split total evenly. E.g. total=3800 and 2 items → 1900 each.
+   Item names MUST be in English. "items" can be omitted or [] if no breakdown mentioned.
 
 2. Income: {{"action": "income", "amount": 1000, "currency": "EUR", "category_id": 8, "description": "freelance project", "date": "2026-04-02", "member_id": null}}
 
@@ -219,6 +222,9 @@ User: "мне нужно каждую среду и четверг учить р
 
 User: "купи молоко и хлеб, и ещё задача — позвонить врачу завтра"
 → {{"actions": [{{"action":"shopping","items":["Milk","Bread"],"folder_id":null}},{{"action":"task","text":"Call the doctor","due_date":"{tomorrow}","priority":"normal","assigned_to":null}}]}}
+
+User: "в прошлую пятницу потратил 3800 динар в баре Volna, купил 4 пива и жареные пельмени"
+→ {{"actions": [{{"action":"expense","amount":3800,"currency":"RSD","category_id":3,"description":"bar Volna","date":"use last Friday from table","member_id":null,"items":[{{"name":"Beer","quantity":4,"amount":1900}},{{"name":"Fried dumplings","quantity":1,"amount":1900}}]}}]}}
 
 User: "привет, как дела?"
 → {{"actions": [{{"action":"unknown","reply":"Привет! 👋 Всё отлично, готов помочь! Могу записать расходы, добавить задачи, список покупок и многое другое. Что нужно?"}}]}}"""
@@ -304,10 +310,23 @@ async def _do_expense(data: dict, family_id: int, user_id: int, user_name: str, 
     date = data.get("date", datetime.now(ZoneInfo(TIMEZONE)).strftime("%Y-%m-%d"))
     member_id = data.get("member_id") or user_id
 
-    con.execute(
+    cur = con.execute(
         "INSERT INTO transactions (family_id,type,amount,currency,amount_eur,category_id,description,date,member_id) VALUES (?,?,?,?,?,?,?,?,?)",
         (family_id, "expense", amount, currency, eur, cat_id, desc, date, member_id))
     con.commit()
+    tx_id = cur.lastrowid
+
+    # Create receipt items if provided
+    items = data.get("items") or []
+    items_str = ""
+    if items:
+        for it in items:
+            con.execute(
+                "INSERT INTO transaction_items (transaction_id,family_id,name,quantity,amount,currency) VALUES (?,?,?,?,?,?)",
+                (tx_id, family_id, it.get("name", ""), it.get("quantity", 1), it.get("amount", 0), currency))
+        con.commit()
+        items_str = "\n🧾 *Receipt:*\n" + "\n".join(
+            f"  • {it.get('name', '')} ×{it.get('quantity', 1)} — {it.get('amount', 0)} {currency}" for it in items)
 
     # Format reply
     cat_str = ""
@@ -317,7 +336,7 @@ async def _do_expense(data: dict, family_id: int, user_id: int, user_name: str, 
             cat_str = f"\n📂 {cat['emoji']} {cat['name']}"
     con.close()
 
-    reply = f"💸 *Expense: {amount} {currency}*{cat_str}\n🏷 {desc}\n📅 {date}" if desc else f"💸 *Expense: {amount} {currency}*{cat_str}\n📅 {date}"
+    reply = f"💸 *Expense: {amount} {currency}*{cat_str}\n🏷 {desc}\n📅 {date}{items_str}" if desc else f"💸 *Expense: {amount} {currency}*{cat_str}\n📅 {date}{items_str}"
     await _notify_other(family_id, chat_id, f"💸 *{user_name}*: {amount} {currency}{(' — ' + desc) if desc else ''}")
     return reply
 
