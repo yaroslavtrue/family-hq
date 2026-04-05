@@ -2,7 +2,7 @@
 🤖 Family HQ Bot — AI-powered Telegram assistant.
 Parses natural language via Claude Haiku to create expenses, income, tasks, shopping items.
 """
-import os, json, logging, sqlite3
+import os, json, logging, sqlite3, base64
 from datetime import datetime
 from zoneinfo import ZoneInfo
 from telegram import Update, WebAppInfo, MenuButtonWebApp, InlineKeyboardButton, InlineKeyboardMarkup
@@ -713,7 +713,8 @@ async def cmd_start(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         "• _add milk and bread to shopping_\n"
         "• _salary 1500 eur_\n"
         "• _task: buy birthday gift_\n"
-        "• _status_",
+        "• _status_\n"
+        "• 📷 Send a *receipt photo* to scan it!",
         reply_markup=kb, parse_mode="Markdown")
 
 
@@ -724,9 +725,161 @@ async def cmd_help(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         "💰 *Income:* \"got paid 1500 eur\"\n"
         "🛒 *Shopping:* \"add milk, eggs to shopping\"\n"
         "📋 *Tasks:* \"task: call dentist tomorrow\"\n"
+        "🔁 *Recurring:* \"every wed and thu study Russian\"\n"
+        "📷 *Receipt:* send a photo of your receipt!\n"
         "📊 *Status:* \"status\"\n\n"
         "Works in English and Russian!",
         parse_mode="Markdown")
+
+
+RECEIPT_PROMPT = """You are a receipt parser. Extract ALL items from this receipt/screenshot.
+Return valid JSON only:
+{{
+  "description": "short store/place name in English",
+  "total": total amount as number,
+  "currency": "RSD" or other currency code,
+  "category_id": best match from [{expense_cats}],
+  "items": [
+    {{"name": "item name in English", "quantity": 1, "amount": unit_price_as_number}},
+    ...
+  ]
+}}
+
+RULES:
+- Translate ALL item names to English
+- "amount" = price per 1 unit. If qty=2 and line total=338, then amount=169
+- Skip delivery fees, service fees, discounts — they are NOT items. Include them only if significant (>5% of total) as a separate item like "Delivery fee" or "Service fee"
+- If discount exists, ignore it (total already accounts for it)
+- currency: dinars/RSD/дин → "RSD", euros/€ → "EUR", dollars/$ → "USD"
+- Pick the best expense category ID by meaning (groceries→Food, restaurant→Entertainment, etc)
+- If you can't read the receipt, return {{"error": "Could not parse receipt"}}
+"""
+
+
+async def _parse_receipt_image(image_bytes: bytes, family_id: int) -> dict | None:
+    """Send receipt image to Claude Vision and get parsed items."""
+    if not ANTHROPIC_API_KEY:
+        return None
+
+    cats = _get_categories(family_id)
+    expense_cats = ", ".join(f"{c['emoji']} {c['name']} (id={c['id']})" for c in cats if c['type'] == 'expense')
+
+    b64 = base64.standard_b64encode(image_bytes).decode("utf-8")
+
+    try:
+        async with httpx.AsyncClient(timeout=30) as c:
+            r = await c.post("https://api.anthropic.com/v1/messages", headers={
+                "x-api-key": ANTHROPIC_API_KEY,
+                "anthropic-version": "2023-06-01",
+                "content-type": "application/json"
+            }, json={
+                "model": "claude-haiku-4-5-20251001",
+                "max_tokens": 2048,
+                "system": RECEIPT_PROMPT.format(expense_cats=expense_cats),
+                "messages": [{"role": "user", "content": [
+                    {"type": "image", "source": {"type": "base64", "media_type": "image/jpeg", "data": b64}},
+                    {"type": "text", "text": "Parse this receipt. Return JSON only."}
+                ]}]
+            })
+            data = r.json()
+            text = data.get("content", [{}])[0].get("text", "")
+            text = text.strip()
+            if text.startswith("```"):
+                text = text.split("\n", 1)[-1].rsplit("```", 1)[0].strip()
+            return json.loads(text)
+    except Exception as e:
+        log.error(f"Receipt parse error: {e}")
+        return None
+
+
+async def handle_photo(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    """Handle photo messages — parse receipts with Claude Vision."""
+    if not update.message or not update.message.photo:
+        return
+
+    user_id = update.effective_user.id
+    chat_id = update.effective_chat.id
+
+    # Save chat_id
+    con = _db()
+    con.execute("UPDATE family_members SET tg_chat_id=? WHERE user_id=?", (chat_id, user_id))
+    con.commit()
+    con.close()
+
+    fid, user_name, uid = _get_family(user_id)
+    if not fid:
+        await update.message.reply_text("You're not in a family yet. Open the app first!")
+        return
+
+    if not ANTHROPIC_API_KEY:
+        await update.message.reply_text("AI assistant is not configured.")
+        return
+
+    await update.effective_chat.send_action("typing")
+    await update.message.reply_text("🧾 Scanning receipt...")
+
+    # Download the largest photo
+    photo = update.message.photo[-1]  # highest resolution
+    file = await ctx.bot.get_file(photo.file_id)
+    image_bytes = await file.download_as_bytearray()
+
+    result = await _parse_receipt_image(bytes(image_bytes), fid)
+    if not result or "error" in result:
+        err = result.get("error", "Unknown error") if result else "Could not parse image"
+        await update.message.reply_text(f"❌ {err}")
+        return
+
+    # Create expense
+    total = result.get("total", 0)
+    currency = result.get("currency", "RSD")
+    desc = result.get("description", "Receipt")
+    cat_id = result.get("category_id")
+    items = result.get("items", [])
+    today = datetime.now(ZoneInfo(TIMEZONE)).strftime("%Y-%m-%d")
+    caption = (update.message.caption or "").strip()
+
+    # If user added a caption, use it as description
+    if caption:
+        desc = caption
+
+    eur = round(total * FX.get(currency, 1.0), 2)
+
+    con = _db()
+    cur = con.execute(
+        "INSERT INTO transactions (family_id,type,amount,currency,amount_eur,category_id,description,date,member_id) VALUES (?,?,?,?,?,?,?,?,?)",
+        (fid, "expense", total, currency, eur, cat_id, desc, today, user_id))
+    con.commit()
+    tx_id = cur.lastrowid
+
+    # Create receipt items
+    for it in items:
+        con.execute(
+            "INSERT INTO transaction_items (transaction_id,family_id,name,quantity,amount,currency) VALUES (?,?,?,?,?,?)",
+            (tx_id, fid, it.get("name", ""), it.get("quantity", 1), it.get("amount", 0), currency))
+    con.commit()
+
+    # Format reply
+    cat_str = ""
+    if cat_id:
+        cat = con.execute("SELECT emoji, name FROM categories WHERE id=?", (cat_id,)).fetchone()
+        if cat:
+            cat_str = f"\n📂 {cat['emoji']} {cat['name']}"
+    con.close()
+
+    items_str = ""
+    if items:
+        lines = []
+        for it in items:
+            qty = it.get("quantity", 1)
+            amt = it.get("amount", 0)
+            line_total = qty * amt
+            qty_str = f" ×{qty}" if qty > 1 else ""
+            lines.append(f"  • {it.get('name', '')}{qty_str} — {line_total:.0f} {currency}")
+        items_str = "\n🧾 *Receipt:*\n" + "\n".join(lines)
+
+    reply = f"💸 *Expense: {total} {currency}*{cat_str}\n🏷 {desc}\n📅 {today}{items_str}"
+    await _notify_other(fid, chat_id, f"💸 *{user_name}*: {total} {currency}{(' — ' + desc) if desc else ''}")
+    await update.message.reply_text(reply, parse_mode="Markdown")
 
 
 async def handle_message(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
@@ -810,6 +963,7 @@ def main():
     app = Application.builder().token(BOT_TOKEN).post_init(post_init).build()
     app.add_handler(CommandHandler("start", cmd_start))
     app.add_handler(CommandHandler("help", cmd_help))
+    app.add_handler(MessageHandler(filters.PHOTO, handle_photo))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
     log.info("🤖 Family HQ Bot started with AI!")
     app.run_polling(allowed_updates=Update.ALL_TYPES)
