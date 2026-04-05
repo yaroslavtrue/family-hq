@@ -218,6 +218,7 @@ def migrate(db_path):
             transaction_id INTEGER NOT NULL,
             family_id INTEGER NOT NULL,
             name TEXT NOT NULL,
+            quantity INTEGER DEFAULT 1,
             amount REAL NOT NULL DEFAULT 0,
             currency TEXT DEFAULT 'RSD',
             created_at TEXT DEFAULT (datetime('now'))
@@ -281,6 +282,8 @@ def migrate(db_path):
         ],
         # v9: ensure currency column exists (fix for v8 race)
         lambda c: safe_add_col(c, "transaction_items", "currency", "TEXT DEFAULT 'RSD'"),
+        # v10: quantity field for receipt items
+        lambda c: safe_add_col(c, "transaction_items", "quantity", "INTEGER DEFAULT 1"),
     ]
 
     for i, mig in enumerate(migrations):

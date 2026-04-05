@@ -385,31 +385,30 @@ h+='<span style="color:var(--ht)">Allocated: '+alloc.toFixed(0)+' '+tx.currency+
 h+='<span style="color:'+(full?'var(--ok)':'var(--wn)')+';font-weight:600">'+(full?'✓ Fully split':'Left: '+rem.toFixed(0)+' '+tx.currency)+'</span></div>';
 h+='<div style="height:4px;background:var(--bd);border-radius:2px;overflow:hidden">';
 h+='<div style="height:100%;width:'+pct+'%;background:'+(full?'var(--ok)':'var(--pr)')+';border-radius:2px;transition:width .3s"></div></div></div>';
-// Item list
+// Item list (scrollable)
 if(!items.length)h+='<div style="text-align:center;padding:20px 0;color:var(--ht);font-size:13px">No items yet. Break down this receipt.</div>';
-else{h+='<div style="display:flex;flex-direction:column;gap:6px">';
+else{h+='<div style="display:flex;flex-direction:column;gap:6px;max-height:200px;overflow-y:auto;padding-right:4px">';
 items.forEach(function(it){
+var qty=it.quantity||1;var qtyStr=qty>1?' x'+qty:'';
 h+='<div style="display:flex;align-items:center;gap:8px;padding:8px 12px;background:var(--cd);border-radius:10px">';
-h+='<span style="flex:1;font-size:14px">'+es(it.name)+'</span>';
+h+='<span style="flex:1;font-size:14px">'+es(it.name)+qtyStr+'</span>';
 h+='<span style="font-size:13px;color:var(--pr);font-weight:600;white-space:nowrap">'+parseFloat(it.amount).toFixed(0)+' '+(it.currency||tx.currency)+'</span>';
 h+='<button class="bi" style="padding:2px" onclick="edRi('+it.id+','+txId+')">'+I.ed+'</button>';
 h+='<button class="bi" style="padding:2px" onclick="dRi('+it.id+','+txId+')">'+I.x+'</button>';
 h+='</div>'});h+='</div>'}
-// Add form
+// Add form — 3 rows: Name, Qty+Price+Currency, Add
 h+='<div style="margin-top:14px;padding-top:14px;border-top:1px solid var(--bd)">';
-h+='<div style="font-size:11px;color:var(--ht);margin-bottom:8px;font-weight:600;text-transform:uppercase;letter-spacing:.5px">Add item</div>';
-h+='<input class="inp" id="ri-name" placeholder="e.g. Milk, Bread..." style="margin-bottom:8px" onkeydown="if(event.key===\'Enter\')document.getElementById(\'ri-amt\').focus()">';
-h+='<div style="display:flex;gap:8px;align-items:stretch">';
-h+='<input class="inp" id="ri-amt" type="number" step="0.01" placeholder="Amount" style="flex:2;min-width:80px" onkeydown="if(event.key===\'Enter\')addRi('+txId+')">';
-h+=_curSel("ri-cur",tx.currency);
-h+='<button class="btn btn-s" style="padding:10px 20px;font-size:14px;white-space:nowrap" onclick="addRi('+txId+')">Add</button>';
-h+='</div></div>';
+h+='<input class="inp" id="ri-name" placeholder="Item name" onkeydown="if(event.key===\'Enter\')document.getElementById(\'ri-qty\').focus()">';
+h+='<div class="dr"><div><div class="dl">Quantity</div><input class="inp" id="ri-qty" type="number" min="1" value="1" placeholder="1"></div><div><div class="dl">Price</div><input class="inp" id="ri-amt" type="number" step="0.01" placeholder="0.00" onkeydown="if(event.key===\'Enter\')addRi('+txId+')"></div><div><div class="dl">Currency</div>'+_curSel("ri-cur",tx.currency)+'</div></div>';
+h+='<button class="btn" onclick="addRi('+txId+')">Add</button>';
+h+='</div>';
 return h}
 
 async function addRi(txId){var n=document.getElementById("ri-name");if(!n||!n.value.trim())return;
+var qty=parseInt(document.getElementById("ri-qty").value)||1;
 var amt=parseFloat(document.getElementById("ri-amt").value)||0;
 var cur=document.getElementById("ri-cur").value;
-await A("POST","/api/transactions/"+txId+"/items",{name:n.value.trim(),amount:amt,currency:cur});
+await A("POST","/api/transactions/"+txId+"/items",{name:n.value.trim(),quantity:qty,amount:amt,currency:cur});
 await load();openReceipt(txId)}
 
 async function dRi(iid,txId){await A("DELETE","/api/transactions/items/"+iid);await load();openReceipt(txId)}
@@ -418,11 +417,12 @@ function edRi(iid,txId){
 var items=(D.txItems||{})[txId]||[];
 var it=items.find(function(x){return x.id===iid});if(!it)return;
 var tx=D.transactions.find(function(x){return x.id===txId});
-oMC("Edit Item",'<div class="dl">Item name</div><input class="inp" id="ei-name" value="'+es(it.name)+'"><div class="dr"><div><div class="dl">Amount</div><input class="inp" id="ei-amt" type="number" step="0.01" value="'+it.amount+'"></div><div><div class="dl">Currency</div>'+_curSel("ei-cur",it.currency||(tx?tx.currency:"RSD"))+'</div></div><button class="btn" onclick="svRi('+iid+','+txId+')">Save</button>')}
+oMC("Edit Item",'<div class="dl">Item name</div><input class="inp" id="ei-name" value="'+es(it.name)+'"><div class="dr"><div><div class="dl">Quantity</div><input class="inp" id="ei-qty" type="number" min="1" value="'+(it.quantity||1)+'"></div><div><div class="dl">Price</div><input class="inp" id="ei-amt" type="number" step="0.01" value="'+it.amount+'"></div><div><div class="dl">Currency</div>'+_curSel("ei-cur",it.currency||(tx?tx.currency:"RSD"))+'</div></div><button class="btn" onclick="svRi('+iid+','+txId+')">Save</button>')}
 
 async function svRi(iid,txId){var n=document.getElementById("ei-name").value.trim();
+var q=parseInt(document.getElementById("ei-qty").value)||1;
 var a=parseFloat(document.getElementById("ei-amt").value)||0;var c=document.getElementById("ei-cur").value;
-if(!n)return;await A("PUT","/api/transactions/items/"+iid,{name:n,amount:a,currency:c});
+if(!n)return;await A("PUT","/api/transactions/items/"+iid,{name:n,quantity:q,amount:a,currency:c});
 cMo();await load();openReceipt(txId)}
 
 // Subs (moved from Calendar)

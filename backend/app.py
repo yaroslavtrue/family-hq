@@ -214,9 +214,9 @@ class CategoryEdit(BaseModel):
 class LimitSet(BaseModel):
     monthly_limit: float
 class TxItemCreate(BaseModel):
-    name: str; amount: float = 0; currency: str = "RSD"
+    name: str; quantity: int = 1; amount: float = 0; currency: str = "RSD"
 class TxItemEdit(BaseModel):
-    name: str | None = None; amount: float | None = None; currency: str | None = None
+    name: str | None = None; quantity: int | None = None; amount: float | None = None; currency: str | None = None
 
 # ═════════════════════════════════════════════════════════════════════════
 # FAMILY
@@ -651,8 +651,8 @@ def del_subtask(sid: int, user=Depends(get_uf), db=Depends(get_db)):
 def create_tx_item(tid: int, body: TxItemCreate, user=Depends(get_uf), db=Depends(get_db)):
     tx = db.execute("SELECT id FROM transactions WHERE id=? AND family_id=?", (tid, user["family_id"])).fetchone()
     if not tx: raise HTTPException(404)
-    db.execute("INSERT INTO transaction_items (transaction_id,family_id,name,amount,currency) VALUES (?,?,?,?,?)",
-        (tid, user["family_id"], body.name, body.amount, body.currency)); db.commit()
+    db.execute("INSERT INTO transaction_items (transaction_id,family_id,name,quantity,amount,currency) VALUES (?,?,?,?,?,?)",
+        (tid, user["family_id"], body.name, body.quantity, body.amount, body.currency)); db.commit()
     return {"ok": True}
 
 @app.put("/api/transactions/items/{iid}")
@@ -661,6 +661,7 @@ def edit_tx_item(iid: int, body: TxItemEdit, user=Depends(get_uf), db=Depends(ge
     if not item: raise HTTPException(404)
     updates, vals = [], []
     if body.name is not None: updates.append("name=?"); vals.append(body.name)
+    if body.quantity is not None: updates.append("quantity=?"); vals.append(body.quantity)
     if body.amount is not None: updates.append("amount=?"); vals.append(body.amount)
     if body.currency is not None: updates.append("currency=?"); vals.append(body.currency)
     if updates:
