@@ -184,7 +184,7 @@ w.days.forEach(function(dy,i){var label=i===0?"Today":wDayName(dy.date);h+='<div
 h+='<div class="sts"><div class="st" onclick="go(\'tasks\')" style="border-left:3px solid var(--pr)"><div class="sn" style="color:var(--pr)">'+(d.tasks_pending||0)+'</div><div class="sl">Tasks</div></div>';
 h+='<div class="st" onclick="go(\'shop\')" style="border-left:3px solid var(--ac)"><div class="sn" style="color:var(--ac)">'+(d.shop_pending||0)+'</div><div class="sl">Shopping</div></div>';
 h+='<div class="st" onclick="go(\'clean\')" style="border-left:3px solid var(--wn);cursor:pointer"><div class="sn" style="color:var(--wn)">'+(d.cleaning_dirty||0)+"/"+(d.cleaning_total||0)+'</div><div class="sl">Cleaning</div></div>';
-var _tInc=0,_tExp=0;D.transactions.forEach(function(tx){if(tx.type==="income")_tInc+=(tx.amount_eur||0);else _tExp+=(tx.amount_eur||0)});var _bal=_tInc-_tExp;var _balC=_bal>=0?"var(--ok)":"var(--ac)";
+var _cm=n.getFullYear()+"-"+String(n.getMonth()+1).padStart(2,"0");var _tInc=0,_tExp=0;D.transactions.forEach(function(tx){if(tx.date&&tx.date.startsWith(_cm)){if(tx.type==="income")_tInc+=(tx.amount_eur||0);else _tExp+=(tx.amount_eur||0)}});var _bal=_tInc-_tExp;var _balC=_bal>=0?"var(--ok)":"var(--ac)";
 h+='<div class="st" onclick="go(\'money\')" style="border-left:3px solid '+_balC+'"><div class="sn" style="color:'+_balC+';font-size:16px">'+(_bal>=0?"+":"")+"€"+_bal.toFixed(0)+'</div><div class="sl" style="font-size:9px;line-height:1.2;color:var(--ht)">+€'+_tInc.toFixed(0)+' / −€'+_tExp.toFixed(0)+'</div></div></div>';
 // Top 3 tasks
 var pt=D.tasks.filter(function(x){return!x.done});var priV={high:0,normal:1,low:2};
