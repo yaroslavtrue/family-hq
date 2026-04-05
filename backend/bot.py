@@ -151,7 +151,10 @@ async def _notify_other(family_id, exclude_chat_id, text):
 SYSTEM_PROMPT = """You are Family HQ assistant bot. Parse user messages and return JSON.
 
 Today: {today} ({weekday})
-Day of week numbers: Mon=0, Tue=1, Wed=2, Thu=3, Fri=4, Sat=5, Sun=6
+Tomorrow: {tomorrow}, Yesterday: {yesterday}
+
+DATE REFERENCE (use these exact dates, do NOT compute yourself):
+{date_ref}
 Family members: {members}
 Expense categories: {expense_cats}
 Income categories: {income_cats}
@@ -165,7 +168,7 @@ RULES:
 - For amounts, extract the number and currency. Default currency: RSD for dinars/дин, USD for dollars, EUR for euros, RUB for rubles/рублей
 - Match category by meaning (food/еда/пекарня/ресторан → Food, transport/такси/автобус → Transport, etc). Use category ID from the list.
 - If user mentions a family member name, set assigned_to to their user_id
-- DATES: "today"→{today}, "tomorrow"→{tomorrow}, "yesterday"→{yesterday}. "Last Monday"→compute from today. "В понедельник"→next Monday if today is past Monday, otherwise this Monday. If no date specified, use today.
+- DATES: Use the DATE REFERENCE table above — do NOT calculate dates yourself. "last Friday/в прошлую пятницу" → use "last Friday" from the table. "в понедельник/on Monday" → use "next Monday" from the table. If no date specified, use today ({today}).
 - For recurring tasks: use rrule format "daily", "weekly:mon,wed,fri", or "monthly:15". Map Russian days: пн=mon, вт=tue, ср=wed, чт=thu, пт=fri, сб=sat, вс=sun.
 - When user asks to edit/change/update, find the matching item by name/description from existing data and use its ID. Only include fields that need to change.
 - When user asks to delete/remove, find its ID from existing data.
@@ -228,10 +231,28 @@ async def _ask_claude(message: str, family_id: int) -> dict | None:
 
     now = datetime.now(ZoneInfo(TIMEZONE))
     today = now.strftime("%Y-%m-%d")
-    weekday = now.strftime("%A")  # e.g. "Saturday"
+    weekday = now.strftime("%A")  # e.g. "Sunday"
     from datetime import timedelta
     tomorrow = (now + timedelta(days=1)).strftime("%Y-%m-%d")
     yesterday = (now - timedelta(days=1)).strftime("%Y-%m-%d")
+
+    # Pre-compute date reference table so Haiku doesn't do date math wrong
+    day_names = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
+    today_idx = now.weekday()  # 0=Mon, 6=Sun
+    date_ref_lines = []
+    for i, dn in enumerate(day_names):
+        # "last X" = most recent past occurrence (1-7 days ago)
+        diff = (today_idx - i) % 7
+        if diff == 0:
+            diff = 7  # "last Monday" when today is Monday = 7 days ago
+        last_date = (now - timedelta(days=diff)).strftime("%Y-%m-%d")
+        # "next X" = upcoming occurrence (1-7 days ahead)
+        diff_next = (i - today_idx) % 7
+        if diff_next == 0:
+            diff_next = 7
+        next_date = (now + timedelta(days=diff_next)).strftime("%Y-%m-%d")
+        date_ref_lines.append(f"  last {dn} = {last_date}, next {dn} = {next_date}")
+    date_ref = "\n".join(date_ref_lines)
 
     cats = _get_categories(family_id)
     members = _get_members(family_id)
@@ -243,6 +264,7 @@ async def _ask_claude(message: str, family_id: int) -> dict | None:
 
     system = SYSTEM_PROMPT.format(
         today=today, weekday=weekday, tomorrow=tomorrow, yesterday=yesterday,
+        date_ref=date_ref,
         members=members_str, expense_cats=expense_cats, income_cats=income_cats,
         existing_data=existing
     )
