@@ -186,7 +186,7 @@ h+='<div class="st" onclick="go(\'shop\')" style="border-left:3px solid var(--ac
 h+='<div class="st" onclick="go(\'clean\')" style="border-left:3px solid var(--wn);cursor:pointer"><div class="sn" style="color:var(--wn)">'+(d.cleaning_dirty||0)+"/"+(d.cleaning_total||0)+'</div><div class="sl">Cleaning</div></div>';
 var _aInc=0,_aExp=0;D.transactions.forEach(function(tx){if(tx.type==="income")_aInc+=(tx.amount_eur||0);else _aExp+=(tx.amount_eur||0)});var _bal=_aInc-_aExp;var _balC=_bal>=0?"var(--ok)":"var(--ac)";
 var _cm=n.getFullYear()+"-"+String(n.getMonth()+1).padStart(2,"0");var _mInc=0,_mExp=0;D.transactions.forEach(function(tx){if(tx.date&&tx.date.startsWith(_cm)){if(tx.type==="income")_mInc+=(tx.amount_eur||0);else _mExp+=(tx.amount_eur||0)}});
-h+='<div class="st" onclick="go(\'money\')" style="border-left:3px solid '+_balC+'"><div class="sn" style="color:'+_balC+';font-size:16px">'+(_bal>=0?"+":"")+"€"+_bal.toFixed(0)+'</div><div class="sl" style="font-size:9px;line-height:1.2;color:var(--ht)">+€'+_mInc.toFixed(0)+' / −€'+_mExp.toFixed(0)+'</div></div></div>';
+h+='<div class="st" onclick="go(\'money\')" style="border-left:3px solid '+_balC+'"><div class="sn" style="color:'+_balC+';font-size:20px">'+(_bal>=0?"+":"")+"€"+_bal.toFixed(0)+'</div><div class="sl" style="font-size:11px;line-height:1.3;color:var(--ht)">+€'+_mInc.toFixed(0)+' / −€'+_mExp.toFixed(0)+'</div></div></div>';
 // Top 3 tasks
 var pt=D.tasks.filter(function(x){return!x.done});var priV={high:0,normal:1,low:2};
 pt.sort(function(a,b){var pa=priV[a.priority]||1,pb=priV[b.priority]||1;if(pa!==pb)return pa-pb;var da=a.due_date||"9999",db2=b.due_date||"9999";return da<db2?-1:da>db2?1:0});
