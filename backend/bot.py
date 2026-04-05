@@ -732,26 +732,43 @@ async def cmd_help(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         parse_mode="Markdown")
 
 
-RECEIPT_PROMPT = """You are a receipt parser. Extract ALL items from this receipt/screenshot.
+RECEIPT_PROMPT = """You are a receipt parser for a family in Belgrade, Serbia. Extract ALL items from this receipt/screenshot.
+
+The receipt is most likely in SERBIAN (Latin script). Common Serbian grocery terms:
+- Mleko/Mlijeko = Milk, Jogurt = Yogurt, Pavlaka = Sour cream, Sir = Cheese
+- Krompir = Potato, Batat = Sweet potato, Krastavac = Cucumber, Paradajz = Tomato
+- Banana = Banana, Mandarina = Tangerine, Jabuka = Apple, Kruška = Pear
+- Kukuruz = Corn, Pečurka = Mushroom, Luk = Onion, Paprika = Bell pepper
+- Hleb/Hljeb = Bread, Brašno = Flour, Šećer = Sugar, So = Salt, Ulje = Oil
+- Piletina = Chicken, Svinjetina = Pork, Junetina = Beef, Riba = Fish
+- Sveže = Fresh, Kisela = Sour, Beli/Bijeli = White, Organska = Organic
+- Mreža = Mesh bag, Konzerva = Can/Canned, Čeri = Cherry (as in cherry tomato)
+- Kinoko/Griva = varieties of mushroom (NOT chicken, NOT shrimp!)
+
 Return valid JSON only:
 {{
-  "description": "short store/place name in English",
+  "description": "store name in English (e.g. Wolt, Glovo, Maxi, Lidl, Idea)",
   "total": total amount as number,
-  "currency": "RSD" or other currency code,
+  "currency": "RSD",
   "category_id": best match from [{expense_cats}],
   "items": [
-    {{"name": "item name in English", "quantity": 1, "amount": unit_price_as_number}},
+    {{"name": "item name translated to English", "quantity": 1, "amount": unit_price_as_number}},
     ...
   ]
 }}
 
 RULES:
-- Translate ALL item names to English
+- Extract EVERY product item from the receipt. Do NOT skip any.
+- Translate item names to short clear English. Keep brand names as-is (e.g. "Moja Kravica" stays).
+  Example: "Sveže mleko 2.8% Moja Kravica 1.75l" → "Fresh milk 2.8% Moja Kravica 1.75l"
+  Example: "Krompir beli mreža 2kg" → "White potato mesh bag 2kg"
+  Example: "Pavlaka kisela 20%mm 400g" → "Sour cream 20% 400g"
+  Example: "Organska pečurka lavlja griva kinoko 200g" → "Organic lion's mane mushroom 200g"
 - "amount" = price per 1 unit. If qty=2 and line total=338, then amount=169
-- Skip delivery fees, service fees, discounts — they are NOT items. Include them only if significant (>5% of total) as a separate item like "Delivery fee" or "Service fee"
-- If discount exists, ignore it (total already accounts for it)
-- currency: dinars/RSD/дин → "RSD", euros/€ → "EUR", dollars/$ → "USD"
-- Pick the best expense category ID by meaning (groceries→Food, restaurant→Entertainment, etc)
+- Skip lines like: delivery, service fee, discounts, "reserved for weight-based items" — NOT product items
+- Include service fee ONLY as a separate item if > 100 RSD
+- currency: always "RSD" for Serbian receipts (dinars)
+- Pick the best expense category ID (groceries → Food)
 - If you can't read the receipt, return {{"error": "Could not parse receipt"}}
 """
 
@@ -767,7 +784,7 @@ async def _parse_receipt_image(image_bytes: bytes, family_id: int) -> dict | Non
     b64 = base64.standard_b64encode(image_bytes).decode("utf-8")
 
     try:
-        async with httpx.AsyncClient(timeout=30) as c:
+        async with httpx.AsyncClient(timeout=45) as c:
             r = await c.post("https://api.anthropic.com/v1/messages", headers={
                 "x-api-key": ANTHROPIC_API_KEY,
                 "anthropic-version": "2023-06-01",
