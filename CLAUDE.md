@@ -23,13 +23,13 @@ Family organizer Telegram Mini App for 2 people (Yaroslav + Ella). Full-stack ap
 /opt/family_hq/
 ├── backend/
 │   ├── __init__.py
-│   ├── app.py          # FastAPI endpoints (~1000+ lines)
+│   ├── app.py          # FastAPI endpoints (~1100+ lines)
 │   ├── bot.py           # Telegram bot with Claude AI parsing
 │   ├── scheduler.py     # Background jobs (reminders, digest, Trello sync)
-│   └── migrate.py       # DB migrations (schema_version: 6)
+│   └── migrate.py       # DB migrations (schema_version: 10)
 ├── frontend/
 │   ├── index.html       # HTML + CSS shell (~230 lines)
-│   └── app.js           # All JS logic (~550+ lines)
+│   └── app.js           # All JS logic (~600+ lines)
 ├── data/family.db       # SQLite DB (preserved across deploys)
 ├── .env                 # BOT_TOKEN, WEBAPP_URL, TZ, TRELLO_*, ANTHROPIC_API_KEY
 ├── .claude/launch.json  # Dev server configs for preview
@@ -39,7 +39,7 @@ Family organizer Telegram Mini App for 2 people (Yaroslav + Ella). Full-stack ap
 └── requirements.txt
 ```
 
-## Current Version: v6.2
+## Current Version: v6.3
 
 ### Navigation
 - **Bottom nav**: 4 tabs — Home | Tasks | Shop | Money
@@ -47,19 +47,21 @@ Family organizer Telegram Mini App for 2 people (Yaroslav + Ella). Full-stack ap
 - **FAB (+)**: Context-aware add button per tab
 
 ### Features
-- **Home**: Weather 3-day forecast (Open-Meteo API, cached 30min), stats grid (clickable), top 3 tasks (priority+date sorted), upcoming 7 days (events+birthdays+subs with day counter)
+- **Home**: Weather 3-day forecast (Open-Meteo API, cached 30min), stats grid (Tasks/Shopping/Cleaning/Balance — balance shows all-time EUR total, subtitle shows current month income/expense), top 3 tasks (priority+date sorted), upcoming 7 days (events+birthdays+subs with day counter)
 - **Tasks**: Active/Recurring tabs, assign to member, priority (low/normal/high), due dates, reminders (up to 5), subtasks
 - **Shopping**: Folders (Lidl, etc), full add form (name+qty+price+folder), folder edit/delete, In Stock with totals, price in din.
-- **Money**: Transactions tab (balance card showing total income/expense/balance in EUR across ALL transactions, expense/income with categories, multi-currency, member assignment), Analytics tab (6-month bar chart, category breakdown, limits with progress bars)
+- **Money**: Transactions tab (balance card, expense/income with categories, multi-currency, member assignment, receipt split per transaction), Analytics tab (6-month bar chart, category breakdown, limits with progress bars)
+- **Receipt Split**: Modal per transaction — allocation progress bar, scrollable item list, 3-row add form (Name → Qty+Price+Currency → Add button), edit modal per item. Dedicated `transaction_items` table with name, quantity, amount, currency fields.
 - **Cleaning**: Zones with per-task reset periods, collapsible, assign to member, dirty/clean status
 - **Calendar** (in hamburger): Events with timeline, Birthdays sorted by nearest with reminders
 - **Subscriptions** (in hamburger): Multi-currency, billing day, reminders, monthly total in EUR
-- **Settings**: Family management, 6 themes (Midnight/Dawn/Forest/Ocean/Rosé/Chalk), morning digest time, category management (via modal with Expense/Income tabs), Trello Sync button (pill inside card), debug mode
+- **Settings**: Family management, 6 themes (Midnight/Dawn/Forest/Ocean/Rosé/Chalk), digest config modal (reorderable sections, per-member test send), category management, Trello Sync button, debug mode
 
 ### AI Bot
-- Parses natural language via Claude Haiku API
-- Commands: expenses, income, shopping, tasks, status
-- Supports Russian and English
+- Parses natural language via Claude Haiku API (model: claude-haiku-4-5-20251001)
+- Commands: expenses, income, shopping, tasks, edit/delete transactions/tasks/shopping/events/subscriptions, status
+- All data written in English regardless of input language
+- Supports Russian and English input
 - Notifies family members of actions
 - Example: "потратил 2000 в лидле" → creates expense transaction
 
@@ -67,21 +69,19 @@ Family organizer Telegram Mini App for 2 people (Yaroslav + Ella). Full-stack ap
 - Syncs every 30 minutes from board "Работа"
 - Manual sync via Settings → Trello Sync card (clickable, pill button "Sync Now")
 - POST /api/trello/sync endpoint for manual trigger
-- Only imports cards with due dates (not completed)
+- Only imports active cards with due dates (dueComplete=false)
+- New cards auto-assigned to Yaroslav (first family member)
 - Bi-directional: completion syncs both ways
 - Auto-cleanup: completed Trello tasks removed after 7 days
-- Lists: Монтаж видео, Сайты, Бренд, Видеосъемка
+- Lists: Video Editing, Монтаж видео, Сайты, Бренд, Видеосъемка
 - Env vars: TRELLO_API_KEY, TRELLO_TOKEN, TRELLO_BOARD_ID, TRELLO_FAMILY_ID
 
-### Morning Digest (configurable time)
+### Morning Digest (configurable sections & order)
+- Configurable via Settings → Digest Config modal (reorderable sections with ▲▼ buttons)
+- Per-member test send buttons
 - Dedup protection: last_digest column in settings — max 1 per day per family
-- Weather: current temp + 3-day forecast (Сегодня/Завтра/Послезавтра)
-- Tasks: today + tomorrow (per-member, assigned or unassigned)
-- Cleaning: overdue zones (up to 5)
-- Events: next 3 days
-- Subscriptions: next 5 days (per-member)
-- Birthdays: next 7 days
-- Single consolidated message per person
+- Sections: greeting, weather, tasks_today (includes overdue), tasks_tomorrow, cleaning, events, subs, birthdays, tip of the day
+- Section order stored as JSON in `digest_sections` column
 
 ### Schedulers (in scheduler.py)
 - check_task_reminders: every 1 min
@@ -95,15 +95,24 @@ Family organizer Telegram Mini App for 2 people (Yaroslav + Ella). Full-stack ap
 - sync_trello: every 30 min
 
 ## DB Schema
-Tables: families, family_members, tasks, task_reminders, recurring_tasks, shopping, shopping_folders, events, birthdays, birthday_reminders, subscriptions, subscription_reminders, subtasks, cleaning_zones, cleaning_tasks, zone_reminders, settings, categories, transactions, category_limits, schema_version
+Tables: families, family_members, tasks, task_reminders, recurring_tasks, shopping, shopping_folders, events, birthdays, birthday_reminders, subscriptions, subscription_reminders, subtasks, cleaning_zones, cleaning_tasks, zone_reminders, settings, categories, transactions, transaction_items, category_limits, schema_version
 
 Key columns:
-- tasks: has trello_card_id (TEXT) for Trello sync
+- tasks: has trello_card_id (TEXT) for Trello sync, assigned_to (INTEGER)
 - transactions: type (expense/income), amount, currency, amount_eur (auto-converted), category_id, member_id, date
+- transaction_items: transaction_id, name, quantity (INTEGER DEFAULT 1), amount (REAL), currency (TEXT)
 - categories: type (expense/income), emoji, name, is_default, family_id
-- settings: theme, digest_time, last_digest (TEXT, dedup: stores date like "2026-04-02")
+- settings: theme, digest_time, last_digest, digest_sections (JSON text)
 
-Migration history: v1 (base cols), v2 (zone reminders), v3 (shopping), v4 (categories seed), v5 (trello_card_id), v6 (last_digest)
+Migration history: v1 (base cols), v2 (zone reminders), v3 (shopping), v4 (categories seed), v5 (trello_card_id), v6 (last_digest), v7 (digest_sections), v8 (transaction_items table), v9 (currency column fix), v10 (quantity column)
+
+## API Endpoints (key)
+- GET /api/bundle — all data in one request (includes tx_items grouped by transaction_id)
+- POST /api/transactions/{tid}/items — create receipt item {name, quantity, amount, currency}
+- PUT /api/transactions/items/{iid} — edit receipt item
+- DELETE /api/transactions/items/{iid} — delete receipt item
+- POST /api/trello/sync — manual Trello sync trigger
+- POST /api/digest/test — send test digest to specific user
 
 ## Currency
 - Primary: RSD (Serbian dinars, displayed as "din.")
@@ -117,19 +126,9 @@ Migration history: v1 (base cols), v2 (zone reminders), v3 (shopping), v4 (categ
 - Dev mode: no token → returns user_id=0, name="Dev"
 - X-Telegram-Init-Data header on every API request
 
-## API Design
-- Bundle endpoint: GET /api/bundle — returns ALL data in one request (replaces 14 parallel fetches)
-- POST /api/trello/sync — manual Trello sync trigger
-- No-cache headers on all static files (Cache-Control: no-cache, no-store)
-- Cache buster on app.js: ?v=61
-
 ## Deployment Commands
 ```bash
 # Standard deploy (from local machine):
-cd /opt/family_hq && git pull origin v6
-docker compose build --no-cache && docker compose up -d
-
-# Or via SSH from Windows dev machine:
 ssh root@178.104.10.0 "cd /opt/family_hq && git pull origin v6 && docker compose build --no-cache && docker compose up -d"
 
 # Check:
@@ -140,34 +139,30 @@ docker compose logs --tail=30
 
 # DB backup:
 cp /opt/family_hq/data/family.db /opt/backups/family_$(date +%Y%m%d).db
-
-# Auto-backup: crontab entry runs daily at 3am
 ```
 
 ## Known Patterns & Gotchas
-- sqlite3.Row doesn't support .get() — always convert to dict() first
+- sqlite3.Row doesn't support .get() — always use dict(row) or row["key"] syntax
 - Docker needs --no-cache when frontend files change (aggressive caching)
 - Telegram Desktop WebApp caches JS aggressively — use ?v=XX cache busters
 - start.sh runs uvicorn in background (&) then bot in foreground
-- "Connection reset by peer" right after docker compose up -d is normal — uvicorn needs a few seconds
-- Patching JS via sed/heredoc is unreliable — use python3 scripts or regenerate full files
-- When editing on VPS directly, always test with: python3 -c "import ast; ast.parse(open('file.py').read())" and node -c file.js
 - env vars must be in both .env AND docker-compose.yml environment section
+- .env var names must match docker-compose.yml exactly (e.g. TRELLO_API_KEY not TRELLO_KEY)
 - VPS may have local changes — always `git stash` before `git pull` if pull fails
 - Local dev server (preview_start) shows onboarding only — no Telegram auth, can't test real data
+- CREATE TABLE IF NOT EXISTS won't add columns to an existing table — always use ALTER TABLE via safe_add_col in migrations
 
 ## Frontend Architecture
 - Single page app, no framework, vanilla JS
-- State in global D object: D.tasks, D.shopping, D.transactions, etc.
+- State in global D object: D.tasks, D.shopping, D.transactions, D.txItems, etc.
 - ren() function renders current tab
 - go(tab) switches tab + resets filters
 - A(method, path, body) — universal API caller with debug logging
+- oMC(title, html) opens modal, cMo() closes it
 - Toast system for undo on delete
-- Hamburger menu: slide-out panel from right
 - Theme system: CSS variables dynamically set by aT(themeId)
 - All data loaded via single /api/bundle call
-- Category management: modal with tabs (openCatMgr() → oMC with catMgrHtml())
-- Balance card in rTransactions(): computed from all D.transactions (total income - expense in EUR)
+- Form patterns: `dr` class = two-column row, `dl` class = field label, `inp` class = input, `btn` class = button
 
 ## What's NOT Implemented Yet
 - Weekly Report (Sunday evening summary)

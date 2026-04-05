@@ -258,7 +258,7 @@ async def sync_trello():
                 f"https://api.trello.com/1/boards/{TRELLO_BOARD_ID}/lists",
                 params={"key": TRELLO_API_KEY, "token": TRELLO_TOKEN, "fields": "id,name"})
             lists = r.json()
-            target_ids = {l["id"] for l in lists if l["name"] in TRELLO_LISTS}
+            target_ids = {l["id"]: l["name"] for l in lists if l["name"] in TRELLO_LISTS}
 
             r2 = await c.get(
                 f"https://api.trello.com/1/boards/{TRELLO_BOARD_ID}/cards",
@@ -272,17 +272,21 @@ async def sync_trello():
     con = _con()
     today = datetime.now(ZoneInfo(TIMEZONE))
     relevant = [card for card in cards if card.get("due") and card["idList"] in target_ids and not card.get("dueComplete")]
+    list_names = target_ids  # dict: list_id -> list_name
     relevant_ids = {card["id"] for card in relevant}
 
     for card in relevant:
         cid = card["id"]
-        text = card["name"]
+        list_name = list_names.get(card["idList"], "")
+        text = f"{list_name}: {card['name']}" if list_name else card["name"]
         due = card["due"][:10] if card["due"] else None
         trello_done = 1 if card.get("dueComplete") else 0
 
         existing = con.execute(
             "SELECT id, done FROM tasks WHERE trello_card_id=?", (cid,)).fetchone()
         if existing:
+            con.execute(
+                "UPDATE tasks SET text=?, due_date=? WHERE trello_card_id=?", (text, due, cid))
             if dict(existing)["done"] != trello_done:
                 con.execute(
                     "UPDATE tasks SET done=? WHERE trello_card_id=?", (trello_done, cid))
@@ -295,7 +299,7 @@ async def sync_trello():
                 (TRELLO_FAMILY_ID, text, due, "normal", "🔵 Trello", owner_id, cid))
 
     # Push local done → Trello (bi-directional)
-    all_card_ids = {card["id"] for card in cards if card["idList"] in target_ids}
+    all_card_ids = {card["id"] for card in cards if card["idList"] in list_names}
     local_rows = con.execute(
         "SELECT trello_card_id, done FROM tasks WHERE trello_card_id IS NOT NULL").fetchall()
     for row in local_rows:
