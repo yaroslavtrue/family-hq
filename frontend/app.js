@@ -400,7 +400,7 @@ h+='<div style="margin-top:14px;padding-top:14px;border-top:1px solid var(--bd)"
 h+='<div style="font-size:11px;color:var(--ht);margin-bottom:8px;font-weight:600;text-transform:uppercase;letter-spacing:.5px">Add item</div>';
 h+='<input class="inp" id="ri-name" placeholder="e.g. Milk, Bread..." style="margin-bottom:8px" onkeydown="if(event.key===\'Enter\')document.getElementById(\'ri-amt\').focus()">';
 h+='<div style="display:flex;gap:8px;align-items:stretch">';
-h+='<input class="inp" id="ri-amt" type="number" step="0.01" placeholder="Amount" style="flex:1;min-width:0" onkeydown="if(event.key===\'Enter\')addRi('+txId+')">';
+h+='<input class="inp" id="ri-amt" type="number" step="0.01" placeholder="Amount" style="flex:2;min-width:80px" onkeydown="if(event.key===\'Enter\')addRi('+txId+')">';
 h+=_curSel("ri-cur",tx.currency);
 h+='<button class="btn btn-s" style="padding:10px 20px;font-size:14px;white-space:nowrap" onclick="addRi('+txId+')">Add</button>';
 h+='</div></div>';

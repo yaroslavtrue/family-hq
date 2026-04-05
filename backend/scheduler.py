@@ -513,7 +513,7 @@ async def morning_digest():
         con.commit()
 
         section_order = None
-        if s and s.get("digest_sections"):
+        if s and s["digest_sections"]:
             try: section_order = json.loads(s["digest_sections"])
             except: pass
 

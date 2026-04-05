@@ -267,15 +267,20 @@ def migrate(db_path):
             safe_add_col(c, "settings", "digest_sections", "TEXT"),
         ],
         # v8: transaction items table (structured receipt breakdown)
-        lambda c: c.executescript("""CREATE TABLE IF NOT EXISTS transaction_items (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            transaction_id INTEGER NOT NULL,
-            family_id INTEGER NOT NULL,
-            name TEXT NOT NULL,
-            amount REAL NOT NULL DEFAULT 0,
-            currency TEXT DEFAULT 'RSD',
-            created_at TEXT DEFAULT (datetime('now'))
-        )"""),
+        lambda c: [
+            c.executescript("""CREATE TABLE IF NOT EXISTS transaction_items (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                transaction_id INTEGER NOT NULL,
+                family_id INTEGER NOT NULL,
+                name TEXT NOT NULL,
+                amount REAL NOT NULL DEFAULT 0,
+                currency TEXT DEFAULT 'RSD',
+                created_at TEXT DEFAULT (datetime('now'))
+            )"""),
+            safe_add_col(c, "transaction_items", "currency", "TEXT DEFAULT 'RSD'"),
+        ],
+        # v9: ensure currency column exists (fix for v8 race)
+        lambda c: safe_add_col(c, "transaction_items", "currency", "TEXT DEFAULT 'RSD'"),
     ]
 
     for i, mig in enumerate(migrations):
