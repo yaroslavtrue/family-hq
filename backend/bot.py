@@ -93,6 +93,11 @@ def _get_existing_data(family_id):
         "SELECT id, name, emoji, amount, currency, billing_day FROM subscriptions WHERE family_id=?",
         (family_id,)).fetchall()
 
+    # Recurring tasks
+    recurring = con.execute(
+        "SELECT id, text, rrule, assigned_to, active FROM recurring_tasks WHERE family_id=? ORDER BY id DESC LIMIT 30",
+        (family_id,)).fetchall()
+
     con.close()
 
     def fmt_tasks(rows):
@@ -113,8 +118,12 @@ def _get_existing_data(family_id):
     def fmt_subs(rows):
         return "\n".join(f"  id={r['id']}: {r['emoji']} {r['name']} {r['amount']} {r['currency']} day={r['billing_day']}" for r in rows) or "  (none)"
 
+    def fmt_recurring(rows):
+        return "\n".join(f"  id={r['id']}: \"{r['text']}\" rrule={r['rrule']} active={r['active']}" for r in rows) or "  (none)"
+
     return (
         f"ACTIVE TASKS:\n{fmt_tasks(tasks)}\n\n"
+        f"RECURRING TASKS:\n{fmt_recurring(recurring)}\n\n"
         f"SHOPPING LIST:\n{fmt_shop(shop)}\n\n"
         f"RECENT TRANSACTIONS:\n{fmt_txns(txns)}\n\n"
         f"UPCOMING EVENTS:\n{fmt_events(events)}\n\n"
@@ -139,9 +148,10 @@ async def _notify_other(family_id, exclude_chat_id, text):
             pass
 
 
-SYSTEM_PROMPT = """You are Family HQ assistant bot. Parse user messages and return a JSON action.
+SYSTEM_PROMPT = """You are Family HQ assistant bot. Parse user messages and return JSON.
 
-Today's date: {today}
+Today: {today} ({weekday})
+Day of week numbers: Mon=0, Tue=1, Wed=2, Thu=3, Fri=4, Sat=5, Sun=6
 Family members: {members}
 Expense categories: {expense_cats}
 Income categories: {income_cats}
@@ -149,50 +159,66 @@ Income categories: {income_cats}
 {existing_data}
 
 RULES:
-- IMPORTANT: ALL data you create or edit (descriptions, task names, shopping items, event titles) MUST be in English, even if the user writes in Russian. Translate to English. But your "reply" in unknown action can match the user's language.
-- Always return valid JSON, nothing else
-- For amounts, extract the number and currency. Default currency: RSD for dinars, USD for dollars, EUR for euros, RUB for rubles/рублей
-- Match category by meaning (food/еда → Food, transport/такси → Transport, etc). Use category ID from the list.
+- IMPORTANT: ALL data you create or edit (descriptions, task names, shopping items, event titles) MUST be in English, even if the user writes in Russian. Translate to English. But your "reply" field can match the user's language.
+- ALWAYS return a JSON object with "actions" array: {{"actions": [...]}}
+- A single message can contain MULTIPLE actions. Example: "spent 500 on taxi and 200 on bakery" = 2 expense actions.
+- For amounts, extract the number and currency. Default currency: RSD for dinars/дин, USD for dollars, EUR for euros, RUB for rubles/рублей
+- Match category by meaning (food/еда/пекарня/ресторан → Food, transport/такси/автобус → Transport, etc). Use category ID from the list.
 - If user mentions a family member name, set assigned_to to their user_id
-- For dates: "today"→{today}, "tomorrow"→{tomorrow}, "yesterday"→{yesterday}. If no date specified, use today.
-- When user asks to edit/change/update an item, find the matching item by name/description from the existing data above and use its ID. Only include fields that need to change.
-- When user asks to delete/remove an item, find its ID from existing data.
+- DATES: "today"→{today}, "tomorrow"→{tomorrow}, "yesterday"→{yesterday}. "Last Monday"→compute from today. "В понедельник"→next Monday if today is past Monday, otherwise this Monday. If no date specified, use today.
+- For recurring tasks: use rrule format "daily", "weekly:mon,wed,fri", or "monthly:15". Map Russian days: пн=mon, вт=tue, ср=wed, чт=thu, пт=fri, сб=sat, вс=sun.
+- When user asks to edit/change/update, find the matching item by name/description from existing data and use its ID. Only include fields that need to change.
+- When user asks to delete/remove, find its ID from existing data.
 - When user asks to complete/mark done a task, use toggle_task.
-- If you cannot find a matching item, return {{"action": "unknown", "reply": "explain what you couldn't find"}}
-- If you cannot understand the request, return {{"action": "unknown", "reply": "your helpful reply"}}
+- If the message is NOT about family management (not about expenses, tasks, shopping, events, etc.) — for example greetings, jokes, general questions — return a friendly conversational reply as unknown action. Reply in the same language as the user.
 
-ACTIONS:
+ACTIONS (inside "actions" array):
 
-1. Expense: {{"action": "expense", "amount": 500, "currency": "RSD", "category_id": 1, "description": "groceries at Lidl", "date": "2026-04-02", "member_id": null}}
+1. Expense: {{"action": "expense", "amount": 500, "currency": "RSD", "category_id": 1, "description": "taxi ride", "date": "2026-04-02", "member_id": null}}
 
 2. Income: {{"action": "income", "amount": 1000, "currency": "EUR", "category_id": 8, "description": "freelance project", "date": "2026-04-02", "member_id": null}}
 
 3. Add task: {{"action": "task", "text": "Buy milk", "due_date": "2026-04-02", "priority": "normal", "assigned_to": null}}
 
-4. Add shopping item: {{"action": "shopping", "items": ["Milk", "Bread"], "folder_id": null}}
+4. Add recurring task: {{"action": "recurring_task", "text": "Study Russian", "rrule": "weekly:wed,thu", "assigned_to": null}}
 
-5. Status request: {{"action": "status"}}
+5. Add shopping item: {{"action": "shopping", "items": ["Milk", "Bread"], "folder_id": null}}
 
-6. Edit task: {{"action": "edit_task", "id": 123, "text": "new text", "due_date": "2026-04-10", "priority": "high", "assigned_to": null}}
+6. Status request: {{"action": "status"}}
+
+7. Edit task: {{"action": "edit_task", "id": 123, "text": "new text", "due_date": "2026-04-10", "priority": "high", "assigned_to": null}}
    Only include fields that change. "id" is required.
 
-7. Edit transaction: {{"action": "edit_transaction", "id": 456, "amount": 300, "currency": "RSD", "category_id": 2, "description": "new desc", "date": "2026-04-05"}}
+8. Edit transaction: {{"action": "edit_transaction", "id": 456, "amount": 300, "currency": "RSD", "category_id": 2, "description": "new desc", "date": "2026-04-05"}}
    Only include fields that change. "id" is required.
 
-8. Edit shopping item: {{"action": "edit_shopping", "id": 789, "item": "new name", "quantity": "2", "price": 300}}
+9. Edit shopping item: {{"action": "edit_shopping", "id": 789, "item": "new name", "quantity": "2", "price": 300}}
    Only include fields that change. "id" is required.
 
-9. Edit event: {{"action": "edit_event", "id": 101, "text": "new title", "event_date": "2026-04-10", "end_date": "2026-04-11"}}
-   Only include fields that change. "id" is required.
-
-10. Edit subscription: {{"action": "edit_sub", "id": 55, "name": "Netflix", "amount": 15, "currency": "EUR", "billing_day": 10}}
+10. Edit event: {{"action": "edit_event", "id": 101, "text": "new title", "event_date": "2026-04-10", "end_date": "2026-04-11"}}
     Only include fields that change. "id" is required.
 
-11. Toggle task done: {{"action": "toggle_task", "id": 123}}
+11. Edit subscription: {{"action": "edit_sub", "id": 55, "name": "Netflix", "amount": 15, "currency": "EUR", "billing_day": 10}}
+    Only include fields that change. "id" is required.
 
-12. Delete item: {{"action": "delete", "type": "task|transaction|shopping|event|birthday|subscription", "id": 123}}
+12. Toggle task done: {{"action": "toggle_task", "id": 123}}
 
-13. Unknown: {{"action": "unknown", "reply": "I can help with expenses, income, tasks, and shopping."}}"""
+13. Delete item: {{"action": "delete", "type": "task|transaction|shopping|event|birthday|subscription", "id": 123}}
+
+14. Unknown/chat: {{"action": "unknown", "reply": "friendly reply in user's language"}}
+
+EXAMPLES:
+User: "вчера потратил 500 на такси и 200 в пекарне"
+→ {{"actions": [{{"action":"expense","amount":500,"currency":"RSD","category_id":4,"description":"taxi ride","date":"{yesterday}","member_id":null}},{{"action":"expense","amount":200,"currency":"RSD","category_id":1,"description":"bakery","date":"{yesterday}","member_id":null}}]}}
+
+User: "мне нужно каждую среду и четверг учить русский"
+→ {{"actions": [{{"action":"recurring_task","text":"Study Russian","rrule":"weekly:wed,thu","assigned_to":null}}]}}
+
+User: "купи молоко и хлеб, и ещё задача — позвонить врачу завтра"
+→ {{"actions": [{{"action":"shopping","items":["Milk","Bread"],"folder_id":null}},{{"action":"task","text":"Call the doctor","due_date":"{tomorrow}","priority":"normal","assigned_to":null}}]}}
+
+User: "привет, как дела?"
+→ {{"actions": [{{"action":"unknown","reply":"Привет! 👋 Всё отлично, готов помочь! Могу записать расходы, добавить задачи, список покупок и многое другое. Что нужно?"}}]}}"""
 
 
 async def _ask_claude(message: str, family_id: int) -> dict | None:
@@ -202,6 +228,7 @@ async def _ask_claude(message: str, family_id: int) -> dict | None:
 
     now = datetime.now(ZoneInfo(TIMEZONE))
     today = now.strftime("%Y-%m-%d")
+    weekday = now.strftime("%A")  # e.g. "Saturday"
     from datetime import timedelta
     tomorrow = (now + timedelta(days=1)).strftime("%Y-%m-%d")
     yesterday = (now - timedelta(days=1)).strftime("%Y-%m-%d")
@@ -215,7 +242,7 @@ async def _ask_claude(message: str, family_id: int) -> dict | None:
     existing = _get_existing_data(family_id)
 
     system = SYSTEM_PROMPT.format(
-        today=today, tomorrow=tomorrow, yesterday=yesterday,
+        today=today, weekday=weekday, tomorrow=tomorrow, yesterday=yesterday,
         members=members_str, expense_cats=expense_cats, income_cats=income_cats,
         existing_data=existing
     )
@@ -228,7 +255,7 @@ async def _ask_claude(message: str, family_id: int) -> dict | None:
                 "content-type": "application/json"
             }, json={
                 "model": "claude-haiku-4-5-20251001",
-                "max_tokens": 500,
+                "max_tokens": 1024,
                 "system": system,
                 "messages": [{"role": "user", "content": message}]
             })
@@ -323,6 +350,34 @@ async def _do_task(data: dict, family_id: int, user_name: str, chat_id: int) -> 
 
     await _notify_other(family_id, chat_id, f"📋 *{user_name}* added task: *{text}*")
     return "\n".join(parts)
+
+
+async def _do_recurring_task(data: dict, family_id: int, user_name: str, chat_id: int) -> str:
+    """Create a recurring task."""
+    con = _db()
+    text = data["text"]
+    rrule = data.get("rrule", "daily")
+    assigned = data.get("assigned_to")
+
+    con.execute(
+        "INSERT INTO recurring_tasks (family_id,text,assigned_to,priority,rrule) VALUES (?,?,?,?,?)",
+        (family_id, text, assigned, "normal", rrule))
+    con.commit()
+    con.close()
+
+    # Human-readable schedule
+    if rrule == "daily":
+        sched_str = "Every day"
+    elif rrule.startswith("weekly:"):
+        days = rrule.split(":")[1]
+        sched_str = f"Weekly: {days}"
+    elif rrule.startswith("monthly:"):
+        sched_str = f"Monthly: day {rrule.split(':')[1]}"
+    else:
+        sched_str = rrule
+
+    await _notify_other(family_id, chat_id, f"🔁 *{user_name}* added recurring: *{text}* ({sched_str})")
+    return f"🔁 *Recurring task added: {text}*\n🗓 {sched_str}"
 
 
 async def _do_shopping(data: dict, family_id: int, user_name: str, chat_id: int) -> str:
@@ -662,40 +717,49 @@ async def handle_message(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("Sorry, I couldn't understand that. Try again!")
         return
 
-    action = result.get("action", "unknown")
+    # Support both old format {"action": ...} and new format {"actions": [...]}
+    actions = result.get("actions", [result] if "action" in result else [])
+    if not actions:
+        await update.message.reply_text("Sorry, I couldn't understand that. Try again!")
+        return
 
-    try:
-        if action == "expense":
-            reply = await _do_expense(result, fid, uid, user_name, chat_id)
-        elif action == "income":
-            reply = await _do_income(result, fid, uid, user_name, chat_id)
-        elif action == "task":
-            reply = await _do_task(result, fid, user_name, chat_id)
-        elif action == "shopping":
-            reply = await _do_shopping(result, fid, user_name, chat_id)
-        elif action == "status":
-            reply = _get_status(fid)
-        elif action == "edit_task":
-            reply = await _do_edit_task(result, fid, user_name, chat_id)
-        elif action == "toggle_task":
-            reply = await _do_toggle_task(result, fid, user_name, chat_id)
-        elif action == "edit_transaction":
-            reply = await _do_edit_transaction(result, fid, user_name, chat_id)
-        elif action == "edit_shopping":
-            reply = await _do_edit_shopping(result, fid, user_name, chat_id)
-        elif action == "edit_event":
-            reply = await _do_edit_event(result, fid, user_name, chat_id)
-        elif action == "edit_sub":
-            reply = await _do_edit_sub(result, fid, user_name, chat_id)
-        elif action == "delete":
-            reply = await _do_delete(result, fid, user_name, chat_id)
-        else:
-            reply = result.get("reply", "I can help with expenses, income, tasks, and shopping. Just type naturally!")
+    replies = []
+    for item in actions:
+        action = item.get("action", "unknown")
+        try:
+            if action == "expense":
+                replies.append(await _do_expense(item, fid, uid, user_name, chat_id))
+            elif action == "income":
+                replies.append(await _do_income(item, fid, uid, user_name, chat_id))
+            elif action == "task":
+                replies.append(await _do_task(item, fid, user_name, chat_id))
+            elif action == "recurring_task":
+                replies.append(await _do_recurring_task(item, fid, user_name, chat_id))
+            elif action == "shopping":
+                replies.append(await _do_shopping(item, fid, user_name, chat_id))
+            elif action == "status":
+                replies.append(_get_status(fid))
+            elif action == "edit_task":
+                replies.append(await _do_edit_task(item, fid, user_name, chat_id))
+            elif action == "toggle_task":
+                replies.append(await _do_toggle_task(item, fid, user_name, chat_id))
+            elif action == "edit_transaction":
+                replies.append(await _do_edit_transaction(item, fid, user_name, chat_id))
+            elif action == "edit_shopping":
+                replies.append(await _do_edit_shopping(item, fid, user_name, chat_id))
+            elif action == "edit_event":
+                replies.append(await _do_edit_event(item, fid, user_name, chat_id))
+            elif action == "edit_sub":
+                replies.append(await _do_edit_sub(item, fid, user_name, chat_id))
+            elif action == "delete":
+                replies.append(await _do_delete(item, fid, user_name, chat_id))
+            else:
+                replies.append(item.get("reply", "Я могу помочь с расходами, задачами, покупками и событиями. Просто напиши!"))
+        except Exception as e:
+            log.error(f"Action {action} failed: {e}")
+            replies.append(f"⚠️ Error: {e}")
 
-        await update.message.reply_text(reply, parse_mode="Markdown")
-    except Exception as e:
-        log.error(f"Action {action} failed: {e}")
-        await update.message.reply_text(f"Something went wrong: {e}")
+    await update.message.reply_text("\n\n".join(replies), parse_mode="Markdown")
 
 
 def main():
