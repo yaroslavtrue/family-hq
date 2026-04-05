@@ -287,10 +287,12 @@ async def sync_trello():
                 con.execute(
                     "UPDATE tasks SET done=? WHERE trello_card_id=?", (trello_done, cid))
         else:
+            owner = con.execute("SELECT user_id FROM family_members WHERE family_id=? ORDER BY user_id LIMIT 1", (TRELLO_FAMILY_ID,)).fetchone()
+            owner_id = owner["user_id"] if owner else None
             con.execute(
-                "INSERT INTO tasks (family_id, text, due_date, priority, created_by, trello_card_id)"
-                " VALUES (?,?,?,?,?,?)",
-                (TRELLO_FAMILY_ID, text, due, "normal", "🔵 Trello", cid))
+                "INSERT INTO tasks (family_id, text, due_date, priority, created_by, assigned_to, trello_card_id)"
+                " VALUES (?,?,?,?,?,?,?)",
+                (TRELLO_FAMILY_ID, text, due, "normal", "🔵 Trello", owner_id, cid))
 
     # Push local done → Trello (bi-directional)
     all_card_ids = {card["id"] for card in cards if card["idList"] in target_ids}
