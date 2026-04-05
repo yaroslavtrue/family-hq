@@ -378,7 +378,7 @@ function receiptHtml(txId,tx){
 var items=(D.txItems||{})[txId]||[];
 var h='';
 // Allocation progress
-var alloc=0;items.forEach(function(it){alloc+=(parseFloat(it.amount)||0)});
+var alloc=0;items.forEach(function(it){alloc+=(it.quantity||1)*(parseFloat(it.amount)||0)});
 var rem=tx.amount-alloc;var pct=tx.amount>0?Math.min(100,Math.round(alloc/tx.amount*100)):0;
 var full=rem<=0&&items.length>0;
 h+='<div style="margin-bottom:16px">';
@@ -391,10 +391,10 @@ h+='<div style="height:100%;width:'+pct+'%;background:'+(full?'var(--ok)':'var(-
 if(!items.length)h+='<div style="text-align:center;padding:20px 0;color:var(--ht);font-size:13px">No items yet. Break down this receipt.</div>';
 else{h+='<div style="display:flex;flex-direction:column;gap:6px;max-height:200px;overflow-y:auto;padding-right:4px">';
 items.forEach(function(it){
-var qty=it.quantity||1;var qtyStr=qty>1?' x'+qty:'';
+var qty=it.quantity||1;var qtyStr=qty>1?' x'+qty:'';var lineTotal=qty*parseFloat(it.amount||0);
 h+='<div style="display:flex;align-items:center;gap:8px;padding:8px 12px;background:var(--cd);border-radius:10px">';
 h+='<span style="flex:1;font-size:14px">'+es(it.name)+qtyStr+'</span>';
-h+='<span style="font-size:13px;color:var(--pr);font-weight:600;white-space:nowrap">'+parseFloat(it.amount).toFixed(0)+' '+(it.currency||tx.currency)+'</span>';
+h+='<span style="font-size:13px;color:var(--pr);font-weight:600;white-space:nowrap">'+lineTotal.toFixed(0)+' '+(it.currency||tx.currency)+'</span>';
 h+='<button class="bi" style="padding:2px" onclick="edRi('+it.id+','+txId+')">'+I.ed+'</button>';
 h+='<button class="bi" style="padding:2px" onclick="dRi('+it.id+','+txId+')">'+I.x+'</button>';
 h+='</div>'});h+='</div>'}

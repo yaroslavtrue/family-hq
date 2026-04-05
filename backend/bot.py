@@ -178,8 +178,10 @@ RULES:
 ACTIONS (inside "actions" array):
 
 1. Expense: {{"action": "expense", "amount": 500, "currency": "RSD", "category_id": 1, "description": "taxi ride", "date": "2026-04-02", "member_id": null, "items": []}}
-   Optional "items" field for receipt breakdown. Each item: {{"name": "Beer", "quantity": 4, "amount": 950}}
-   If user mentions what they bought but NOT individual prices, split total evenly. E.g. total=3800 and 2 items → 1900 each.
+   Optional "items" field for receipt breakdown. Each item: {{"name": "Beer", "quantity": 4, "amount": 475}}
+   "amount" = UNIT PRICE (price per 1 piece). Total = quantity × amount.
+   If user mentions what they bought but NOT individual prices, split total evenly among items by total weight.
+   E.g. total=3800, items: 4 beers + 1 dumplings = 5 units → unit_price = 3800/5 = 760, so beer amount=760, dumplings amount=760.
    Item names MUST be in English. "items" can be omitted or [] if no breakdown mentioned.
 
 2. Income: {{"action": "income", "amount": 1000, "currency": "EUR", "category_id": 8, "description": "freelance project", "date": "2026-04-02", "member_id": null}}
@@ -224,7 +226,8 @@ User: "купи молоко и хлеб, и ещё задача — позво�
 → {{"actions": [{{"action":"shopping","items":["Milk","Bread"],"folder_id":null}},{{"action":"task","text":"Call the doctor","due_date":"{tomorrow}","priority":"normal","assigned_to":null}}]}}
 
 User: "в прошлую пятницу потратил 3800 динар в баре Volna, купил 4 пива и жареные пельмени"
-→ {{"actions": [{{"action":"expense","amount":3800,"currency":"RSD","category_id":3,"description":"bar Volna","date":"use last Friday from table","member_id":null,"items":[{{"name":"Beer","quantity":4,"amount":1900}},{{"name":"Fried dumplings","quantity":1,"amount":1900}}]}}]}}
+→ {{"actions": [{{"action":"expense","amount":3800,"currency":"RSD","category_id":3,"description":"bar Volna","date":"use last Friday from table","member_id":null,"items":[{{"name":"Beer","quantity":4,"amount":760}},{{"name":"Fried dumplings","quantity":1,"amount":760}}]}}]}}
+(amount is UNIT price: 3800 / 5 total units = 760 each; Beer 4×760=3040, Dumplings 1×760=760, total=3800)
 
 User: "привет, как дела?"
 → {{"actions": [{{"action":"unknown","reply":"Привет! 👋 Всё отлично, готов помочь! Могу записать расходы, добавить задачи, список покупок и многое другое. Что нужно?"}}]}}"""
@@ -326,7 +329,7 @@ async def _do_expense(data: dict, family_id: int, user_id: int, user_name: str, 
                 (tx_id, family_id, it.get("name", ""), it.get("quantity", 1), it.get("amount", 0), currency))
         con.commit()
         items_str = "\n🧾 *Receipt:*\n" + "\n".join(
-            f"  • {it.get('name', '')} ×{it.get('quantity', 1)} — {it.get('amount', 0)} {currency}" for it in items)
+            f"  • {it.get('name', '')} ×{it.get('quantity', 1)} — {it.get('quantity', 1) * it.get('amount', 0):.0f} {currency}" for it in items)
 
     # Format reply
     cat_str = ""
