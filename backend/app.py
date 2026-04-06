@@ -43,8 +43,9 @@ async def get_weather():
                f"&daily=temperature_2m_max,temperature_2m_min,weathercode"
                f"&current=temperature_2m,weathercode,apparent_temperature"
                f"&timezone={TIMEZONE}&forecast_days=3")
-        async with httpx.AsyncClient(timeout=5) as c:
+        async with httpx.AsyncClient(timeout=15) as c:
             r = await c.get(url)
+            r.raise_for_status()
             d = r.json()
         # WMO weather code → emoji + label
         WMO = {0:"☀️ Clear",1:"🌤 Mostly clear",2:"⛅ Partly cloudy",3:"☁️ Cloudy",

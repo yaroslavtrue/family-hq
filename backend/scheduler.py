@@ -61,18 +61,35 @@ WMO = {0:"☀️",1:"🌤",2:"⛅",3:"☁️",45:"🌫",48:"🌫",51:"🌦",53:"
        61:"🌧",63:"🌧",65:"🌧",66:"🌧",67:"🌧",71:"🌨",73:"🌨",75:"❄️",77:"❄️",
        80:"🌦",81:"🌧",82:"⛈",85:"🌨",86:"❄️",95:"⛈",96:"⛈",99:"⛈"}
 
+# In-memory cache for last successful weather response (survives one digest miss)
+_weather_cache = {"data": None, "ts": None}
+
 async def _get_weather():
-    try:
-        url = (f"https://api.open-meteo.com/v1/forecast?"
-               f"latitude={WEATHER_LAT}&longitude={WEATHER_LON}"
-               f"&daily=temperature_2m_max,temperature_2m_min,weathercode"
-               f"&current=temperature_2m,weathercode"
-               f"&timezone={TIMEZONE}&forecast_days=3")
-        async with httpx.AsyncClient(timeout=5) as c:
-            r = await c.get(url)
-            return r.json()
-    except:
-        return None
+    url = (f"https://api.open-meteo.com/v1/forecast?"
+           f"latitude={WEATHER_LAT}&longitude={WEATHER_LON}"
+           f"&daily=temperature_2m_max,temperature_2m_min,weathercode"
+           f"&current=temperature_2m,weathercode"
+           f"&timezone={TIMEZONE}&forecast_days=3")
+    # Try up to 3 times with increasing timeout
+    for attempt, timeout in enumerate([10, 15, 20], 1):
+        try:
+            async with httpx.AsyncClient(timeout=timeout) as c:
+                r = await c.get(url)
+                r.raise_for_status()
+                data = r.json()
+                _weather_cache["data"] = data
+                _weather_cache["ts"] = datetime.now(ZoneInfo(TIMEZONE)) if TIMEZONE else datetime.now()
+                return data
+        except Exception as e:
+            log.warning(f"Weather fetch attempt {attempt}/3 failed: {type(e).__name__}: {e}")
+    # All attempts failed — fall back to cached data if available and fresh (<6h)
+    if _weather_cache["data"] and _weather_cache["ts"]:
+        age = (datetime.now(ZoneInfo(TIMEZONE)) - _weather_cache["ts"]).total_seconds() if TIMEZONE else 0
+        if age < 6 * 3600:
+            log.warning(f"Weather API unreachable — using cached data ({int(age)}s old)")
+            return _weather_cache["data"]
+    log.error("Weather fetch failed and no cached data available")
+    return None
 
 def _con():
     c = sqlite3.connect(DB_PATH, check_same_thread=False)
