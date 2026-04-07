@@ -1,7 +1,7 @@
 """
 🏠 Family HQ v5 — Backend API
 """
-import os, sqlite3, hashlib, hmac, json, logging, random, re, time
+import os, sqlite3, hashlib, hmac, json, logging, random, re
 from datetime import datetime
 from urllib.parse import parse_qs
 from contextlib import asynccontextmanager
@@ -12,10 +12,10 @@ from fastapi.responses import FileResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
-import httpx
 
 from backend.migrate import migrate
 from backend import scheduler as sched
+from backend import weather as wx
 
 BOT_TOKEN = os.environ.get("BOT_TOKEN", "YOUR_TOKEN_HERE")
 DB_PATH = os.environ.get("DB_PATH", "family.db")
@@ -30,57 +30,10 @@ WEATHER_LAT = float(os.environ.get("WEATHER_LAT", "44.8"))
 WEATHER_LON = float(os.environ.get("WEATHER_LON", "20.46"))
 log = logging.getLogger("uvicorn.error")
 
-# Weather cache (refresh every 30 min)
-_weather_cache = {"data": None, "ts": 0}
-
 async def get_weather():
-    now = time.time()
-    if _weather_cache["data"] and now - _weather_cache["ts"] < 1800:
-        return _weather_cache["data"]
-    try:
-        url = (f"https://api.open-meteo.com/v1/forecast?"
-               f"latitude={WEATHER_LAT}&longitude={WEATHER_LON}"
-               f"&daily=temperature_2m_max,temperature_2m_min,weathercode"
-               f"&current=temperature_2m,weathercode,apparent_temperature"
-               f"&timezone={TIMEZONE}&forecast_days=3")
-        async with httpx.AsyncClient(timeout=15) as c:
-            r = await c.get(url)
-            r.raise_for_status()
-            d = r.json()
-        # WMO weather code → emoji + label
-        WMO = {0:"☀️ Clear",1:"🌤 Mostly clear",2:"⛅ Partly cloudy",3:"☁️ Cloudy",
-               45:"🌫 Fog",48:"🌫 Rime fog",51:"🌦 Light drizzle",53:"🌦 Drizzle",55:"🌧 Heavy drizzle",
-               61:"🌧 Light rain",63:"🌧 Rain",65:"🌧 Heavy rain",66:"🌧 Freezing rain",67:"🌧 Heavy freezing rain",
-               71:"🌨 Light snow",73:"🌨 Snow",75:"❄️ Heavy snow",77:"❄️ Snow grains",
-               80:"🌦 Light showers",81:"🌧 Showers",82:"⛈ Heavy showers",
-               85:"🌨 Snow showers",86:"❄️ Heavy snow showers",
-               95:"⛈ Thunderstorm",96:"⛈ Thunderstorm + hail",99:"⛈ Heavy hail"}
-        current = d.get("current", {})
-        daily = d.get("daily", {})
-        days = []
-        for i in range(len(daily.get("time", []))):
-            wc = daily["weathercode"][i]
-            wmo = WMO.get(wc, "🌤 " + str(wc))
-            days.append({
-                "date": daily["time"][i],
-                "max": round(daily["temperature_2m_max"][i]),
-                "min": round(daily["temperature_2m_min"][i]),
-                "code": wc,
-                "label": wmo
-            })
-        cur_wc = current.get("weathercode", 0)
-        result = {
-            "now": round(current.get("temperature_2m", 0)),
-            "feels": round(current.get("apparent_temperature", 0)),
-            "label": WMO.get(cur_wc, "🌤"),
-            "days": days
-        }
-        _weather_cache["data"] = result
-        _weather_cache["ts"] = now
-        return result
-    except Exception as e:
-        log.error(f"Weather fetch error: {e}")
-        return _weather_cache["data"]  # return stale if available
+    """Returns the shaped weather forecast for the frontend.
+    Implementation lives in backend/weather.py (shared with scheduler)."""
+    return await wx.fetch_shaped(WEATHER_LAT, WEATHER_LON, TIMEZONE)
 
 # Currency conversion rates to EUR (approximate, editable)
 FX = {"EUR": 1.0, "USD": 0.92, "GBP": 1.16, "RUB": 0.0095, "RSD": 0.0085}
@@ -127,6 +80,35 @@ async def get_uf(r: Request, db=Depends(get_db)):
 async def notify_all(fid, msg, db):
     for m in db.execute("SELECT tg_chat_id FROM family_members WHERE family_id=? AND tg_chat_id IS NOT NULL", (fid,)).fetchall():
         await sched._send(m["tg_chat_id"], msg)
+
+# ─── Generic partial-update helper ───────────────────────────────────────
+# Coerce assigned_to / member_id / category_id / folder_id where 0 means "unassigned"
+_zero_to_none = lambda v: v if v != 0 else None
+_or_none = lambda v: v or None
+
+def _update_fields(db, table, where, where_params, body, mapping):
+    """
+    Build & execute a partial UPDATE from a Pydantic body.
+      mapping: {body_attr: column_name}  or  {body_attr: (column_name, transform_fn)}
+    Skips attributes whose body value is None. Returns True if a row was touched.
+    Caller is responsible for db.commit().
+    """
+    sets, params = [], []
+    for attr, spec in mapping.items():
+        val = getattr(body, attr, None)
+        if val is None:
+            continue
+        if isinstance(spec, tuple):
+            col, fn = spec
+            val = fn(val)
+        else:
+            col = spec
+        sets.append(f"{col}=?")
+        params.append(val)
+    if not sets:
+        return False
+    db.execute(f"UPDATE {table} SET {','.join(sets)} WHERE {where}", params + list(where_params))
+    return True
 
 # ─── Lifespan ────────────────────────────────────────────────────────────
 aps = AsyncIOScheduler(timezone=TIMEZONE)
@@ -272,11 +254,9 @@ def list_members(user=Depends(get_uf), db=Depends(get_db)):
 @app.patch("/api/members/{uid}")
 def update_member(uid: int, body: MemberUpdate, user=Depends(get_uf), db=Depends(get_db)):
     if uid != user["id"]: raise HTTPException(403)
-    ups, ps = [], []
-    if body.user_name is not None: ups.append("user_name=?"); ps.append(body.user_name)
-    if body.emoji is not None: ups.append("emoji=?"); ps.append(body.emoji)
-    if body.color is not None: ups.append("color=?"); ps.append(body.color)
-    if ups: ps.append(uid); db.execute(f"UPDATE family_members SET {','.join(ups)} WHERE user_id=?", ps); db.commit()
+    if _update_fields(db, "family_members", "user_id=?", (uid,), body,
+                      {"user_name": "user_name", "emoji": "emoji", "color": "color"}):
+        db.commit()
     return {"ok": True}
 
 # ═════════════════════════════════════════════════════════════════════════
@@ -333,16 +313,17 @@ async def create_task(body: TaskCreate, user=Depends(get_uf), db=Depends(get_db)
 
 @app.put("/api/tasks/{tid}")
 def edit_task(tid: int, body: TaskEdit, user=Depends(get_uf), db=Depends(get_db)):
-    ups, ps = [], []
-    if body.text is not None: ups.append("text=?"); ps.append(body.text)
-    if body.assigned_to is not None: ups.append("assigned_to=?"); ps.append(body.assigned_to if body.assigned_to != 0 else None)
-    if body.priority is not None: ups.append("priority=?"); ps.append(body.priority)
-    if body.due_date is not None: ups.append("due_date=?"); ps.append(body.due_date or None)
-    if ups: ps.extend([tid, user["family_id"]]); db.execute(f"UPDATE tasks SET {','.join(ups)} WHERE id=? AND family_id=?", ps)
+    fid = user["family_id"]
+    _update_fields(db, "tasks", "id=? AND family_id=?", (tid, fid), body, {
+        "text": "text",
+        "assigned_to": ("assigned_to", _zero_to_none),
+        "priority": "priority",
+        "due_date": ("due_date", _or_none),
+    })
     if body.reminders is not None:
-        db.execute("DELETE FROM task_reminders WHERE task_id=? AND family_id=?", (tid, user["family_id"]))
+        db.execute("DELETE FROM task_reminders WHERE task_id=? AND family_id=?", (tid, fid))
         for r in body.reminders[:5]:
-            db.execute("INSERT INTO task_reminders (task_id,family_id,remind_at) VALUES (?,?,?)", (tid, user["family_id"], r))
+            db.execute("INSERT INTO task_reminders (task_id,family_id,remind_at) VALUES (?,?,?)", (tid, fid, r))
     db.commit(); return {"ok": True}
 
 @app.patch("/api/tasks/{tid}/toggle")
@@ -373,12 +354,13 @@ async def create_recurring(body: RecurringCreate, user=Depends(get_uf), db=Depen
 
 @app.put("/api/recurring/{rid}")
 def edit_recurring(rid: int, body: RecurringEdit, user=Depends(get_uf), db=Depends(get_db)):
-    ups, ps = [], []
-    if body.text is not None: ups.append("text=?"); ps.append(body.text)
-    if body.assigned_to is not None: ups.append("assigned_to=?"); ps.append(body.assigned_to if body.assigned_to != 0 else None)
-    if body.rrule is not None: ups.append("rrule=?"); ps.append(body.rrule)
-    if body.active is not None: ups.append("active=?"); ps.append(body.active)
-    if ups: ps.extend([rid, user["family_id"]]); db.execute(f"UPDATE recurring_tasks SET {','.join(ups)} WHERE id=? AND family_id=?", ps); db.commit()
+    if _update_fields(db, "recurring_tasks", "id=? AND family_id=?", (rid, user["family_id"]), body, {
+        "text": "text",
+        "assigned_to": ("assigned_to", _zero_to_none),
+        "rrule": "rrule",
+        "active": "active",
+    }):
+        db.commit()
     return {"ok": True}
 
 @app.delete("/api/recurring/{rid}")
@@ -429,14 +411,12 @@ class ShopEdit(BaseModel):
 
 @app.put("/api/shopping/{sid}")
 def edit_shop(sid: int, body: ShopEdit, user=Depends(get_uf), db=Depends(get_db)):
-    ups, ps = [], []
-    if body.item is not None: ups.append("item=?"); ps.append(body.item)
-    if body.quantity is not None: ups.append("quantity=?"); ps.append(body.quantity)
-    if body.price is not None: ups.append("price=?"); ps.append(body.price)
-    if body.folder_id is not None: ups.append("folder_id=?"); ps.append(body.folder_id if body.folder_id != 0 else None)
-    if ups:
-        ps.extend([sid, user["family_id"]])
-        db.execute(f"UPDATE shopping SET {','.join(ups)} WHERE id=? AND family_id=?", ps)
+    if _update_fields(db, "shopping", "id=? AND family_id=?", (sid, user["family_id"]), body, {
+        "item": "item",
+        "quantity": "quantity",
+        "price": "price",
+        "folder_id": ("folder_id", _zero_to_none),
+    }):
         db.commit()
     return {"ok": True}
 
@@ -471,10 +451,9 @@ class FolderEdit(BaseModel):
 
 @app.put("/api/shopping/folders/{fid}")
 def edit_folder(fid: int, body: FolderEdit, user=Depends(get_uf), db=Depends(get_db)):
-    ups, ps = [], []
-    if body.name is not None: ups.append("name=?"); ps.append(body.name)
-    if body.emoji is not None: ups.append("emoji=?"); ps.append(body.emoji)
-    if ups: ps.extend([fid, user["family_id"]]); db.execute(f"UPDATE shopping_folders SET {','.join(ups)} WHERE id=? AND family_id=?", ps); db.commit()
+    if _update_fields(db, "shopping_folders", "id=? AND family_id=?", (fid, user["family_id"]), body,
+                      {"name": "name", "emoji": "emoji"}):
+        db.commit()
     return {"ok": True}
 
 # ═════════════════════════════════════════════════════════════════════════
@@ -528,13 +507,14 @@ async def create_bday(body: BirthdayCreate, user=Depends(get_uf), db=Depends(get
 
 @app.put("/api/birthdays/{bid}")
 def edit_bday(bid: int, body: BirthdayEdit, user=Depends(get_uf), db=Depends(get_db)):
-    if body.name is not None: db.execute("UPDATE birthdays SET name=? WHERE id=? AND family_id=?", (body.name, bid, user["family_id"]))
-    if body.emoji is not None: db.execute("UPDATE birthdays SET emoji=? WHERE id=? AND family_id=?", (body.emoji, bid, user["family_id"]))
+    fid = user["family_id"]
+    _update_fields(db, "birthdays", "id=? AND family_id=?", (bid, fid), body,
+                   {"name": "name", "emoji": "emoji"})
     if body.reminders is not None:
-        db.execute("DELETE FROM birthday_reminders WHERE birthday_id=? AND family_id=?", (bid, user["family_id"]))
+        db.execute("DELETE FROM birthday_reminders WHERE birthday_id=? AND family_id=?", (bid, fid))
         for r in body.reminders[:5]:
             db.execute("INSERT INTO birthday_reminders (birthday_id,family_id,days_before,time) VALUES (?,?,?,?)",
-                (bid, user["family_id"], r.get("days_before", 0), r.get("time", "09:00")))
+                (bid, fid, r.get("days_before", 0), r.get("time", "09:00")))
     db.commit(); return {"ok": True}
 
 @app.delete("/api/birthdays/{bid}")
@@ -577,18 +557,17 @@ async def create_sub(body: SubscriptionCreate, user=Depends(get_uf), db=Depends(
 
 @app.put("/api/subscriptions/{sid}")
 def edit_sub(sid: int, body: SubscriptionEdit, user=Depends(get_uf), db=Depends(get_db)):
-    ups, ps = [], []
-    if body.name is not None: ups.append("name=?"); ps.append(body.name)
-    if body.emoji is not None: ups.append("emoji=?"); ps.append(body.emoji)
-    if body.amount is not None: ups.append("amount=?"); ps.append(body.amount)
-    if body.currency is not None: ups.append("currency=?"); ps.append(body.currency)
-    if body.billing_day is not None: ups.append("billing_day=?"); ps.append(body.billing_day)
-    if body.assigned_to is not None: ups.append("assigned_to=?"); ps.append(body.assigned_to if body.assigned_to != 0 else None)
+    fid = user["family_id"]
+    _update_fields(db, "subscriptions", "id=? AND family_id=?", (sid, fid), body, {
+        "name": "name", "emoji": "emoji", "amount": "amount", "currency": "currency",
+        "billing_day": "billing_day",
+        "assigned_to": ("assigned_to", _zero_to_none),
+    })
+    # Recompute amount_eur if amount or currency changed
     if body.amount is not None or body.currency is not None:
-        amt = body.amount or db.execute("SELECT amount FROM subscriptions WHERE id=?", (sid,)).fetchone()["amount"]
-        cur = body.currency or db.execute("SELECT currency FROM subscriptions WHERE id=?", (sid,)).fetchone()["currency"]
-        ups.append("amount_eur=?"); ps.append(round(amt * FX.get(cur, 1.0), 2))
-    if ups: ps.extend([sid, user["family_id"]]); db.execute(f"UPDATE subscriptions SET {','.join(ups)} WHERE id=? AND family_id=?", ps)
+        cur_row = db.execute("SELECT amount, currency FROM subscriptions WHERE id=?", (sid,)).fetchone()
+        eur = round(cur_row["amount"] * FX.get(cur_row["currency"], 1.0), 2)
+        db.execute("UPDATE subscriptions SET amount_eur=? WHERE id=? AND family_id=?", (eur, sid, fid))
     if body.reminders is not None:
         db.execute("DELETE FROM subscription_reminders WHERE sub_id=? AND family_id=?", (sid, user["family_id"]))
         for r in body.reminders[:5]:
@@ -658,16 +637,12 @@ def create_tx_item(tid: int, body: TxItemCreate, user=Depends(get_uf), db=Depend
 
 @app.put("/api/transactions/items/{iid}")
 def edit_tx_item(iid: int, body: TxItemEdit, user=Depends(get_uf), db=Depends(get_db)):
-    item = db.execute("SELECT * FROM transaction_items WHERE id=? AND family_id=?", (iid, user["family_id"])).fetchone()
+    item = db.execute("SELECT id FROM transaction_items WHERE id=? AND family_id=?", (iid, user["family_id"])).fetchone()
     if not item: raise HTTPException(404)
-    updates, vals = [], []
-    if body.name is not None: updates.append("name=?"); vals.append(body.name)
-    if body.quantity is not None: updates.append("quantity=?"); vals.append(body.quantity)
-    if body.amount is not None: updates.append("amount=?"); vals.append(body.amount)
-    if body.currency is not None: updates.append("currency=?"); vals.append(body.currency)
-    if updates:
-        vals.append(iid)
-        db.execute(f"UPDATE transaction_items SET {','.join(updates)} WHERE id=?", vals); db.commit()
+    if _update_fields(db, "transaction_items", "id=? AND family_id=?", (iid, user["family_id"]), body, {
+        "name": "name", "quantity": "quantity", "amount": "amount", "currency": "currency",
+    }):
+        db.commit()
     return {"ok": True}
 
 @app.delete("/api/transactions/items/{iid}")
@@ -706,15 +681,15 @@ def create_zone(body: ZoneCreate, user=Depends(get_uf), db=Depends(get_db)):
 
 @app.put("/api/cleaning/zones/{zid}")
 def edit_zone(zid: int, body: ZoneEdit, user=Depends(get_uf), db=Depends(get_db)):
-    ups, ps = [], []
-    if body.name is not None: ups.append("name=?"); ps.append(body.name)
-    if body.icon is not None: ups.append("icon=?"); ps.append(body.icon)
-    if body.assigned_to is not None: ups.append("assigned_to=?"); ps.append(body.assigned_to if body.assigned_to != 0 else None)
-    if ups: ps.extend([zid, user["family_id"]]); db.execute(f"UPDATE cleaning_zones SET {','.join(ups)} WHERE id=? AND family_id=?", ps)
+    fid = user["family_id"]
+    _update_fields(db, "cleaning_zones", "id=? AND family_id=?", (zid, fid), body, {
+        "name": "name", "icon": "icon",
+        "assigned_to": ("assigned_to", _zero_to_none),
+    })
     if body.reminders is not None:
-        db.execute("DELETE FROM zone_reminders WHERE zone_id=? AND family_id=?", (zid, user["family_id"]))
+        db.execute("DELETE FROM zone_reminders WHERE zone_id=? AND family_id=?", (zid, fid))
         for r in body.reminders[:5]:
-            db.execute("INSERT INTO zone_reminders (zone_id,family_id,remind_at) VALUES (?,?,?)", (zid, user["family_id"], r))
+            db.execute("INSERT INTO zone_reminders (zone_id,family_id,remind_at) VALUES (?,?,?)", (zid, fid, r))
     db.commit(); return {"ok": True}
 
 @app.delete("/api/cleaning/zones/{zid}")
@@ -730,12 +705,12 @@ def add_zone_task(zid: int, body: ZoneTaskCreate, user=Depends(get_uf), db=Depen
 
 @app.put("/api/cleaning/tasks/{tid}")
 def edit_zone_task(tid: int, body: ZoneTaskEdit, user=Depends(get_uf), db=Depends(get_db)):
-    ups, ps = [], []
-    if body.text is not None: ups.append("text=?"); ps.append(body.text)
-    if body.icon is not None: ups.append("icon=?"); ps.append(body.icon)
-    if body.assigned_to is not None: ups.append("assigned_to=?"); ps.append(body.assigned_to if body.assigned_to != 0 else None)
-    if body.reset_days is not None: ups.append("reset_days=?"); ps.append(body.reset_days)
-    if ups: ps.extend([tid, user["family_id"]]); db.execute(f"UPDATE cleaning_tasks SET {','.join(ups)} WHERE id=? AND family_id=?", ps); db.commit()
+    if _update_fields(db, "cleaning_tasks", "id=? AND family_id=?", (tid, user["family_id"]), body, {
+        "text": "text", "icon": "icon",
+        "assigned_to": ("assigned_to", _zero_to_none),
+        "reset_days": "reset_days",
+    }):
+        db.commit()
     return {"ok": True}
 
 @app.patch("/api/cleaning/tasks/{tid}/toggle")
@@ -817,10 +792,9 @@ def create_category(body: CategoryCreate, user=Depends(get_uf), db=Depends(get_d
 
 @app.put("/api/categories/{cid}")
 def edit_category(cid: int, body: CategoryEdit, user=Depends(get_uf), db=Depends(get_db)):
-    ups, ps = [], []
-    if body.name is not None: ups.append("name=?"); ps.append(body.name)
-    if body.emoji is not None: ups.append("emoji=?"); ps.append(body.emoji)
-    if ups: ps.extend([cid, user["family_id"]]); db.execute(f"UPDATE categories SET {','.join(ups)} WHERE id=? AND family_id=?", ps); db.commit()
+    if _update_fields(db, "categories", "id=? AND family_id=?", (cid, user["family_id"]), body,
+                      {"name": "name", "emoji": "emoji"}):
+        db.commit()
     return {"ok": True}
 
 @app.delete("/api/categories/{cid}")
@@ -853,19 +827,18 @@ async def create_transaction(body: TransactionCreate, user=Depends(get_uf), db=D
 
 @app.put("/api/transactions/{tid}")
 def edit_transaction(tid: int, body: TransactionEdit, user=Depends(get_uf), db=Depends(get_db)):
-    ups, ps = [], []
-    if body.type is not None: ups.append("type=?"); ps.append(body.type)
-    if body.amount is not None: ups.append("amount=?"); ps.append(body.amount)
-    if body.currency is not None: ups.append("currency=?"); ps.append(body.currency)
-    if body.category_id is not None: ups.append("category_id=?"); ps.append(body.category_id if body.category_id != 0 else None)
-    if body.description is not None: ups.append("description=?"); ps.append(body.description)
-    if body.date is not None: ups.append("date=?"); ps.append(body.date)
-    if body.member_id is not None: ups.append("member_id=?"); ps.append(body.member_id if body.member_id != 0 else None)
+    fid = user["family_id"]
+    _update_fields(db, "transactions", "id=? AND family_id=?", (tid, fid), body, {
+        "type": "type", "amount": "amount", "currency": "currency",
+        "category_id": ("category_id", _zero_to_none),
+        "description": "description", "date": "date",
+        "member_id": ("member_id", _zero_to_none),
+    })
     if body.amount is not None or body.currency is not None:
-        amt = body.amount or db.execute("SELECT amount FROM transactions WHERE id=?", (tid,)).fetchone()["amount"]
-        cur = body.currency or db.execute("SELECT currency FROM transactions WHERE id=?", (tid,)).fetchone()["currency"]
-        ups.append("amount_eur=?"); ps.append(round(amt * FX.get(cur, 1.0), 2))
-    if ups: ps.extend([tid, user["family_id"]]); db.execute(f"UPDATE transactions SET {','.join(ups)} WHERE id=? AND family_id=?", ps); db.commit()
+        cur_row = db.execute("SELECT amount, currency FROM transactions WHERE id=?", (tid,)).fetchone()
+        eur = round(cur_row["amount"] * FX.get(cur_row["currency"], 1.0), 2)
+        db.execute("UPDATE transactions SET amount_eur=? WHERE id=? AND family_id=?", (eur, tid, fid))
+    db.commit()
     return {"ok": True}
 
 @app.delete("/api/transactions/{tid}")
@@ -949,110 +922,177 @@ def _calc_dirty(db, fid, tz):
         if zd: dirty += 1
     return dirty, len(zones_all)
 
+def _group_by(rows, key):
+    """Group sqlite Row objects into {key_value: [dict, ...]}."""
+    out = {}
+    for r in rows:
+        k = r[key]
+        out.setdefault(k, []).append(dict(r))
+    return out
+
+
 @app.get("/api/bundle")
 async def bundle(user=Depends(get_uf), db=Depends(get_db)):
     f = user["family_id"]
     tz = TIMEZONE
     today = datetime.now(ZoneInfo(tz)).date()
-    # Tasks
-    tasks = [dict(r) for r in db.execute("SELECT * FROM tasks WHERE family_id=? ORDER BY done, CASE priority WHEN 'high' THEN 0 WHEN 'normal' THEN 1 ELSE 2 END, id DESC", (f,)).fetchall()]
+
+    # ─── Tasks + reminders (single query per relation, then group in Python) ──
+    tasks = [dict(r) for r in db.execute(
+        "SELECT * FROM tasks WHERE family_id=? "
+        "ORDER BY done, CASE priority WHEN 'high' THEN 0 WHEN 'normal' THEN 1 ELSE 2 END, id DESC",
+        (f,)).fetchall()]
+    task_reminders = _group_by(db.execute(
+        "SELECT id, task_id, remind_at, sent FROM task_reminders WHERE family_id=?", (f,)).fetchall(),
+        "task_id")
     for t in tasks:
-        t["reminders"] = [dict(r) for r in db.execute("SELECT id, remind_at, sent FROM task_reminders WHERE task_id=?", (t["id"],)).fetchall()]
+        t["reminders"] = task_reminders.get(t["id"], [])
+
     # Recurring
-    recurring = [dict(r) for r in db.execute("SELECT * FROM recurring_tasks WHERE family_id=? ORDER BY id DESC", (f,)).fetchall()]
+    recurring = [dict(r) for r in db.execute(
+        "SELECT * FROM recurring_tasks WHERE family_id=? ORDER BY id DESC", (f,)).fetchall()]
+
     # Shopping
-    shopping = [dict(r) for r in db.execute("SELECT * FROM shopping WHERE family_id=? ORDER BY bought, id DESC", (f,)).fetchall()]
-    folders = [dict(r) for r in db.execute("SELECT * FROM shopping_folders WHERE family_id=? ORDER BY sort_order", (f,)).fetchall()]
+    shopping = [dict(r) for r in db.execute(
+        "SELECT * FROM shopping WHERE family_id=? ORDER BY bought, id DESC", (f,)).fetchall()]
+    folders = [dict(r) for r in db.execute(
+        "SELECT * FROM shopping_folders WHERE family_id=? ORDER BY sort_order", (f,)).fetchall()]
+
     # Events
-    events = [dict(r) for r in db.execute("SELECT * FROM events WHERE family_id=? ORDER BY event_date", (f,)).fetchall()]
-    # Birthdays
-    bdays = [dict(r) for r in db.execute("SELECT * FROM birthdays WHERE family_id=?", (f,)).fetchall()]
+    events = [dict(r) for r in db.execute(
+        "SELECT * FROM events WHERE family_id=? ORDER BY event_date", (f,)).fetchall()]
+
+    # ─── Birthdays + reminders ────────────────────────────────────────────────
+    bdays = [dict(r) for r in db.execute(
+        "SELECT * FROM birthdays WHERE family_id=?", (f,)).fetchall()]
+    bday_reminders = _group_by(db.execute(
+        "SELECT id, birthday_id, days_before, time FROM birthday_reminders WHERE family_id=?", (f,)).fetchall(),
+        "birthday_id")
     for b in bdays:
-        b["reminders"] = [dict(r) for r in db.execute("SELECT id, days_before, time FROM birthday_reminders WHERE birthday_id=?", (b["id"],)).fetchall()]
+        b["reminders"] = bday_reminders.get(b["id"], [])
         try:
             p = b["birth_date"].split("-")
             bd = datetime(today.year, int(p[1]), int(p[2])).date()
             diff = (bd - today).days
-            if diff < 0: diff = (datetime(today.year + 1, int(p[1]), int(p[2])).date() - today).days
+            if diff < 0:
+                diff = (datetime(today.year + 1, int(p[1]), int(p[2])).date() - today).days
             b["days_until"] = diff
-        except: b["days_until"] = 999
+        except:
+            b["days_until"] = 999
     bdays.sort(key=lambda x: x["days_until"])
-    # Subscriptions
-    subs = [dict(r) for r in db.execute("SELECT * FROM subscriptions WHERE family_id=? ORDER BY billing_day", (f,)).fetchall()]
+
+    # ─── Subscriptions + reminders ────────────────────────────────────────────
+    subs = [dict(r) for r in db.execute(
+        "SELECT * FROM subscriptions WHERE family_id=? ORDER BY billing_day", (f,)).fetchall()]
+    sub_reminders = _group_by(db.execute(
+        "SELECT id, sub_id, days_before, time FROM subscription_reminders WHERE family_id=?", (f,)).fetchall(),
+        "sub_id")
     for s in subs:
-        s["reminders"] = [dict(r) for r in db.execute("SELECT id, days_before, time FROM subscription_reminders WHERE sub_id=?", (s["id"],)).fetchall()]
+        s["reminders"] = sub_reminders.get(s["id"], [])
         try:
             bd2 = datetime(today.year, today.month, min(s["billing_day"], 28)).date()
             diff2 = (bd2 - today).days
             if diff2 < 0:
-                if today.month == 12: bd2 = datetime(today.year + 1, 1, min(s["billing_day"], 28)).date()
-                else: bd2 = datetime(today.year, today.month + 1, min(s["billing_day"], 28)).date()
+                if today.month == 12:
+                    bd2 = datetime(today.year + 1, 1, min(s["billing_day"], 28)).date()
+                else:
+                    bd2 = datetime(today.year, today.month + 1, min(s["billing_day"], 28)).date()
                 diff2 = (bd2 - today).days
             s["days_until"] = diff2
-        except: s["days_until"] = 99
+        except:
+            s["days_until"] = 99
+
     # Members
-    members = [dict(m) for m in db.execute("SELECT user_id, user_name, emoji, color, photo_url FROM family_members WHERE family_id=?", (f,)).fetchall()]
+    members = [dict(m) for m in db.execute(
+        "SELECT user_id, user_name, emoji, color, photo_url FROM family_members WHERE family_id=?",
+        (f,)).fetchall()]
+
     # Settings
     srow = db.execute("SELECT * FROM settings WHERE family_id=?", (f,)).fetchone()
     if not srow:
-        db.execute("INSERT INTO settings (family_id) VALUES (?)", (f,)); db.commit()
+        db.execute("INSERT INTO settings (family_id) VALUES (?)", (f,))
+        db.commit()
         settings = {"family_id": f, "theme": "midnight", "digest_time": "09:00"}
-    else: settings = dict(srow)
+    else:
+        settings = dict(srow)
+
     # Family status
-    frow = db.execute("SELECT fm.family_id, f.name, f.invite_code FROM family_members fm JOIN families f ON f.id=fm.family_id WHERE fm.user_id=?", (user["id"],)).fetchone()
-    family = {"joined": True, "family_id": frow["family_id"], "name": frow["name"], "invite_code": frow["invite_code"], "members": members, "my_id": user["id"]}
-    # Zones
-    zones = [dict(r) for r in db.execute("SELECT * FROM cleaning_zones WHERE family_id=? ORDER BY sort_order", (f,)).fetchall()]
+    frow = db.execute(
+        "SELECT fm.family_id, f.name, f.invite_code FROM family_members fm "
+        "JOIN families f ON f.id=fm.family_id WHERE fm.user_id=?", (user["id"],)).fetchone()
+    family = {"joined": True, "family_id": frow["family_id"], "name": frow["name"],
+              "invite_code": frow["invite_code"], "members": members, "my_id": user["id"]}
+
+    # ─── Zones + tasks + reminders (3 queries total instead of 1+2N) ─────────
+    zones = [dict(r) for r in db.execute(
+        "SELECT * FROM cleaning_zones WHERE family_id=? ORDER BY sort_order", (f,)).fetchall()]
+    zone_tasks_grouped = _group_by(db.execute(
+        "SELECT * FROM cleaning_tasks WHERE family_id=? ORDER BY zone_id, id", (f,)).fetchall(),
+        "zone_id")
+    zone_reminders_grouped = _group_by(db.execute(
+        "SELECT id, zone_id, remind_at, sent FROM zone_reminders WHERE family_id=?", (f,)).fetchall(),
+        "zone_id")
+    dirty_cnt = 0
     for z in zones:
-        z["tasks"] = [dict(r) for r in db.execute("SELECT * FROM cleaning_tasks WHERE zone_id=? AND family_id=? ORDER BY id", (z["id"], f)).fetchall()]
-        z["reminders"] = [dict(r) for r in db.execute("SELECT id, remind_at, sent FROM zone_reminders WHERE zone_id=? AND family_id=?", (z["id"], f)).fetchall()]
+        z["tasks"] = zone_tasks_grouped.get(z["id"], [])
+        z["reminders"] = zone_reminders_grouped.get(z["id"], [])
         dirty_z = False
         for t in z["tasks"]:
-            if not t["done"] and not t.get("last_done"): dirty_z = True
+            if not t["done"] and not t.get("last_done"):
+                dirty_z = True
             elif t["done"] and t.get("last_done"):
                 try:
-                    if (today - datetime.strptime(t["last_done"], "%Y-%m-%d").date()).days >= (t.get("reset_days") or 7): dirty_z = True
-                except: dirty_z = True
-            elif not t["done"]: dirty_z = True
+                    if (today - datetime.strptime(t["last_done"], "%Y-%m-%d").date()).days >= (t.get("reset_days") or 7):
+                        dirty_z = True
+                except:
+                    dirty_z = True
+            elif not t["done"]:
+                dirty_z = True
         z["dirty"] = dirty_z
-    # Subtasks
-    def _subs(pt):
-        rows = db.execute("SELECT * FROM subtasks WHERE parent_type=? AND family_id=? ORDER BY parent_id, id", (pt, f)).fetchall()
-        result = {}
-        for r in rows:
-            pid = r["parent_id"]
-            if pid not in result: result[pid] = []
-            result[pid].append(dict(r))
-        return result
-    # Dashboard
-    dirty_cnt, total_cnt = _calc_dirty(db, f, tz)
+        if dirty_z:
+            dirty_cnt += 1
+
+    # ─── Subtasks (one query covers both task + event parents) ───────────────
+    all_subs = db.execute(
+        "SELECT * FROM subtasks WHERE family_id=? AND parent_type IN ('task','event') ORDER BY parent_type, parent_id, id",
+        (f,)).fetchall()
+    subtasks_task, subtasks_event = {}, {}
+    for r in all_subs:
+        bucket = subtasks_task if r["parent_type"] == "task" else subtasks_event
+        bucket.setdefault(r["parent_id"], []).append(dict(r))
+
+    # ─── Dashboard counts (single query via SUM/COUNT pattern keeps it 6 hits;
+    #     each is now indexed after migration v11) ─────────────────────────────
     dashboard = {
         "tasks_pending": db.execute("SELECT COUNT(*) c FROM tasks WHERE family_id=? AND done=0", (f,)).fetchone()["c"],
         "shop_pending": db.execute("SELECT COUNT(*) c FROM shopping WHERE family_id=? AND bought=0", (f,)).fetchone()["c"],
-        "events_count": db.execute("SELECT COUNT(*) c FROM events WHERE family_id=?", (f,)).fetchone()["c"],
-        "cleaning_dirty": dirty_cnt, "cleaning_total": total_cnt,
-        "birthdays_count": db.execute("SELECT COUNT(*) c FROM birthdays WHERE family_id=?", (f,)).fetchone()["c"],
-        "subs_count": db.execute("SELECT COUNT(*) c FROM subscriptions WHERE family_id=?", (f,)).fetchone()["c"],
+        "events_count": len(events),
+        "cleaning_dirty": dirty_cnt, "cleaning_total": len(zones),
+        "birthdays_count": len(bdays),
+        "subs_count": len(subs),
         "user": user["first_name"],
     }
+
     # Money data
     _ensure_categories(db, f)
-    categories = [dict(r) for r in db.execute("SELECT * FROM categories WHERE family_id=? ORDER BY type, sort_order", (f,)).fetchall()]
-    transactions = [dict(r) for r in db.execute("SELECT * FROM transactions WHERE family_id=? ORDER BY date DESC, id DESC LIMIT 100", (f,)).fetchall()]
-    # Transaction items (receipt breakdown)
-    tx_items_raw = db.execute("SELECT * FROM transaction_items WHERE family_id=? ORDER BY transaction_id, id", (f,)).fetchall()
-    tx_items = {}
-    for r in tx_items_raw:
-        tid = r["transaction_id"]
-        if tid not in tx_items: tx_items[tid] = []
-        tx_items[tid].append(dict(r))
-    # Weather (async, cached 30min)
+    categories = [dict(r) for r in db.execute(
+        "SELECT * FROM categories WHERE family_id=? ORDER BY type, sort_order", (f,)).fetchall()]
+    transactions = [dict(r) for r in db.execute(
+        "SELECT * FROM transactions WHERE family_id=? ORDER BY date DESC, id DESC LIMIT 100", (f,)).fetchall()]
+
+    # Transaction items (receipt breakdown) — single query, grouped by tx
+    tx_items = _group_by(db.execute(
+        "SELECT * FROM transaction_items WHERE family_id=? ORDER BY transaction_id, id", (f,)).fetchall(),
+        "transaction_id")
+
+    # Weather (cached + retried inside weather.py)
     weather = await get_weather()
+
     return {
         "tasks": tasks, "recurring": recurring, "shopping": shopping, "folders": folders,
         "events": events, "birthdays": bdays, "subs": subs, "dashboard": dashboard,
         "members": members, "settings": settings, "family": family, "zones": zones,
-        "subtasks_task": _subs("task"), "subtasks_event": _subs("event"),
+        "subtasks_task": subtasks_task, "subtasks_event": subtasks_event,
         "weather": weather, "categories": categories, "transactions": transactions,
         "tx_items": tx_items,
     }

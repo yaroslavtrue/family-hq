@@ -20,11 +20,42 @@ FX = {"EUR": 1.0, "USD": 0.92, "GBP": 1.16, "RUB": 0.0095, "RSD": 0.0085}
 log = logging.getLogger("bot")
 logging.basicConfig(format="%(asctime)s [%(levelname)s] %(message)s", level=logging.INFO)
 
+# Long-lived HTTP client (lazy init, reused for Telegram + Anthropic calls)
+_http_client = None
+def _http():
+    global _http_client
+    if _http_client is None:
+        _http_client = httpx.AsyncClient(timeout=30)
+    return _http_client
+
 
 def _db():
     con = sqlite3.connect(DB_PATH, check_same_thread=False)
     con.row_factory = sqlite3.Row
     return con
+
+
+def _apply_edit(con, table, data, family_id, allowed, text_cols=()):
+    """
+    Apply a partial UPDATE from an action dict to a single row.
+      allowed: column names that may be updated
+      text_cols: subset where empty strings should be ignored (don't blank out names)
+    Caller must commit. Returns True if any column was updated.
+    """
+    sets, params = [], []
+    for col in allowed:
+        if col not in data:
+            continue
+        val = data[col]
+        if col in text_cols and not val:
+            continue
+        sets.append(f"{col}=?")
+        params.append(val)
+    if not sets:
+        return False
+    params.extend([data["id"], family_id])
+    con.execute(f"UPDATE {table} SET {','.join(sets)} WHERE id=? AND family_id=?", params)
+    return True
 
 
 def _get_family(user_id):
@@ -141,9 +172,10 @@ async def _notify_other(family_id, exclude_chat_id, text):
     con.close()
     for m in members:
         try:
-            async with httpx.AsyncClient() as c:
-                await c.post(f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage",
-                             json={"chat_id": m["tg_chat_id"], "text": text, "parse_mode": "Markdown"})
+            await _http().post(
+                f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage",
+                json={"chat_id": m["tg_chat_id"], "text": text, "parse_mode": "Markdown"},
+                timeout=10)
         except:
             pass
 
@@ -279,24 +311,23 @@ async def _ask_claude(message: str, family_id: int) -> dict | None:
     )
 
     try:
-        async with httpx.AsyncClient(timeout=15) as c:
-            r = await c.post("https://api.anthropic.com/v1/messages", headers={
-                "x-api-key": ANTHROPIC_API_KEY,
-                "anthropic-version": "2023-06-01",
-                "content-type": "application/json"
-            }, json={
-                "model": "claude-haiku-4-5-20251001",
-                "max_tokens": 1024,
-                "system": system,
-                "messages": [{"role": "user", "content": message}]
-            })
-            data = r.json()
-            text = data.get("content", [{}])[0].get("text", "")
-            # Extract JSON from response (handle markdown code blocks)
-            text = text.strip()
-            if text.startswith("```"):
-                text = text.split("\n", 1)[-1].rsplit("```", 1)[0].strip()
-            return json.loads(text)
+        r = await _http().post("https://api.anthropic.com/v1/messages", headers={
+            "x-api-key": ANTHROPIC_API_KEY,
+            "anthropic-version": "2023-06-01",
+            "content-type": "application/json"
+        }, json={
+            "model": "claude-haiku-4-5-20251001",
+            "max_tokens": 1024,
+            "system": system,
+            "messages": [{"role": "user", "content": message}]
+        }, timeout=20)
+        data = r.json()
+        text = data.get("content", [{}])[0].get("text", "")
+        # Extract JSON from response (handle markdown code blocks)
+        text = text.strip()
+        if text.startswith("```"):
+            text = text.split("\n", 1)[-1].rsplit("```", 1)[0].strip()
+        return json.loads(text)
     except Exception as e:
         log.error(f"Claude API error: {e}")
         return None
@@ -445,26 +476,14 @@ async def _do_shopping(data: dict, family_id: int, user_name: str, chat_id: int)
 async def _do_edit_task(data: dict, family_id: int, user_name: str, chat_id: int) -> str:
     con = _db()
     tid = data["id"]
-    task = con.execute("SELECT text FROM tasks WHERE id=? AND family_id=?", (tid, family_id)).fetchone()
-    if not task:
+    if not con.execute("SELECT 1 FROM tasks WHERE id=? AND family_id=?", (tid, family_id)).fetchone():
         con.close()
         return "Task not found."
-
-    ups, ps = [], []
-    if "text" in data and data["text"]: ups.append("text=?"); ps.append(data["text"])
-    if "due_date" in data: ups.append("due_date=?"); ps.append(data["due_date"])
-    if "priority" in data: ups.append("priority=?"); ps.append(data["priority"])
-    if "assigned_to" in data: ups.append("assigned_to=?"); ps.append(data["assigned_to"])
-
-    if ups:
-        ps.extend([tid, family_id])
-        con.execute(f"UPDATE tasks SET {','.join(ups)} WHERE id=? AND family_id=?", ps)
+    if _apply_edit(con, "tasks", data, family_id,
+                   allowed=("text", "due_date", "priority", "assigned_to"), text_cols=("text",)):
         con.commit()
-
-    old_name = task["text"]
     new_task = con.execute("SELECT text, due_date, priority FROM tasks WHERE id=?", (tid,)).fetchone()
     con.close()
-
     parts = [f"✏️ *Task updated: {new_task['text']}*"]
     if new_task["due_date"]: parts.append(f"📅 {new_task['due_date']}")
     if new_task["priority"] != "normal": parts.append(f"⚡ {new_task['priority']}")
@@ -494,34 +513,19 @@ async def _do_toggle_task(data: dict, family_id: int, user_name: str, chat_id: i
 async def _do_edit_transaction(data: dict, family_id: int, user_name: str, chat_id: int) -> str:
     con = _db()
     tid = data["id"]
-    txn = con.execute("SELECT * FROM transactions WHERE id=? AND family_id=?", (tid, family_id)).fetchone()
+    txn = con.execute("SELECT amount, currency FROM transactions WHERE id=? AND family_id=?", (tid, family_id)).fetchone()
     if not txn:
         con.close()
         return "Transaction not found."
-
-    ups, ps = [], []
-    if "amount" in data: ups.append("amount=?"); ps.append(data["amount"])
-    if "currency" in data: ups.append("currency=?"); ps.append(data["currency"])
-    if "category_id" in data: ups.append("category_id=?"); ps.append(data["category_id"])
-    if "description" in data: ups.append("description=?"); ps.append(data["description"])
-    if "date" in data: ups.append("date=?"); ps.append(data["date"])
-    if "type" in data: ups.append("type=?"); ps.append(data["type"])
-
-    # Recalc EUR
-    amt = data.get("amount", txn["amount"])
-    cur = data.get("currency", txn["currency"])
-    ups.append("amount_eur=?"); ps.append(round(amt * FX.get(cur, 1.0), 2))
-
-    if ups:
-        ps.extend([tid, family_id])
-        con.execute(f"UPDATE transactions SET {','.join(ups)} WHERE id=? AND family_id=?", ps)
-        con.commit()
-
+    # Always recompute EUR (using new amount/currency if provided, else current row)
+    data["amount_eur"] = round(data.get("amount", txn["amount"]) * FX.get(data.get("currency", txn["currency"]), 1.0), 2)
+    _apply_edit(con, "transactions", data, family_id,
+                allowed=("amount", "currency", "category_id", "description", "date", "type", "amount_eur"))
+    con.commit()
     updated = con.execute(
         "SELECT t.*, c.emoji, c.name as cat_name FROM transactions t LEFT JOIN categories c ON c.id=t.category_id WHERE t.id=?",
         (tid,)).fetchone()
     con.close()
-
     cat_str = f"\n📂 {updated['emoji']} {updated['cat_name']}" if updated["cat_name"] else ""
     desc_str = f"\n🏷 {updated['description']}" if updated["description"] else ""
     sign = "💸" if updated["type"] == "expense" else "💰"
@@ -531,25 +535,14 @@ async def _do_edit_transaction(data: dict, family_id: int, user_name: str, chat_
 async def _do_edit_shopping(data: dict, family_id: int, user_name: str, chat_id: int) -> str:
     con = _db()
     sid = data["id"]
-    item = con.execute("SELECT item FROM shopping WHERE id=? AND family_id=?", (sid, family_id)).fetchone()
-    if not item:
+    if not con.execute("SELECT 1 FROM shopping WHERE id=? AND family_id=?", (sid, family_id)).fetchone():
         con.close()
         return "Shopping item not found."
-
-    ups, ps = [], []
-    if "item" in data and data["item"]: ups.append("item=?"); ps.append(data["item"])
-    if "quantity" in data: ups.append("quantity=?"); ps.append(data["quantity"])
-    if "price" in data: ups.append("price=?"); ps.append(data["price"])
-    if "folder_id" in data: ups.append("folder_id=?"); ps.append(data["folder_id"])
-
-    if ups:
-        ps.extend([sid, family_id])
-        con.execute(f"UPDATE shopping SET {','.join(ups)} WHERE id=? AND family_id=?", ps)
+    if _apply_edit(con, "shopping", data, family_id,
+                   allowed=("item", "quantity", "price", "folder_id"), text_cols=("item",)):
         con.commit()
-
     updated = con.execute("SELECT * FROM shopping WHERE id=?", (sid,)).fetchone()
     con.close()
-
     price_str = f" — {updated['price']} {updated['currency'] or 'RSD'}" if updated["price"] else ""
     qty_str = f" x{updated['quantity']}" if updated["quantity"] else ""
     return f"✏️ *Shopping updated: {updated['item']}*{qty_str}{price_str}"
@@ -558,24 +551,14 @@ async def _do_edit_shopping(data: dict, family_id: int, user_name: str, chat_id:
 async def _do_edit_event(data: dict, family_id: int, user_name: str, chat_id: int) -> str:
     con = _db()
     eid = data["id"]
-    ev = con.execute("SELECT text FROM events WHERE id=? AND family_id=?", (eid, family_id)).fetchone()
-    if not ev:
+    if not con.execute("SELECT 1 FROM events WHERE id=? AND family_id=?", (eid, family_id)).fetchone():
         con.close()
         return "Event not found."
-
-    ups, ps = [], []
-    if "text" in data and data["text"]: ups.append("text=?"); ps.append(data["text"])
-    if "event_date" in data: ups.append("event_date=?"); ps.append(data["event_date"])
-    if "end_date" in data: ups.append("end_date=?"); ps.append(data["end_date"])
-
-    if ups:
-        ps.extend([eid, family_id])
-        con.execute(f"UPDATE events SET {','.join(ups)} WHERE id=? AND family_id=?", ps)
+    if _apply_edit(con, "events", data, family_id,
+                   allowed=("text", "event_date", "end_date"), text_cols=("text",)):
         con.commit()
-
     updated = con.execute("SELECT * FROM events WHERE id=?", (eid,)).fetchone()
     con.close()
-
     end_str = f" → {updated['end_date']}" if updated["end_date"] else ""
     await _notify_other(family_id, chat_id, f"✏️ *{user_name}* updated event: *{updated['text']}*")
     return f"✏️ *Event updated: {updated['text']}*\n📅 {updated['event_date']}{end_str}"
@@ -584,29 +567,18 @@ async def _do_edit_event(data: dict, family_id: int, user_name: str, chat_id: in
 async def _do_edit_sub(data: dict, family_id: int, user_name: str, chat_id: int) -> str:
     con = _db()
     sid = data["id"]
-    sub = con.execute("SELECT name FROM subscriptions WHERE id=? AND family_id=?", (sid, family_id)).fetchone()
+    sub = con.execute("SELECT amount, currency FROM subscriptions WHERE id=? AND family_id=?", (sid, family_id)).fetchone()
     if not sub:
         con.close()
         return "Subscription not found."
-
-    ups, ps = [], []
-    if "name" in data and data["name"]: ups.append("name=?"); ps.append(data["name"])
-    if "amount" in data: ups.append("amount=?"); ps.append(data["amount"])
-    if "currency" in data: ups.append("currency=?"); ps.append(data["currency"])
-    if "billing_day" in data: ups.append("billing_day=?"); ps.append(data["billing_day"])
-    if "emoji" in data: ups.append("emoji=?"); ps.append(data["emoji"])
-
-    # Recalc EUR
     if "amount" in data or "currency" in data:
-        amt = data.get("amount", sub["amount"] if "amount" in dict(sub).keys() else 0)
-        cur = data.get("currency", "EUR")
-        ups.append("amount_eur=?"); ps.append(round(amt * FX.get(cur, 1.0), 2))
-
-    if ups:
-        ps.extend([sid, family_id])
-        con.execute(f"UPDATE subscriptions SET {','.join(ups)} WHERE id=? AND family_id=?", ps)
+        amt = data.get("amount", sub["amount"])
+        cur = data.get("currency", sub["currency"])
+        data["amount_eur"] = round(amt * FX.get(cur, 1.0), 2)
+    if _apply_edit(con, "subscriptions", data, family_id,
+                   allowed=("name", "amount", "currency", "billing_day", "emoji", "amount_eur"),
+                   text_cols=("name",)):
         con.commit()
-
     updated = con.execute("SELECT * FROM subscriptions WHERE id=?", (sid,)).fetchone()
     con.close()
     return f"✏️ *Subscription updated: {updated['emoji']} {updated['name']}*\n💰 {updated['amount']} {updated['currency']} — day {updated['billing_day']}"
@@ -784,26 +756,25 @@ async def _parse_receipt_image(image_bytes: bytes, family_id: int) -> dict | Non
     b64 = base64.standard_b64encode(image_bytes).decode("utf-8")
 
     try:
-        async with httpx.AsyncClient(timeout=45) as c:
-            r = await c.post("https://api.anthropic.com/v1/messages", headers={
-                "x-api-key": ANTHROPIC_API_KEY,
-                "anthropic-version": "2023-06-01",
-                "content-type": "application/json"
-            }, json={
-                "model": "claude-haiku-4-5-20251001",
-                "max_tokens": 2048,
-                "system": RECEIPT_PROMPT.format(expense_cats=expense_cats),
-                "messages": [{"role": "user", "content": [
-                    {"type": "image", "source": {"type": "base64", "media_type": "image/jpeg", "data": b64}},
-                    {"type": "text", "text": "Parse this receipt. Return JSON only."}
-                ]}]
-            })
-            data = r.json()
-            text = data.get("content", [{}])[0].get("text", "")
-            text = text.strip()
-            if text.startswith("```"):
-                text = text.split("\n", 1)[-1].rsplit("```", 1)[0].strip()
-            return json.loads(text)
+        r = await _http().post("https://api.anthropic.com/v1/messages", headers={
+            "x-api-key": ANTHROPIC_API_KEY,
+            "anthropic-version": "2023-06-01",
+            "content-type": "application/json"
+        }, json={
+            "model": "claude-haiku-4-5-20251001",
+            "max_tokens": 2048,
+            "system": RECEIPT_PROMPT.format(expense_cats=expense_cats),
+            "messages": [{"role": "user", "content": [
+                {"type": "image", "source": {"type": "base64", "media_type": "image/jpeg", "data": b64}},
+                {"type": "text", "text": "Parse this receipt. Return JSON only."}
+            ]}]
+        }, timeout=60)
+        data = r.json()
+        text = data.get("content", [{}])[0].get("text", "")
+        text = text.strip()
+        if text.startswith("```"):
+            text = text.split("\n", 1)[-1].rsplit("```", 1)[0].strip()
+        return json.loads(text)
     except Exception as e:
         log.error(f"Receipt parse error: {e}")
         return None

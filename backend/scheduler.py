@@ -7,6 +7,8 @@ from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 import httpx, logging
 
+from backend import weather as wx
+
 log = logging.getLogger("uvicorn.error")
 
 DAILY_TIPS = [
@@ -57,39 +59,21 @@ TRELLO_LISTS = ["Video Editing", "Монтаж видео", "Сайты", "Бр�
 WEATHER_LAT = "44.8"
 WEATHER_LON = "20.46"
 
-WMO = {0:"☀️",1:"🌤",2:"⛅",3:"☁️",45:"🌫",48:"🌫",51:"🌦",53:"🌦",55:"🌧",
-       61:"🌧",63:"🌧",65:"🌧",66:"🌧",67:"🌧",71:"🌨",73:"🌨",75:"❄️",77:"❄️",
-       80:"🌦",81:"🌧",82:"⛈",85:"🌨",86:"❄️",95:"⛈",96:"⛈",99:"⛈"}
+# Compact emoji map used by digest section (re-exported from weather module)
+WMO = wx.WMO_SHORT
 
-# In-memory cache for last successful weather response (survives one digest miss)
-_weather_cache = {"data": None, "ts": None}
 
 async def _get_weather():
-    url = (f"https://api.open-meteo.com/v1/forecast?"
-           f"latitude={WEATHER_LAT}&longitude={WEATHER_LON}"
-           f"&daily=temperature_2m_max,temperature_2m_min,weathercode"
-           f"&current=temperature_2m,weathercode"
-           f"&timezone={TIMEZONE}&forecast_days=3")
-    # Try up to 3 times with increasing timeout
-    for attempt, timeout in enumerate([10, 15, 20], 1):
-        try:
-            async with httpx.AsyncClient(timeout=timeout) as c:
-                r = await c.get(url)
-                r.raise_for_status()
-                data = r.json()
-                _weather_cache["data"] = data
-                _weather_cache["ts"] = datetime.now(ZoneInfo(TIMEZONE)) if TIMEZONE else datetime.now()
-                return data
-        except Exception as e:
-            log.warning(f"Weather fetch attempt {attempt}/3 failed: {type(e).__name__}: {e}")
-    # All attempts failed — fall back to cached data if available and fresh (<6h)
-    if _weather_cache["data"] and _weather_cache["ts"]:
-        age = (datetime.now(ZoneInfo(TIMEZONE)) - _weather_cache["ts"]).total_seconds() if TIMEZONE else 0
-        if age < 6 * 3600:
-            log.warning(f"Weather API unreachable — using cached data ({int(age)}s old)")
-            return _weather_cache["data"]
-    log.error("Weather fetch failed and no cached data available")
-    return None
+    """Raw Open-Meteo response, with retry + 6h cache fallback (shared impl)."""
+    return await wx.fetch_raw(WEATHER_LAT, WEATHER_LON, TIMEZONE)
+
+# Long-lived HTTP client (lazy init, reused across all jobs to avoid TCP/TLS handshakes)
+_http_client = None
+def _http():
+    global _http_client
+    if _http_client is None:
+        _http_client = httpx.AsyncClient(timeout=30)
+    return _http_client
 
 def _con():
     c = sqlite3.connect(DB_PATH, check_same_thread=False)
@@ -98,9 +82,10 @@ def _con():
 
 async def _send(chat_id, text):
     try:
-        async with httpx.AsyncClient() as c:
-            await c.post(f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage",
-                json={"chat_id": chat_id, "text": text, "parse_mode": "Markdown"})
+        await _http().post(
+            f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage",
+            json={"chat_id": chat_id, "text": text, "parse_mode": "Markdown"},
+            timeout=10)
     except Exception as e:
         log.error(f"Send error: {e}")
 
@@ -270,18 +255,20 @@ async def sync_trello():
         log.info("Trello sync skipped: no credentials configured")
         return
     try:
-        async with httpx.AsyncClient(timeout=10) as c:
-            r = await c.get(
-                f"https://api.trello.com/1/boards/{TRELLO_BOARD_ID}/lists",
-                params={"key": TRELLO_API_KEY, "token": TRELLO_TOKEN, "fields": "id,name"})
-            lists = r.json()
-            target_ids = {l["id"]: l["name"] for l in lists if l["name"] in TRELLO_LISTS}
+        c = _http()
+        r = await c.get(
+            f"https://api.trello.com/1/boards/{TRELLO_BOARD_ID}/lists",
+            params={"key": TRELLO_API_KEY, "token": TRELLO_TOKEN, "fields": "id,name"},
+            timeout=10)
+        lists = r.json()
+        target_ids = {l["id"]: l["name"] for l in lists if l["name"] in TRELLO_LISTS}
 
-            r2 = await c.get(
-                f"https://api.trello.com/1/boards/{TRELLO_BOARD_ID}/cards",
-                params={"key": TRELLO_API_KEY, "token": TRELLO_TOKEN,
-                        "fields": "id,name,due,dueComplete,idList", "filter": "open"})
-            cards = r2.json()
+        r2 = await c.get(
+            f"https://api.trello.com/1/boards/{TRELLO_BOARD_ID}/cards",
+            params={"key": TRELLO_API_KEY, "token": TRELLO_TOKEN,
+                    "fields": "id,name,due,dueComplete,idList", "filter": "open"},
+            timeout=10)
+        cards = r2.json()
     except Exception as e:
         log.error(f"Trello fetch error: {e}")
         return
@@ -326,11 +313,11 @@ async def sync_trello():
         card = next((c for c in cards if c["id"] == row["trello_card_id"]), None)
         if card and not card.get("dueComplete"):
             try:
-                async with httpx.AsyncClient(timeout=5) as c:
-                    await c.put(
-                        f"https://api.trello.com/1/cards/{row['trello_card_id']}",
-                        params={"key": TRELLO_API_KEY, "token": TRELLO_TOKEN,
-                                "dueComplete": "true"})
+                await _http().put(
+                    f"https://api.trello.com/1/cards/{row['trello_card_id']}",
+                    params={"key": TRELLO_API_KEY, "token": TRELLO_TOKEN,
+                            "dueComplete": "true"},
+                    timeout=10)
             except Exception as e:
                 log.error(f"Trello card update error: {e}")
 

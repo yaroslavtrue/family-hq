@@ -284,6 +284,34 @@ def migrate(db_path):
         lambda c: safe_add_col(c, "transaction_items", "currency", "TEXT DEFAULT 'RSD'"),
         # v10: quantity field for receipt items
         lambda c: safe_add_col(c, "transaction_items", "quantity", "INTEGER DEFAULT 1"),
+        # v11: indexes for hot query paths (purely additive, no data change)
+        lambda c: c.executescript("""
+            CREATE INDEX IF NOT EXISTS idx_tasks_family_done ON tasks(family_id, done);
+            CREATE INDEX IF NOT EXISTS idx_tasks_trello ON tasks(trello_card_id);
+            CREATE INDEX IF NOT EXISTS idx_task_reminders_task ON task_reminders(task_id);
+            CREATE INDEX IF NOT EXISTS idx_task_reminders_pending ON task_reminders(family_id, sent, remind_at);
+            CREATE INDEX IF NOT EXISTS idx_recurring_family ON recurring_tasks(family_id, active);
+            CREATE INDEX IF NOT EXISTS idx_shopping_family ON shopping(family_id, bought);
+            CREATE INDEX IF NOT EXISTS idx_events_family_date ON events(family_id, event_date);
+            CREATE INDEX IF NOT EXISTS idx_birthdays_family ON birthdays(family_id);
+            CREATE INDEX IF NOT EXISTS idx_birthday_reminders_bday ON birthday_reminders(birthday_id);
+            CREATE INDEX IF NOT EXISTS idx_birthday_reminders_family ON birthday_reminders(family_id);
+            CREATE INDEX IF NOT EXISTS idx_subs_family ON subscriptions(family_id);
+            CREATE INDEX IF NOT EXISTS idx_sub_reminders_sub ON subscription_reminders(sub_id);
+            CREATE INDEX IF NOT EXISTS idx_sub_reminders_family ON subscription_reminders(family_id);
+            CREATE INDEX IF NOT EXISTS idx_subtasks_parent ON subtasks(parent_type, parent_id);
+            CREATE INDEX IF NOT EXISTS idx_cleaning_tasks_zone ON cleaning_tasks(zone_id);
+            CREATE INDEX IF NOT EXISTS idx_cleaning_tasks_family ON cleaning_tasks(family_id);
+            CREATE INDEX IF NOT EXISTS idx_zones_family ON cleaning_zones(family_id);
+            CREATE INDEX IF NOT EXISTS idx_zone_reminders_zone ON zone_reminders(zone_id);
+            CREATE INDEX IF NOT EXISTS idx_zone_reminders_pending ON zone_reminders(family_id, sent, remind_at);
+            CREATE INDEX IF NOT EXISTS idx_transactions_family_date ON transactions(family_id, date);
+            CREATE INDEX IF NOT EXISTS idx_transactions_category ON transactions(category_id);
+            CREATE INDEX IF NOT EXISTS idx_tx_items_tx ON transaction_items(transaction_id);
+            CREATE INDEX IF NOT EXISTS idx_tx_items_family ON transaction_items(family_id);
+            CREATE INDEX IF NOT EXISTS idx_categories_family ON categories(family_id, type);
+            CREATE INDEX IF NOT EXISTS idx_members_family ON family_members(family_id);
+        """),
     ]
 
     for i, mig in enumerate(migrations):
