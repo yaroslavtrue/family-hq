@@ -461,7 +461,24 @@ def edit_folder(fid: int, body: FolderEdit, user=Depends(get_uf), db=Depends(get
 # ═════════════════════════════════════════════════════════════════════════
 @app.get("/api/events")
 def list_events(user=Depends(get_uf), db=Depends(get_db)):
-    return [dict(r) for r in db.execute("SELECT * FROM events WHERE family_id=? ORDER BY event_date", (user["family_id"],)).fetchall()]
+    rows = [dict(r) for r in db.execute("SELECT * FROM events WHERE family_id=?", (user["family_id"],)).fetchall()]
+    today = datetime.now(ZoneInfo(TIMEZONE)).date()
+    def _inv(s):
+        try:
+            y, m, dd = s.split("-")
+            return f"{9999 - int(y):04d}-{12 - int(m):02d}-{31 - int(dd):02d}"
+        except:
+            return "9999-99-99"
+    def _key(e):
+        try:
+            d = datetime.strptime((e.get("end_date") or e["event_date"]), "%Y-%m-%d").date()
+        except:
+            return (2, "9999-99-99")
+        if d >= today:
+            return (0, e["event_date"])
+        return (1, _inv(e["event_date"] or ""))
+    rows.sort(key=_key)
+    return rows
 
 @app.post("/api/events")
 async def create_event(body: EventCreate, user=Depends(get_uf), db=Depends(get_db)):
@@ -527,7 +544,7 @@ def del_bday(bid: int, user=Depends(get_uf), db=Depends(get_db)):
 # ═════════════════════════════════════════════════════════════════════════
 @app.get("/api/subscriptions")
 def list_subs(user=Depends(get_uf), db=Depends(get_db)):
-    subs = [dict(r) for r in db.execute("SELECT * FROM subscriptions WHERE family_id=? ORDER BY billing_day", (user["family_id"],)).fetchall()]
+    subs = [dict(r) for r in db.execute("SELECT * FROM subscriptions WHERE family_id=?", (user["family_id"],)).fetchall()]
     today = datetime.now(ZoneInfo(TIMEZONE)).date()
     for s in subs:
         s["reminders"] = [dict(r) for r in db.execute("SELECT id, days_before, time FROM subscription_reminders WHERE sub_id=?", (s["id"],)).fetchall()]
@@ -540,6 +557,7 @@ def list_subs(user=Depends(get_uf), db=Depends(get_db)):
                 diff = (bd - today).days
             s["days_until"] = diff
         except: s["days_until"] = 99
+    subs.sort(key=lambda x: x["days_until"])
     return subs
 
 @app.post("/api/subscriptions")
@@ -958,9 +976,26 @@ async def bundle(user=Depends(get_uf), db=Depends(get_db)):
     folders = [dict(r) for r in db.execute(
         "SELECT * FROM shopping_folders WHERE family_id=? ORDER BY sort_order", (f,)).fetchall()]
 
-    # Events
+    # Events — upcoming first (asc), then past (most-recent past first)
     events = [dict(r) for r in db.execute(
-        "SELECT * FROM events WHERE family_id=? ORDER BY event_date", (f,)).fetchall()]
+        "SELECT * FROM events WHERE family_id=?", (f,)).fetchall()]
+    def _inv_date(s):
+        # invert so recent past sorts before older past
+        try:
+            y, m, dd = s.split("-")
+            return f"{9999 - int(y):04d}-{12 - int(m):02d}-{31 - int(dd):02d}"
+        except:
+            return "9999-99-99"
+    def _ev_key(e):
+        try:
+            d = datetime.strptime((e.get("end_date") or e["event_date"]), "%Y-%m-%d").date()
+        except:
+            return (2, "9999-99-99")
+        # bucket 0 = upcoming (incl. today) asc; bucket 1 = past desc
+        if d >= today:
+            return (0, e["event_date"])
+        return (1, _inv_date(e["event_date"] or ""))
+    events.sort(key=_ev_key)
 
     # ─── Birthdays + reminders ────────────────────────────────────────────────
     bdays = [dict(r) for r in db.execute(
@@ -983,7 +1018,7 @@ async def bundle(user=Depends(get_uf), db=Depends(get_db)):
 
     # ─── Subscriptions + reminders ────────────────────────────────────────────
     subs = [dict(r) for r in db.execute(
-        "SELECT * FROM subscriptions WHERE family_id=? ORDER BY billing_day", (f,)).fetchall()]
+        "SELECT * FROM subscriptions WHERE family_id=?", (f,)).fetchall()]
     sub_reminders = _group_by(db.execute(
         "SELECT id, sub_id, days_before, time FROM subscription_reminders WHERE family_id=?", (f,)).fetchall(),
         "sub_id")
@@ -1001,6 +1036,7 @@ async def bundle(user=Depends(get_uf), db=Depends(get_db)):
             s["days_until"] = diff2
         except:
             s["days_until"] = 99
+    subs.sort(key=lambda x: x["days_until"])
 
     # Members
     members = [dict(m) for m in db.execute(
