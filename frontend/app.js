@@ -47,7 +47,46 @@ pl:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5
 
 // ─── Helpers ────────────────────────────────────────────────
 function es(s){const d=document.createElement("div");d.textContent=s||"";return d.innerHTML}
-function hp(){try{tg?.HapticFeedback?.impactOccurred("light")}catch(e){}}
+// hp(kind) — haptic feedback via Telegram WebApp API. Free, no visual cost.
+//   light/med/heavy → impactOccurred; ok/warn/err → notificationOccurred; sel → selectionChanged.
+function hp(k){try{var h=tg&&tg.HapticFeedback;if(!h)return;
+if(k==="ok")h.notificationOccurred("success");
+else if(k==="warn")h.notificationOccurred("warning");
+else if(k==="err")h.notificationOccurred("error");
+else if(k==="sel")h.selectionChanged();
+else h.impactOccurred(k==="med"?"medium":k==="heavy"?"heavy":"light")}catch(e){}}
+
+// ─── FX: lightweight visual effects (vanilla CSS+JS, GPU-only) ──────
+var FX={
+_CF_COLORS:["#7c6aef","#ef6a7a","#5cd6a0","#f0c45a","#6ac4dc","#e0a0ff"],
+// Confetti burst from an element's center. Used for "last task done" moments.
+confetti:function(el){if(!el||!el.getBoundingClientRect)return;
+var r=el.getBoundingClientRect();var host=document.createElement("div");host.className="cf";
+host.style.left=(r.left+r.width/2)+"px";host.style.top=(r.top+r.height/2)+"px";
+for(var i=0;i<22;i++){var p=document.createElement("i");var a=Math.random()*Math.PI*2;var d=55+Math.random()*55;
+p.style.setProperty("--dx",(Math.cos(a)*d).toFixed(0)+"px");
+p.style.setProperty("--dy",(Math.sin(a)*d-30).toFixed(0)+"px");
+p.style.setProperty("--r",(Math.random()*720-360).toFixed(0)+"deg");
+p.style.background=FX._CF_COLORS[i%FX._CF_COLORS.length];host.appendChild(p)}
+document.body.appendChild(host);setTimeout(function(){host.remove()},950)},
+// Animate integer count-up. Target element needs [data-count="N"] with initial text "0".
+countUp:function(el,dur){var to=parseInt(el.getAttribute("data-count"),10);if(isNaN(to))return;
+if(to===0){el.textContent="0";return}
+var t0=0,from=0;function tick(t){if(!t0)t0=t;var p=Math.min(1,(t-t0)/dur);
+var e=p===1?1:1-Math.pow(2,-9*p);el.textContent=Math.round(from+(to-from)*e);
+if(p<1)requestAnimationFrame(tick)}requestAnimationFrame(tick)},
+// Find all [data-count] in a container and animate once.
+countStats:function(root){(root||document).querySelectorAll("[data-count]").forEach(function(el){FX.countUp(el,650)})},
+// Derive ambient weather background category from label emoji + time of day.
+wCat:function(lbl){var hr=new Date().getHours();var night=hr<6||hr>=20;
+if(!lbl)return "cloud";
+if(lbl.indexOf("⛈")>=0)return "storm";
+if(lbl.indexOf("🌧")>=0||lbl.indexOf("🌦")>=0)return "rain";
+if(lbl.indexOf("🌨")>=0)return "snow";
+if(lbl.indexOf("☀")>=0)return night?"night":"clear";
+if(lbl.indexOf("🌤")>=0)return night?"night":"clear";
+return "cloud"}
+};
 function em(i,t,s){return '<div class="emp"><div class="emp-i">'+i+'</div><div class="emp-t">'+t+'</div><div>'+s+'</div></div>'}
 function td(){const d=new Date();return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0")}
 const dN=["Sun","Mon","Tue","Wed","Thu","Fri","Sat"],dF=["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"];
@@ -76,7 +115,8 @@ function checkBottomRefresh(){if(_refreshing)return;if(Date.now()-_lastRefresh<1
 var el=document.documentElement;if((el.scrollTop+el.clientHeight)>=el.scrollHeight-2&&el.scrollHeight>el.clientHeight+100){
 _refreshing=true;_lastRefresh=Date.now();var ptr=document.getElementById("ptr");
 ptr.innerHTML='<span class="spin">↻</span> Refreshing...';ptr.classList.add("show");
-load().then(function(){ptr.classList.remove("show");_refreshing=false;toast("✓ Refreshed")})}}
+_firstHomeRender=true;
+load().then(function(){ptr.classList.remove("show");_refreshing=false;hp("ok");toast("✓ Refreshed")})}}
 window.addEventListener("scroll",checkBottomRefresh,{passive:true});
 setInterval(function(){load()},5*60*1000);
 
@@ -134,7 +174,8 @@ document.getElementById("ht").textContent=(TT[t]||["",""])[0];
 document.getElementById("hs").textContent=(TT[t]||["",""])[1];
 var noFab=["home","settings","clean","events","birthdays","subs"];
 document.getElementById("fab").classList.toggle("hidden",noFab.indexOf(t)>=0);
-ren();hp()}
+if(t==="home")_firstHomeRender=true;
+ren();hp("sel")}
 
 // Hamburger menu
 function toggleMenu(){menuOpen=!menuOpen;document.getElementById("menu-overlay").classList.toggle("open",menuOpen)}
@@ -159,13 +200,14 @@ D.weather=b.weather||null;D.categories=b.categories||[];D.transactions=b.transac
 if(D.settings.theme)aT(D.settings.theme);ren()}
 
 // ─── Render ─────────────────────────────────────────────────
+var _firstHomeRender=true;
 function ren(){var c=document.getElementById("ct");
 var tp=D.tasks.filter(function(x){return!x.done}).length;
 var sp=D.shopping.filter(function(x){return!x.bought}).length;
 var ct=D.dashboard.cleaning_dirty||0;
 sB("tasks",tp);sB("shop",sp);
 switch(tab){
-case"home":c.innerHTML=rH();break;case"tasks":c.innerHTML=rT();break;
+case"home":c.innerHTML=rH();if(_firstHomeRender){_firstHomeRender=false;FX.countStats(c)}break;case"tasks":c.innerHTML=rT();break;
 case"shop":c.innerHTML=rSh();break;case"money":c.innerHTML=rMoney();break;
 case"events":c.innerHTML=rEvts();break;case"birthdays":c.innerHTML=rBdays();break;
 case"clean":c.innerHTML=rC();break;case"settings":c.innerHTML=rSet();break;case"subs":c.innerHTML=rSubsList();break}}
@@ -176,14 +218,15 @@ function sB(t,n){var e=document.getElementById("b-"+t);if(!e)return;if(n>0&&tab!
 // ═══════════════════════════════════════════════════════════
 function rH(){var d=D.dashboard,n=new Date();
 var h='<p style="color:var(--ht);font-size:14px;margin:0 0 4px;font-weight:500">'+dF[n.getDay()]+", "+mN[n.getMonth()]+" "+n.getDate()+'</p>';
-// Weather
+// Weather (wrapped in ambient wbg container — CSS @keyframes handles the animation)
 var w=D.weather;
-if(w&&w.days){h+='<div style="display:flex;align-items:center;gap:10px;margin-bottom:16px"><span style="font-size:28px">'+wIcon(w.label)+'</span><div><span style="font-size:22px;font-weight:800">'+w.now+'°</span><span style="font-size:12px;color:var(--ht);margin-left:6px">feels '+w.feels+'°</span></div><div style="display:flex;gap:8px;margin-left:auto">';
-w.days.forEach(function(dy,i){var label=i===0?"Today":wDayName(dy.date);h+='<div style="text-align:center;min-width:44px"><div style="font-size:10px;color:var(--ht);font-weight:600">'+label+'</div><div style="font-size:18px;margin:2px 0">'+wIcon(dy.label)+'</div><div style="font-size:11px;font-weight:700">'+dy.max+'°</div><div style="font-size:10px;color:var(--ht)">'+dy.min+'°</div></div>'});h+='</div></div>'}else h+='<div style="margin-bottom:16px"></div>';
-// Stats
-h+='<div class="sts"><div class="st" onclick="go(\'tasks\')" style="border-left:3px solid var(--pr)"><div class="sn" style="color:var(--pr)">'+(d.tasks_pending||0)+'</div><div class="sl">Tasks</div></div>';
-h+='<div class="st" onclick="go(\'shop\')" style="border-left:3px solid var(--ac)"><div class="sn" style="color:var(--ac)">'+(d.shop_pending||0)+'</div><div class="sl">Shopping</div></div>';
-h+='<div class="st" onclick="go(\'clean\')" style="border-left:3px solid var(--wn);cursor:pointer"><div class="sn" style="color:var(--wn)">'+(d.cleaning_dirty||0)+"/"+(d.cleaning_total||0)+'</div><div class="sl">Cleaning</div></div>';
+if(w&&w.days){var cat=FX.wCat(w.label);
+h+='<div class="wbg wbg-'+cat+'"><div style="display:flex;align-items:center;gap:10px"><span style="font-size:28px">'+wIcon(w.label)+'</span><div><span style="font-size:22px;font-weight:800">'+w.now+'°</span><span style="font-size:12px;color:var(--ht);margin-left:6px">feels '+w.feels+'°</span></div><div style="display:flex;gap:8px;margin-left:auto">';
+w.days.forEach(function(dy,i){var label=i===0?"Today":wDayName(dy.date);h+='<div style="text-align:center;min-width:44px"><div style="font-size:10px;color:var(--ht);font-weight:600">'+label+'</div><div style="font-size:18px;margin:2px 0">'+wIcon(dy.label)+'</div><div style="font-size:11px;font-weight:700">'+dy.max+'°</div><div style="font-size:10px;color:var(--ht)">'+dy.min+'°</div></div>'});h+='</div></div></div>'}else h+='<div style="margin-bottom:16px"></div>';
+// Stats — numbers wrapped in <span class="cu" data-count="N">0</span> so FX.countStats() can animate them
+h+='<div class="sts"><div class="st" onclick="go(\'tasks\')" style="border-left:3px solid var(--pr)"><div class="sn" style="color:var(--pr)"><span class="cu" data-count="'+(d.tasks_pending||0)+'">0</span></div><div class="sl">Tasks</div></div>';
+h+='<div class="st" onclick="go(\'shop\')" style="border-left:3px solid var(--ac)"><div class="sn" style="color:var(--ac)"><span class="cu" data-count="'+(d.shop_pending||0)+'">0</span></div><div class="sl">Shopping</div></div>';
+h+='<div class="st" onclick="go(\'clean\')" style="border-left:3px solid var(--wn);cursor:pointer"><div class="sn" style="color:var(--wn)"><span class="cu" data-count="'+(d.cleaning_dirty||0)+'">0</span>/'+(d.cleaning_total||0)+'</div><div class="sl">Cleaning</div></div>';
 var _aInc=0,_aExp=0;D.transactions.forEach(function(tx){if(tx.type==="income")_aInc+=(tx.amount_eur||0);else _aExp+=(tx.amount_eur||0)});var _bal=_aInc-_aExp;var _balC=_bal>=0?"var(--ok)":"var(--ac)";
 var _cm=n.getFullYear()+"-"+String(n.getMonth()+1).padStart(2,"0");var _mInc=0,_mExp=0;D.transactions.forEach(function(tx){if(tx.date&&tx.date.startsWith(_cm)){if(tx.type==="income")_mInc+=(tx.amount_eur||0);else _mExp+=(tx.amount_eur||0)}});
 h+='<div class="st" onclick="go(\'money\')" style="border-left:3px solid '+_balC+'"><div class="sn" style="color:'+_balC+';font-size:20px">'+(_bal>=0?"+":"")+"€"+_bal.toFixed(0)+'</div><div class="sl" style="font-size:11px;line-height:1.3;color:var(--ht)">+€'+_mInc.toFixed(0)+' / −€'+_mExp.toFixed(0)+'</div></div></div>';
@@ -193,7 +236,7 @@ pt.sort(function(a,b){var pa=priV[a.priority]||1,pb=priV[b.priority]||1;if(pa!==
 pt=pt.slice(0,3);
 if(pt.length){h+='<div class="sc">Top Tasks</div>';pt.forEach(function(t){
 var priDot=t.priority==="high"?'<span style="width:8px;height:8px;border-radius:50%;background:var(--ac);display:inline-block;margin-right:4px"></span>':"";
-h+='<div class="c"><div class="cb cb-o" onclick="tgTk('+t.id+')"></div><div class="bd"><div class="tt">'+priDot+es(t.text)+'</div><div class="mt">'+mChip(t.assigned_to,true)+(t.due_date?' <span style="font-size:11px;color:var(--wn)">📅 '+fD(t.due_date).full+'</span>':"")+'</div></div></div>'})}
+h+='<div class="c"><div class="cb cb-o" onclick="tgTk('+t.id+',this)"></div><div class="bd"><div class="tt">'+priDot+es(t.text)+'</div><div class="mt">'+mChip(t.assigned_to,true)+(t.due_date?' <span style="font-size:11px;color:var(--wn)">📅 '+fD(t.due_date).full+'</span>':"")+'</div></div></div>'})}
 // Upcoming 7d
 var upcoming=[];var todayStr=td();
 D.events.forEach(function(ev){var eDate=(ev.event_date||"").split(" ")[0];if(!eDate)return;var diff=Math.round((new Date(eDate)-new Date(todayStr))/86400000);if(diff>=0&&diff<=7)upcoming.push({type:"event",days:diff,icon:"📅",title:es(ev.text),sub:fD(ev.event_date).full,color:"var(--ok)"})});
@@ -222,18 +265,36 @@ var todayStr=td();var _7d=new Date();_7d.setDate(_7d.getDate()+7);var weekStr=_7
 var overdue=[],high=[],week=[],rest=[];
 pend.forEach(function(t){var dd=(t.due_date||"").split(" ")[0];if(dd&&dd<todayStr){overdue.push(t)}else if(t.priority==="high"){high.push(t)}else if(dd&&dd<=weekStr){week.push(t)}else{rest.push(t)}});
 function _tkCard(t){var rmC=t.reminders&&t.reminders.length?'<span class="bg" style="background:color-mix(in srgb,var(--wn),transparent 85%);color:var(--wn)">'+I.bl+" "+t.reminders.length+'</span>':"";
-return '<div style="margin-bottom:10px"><div class="c" style="margin-bottom:0"><div class="cb cb-o" onclick="tgTk('+t.id+')"></div><div class="bd"><div class="tt">'+es(t.text)+'</div><div class="mt">'+mChip(t.assigned_to,true)+" "+pri(t.priority)+(t.due_date?' <span style="font-size:11px;color:var(--wn)">📅 '+fD(t.due_date).full+'</span>':"")+" "+rmC+" "+sC("task",t.id)+' <button class="xb" onclick="tX(\'task\','+t.id+')">'+(ex["task_"+t.id]?"▾":"▸")+'</button></div></div><button class="bi" onclick="edTk('+t.id+')">'+I.ed+'</button><button class="bi" onclick="dlTk('+t.id+')">'+I.tr+'</button></div>'+rSu("task",t.id)+'</div>'}
+return '<div style="margin-bottom:10px"><div class="c" style="margin-bottom:0"><div class="cb cb-o" onclick="tgTk('+t.id+',this)"></div><div class="bd"><div class="tt">'+es(t.text)+'</div><div class="mt">'+mChip(t.assigned_to,true)+" "+pri(t.priority)+(t.due_date?' <span style="font-size:11px;color:var(--wn)">📅 '+fD(t.due_date).full+'</span>':"")+" "+rmC+" "+sC("task",t.id)+' <button class="xb" onclick="tX(\'task\','+t.id+')">'+(ex["task_"+t.id]?"▾":"▸")+'</button></div></div><button class="bi" onclick="edTk('+t.id+')">'+I.ed+'</button><button class="bi" onclick="dlTk('+t.id+')">'+I.tr+'</button></div>'+rSu("task",t.id)+'</div>'}
 if(overdue.length){h+='<div class="sc" style="color:var(--ac)">🔴 Overdue · '+overdue.length+'</div>';overdue.forEach(function(t){h+=_tkCard(t)})}
 if(high.length){h+='<div class="sc" style="color:var(--wn)">⚡ High Priority · '+high.length+'</div>';high.forEach(function(t){h+=_tkCard(t)})}
 if(week.length){h+='<div class="sc">📅 This Week · '+week.length+'</div>';week.forEach(function(t){h+=_tkCard(t)})}
 if(rest.length){h+='<div class="sc">📋 Rest · '+rest.length+'</div>';rest.forEach(function(t){h+=_tkCard(t)})}
 if(!pend.length)h+='<div style="text-align:center;padding:20px;color:var(--ht);font-size:13px">All caught up! 🎉</div>';
-if(done.length){h+='<div class="sc" style="margin-top:16px">✅ Done · '+done.length+'</div>';done.forEach(function(t){h+='<div class="c d"><div class="cb cb-k" onclick="tgTk('+t.id+')">'+I.ck+'</div><div class="bd"><div class="tt sk">'+es(t.text)+'</div></div><button class="bi" onclick="dlTk('+t.id+')">'+I.tr+'</button></div>'})}
+if(done.length){h+='<div class="sc" style="margin-top:16px">✅ Done · '+done.length+'</div>';done.forEach(function(t){h+='<div class="c d"><div class="cb cb-k" onclick="tgTk('+t.id+',this)">'+I.ck+'</div><div class="bd"><div class="tt sk">'+es(t.text)+'</div></div><button class="bi" onclick="dlTk('+t.id+')">'+I.tr+'</button></div>'})}
 return h}
 function rRecur(){if(!D.recurring.length)return em("🔁","No recurring tasks","Tap + to create");var h='';D.recurring.forEach(function(r){if(searchQ&&!matchQ(r.text))return;var rrDesc=r.rrule==="daily"?"Every day":r.rrule.startsWith("weekly:")?"Weekly: "+r.rrule.split(":")[1]:"Monthly: "+r.rrule.split(":")[1]+"th";h+='<div class="c"><div class="bd"><div class="tt">'+es(r.text)+'</div><div class="mt">'+mChip(r.assigned_to,true)+' <span class="bg" style="background:color-mix(in srgb,var(--pr),transparent 85%);color:var(--pr)">🔁 '+rrDesc+'</span>'+(r.active?'':' <span class="bg" style="background:color-mix(in srgb,var(--ac),transparent 85%);color:var(--ac)">Paused</span>')+'</div></div><button class="bi" onclick="edRec('+r.id+')">'+I.ed+'</button><button class="bi" onclick="dlRec('+r.id+')">'+I.tr+'</button></div>'});return h}
 
-async function tgTk(id){hp();await A("PATCH","/api/tasks/"+id+"/toggle");await load()}
-async function dlTk(id){var t=D.tasks.find(function(x){return x.id===id});hp();await A("DELETE","/api/tasks/"+id);await load();if(t)toast("🗑 Deleted",function(){A("POST","/api/tasks",{text:t.text,assigned_to:t.assigned_to,priority:t.priority,due_date:t.due_date}).then(load)})}
+async function tgTk(id,cb){
+var t=D.tasks.find(function(x){return x.id===id});
+var doing=t&&!t.done;
+var card=cb&&cb.closest?cb.closest(".c"):null;
+if(doing&&card){
+  // spring pop, flash check, maybe confetti, then slide out — API in parallel
+  var isLast=D.tasks.filter(function(x){return!x.done}).length===1;
+  hp("ok");
+  cb.classList.remove("cb-o");cb.classList.add("cb-k","cb-flash");cb.innerHTML=I.ck;
+  card.classList.add("c-pop");
+  if(isLast){var r=card.getBoundingClientRect();FX.confetti({getBoundingClientRect:function(){return r}})}
+  var apiP=A("PATCH","/api/tasks/"+id+"/toggle");
+  setTimeout(function(){card.classList.remove("c-pop");card.classList.add("c-go")},260);
+  setTimeout(async function(){await apiP;await load()},700);
+}else{
+  hp("light");
+  await A("PATCH","/api/tasks/"+id+"/toggle");
+  await load();
+}}
+async function dlTk(id){var t=D.tasks.find(function(x){return x.id===id});hp("warn");await A("DELETE","/api/tasks/"+id);await load();if(t)toast("🗑 Deleted",function(){A("POST","/api/tasks",{text:t.text,assigned_to:t.assigned_to,priority:t.priority,due_date:t.due_date}).then(load)})}
 async function dlRec(id){hp();await A("DELETE","/api/recurring/"+id);await load();toast("🗑 Deleted")}
 function edTk(id){var t=D.tasks.find(function(x){return x.id===id});if(!t)return;_assign=t.assigned_to||0;_pri=t.priority;_rems=(t.reminders||[]).map(function(r){return r.remind_at});oMC("Edit Task",'<input class="inp" id="f-t" value="'+es(t.text)+'"><div class="lb">Assign to</div>'+assignPk("ap",t.assigned_to)+'<div class="lb">Priority</div><div class="or">'+["low","normal","high"].map(function(p){return '<button class="ob '+(t.priority===p?"s":"")+'" onclick="_pri=\''+p+'\';this.parentNode.querySelectorAll(\'.ob\').forEach(function(b){b.classList.remove(\'s\')});this.classList.add(\'s\')">'+p[0].toUpperCase()+p.slice(1)+'</button>'}).join("")+'</div><div class="lb">Due Date</div><div class="dr"><div><input type="date" id="f-dd" value="'+(t.due_date?(t.due_date.split(" ")[0]):"")+'"></div></div><div class="lb">Reminders</div><div id="rw">'+remPk()+'</div><button class="btn" onclick="svTk('+id+')">Save</button>')}
 async function svTk(id){var text=document.getElementById("f-t").value.trim();if(!text)return;var dd=document.getElementById("f-dd")?document.getElementById("f-dd").value:null;await A("PUT","/api/tasks/"+id,{text:text,assigned_to:_assign||null,priority:_pri,due_date:dd||null,reminders:_rems});cMo();hp();await load()}
@@ -254,11 +315,28 @@ var folderTotal=0;items.forEach(function(x){if(x.price&&(shopFold==="stock"||!x.
 if(folderTotal>0)h+='<div class="c" style="border-left:3px solid var(--wn);padding:10px 16px"><div class="bd"><div class="mt" style="font-size:14px;color:var(--wn);font-weight:700">Total: '+folderTotal.toFixed(0)+' din.</div></div></div>';
 var p=items.filter(function(x){return!x.bought}),b=items.filter(function(x){return x.bought});
 if(!items.length)return h+em("🛒","List is empty","Tap + to add");
-if(p.length){h+='<div class="sc">To Buy · '+p.length+'</div>';p.forEach(function(s){var qtyHtml=s.quantity?'<span class="qty">'+es(s.quantity)+'</span>':"";var prHtml=s.price?'<span style="font-size:11px;color:var(--wn);font-weight:600">'+s.price+' din.</span>':"";h+='<div class="c"><div class="cb cb-o" onclick="tgSh('+s.id+')"></div><div class="bd"><div class="tt">'+es(s.item)+" "+qtyHtml+'</div><div class="mt">'+es(s.added_by||"")+" "+prHtml+'</div></div><button class="bi" onclick="edShop('+s.id+')">'+I.ed+'</button><button class="bi" onclick="dSh('+s.id+')">'+I.tr+'</button></div>'})}
-if(b.length){h+='<div class="sc" style="margin-top:16px"><span>Bought · '+b.length+'</span><button class="at" onclick="clSh()">Clear</button></div>';b.forEach(function(s){var qtyHtml=s.quantity?'<span class="qty">'+es(s.quantity)+'</span>':"";h+='<div class="c d"><div class="cb cb-k" onclick="tgSh('+s.id+')">'+I.ck+'</div><div class="bd"><div class="tt sk">'+es(s.item)+" "+qtyHtml+'</div></div><button class="bi" onclick="edShop('+s.id+')">'+I.ed+'</button></div>'})}
+if(p.length){h+='<div class="sc">To Buy · '+p.length+'</div>';p.forEach(function(s){var qtyHtml=s.quantity?'<span class="qty">'+es(s.quantity)+'</span>':"";var prHtml=s.price?'<span style="font-size:11px;color:var(--wn);font-weight:600">'+s.price+' din.</span>':"";h+='<div class="c"><div class="cb cb-o" onclick="tgSh('+s.id+',this)"></div><div class="bd"><div class="tt">'+es(s.item)+" "+qtyHtml+'</div><div class="mt">'+es(s.added_by||"")+" "+prHtml+'</div></div><button class="bi" onclick="edShop('+s.id+')">'+I.ed+'</button><button class="bi" onclick="dSh('+s.id+')">'+I.tr+'</button></div>'})}
+if(b.length){h+='<div class="sc" style="margin-top:16px"><span>Bought · '+b.length+'</span><button class="at" onclick="clSh()">Clear</button></div>';b.forEach(function(s){var qtyHtml=s.quantity?'<span class="qty">'+es(s.quantity)+'</span>':"";h+='<div class="c d"><div class="cb cb-k" onclick="tgSh('+s.id+',this)">'+I.ck+'</div><div class="bd"><div class="tt sk">'+es(s.item)+" "+qtyHtml+'</div></div><button class="bi" onclick="edShop('+s.id+')">'+I.ed+'</button></div>'})}
 return h}
-async function tgSh(id){hp();await A("PATCH","/api/shopping/"+id+"/toggle");await load()}
-async function dSh(id){hp();await A("DELETE","/api/shopping/"+id);await load();toast("🗑 Deleted")}
+async function tgSh(id,cb){
+var s=D.shopping.find(function(x){return x.id===id});
+var doing=s&&!s.bought;
+var card=cb&&cb.closest?cb.closest(".c"):null;
+if(doing&&card){
+  var isLast=D.shopping.filter(function(x){return!x.bought}).length===1;
+  hp("ok");
+  cb.classList.remove("cb-o");cb.classList.add("cb-k","cb-flash");cb.innerHTML=I.ck;
+  card.classList.add("c-pop");
+  if(isLast){var r=card.getBoundingClientRect();FX.confetti({getBoundingClientRect:function(){return r}})}
+  var apiP=A("PATCH","/api/shopping/"+id+"/toggle");
+  setTimeout(function(){card.classList.remove("c-pop");card.classList.add("c-go")},260);
+  setTimeout(async function(){await apiP;await load()},700);
+}else{
+  hp("light");
+  await A("PATCH","/api/shopping/"+id+"/toggle");
+  await load();
+}}
+async function dSh(id){hp("warn");await A("DELETE","/api/shopping/"+id);await load();toast("🗑 Deleted")}
 async function clSh(){hp();await A("DELETE","/api/shopping/clear-bought");await load();toast("✓ Cleared")}
 function edShop(sid){var s=D.shopping.find(function(x){return x.id===sid});if(!s)return;var folderOpts='<button class="ob '+(!s.folder_id?"s":"")+'" onclick="window._sFold=0;this.parentNode.querySelectorAll(\'.ob\').forEach(function(b){b.classList.remove(\'s\')});this.classList.add(\'s\')">None</button>';D.folders.forEach(function(f){folderOpts+='<button class="ob '+(s.folder_id===f.id?"s":"")+'" onclick="window._sFold='+f.id+';this.parentNode.querySelectorAll(\'.ob\').forEach(function(b){b.classList.remove(\'s\')});this.classList.add(\'s\')">'+f.emoji+" "+es(f.name)+'</button>'});window._sFold=s.folder_id||0;oMC("Edit Item",'<input class="inp" id="se-n" value="'+es(s.item)+'"><div class="dr"><div><div class="dl">Quantity</div><input class="inp" id="se-q" value="'+(s.quantity||"")+'" placeholder="e.g. 1kg"></div><div><div class="dl">Price (din.)</div><input class="inp" id="se-p" type="number" value="'+(s.price||"")+'" placeholder="0"></div></div>'+(D.folders.length?'<div class="lb">Folder</div><div class="or">'+folderOpts+'</div>':'')+'<button class="btn" onclick="svShop('+sid+')">Save</button>')}
 async function svShop(sid){var n=document.getElementById("se-n").value.trim();var q=document.getElementById("se-q").value.trim();var p=parseFloat(document.getElementById("se-p").value)||null;if(!n)return;await A("PUT","/api/shopping/"+sid,{item:n,quantity:q||null,price:p,folder_id:window._sFold||null});cMo();hp();await load()}
@@ -581,7 +659,7 @@ async function doAddCat(type){var n=document.getElementById("nc-n").value.trim()
 function edCat(cid){var c=D.categories.find(function(x){return x.id===cid});if(!c)return;oMC("Edit Category",'<input class="inp" id="ec-n" value="'+es(c.name)+'"><input class="inp" id="ec-e" value="'+c.emoji+'" style="width:80px"><button class="btn" onclick="svCat('+cid+')">Save</button>')}
 async function svCat(cid){var n=document.getElementById("ec-n").value.trim();var e=document.getElementById("ec-e").value.trim();if(!n)return;await A("PUT","/api/categories/"+cid,{name:n,emoji:e});cMo();hp();await load()}
 async function dlCat(cid){if(!confirm("Delete category?"))return;await A("DELETE","/api/categories/"+cid);hp();await load();toast("Deleted")}
-function oMC(t,h){document.getElementById("mt3").textContent=t;document.getElementById("mb").innerHTML=h;document.getElementById("mo").classList.add("op");setTimeout(function(){var i=document.querySelector("#mb input");if(i)i.focus()},300)}
+function oMC(t,h){document.getElementById("mt3").textContent=t;document.getElementById("mb").innerHTML=h;document.getElementById("mo").classList.add("op");hp("light");setTimeout(function(){var i=document.querySelector("#mb input");if(i)i.focus()},300)}
 function cMo(){document.getElementById("mo").classList.remove("op")}
 
 // Event/Birthday add modals (from hamburger pages)

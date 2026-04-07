@@ -185,6 +185,50 @@ input[type="date"],input[type="time"],input[type="number"],select{-webkit-appear
 .menu-i:active{background:var(--cd)}
 .menu-i span{font-size:20px;width:28px;text-align:center}
 
+/* ═══ v6.6 effects pack — keep lightweight, GPU-only ═══ */
+
+/* Skeleton loaders (shimmer via background-position) */
+@keyframes shim{0%{background-position:-300px 0}100%{background-position:300px 0}}
+.sk-wrap{padding:12px 0}
+.sk-b{background:linear-gradient(90deg,var(--cd) 0%,color-mix(in srgb,var(--cd),white 6%) 50%,var(--cd) 100%);background-size:600px 100%;animation:shim 1.4s ease-in-out infinite;border-radius:12px;border:1px solid var(--bd)}
+.sk-sub{height:14px;width:40%;border-radius:6px;margin:6px 0 14px}
+.sk-w{height:82px;margin-bottom:16px}
+.sk-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:18px}
+.sk-st{height:82px;border-radius:16px}
+.sk-sc{height:12px;width:30%;border-radius:6px;margin:14px 0 10px}
+.sk-c{height:60px;margin-bottom:10px}
+
+/* Weather ambient backgrounds (all CSS, no JS animation loops) */
+.wbg{position:relative;overflow:hidden;border-radius:16px;padding:10px 12px;margin:0 -8px 16px;border:1px solid var(--bd);background:color-mix(in srgb,var(--cd),transparent 40%)}
+.wbg>*{position:relative;z-index:1}
+.wbg::before{content:'';position:absolute;inset:0;pointer-events:none;z-index:0}
+.wbg-clear::before{background:radial-gradient(circle at 85% 20%,color-mix(in srgb,var(--wn),transparent 55%) 0%,transparent 45%);animation:sunP 5s ease-in-out infinite}
+@keyframes sunP{0%,100%{opacity:.55;transform:scale(1)}50%{opacity:.9;transform:scale(1.08)}}
+.wbg-cloud::before{background:linear-gradient(180deg,color-mix(in srgb,var(--ht),transparent 82%) 0%,transparent 70%)}
+.wbg-rain::before{background:repeating-linear-gradient(105deg,transparent 0,transparent 7px,color-mix(in srgb,var(--pr),transparent 55%) 7px,color-mix(in srgb,var(--pr),transparent 55%) 8px);background-size:40px 40px;animation:rainD .9s linear infinite;opacity:.6}
+@keyframes rainD{from{background-position:0 0}to{background-position:-40px 40px}}
+.wbg-snow::before{background:radial-gradient(circle 1.5px at 15% 18%,#fff,transparent 60%),radial-gradient(circle 1.5px at 38% 8%,#fff,transparent 60%),radial-gradient(circle 1px at 62% 22%,#fff,transparent 60%),radial-gradient(circle 1.5px at 82% 12%,#fff,transparent 60%),radial-gradient(circle 1px at 25% 55%,#fff,transparent 60%),radial-gradient(circle 1.5px at 55% 45%,#fff,transparent 60%),radial-gradient(circle 1px at 78% 60%,#fff,transparent 60%),radial-gradient(circle 1.5px at 10% 82%,#fff,transparent 60%),radial-gradient(circle 1px at 45% 88%,#fff,transparent 60%),radial-gradient(circle 1.5px at 72% 90%,#fff,transparent 60%);background-size:100% 100%;animation:snowF 8s linear infinite}
+@keyframes snowF{from{transform:translateY(-14px)}to{transform:translateY(14px)}}
+.wbg-night::before{background:radial-gradient(circle 1px at 12% 22%,#fff,transparent 50%),radial-gradient(circle 1px at 28% 12%,#fff,transparent 50%),radial-gradient(circle 1px at 45% 18%,#fff,transparent 50%),radial-gradient(circle 1px at 62% 8%,#fff,transparent 50%),radial-gradient(circle 1px at 78% 25%,#fff,transparent 50%),radial-gradient(circle 1px at 88% 15%,#fff,transparent 50%),radial-gradient(circle 1px at 20% 45%,#fff,transparent 50%),radial-gradient(circle 1px at 55% 55%,#fff,transparent 50%),radial-gradient(circle 1px at 72% 48%,#fff,transparent 50%),radial-gradient(circle 1px at 38% 72%,#fff,transparent 50%);opacity:.55;animation:twink 3.5s ease-in-out infinite alternate}
+@keyframes twink{from{opacity:.3}to{opacity:.75}}
+.wbg-storm::before{background:repeating-linear-gradient(108deg,transparent 0,transparent 6px,color-mix(in srgb,var(--ac),transparent 60%) 6px,color-mix(in srgb,var(--ac),transparent 60%) 7px);background-size:42px 42px;animation:rainD .7s linear infinite,lit 6s ease-in-out infinite}
+@keyframes lit{0%,91%,100%{filter:brightness(1)}93%{filter:brightness(2.2)}95%{filter:brightness(.8)}96%{filter:brightness(1.9)}}
+
+/* Task complete — spring scale, then slide & fade */
+@keyframes tkPop{0%{transform:scale(1)}30%{transform:scale(1.035)}60%{transform:scale(.97)}100%{transform:scale(1)}}
+@keyframes tkGo{0%{transform:translateX(0) scale(1);opacity:1;max-height:80px;margin-bottom:10px;padding-top:13px;padding-bottom:13px;border-width:1px}70%{transform:translateX(38px) scale(.98);opacity:.1}100%{transform:translateX(60px) scale(.95);opacity:0;max-height:0;margin-bottom:0;padding-top:0;padding-bottom:0;border-width:0}}
+.c.c-pop{animation:tkPop .28s cubic-bezier(.2,.9,.3,1.1)}
+.c.c-go{animation:tkGo .42s cubic-bezier(.55,0,.3,1) forwards;overflow:hidden;pointer-events:none}
+.cb.cb-k.cb-flash{box-shadow:0 0 0 6px color-mix(in srgb,var(--ok),transparent 70%);transition:box-shadow .3s}
+
+/* Confetti burst (24 shards) */
+.cf{position:fixed;width:0;height:0;pointer-events:none;z-index:60}
+.cf i{position:absolute;left:-4px;top:-4px;width:7px;height:9px;border-radius:1px;animation:cFly .9s cubic-bezier(.15,.55,.3,1) forwards;will-change:transform,opacity}
+@keyframes cFly{0%{transform:translate(0,0) rotate(0);opacity:1}100%{transform:translate(var(--dx),var(--dy)) rotate(var(--r));opacity:0}}
+
+/* Count-up number wrapper (just inline-block for clean metrics) */
+.cu{display:inline-block;font-variant-numeric:tabular-nums}
+
 .hidden{display:none!important}
 </style>
 </head>
@@ -200,7 +244,7 @@ input[type="date"],input[type="time"],input[type="number"],select{-webkit-appear
 <!-- Search -->
 <div class="sb" id="sb"><input id="si" placeholder="Search tasks, shopping, events..." oninput="onSearch(this.value)"></div>
 <!-- Content -->
-<div class="ct" id="ct"><div class="emp"><div class="emp-i">⏳</div></div></div>
+<div class="ct" id="ct"><div class="sk-wrap"><div class="sk-b sk-sub"></div><div class="sk-b sk-w"></div><div class="sk-grid"><div class="sk-b sk-st"></div><div class="sk-b sk-st"></div><div class="sk-b sk-st"></div><div class="sk-b sk-st"></div></div><div class="sk-b sk-sc"></div><div class="sk-b sk-c"></div><div class="sk-b sk-c"></div><div class="sk-b sk-c"></div></div></div>
 <!-- Scroll-to-bottom refresh indicator -->
 <div class="ptr" id="ptr"></div>
 <!-- FAB -->
@@ -226,6 +270,6 @@ input[type="date"],input[type="time"],input[type="number"],select{-webkit-appear
 <!-- Debug -->
 <div class="dbg hidden" id="dbg"><button class="dbg-cp" onclick="navigator.clipboard.writeText(dbgLog.join('\n'))">Copy</button></div>
 <!-- Load JS -->
-<script src="/static/app.js?v=61"></script>
+<script src="/static/app.js?v=70"></script>
 </body>
 </html>
