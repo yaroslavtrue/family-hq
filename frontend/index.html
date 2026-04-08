@@ -229,6 +229,18 @@ input[type="date"],input[type="time"],input[type="number"],select{-webkit-appear
 /* Count-up number wrapper (just inline-block for clean metrics) */
 .cu{display:inline-block;font-variant-numeric:tabular-nums}
 
+/* Toggle micro-interactions: spring pop on selection for chips/options/filters/tabs */
+.ob,.ch,.fi,.tab{transition:background-color .2s,color .2s,border-color .2s,box-shadow .25s;will-change:transform}
+.ob.s,.ch.s,.fi.a,.tab.a{animation:chPop .34s cubic-bezier(.2,.9,.3,1.3)}
+@keyframes chPop{0%{transform:scale(.92)}45%{transform:scale(1.08)}72%{transform:scale(.98)}100%{transform:scale(1)}}
+.ob:active,.ch:active,.fi:active{transform:scale(.93);transition:transform .08s}
+
+/* Priority colors (semantic — gray / orange / red), override .ob.s default */
+:root{--pri-lo:#8a8797;--pri-md:#f08a3c;--pri-hi:#e04656}
+.ob-pri-low.s{color:var(--pri-lo);background:color-mix(in srgb,var(--pri-lo),transparent 82%);border-color:color-mix(in srgb,var(--pri-lo),transparent 55%);box-shadow:0 0 0 3px color-mix(in srgb,var(--pri-lo),transparent 88%)}
+.ob-pri-normal.s{color:var(--pri-md);background:color-mix(in srgb,var(--pri-md),transparent 82%);border-color:color-mix(in srgb,var(--pri-md),transparent 55%);box-shadow:0 0 0 3px color-mix(in srgb,var(--pri-md),transparent 88%)}
+.ob-pri-high.s{color:var(--pri-hi);background:color-mix(in srgb,var(--pri-hi),transparent 80%);border-color:color-mix(in srgb,var(--pri-hi),transparent 50%);box-shadow:0 0 0 3px color-mix(in srgb,var(--pri-hi),transparent 85%)}
+
 .hidden{display:none!important}
 </style>
 </head>
@@ -270,6 +282,6 @@ input[type="date"],input[type="time"],input[type="number"],select{-webkit-appear
 <!-- Debug -->
 <div class="dbg hidden" id="dbg"><button class="dbg-cp" onclick="navigator.clipboard.writeText(dbgLog.join('\n'))">Copy</button></div>
 <!-- Load JS -->
-<script src="/static/app.js?v=70"></script>
+<script src="/static/app.js?v=71"></script>
 </body>
 </html>
