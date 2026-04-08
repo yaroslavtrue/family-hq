@@ -729,8 +729,33 @@ fixVP();window.addEventListener("resize",fixVP);
 if(tg)try{tg.onEvent("viewportChanged",fixVP)}catch(e){}
 setTimeout(fixVP,500);setTimeout(fixVP,1500);
 
-// ─── Toggle haptic delegation (chips/options/filters/tabs) ──
-document.addEventListener("click",function(e){var t=e.target.closest(".ob,.ch,.fi,.tab");if(t)hp("sel")},true);
+// ─── Toggle click: haptic + one-shot spring pop on clicked element ──
+// Uses setTimeout(0) so we run AFTER the synchronous onclick handler
+// (which typically calls ren() and rebuilds the DOM). We then locate
+// the corresponding newly-rendered element by {kind, text} and add .pop
+// so the spring animation fires only on actual user presses — never on
+// re-renders triggered by other controls.
+document.addEventListener("click",function(e){
+  var t=e.target.closest(".ob,.ch,.fi,.tab");if(!t)return;
+  hp("sel");
+  var kind=t.classList.contains("tab")?"tab":t.classList.contains("fi")?"fi":t.classList.contains("ch")?"ch":"ob";
+  var txt=(t.textContent||"").trim().slice(0,40);
+  setTimeout(function(){
+    var sel="."+kind+((kind==="tab"||kind==="fi")?".a":".s");
+    var els=document.querySelectorAll(sel),el=null;
+    for(var i=0;i<els.length;i++){if(((els[i].textContent||"").trim().slice(0,40))===txt){el=els[i];break}}
+    // Fallback: if nothing matched (e.g. opened a modal), try original element
+    if(!el&&document.contains(t))el=t;
+    if(!el)return;
+    el.classList.remove("pop");void el.offsetWidth; // restart animation if already applied
+    el.classList.add("pop");
+    var cleanup=function(){if(el)el.classList.remove("pop")};
+    var done=false;
+    var onEnd=function(){if(done)return;done=true;cleanup();el.removeEventListener("animationend",onEnd)};
+    el.addEventListener("animationend",onEnd);
+    setTimeout(onEnd,450); // safety fallback if animationend never fires
+  },0);
+},true);
 
 // ─── Init ───────────────────────────────────────────────────
 try{init()}catch(e){document.getElementById("ct").innerHTML='<pre style="color:red">'+e.message+"\n"+e.stack+'</pre>'}
