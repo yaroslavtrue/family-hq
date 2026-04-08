@@ -865,44 +865,52 @@ def del_transaction(tid: int, user=Depends(get_uf), db=Depends(get_db)):
 
 # Analytics — monthly summary
 @app.get("/api/money/summary")
-def money_summary(user=Depends(get_uf), db=Depends(get_db)):
+def money_summary(month: str | None = None, user=Depends(get_uf), db=Depends(get_db)):
     f = user["family_id"]
     _ensure_categories(db, f)
     now = datetime.now(ZoneInfo(TIMEZONE))
     cur_month = now.strftime("%Y-%m")
-    # Current month totals
-    inc = db.execute("SELECT COALESCE(SUM(amount_eur),0) s FROM transactions WHERE family_id=? AND type='income' AND date LIKE ?", (f, cur_month+"%")).fetchone()["s"]
-    exp = db.execute("SELECT COALESCE(SUM(amount_eur),0) s FROM transactions WHERE family_id=? AND type='expense' AND date LIKE ?", (f, cur_month+"%")).fetchone()["s"]
-    # Subs as monthly expense
+    # Validate & resolve month (YYYY-MM). Falls back to current if invalid/missing.
+    import re
+    sel_month = cur_month
+    if month and re.fullmatch(r"\d{4}-(0[1-9]|1[0-2])", month):
+        sel_month = month
+    sy, sm = int(sel_month[:4]), int(sel_month[5:7])
+    is_current = (sel_month == cur_month)
+    # Selected month totals
+    inc = db.execute("SELECT COALESCE(SUM(amount_eur),0) s FROM transactions WHERE family_id=? AND type='income' AND date LIKE ?", (f, sel_month+"%")).fetchone()["s"]
+    exp = db.execute("SELECT COALESCE(SUM(amount_eur),0) s FROM transactions WHERE family_id=? AND type='expense' AND date LIKE ?", (f, sel_month+"%")).fetchone()["s"]
+    # Subs as monthly expense (flat, not month-dependent)
     subs_eur = db.execute("SELECT COALESCE(SUM(amount_eur),0) s FROM subscriptions WHERE family_id=?", (f,)).fetchone()["s"]
-    # By category (current month)
+    # By category (selected month)
     by_cat = [dict(r) for r in db.execute("""
         SELECT c.id, c.emoji, c.name, COALESCE(SUM(t.amount_eur),0) total
         FROM categories c LEFT JOIN transactions t ON t.category_id=c.id AND t.family_id=c.family_id AND t.type='expense' AND t.date LIKE ?
         WHERE c.family_id=? AND c.type='expense' GROUP BY c.id ORDER BY total DESC
-    """, (cur_month+"%", f)).fetchall()]
-    # Monthly chart (last 6 months)
+    """, (sel_month+"%", f)).fetchall()]
+    # Monthly chart: last 6 months ending on the selected month
     months = []
     for i in range(5, -1, -1):
-        m = now.month - i
-        y = now.year
+        m = sm - i
+        y = sy
         while m <= 0: m += 12; y -= 1
         mk = f"{y}-{m:02d}"
         mi = db.execute("SELECT COALESCE(SUM(amount_eur),0) s FROM transactions WHERE family_id=? AND type='income' AND date LIKE ?", (f, mk+"%")).fetchone()["s"]
         me = db.execute("SELECT COALESCE(SUM(amount_eur),0) s FROM transactions WHERE family_id=? AND type='expense' AND date LIKE ?", (f, mk+"%")).fetchone()["s"]
         months.append({"month": mk, "income": round(mi, 2), "expense": round(me, 2)})
-    # Limits
+    # Limits (selected month spend vs limit)
     limits = [dict(r) for r in db.execute("""
         SELECT cl.id, cl.category_id, cl.monthly_limit, c.emoji, c.name,
         COALESCE((SELECT SUM(t.amount_eur) FROM transactions t WHERE t.category_id=cl.category_id AND t.family_id=cl.family_id AND t.type='expense' AND t.date LIKE ?),0) spent
         FROM category_limits cl JOIN categories c ON c.id=cl.category_id WHERE cl.family_id=?
-    """, (cur_month+"%", f)).fetchall()]
-    # This week spend
+    """, (sel_month+"%", f)).fetchall()]
+    # This week spend (only meaningful for current month view)
     from datetime import timedelta
     week_start = (now - timedelta(days=now.weekday())).strftime("%Y-%m-%d")
-    week_exp = db.execute("SELECT COALESCE(SUM(amount_eur),0) s FROM transactions WHERE family_id=? AND type='expense' AND date>=?", (f, week_start)).fetchone()["s"]
+    week_exp = db.execute("SELECT COALESCE(SUM(amount_eur),0) s FROM transactions WHERE family_id=? AND type='expense' AND date>=?", (f, week_start)).fetchone()["s"] if is_current else 0
     return {
-        "month": cur_month, "income": round(inc, 2), "expense": round(exp, 2),
+        "month": sel_month, "is_current": is_current,
+        "income": round(inc, 2), "expense": round(exp, 2),
         "subs_eur": round(subs_eur, 2), "balance": round(inc - exp, 2),
         "by_category": by_cat, "months": months, "limits": limits,
         "week_expense": round(week_exp, 2),

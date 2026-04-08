@@ -376,12 +376,12 @@ var riBadge=riCnt?'<span style="font-size:10px;background:var(--pg);color:var(--
 h+='<div class="c"><div class="bd"><div class="tt" style="font-weight:600"><span style="color:'+amtColor+'">'+sign+tx.amount+' '+tx.currency+'</span>'+(tx.description?' <span style="font-weight:400;color:var(--ht)">'+es(tx.description)+'</span>':"")+'</div><div class="mt">'+catLabel+' · '+fD(tx.date).full+" "+mChip(tx.member_id,true)+'</div></div><button class="bi" onclick="openReceipt('+tx.id+')" title="Split receipt" style="font-size:12px;opacity:.7">📋'+riBadge+'</button><button class="bi" onclick="edTx('+tx.id+')">'+I.ed+'</button><button class="bi" onclick="dlTx('+tx.id+')">'+I.tr+'</button></div>'});
 return h}
 
-async function dlTx(id){hp();await A("DELETE","/api/transactions/"+id);await load();toast("🗑 Deleted")}
+async function dlTx(id){hp();await A("DELETE","/api/transactions/"+id);_moneySummary=null;_anaCache={};await load();toast("🗑 Deleted")}
 function edTx(id){var tx=D.transactions.find(function(x){return x.id===id});if(!tx)return;_assign=tx.member_id||0;
 var catOpts=D.categories.filter(function(c){return c.type===tx.type}).map(function(c){return '<button class="ob '+(tx.category_id===c.id?"s":"")+'" onclick="window._txCat='+c.id+';this.parentNode.querySelectorAll(\'.ob\').forEach(function(b){b.classList.remove(\'s\')});this.classList.add(\'s\')">'+c.emoji+" "+es(c.name)+'</button>'}).join("");
 window._txCat=tx.category_id||0;window._txType=tx.type;
 oMC("Edit Transaction",'<div class="dr"><div><div class="dl">Amount</div><input class="inp" id="tx-a" type="number" step="0.01" value="'+tx.amount+'"></div><div><div class="dl">Currency</div><select id="tx-c"><option value="RSD"'+(tx.currency==="RSD"?" selected":"")+'>din. RSD</option><option value="EUR"'+(tx.currency==="EUR"?" selected":"")+'>€ EUR</option><option value="USD"'+(tx.currency==="USD"?" selected":"")+'>$ USD</option><option value="GBP"'+(tx.currency==="GBP"?" selected":"")+'>£ GBP</option><option value="RUB"'+(tx.currency==="RUB"?" selected":"")+'>₽ RUB</option></select></div></div><div class="lb">Description</div><input class="inp" id="tx-d" value="'+es(tx.description||"")+'"><div class="lb">Category</div><div class="or">'+catOpts+'</div><div class="lb">Date</div><input type="date" id="tx-dt" value="'+tx.date+'"><div class="lb">Who</div>'+assignPk("txm",tx.member_id)+'<button class="btn" onclick="svTx('+id+')">Save</button>')}
-async function svTx(id){var a=parseFloat(document.getElementById("tx-a").value);var c=document.getElementById("tx-c").value;var d=document.getElementById("tx-d").value.trim();var dt=document.getElementById("tx-dt").value;if(!a)return;await A("PUT","/api/transactions/"+id,{amount:a,currency:c,description:d,date:dt,category_id:window._txCat||null,member_id:_assign||null});cMo();hp();await load()}
+async function svTx(id){var a=parseFloat(document.getElementById("tx-a").value);var c=document.getElementById("tx-c").value;var d=document.getElementById("tx-d").value.trim();var dt=document.getElementById("tx-dt").value;if(!a)return;await A("PUT","/api/transactions/"+id,{amount:a,currency:c,description:d,date:dt,category_id:window._txCat||null,member_id:_assign||null});cMo();hp();_moneySummary=null;_anaCache={};await load()}
 
 // ─── Digest config modal ─────────────────────────────────────
 var DIGEST_SECS=[
@@ -530,13 +530,33 @@ function edSub(id){var s=D.subs.find(function(x){return x.id===id});if(!s)return
 async function svSub(id){var n=document.getElementById("su-n").value.trim();var e=document.getElementById("su-e").value.trim();var a=parseFloat(document.getElementById("su-a").value);var c=document.getElementById("su-c").value;var d=parseInt(document.getElementById("su-d").value)||1;if(!n||!a)return;await A("PUT","/api/subscriptions/"+id,{name:n,emoji:e,amount:a,currency:c,billing_day:d,assigned_to:_assign||null,reminders:_subRems});cMo();hp();await load()}
 
 // Analytics
-var _moneySummary=null;
-async function loadMoneySummary(){_moneySummary=await A("GET","/api/money/summary");ren()}
+var _moneySummary=null,_anaMonth=null,_anaCache={};
+function _anaShift(delta){
+  var cur=_anaMonth||_curYM();
+  var y=parseInt(cur.slice(0,4),10),m=parseInt(cur.slice(5,7),10)+delta;
+  while(m<=0){m+=12;y--}while(m>12){m-=12;y++}
+  var next=y+"-"+String(m).padStart(2,"0");
+  // Block going beyond current month
+  if(next>_curYM())return;
+  _anaMonth=(next===_curYM())?null:next;
+  hp("sel");
+  if(_anaCache[next]){_moneySummary=_anaCache[next];ren()}
+  else{_moneySummary=null;loadMoneySummary()}
+}
+function _curYM(){var d=new Date();return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")}
+async function loadMoneySummary(){
+  var q=_anaMonth?("?month="+_anaMonth):"";
+  var s=await A("GET","/api/money/summary"+q);
+  _moneySummary=s;_anaCache[s.month]=s;
+  ren()
+}
 function rAnalytics(){
 if(!_moneySummary){loadMoneySummary();return '<div class="emp"><div class="emp-i">⏳</div><div>Loading...</div></div>'}
 var s=_moneySummary;
 var monthLabel=s.month?new Date(s.month+"-01T00:00:00").toLocaleString("en-US",{month:"long",year:"numeric"}):"";
-var h='<div class="c" style="border-left:3px solid var(--ok)"><div class="bd"><div class="tt" style="font-weight:700">'+monthLabel+'</div><div class="mt" style="gap:16px"><span style="color:var(--ok);font-weight:700">Income €'+s.income.toFixed(0)+'</span><span style="color:var(--ac);font-weight:700">Expenses €'+s.expense.toFixed(0)+'</span><span style="color:var(--pr);font-weight:700">Subs €'+s.subs_eur.toFixed(0)+'</span></div><div style="font-size:18px;font-weight:800;margin-top:8px;color:'+(s.balance>=0?"var(--ok)":"var(--ac)")+'">'+(s.balance>=0?"+":"")+"€"+s.balance.toFixed(0)+'</div></div></div>';
+var fwdDis=s.is_current?' style="opacity:.3;pointer-events:none"':"";
+var nav='<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:2px"><button class="bi" onclick="_anaShift(-1)" style="padding:4px 10px;font-size:16px">◀</button><div style="font-weight:700;font-size:15px">'+monthLabel+'</div><button class="bi" onclick="_anaShift(1)"'+fwdDis+' style="padding:4px 10px;font-size:16px">▶</button></div>';
+var h='<div class="c" style="border-left:3px solid var(--ok)"><div class="bd">'+nav+'<div class="mt" style="gap:16px"><span style="color:var(--ok);font-weight:700">Income €'+s.income.toFixed(0)+'</span><span style="color:var(--ac);font-weight:700">Expenses €'+s.expense.toFixed(0)+'</span><span style="color:var(--pr);font-weight:700">Subs €'+s.subs_eur.toFixed(0)+'</span></div><div style="font-size:18px;font-weight:800;margin-top:8px;color:'+(s.balance>=0?"var(--ok)":"var(--ac)")+'">'+(s.balance>=0?"+":"")+"€"+s.balance.toFixed(0)+'</div></div></div>';
 // Monthly chart (bars)
 if(s.months&&s.months.length){
 var maxM=1;s.months.forEach(function(m){maxM=Math.max(maxM,m.income,m.expense)});
@@ -551,7 +571,7 @@ h+='<div style="margin-bottom:8px"><div style="display:flex;justify-content:spac
 // Limits
 if(s.limits&&s.limits.length){h+='<div class="sc" style="margin-top:12px">Limits</div>';s.limits.forEach(function(l){var pct=Math.min(100,l.spent/l.monthly_limit*100);var over=l.spent>l.monthly_limit;
 h+='<div style="margin-bottom:8px"><div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:3px"><span>'+l.emoji+" "+l.name+'</span><span style="font-weight:700;color:'+(over?"var(--ac)":"var(--tx)")+'">€'+l.spent.toFixed(0)+' / €'+l.monthly_limit.toFixed(0)+'</span></div><div style="height:6px;background:var(--bd);border-radius:3px"><div style="height:100%;width:'+pct+'%;background:'+(over?"var(--ac)":"var(--ok)")+';border-radius:3px"></div></div></div>'})}
-h+='<button class="btn btn-s" style="margin-top:12px" onclick="_moneySummary=null;loadMoneySummary()">↻ Refresh Analytics</button>';
+h+='<button class="btn btn-s" style="margin-top:12px" onclick="_anaCache={};_moneySummary=null;loadMoneySummary()">↻ Refresh Analytics</button>';
 return h}
 
 // ═══════════════════════════════════════════════════════════
@@ -695,7 +715,7 @@ cMo();hp();await load()}
 async function doEv(){var t=document.getElementById("f-t").value.trim();var d=document.getElementById("f-d").value;var tm=document.getElementById("f-tm").value||"12:00";if(!t||!d)return;var ed=document.getElementById("f-ed")?document.getElementById("f-ed").value:"";var et=document.getElementById("f-et")?document.getElementById("f-et").value:"";var end=ed?ed+" "+(et||tm):null;await A("POST","/api/events",{text:t,event_date:d+" "+tm,end_date:end});cMo();hp();await load()}
 async function doBd(){var n=document.getElementById("bd-n").value.trim();var e=document.getElementById("bd-e").value.trim()||"🎂";var d=document.getElementById("bd-d").value;if(!n||!d)return;await A("POST","/api/birthdays",{name:n,emoji:e,birth_date:d,reminders:_bdRems});cMo();hp();await load()}
 async function doNewSub(){var n=document.getElementById("su-n").value.trim();var e=document.getElementById("su-e").value.trim()||"💳";var a=parseFloat(document.getElementById("su-a").value);var c=document.getElementById("su-c").value;var d=parseInt(document.getElementById("su-d").value)||1;if(!n||!a)return;await A("POST","/api/subscriptions",{name:n,emoji:e,amount:a,currency:c,billing_day:d,assigned_to:_assign||null,reminders:_subRems});cMo();hp();await load()}
-async function doTx(){var a=parseFloat(document.getElementById("tx-a").value);if(!a)return;var c=document.getElementById("tx-c").value;var d=document.getElementById("tx-d").value.trim();var dt=document.getElementById("tx-dt").value;await A("POST","/api/transactions",{type:window._txType,amount:a,currency:c,description:d,date:dt,category_id:window._txCat||null,member_id:_assign||null});cMo();hp();_moneySummary=null;await load()}
+async function doTx(){var a=parseFloat(document.getElementById("tx-a").value);if(!a)return;var c=document.getElementById("tx-c").value;var d=document.getElementById("tx-d").value.trim();var dt=document.getElementById("tx-dt").value;await A("POST","/api/transactions",{type:window._txType,amount:a,currency:c,description:d,date:dt,category_id:window._txCat||null,member_id:_assign||null});cMo();hp();_moneySummary=null;_anaCache={};await load()}
 
 // ═══════════════════════════════════════════════════════════
 // VIEWPORT FIX
