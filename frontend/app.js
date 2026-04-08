@@ -535,7 +535,8 @@ async function loadMoneySummary(){_moneySummary=await A("GET","/api/money/summar
 function rAnalytics(){
 if(!_moneySummary){loadMoneySummary();return '<div class="emp"><div class="emp-i">⏳</div><div>Loading...</div></div>'}
 var s=_moneySummary;
-var h='<div class="c" style="border-left:3px solid var(--ok)"><div class="bd"><div class="tt" style="font-weight:700">'+s.month+'</div><div class="mt" style="gap:16px"><span style="color:var(--ok);font-weight:700">Income €'+s.income.toFixed(0)+'</span><span style="color:var(--ac);font-weight:700">Expenses €'+s.expense.toFixed(0)+'</span><span style="color:var(--pr);font-weight:700">Subs €'+s.subs_eur.toFixed(0)+'</span></div><div style="font-size:18px;font-weight:800;margin-top:8px;color:'+(s.balance>=0?"var(--ok)":"var(--ac)")+'">'+(s.balance>=0?"+":"")+"€"+s.balance.toFixed(0)+'</div></div></div>';
+var monthLabel=s.month?new Date(s.month+"-01T00:00:00").toLocaleString("en-US",{month:"long",year:"numeric"}):"";
+var h='<div class="c" style="border-left:3px solid var(--ok)"><div class="bd"><div class="tt" style="font-weight:700">'+monthLabel+'</div><div class="mt" style="gap:16px"><span style="color:var(--ok);font-weight:700">Income €'+s.income.toFixed(0)+'</span><span style="color:var(--ac);font-weight:700">Expenses €'+s.expense.toFixed(0)+'</span><span style="color:var(--pr);font-weight:700">Subs €'+s.subs_eur.toFixed(0)+'</span></div><div style="font-size:18px;font-weight:800;margin-top:8px;color:'+(s.balance>=0?"var(--ok)":"var(--ac)")+'">'+(s.balance>=0?"+":"")+"€"+s.balance.toFixed(0)+'</div></div></div>';
 // Monthly chart (bars)
 if(s.months&&s.months.length){
 var maxM=1;s.months.forEach(function(m){maxM=Math.max(maxM,m.income,m.expense)});
