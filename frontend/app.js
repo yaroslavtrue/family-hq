@@ -160,9 +160,10 @@ const NV=[
 {id:"home",l:"Home",sv:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>'},
 {id:"tasks",l:"Tasks",sv:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></svg>'},
 {id:"shop",l:"Shop",sv:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 002 1.61h9.72a2 2 0 002-1.61L23 6H6"/></svg>'},
-{id:"money",l:"Money",sv:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg>'}
+{id:"money",l:"Money",sv:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg>'},
+{id:"profile",l:"Profile",sv:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>'}
 ];
-const TT={home:["🏠 Family HQ","Everything at a glance"],tasks:["📋 Tasks","Manage & assign"],shop:["🛒 Shopping","Shared list"],money:["💰 Money","Budget & subs"],events:["📅 Events","Schedule"],birthdays:["🎂 Birthdays","Never forget"],clean:["🧹 Cleaning","Apartment zones"],settings:["⚙️ Settings","Customize"],subs:["💳 Subscriptions","Monthly payments"]};
+const TT={home:["🏠 Family HQ","Everything at a glance"],tasks:["📋 Tasks","Manage & assign"],shop:["🛒 Shopping","Shared list"],money:["💰 Money","Budget & subs"],profile:["👤 Profile","Personal stats"],events:["📅 Events","Schedule"],birthdays:["🎂 Birthdays","Never forget"],clean:["🧹 Cleaning","Apartment zones"],settings:["⚙️ Settings","Customize"],subs:["💳 Subscriptions","Monthly payments"]};
 
 (function(){var n=document.getElementById("nv");NV.forEach(function(t){var b=document.createElement("button");b.className="ni"+(t.id==="home"?" a":"");b.dataset.t=t.id;b.innerHTML='<span class="nb hidden" id="b-'+t.id+'"></span>'+t.sv+'<span>'+t.l+'</span>';b.onclick=function(){go(t.id)};n.appendChild(b)})})();
 
@@ -172,9 +173,10 @@ var si=document.getElementById("si");if(si)si.value="";
 document.querySelectorAll(".ni").forEach(function(e){e.classList.toggle("a",e.dataset.t===t)});
 document.getElementById("ht").textContent=(TT[t]||["",""])[0];
 document.getElementById("hs").textContent=(TT[t]||["",""])[1];
-var noFab=["home","settings","clean","events","birthdays","subs"];
+var noFab=["home","settings","clean","events","birthdays","subs","profile"];
 document.getElementById("fab").classList.toggle("hidden",noFab.indexOf(t)>=0);
 if(t==="home")_firstHomeRender=true;
+if(t==="profile")_profStats=null;
 ren();hp("sel")}
 
 // Hamburger menu
@@ -210,7 +212,7 @@ switch(tab){
 case"home":c.innerHTML=rH();if(_firstHomeRender){_firstHomeRender=false;FX.countStats(c)}break;case"tasks":c.innerHTML=rT();break;
 case"shop":c.innerHTML=rSh();break;case"money":c.innerHTML=rMoney();break;
 case"events":c.innerHTML=rEvts();break;case"birthdays":c.innerHTML=rBdays();break;
-case"clean":c.innerHTML=rC();break;case"settings":c.innerHTML=rSet();break;case"subs":c.innerHTML=rSubsList();break}}
+case"clean":c.innerHTML=rC();break;case"settings":c.innerHTML=rSet();break;case"subs":c.innerHTML=rSubsList();break;case"profile":c.innerHTML=rProfile();break}}
 function sB(t,n){var e=document.getElementById("b-"+t);if(!e)return;if(n>0&&tab!==t){e.textContent=n;e.classList.remove("hidden")}else e.classList.add("hidden")}
 
 // ═══════════════════════════════════════════════════════════
@@ -632,6 +634,56 @@ function edZT(tid){var t=null;D.zones.forEach(function(z){(z.tasks||[]).forEach(
 async function svZT(tid){var text=document.getElementById("zt-t").value.trim();var rd=parseInt(document.getElementById("zt-d").value)||7;if(!text)return;await A("PUT","/api/cleaning/tasks/"+tid,{text:text,icon:"🧹",assigned_to:_assign||null,reset_days:rd});cMo();hp();await load()}
 function shAZ(){_assign=0;oMC("Add Zone",'<input class="inp" id="zn" placeholder="Zone name"><input class="inp" id="zic" placeholder="🍳" style="width:80px"><div class="lb">Assigned to</div>'+assignPk("zap",null)+'<button class="btn" onclick="doAZ()">Add Zone</button>')}
 async function doAZ(){var n=document.getElementById("zn").value.trim();if(!n)return;var i=document.getElementById("zic").value.trim()||"🏠";await A("POST","/api/cleaning/zones",{name:n,icon:i,assigned_to:_assign||null});cMo();hp();await load()}
+
+// ═══════════════════════════════════════════════════════════
+// PROFILE
+// ═══════════════════════════════════════════════════════════
+var _profMember=null,_profStats=null;
+async function loadProfileStats(){
+var q=_profMember?("?member_id="+_profMember):"";
+var s=await A("GET","/api/profile/stats"+q);
+_profStats=s;ren()
+}
+function setProfMember(uid){_profMember=uid;_profStats=null;hp("sel");ren()}
+function rProfile(){
+if(!_profStats){loadProfileStats();return '<div class="emp"><div class="emp-i">⏳</div><div>Loading...</div></div>'}
+var s=_profStats,h='';
+// Member switcher
+h+='<div class="fb2" style="margin-bottom:16px">';
+h+='<button class="fi '+(!_profMember?"a":"")+'" onclick="setProfMember(null)">👨‍👩‍👧 Family</button>';
+D.members.forEach(function(m){h+='<button class="fi '+(_profMember===m.user_id?"a":"")+'" onclick="setProfMember('+m.user_id+')">'+m.emoji+' '+es(m.user_name)+'</button>'});
+h+='</div>';
+// Header with avatar
+if(_profMember){var m=D.members.find(function(x){return x.user_id===_profMember});if(m)h+='<div style="display:flex;align-items:center;gap:12px;margin-bottom:16px">'+mAv(m.user_id,48)+'<div><div style="font-size:18px;font-weight:700">'+es(m.user_name)+'</div><div style="font-size:12px;color:var(--ht)">Personal stats</div></div></div>'}
+// Tasks
+h+='<div class="sc">Tasks</div><div class="sts">';
+h+='<div class="st" style="border-left:3px solid var(--pr)"><div class="sn" style="color:var(--pr)"><span class="cu" data-count="'+s.tasks_active+'">0</span></div><div class="sl">Active</div></div>';
+h+='<div class="st" style="border-left:3px solid var(--ok)"><div class="sn" style="color:var(--ok)"><span class="cu" data-count="'+s.tasks_done+'">0</span></div><div class="sl">Completed</div></div>';
+h+='<div class="st" style="border-left:3px solid var(--ac)"><div class="sn" style="color:var(--ac)"><span class="cu" data-count="'+s.tasks_overdue+'">0</span></div><div class="sl">Overdue</div></div>';
+h+='<div class="st" style="border-left:3px solid var(--wn)"><div class="sn" style="color:var(--wn)"><span class="cu" data-count="'+s.tasks_high+'">0</span></div><div class="sl">High Priority</div></div>';
+h+='</div>';
+// Money
+h+='<div class="sc">Money This Month</div><div class="sts">';
+var spC=s.spent_month>0?"var(--ac)":"var(--ht)",incC=s.income_month>0?"var(--ok)":"var(--ht)";
+h+='<div class="st" style="border-left:3px solid '+spC+'"><div class="sn" style="color:'+spC+';font-size:20px">−€'+s.spent_month.toFixed(0)+'</div><div class="sl">Spent</div></div>';
+h+='<div class="st" style="border-left:3px solid '+incC+'"><div class="sn" style="color:'+incC+';font-size:20px">+€'+s.income_month.toFixed(0)+'</div><div class="sl">Income</div></div>';
+h+='<div class="st" style="border-left:3px solid var(--pr)"><div class="sn" style="color:var(--pr);font-size:20px">€'+s.spent_week.toFixed(0)+'</div><div class="sl">This Week</div></div>';
+h+='<div class="st" style="border-left:3px solid var(--ht)"><div class="sn" style="color:var(--tx)"><span class="cu" data-count="'+s.tx_count+'">0</span></div><div class="sl">Transactions</div></div>';
+h+='</div>';
+// Top category
+if(s.top_category)h+='<div class="c" style="border-left:3px solid var(--wn)"><span style="font-size:24px">'+s.top_category.emoji+'</span><div class="bd"><div class="tt" style="font-weight:600">Top: '+es(s.top_category.name)+'</div><div class="mt">€'+s.top_category.total.toFixed(0)+' this month</div></div></div>';
+// Shopping
+h+='<div class="sc">Shopping</div><div class="sts">';
+h+='<div class="st" style="border-left:3px solid var(--pr)"><div class="sn" style="color:var(--pr)"><span class="cu" data-count="'+s.shop_total+'">0</span></div><div class="sl">Items</div></div>';
+h+='<div class="st" style="border-left:3px solid var(--ok)"><div class="sn" style="color:var(--ok)"><span class="cu" data-count="'+s.shop_bought+'">0</span></div><div class="sl">In Stock</div></div>';
+h+='</div>';
+// Cleaning
+var cPct=s.clean_total>0?Math.round(s.clean_done/s.clean_total*100):0;
+h+='<div class="sc">Cleaning</div>';
+h+='<div class="c" style="border-left:3px solid var(--ok)"><div class="bd"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px"><div class="tt" style="font-weight:600">'+s.clean_done+'/'+s.clean_total+' tasks done</div><span style="font-size:13px;font-weight:700;color:var(--ok)">'+cPct+'%</span></div><div style="height:6px;background:var(--bd);border-radius:3px"><div style="height:100%;width:'+cPct+'%;background:var(--ok);border-radius:3px;transition:width .3s"></div></div></div></div>';
+// Count-up animation
+setTimeout(function(){FX.countStats(document.getElementById("ct"))},50);
+return h}
 
 // ═══════════════════════════════════════════════════════════
 // SETTINGS (hamburger page)

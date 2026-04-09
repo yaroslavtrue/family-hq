@@ -929,6 +929,66 @@ def del_limit(cid: int, user=Depends(get_uf), db=Depends(get_db)):
     db.execute("DELETE FROM category_limits WHERE category_id=? AND family_id=?", (cid, user["family_id"])); db.commit()
     return {"ok": True}
 
+# Profile stats
+@app.get("/api/profile/stats")
+def profile_stats(member_id: int | None = None, user=Depends(get_uf), db=Depends(get_db)):
+    from datetime import timedelta
+    f = user["family_id"]
+    now = datetime.now(ZoneInfo(TIMEZONE))
+    today_str = now.strftime("%Y-%m-%d")
+    week_start = (now - timedelta(days=now.weekday())).strftime("%Y-%m-%d")
+    month_prefix = now.strftime("%Y-%m")
+
+    # Task stats (assigned_to is user_id int)
+    tf = "AND assigned_to=?" if member_id else ""
+    tp = (f, member_id) if member_id else (f,)
+    tasks_active = db.execute(f"SELECT COUNT(*) c FROM tasks WHERE family_id=? AND done=0 {tf}", tp).fetchone()["c"]
+    tasks_done = db.execute(f"SELECT COUNT(*) c FROM tasks WHERE family_id=? AND done=1 {tf}", tp).fetchone()["c"]
+    tasks_high = db.execute(f"SELECT COUNT(*) c FROM tasks WHERE family_id=? AND done=0 AND priority='high' {tf}", tp).fetchone()["c"]
+    tasks_overdue = db.execute(f"SELECT COUNT(*) c FROM tasks WHERE family_id=? AND done=0 AND due_date IS NOT NULL AND due_date<? {tf}", (*tp, today_str)).fetchone()["c"]
+
+    # Money stats (member_id column)
+    mf = "AND member_id=?" if member_id else ""
+    mp = (f, member_id) if member_id else (f,)
+    spent_month = db.execute(f"SELECT COALESCE(SUM(amount_eur),0) s FROM transactions WHERE family_id=? AND type='expense' AND date LIKE ? {mf}", (*mp, month_prefix+"%")).fetchone()["s"]
+    income_month = db.execute(f"SELECT COALESCE(SUM(amount_eur),0) s FROM transactions WHERE family_id=? AND type='income' AND date LIKE ? {mf}", (*mp, month_prefix+"%")).fetchone()["s"]
+    spent_week = db.execute(f"SELECT COALESCE(SUM(amount_eur),0) s FROM transactions WHERE family_id=? AND type='expense' AND date>=? {mf}", (*mp, week_start)).fetchone()["s"]
+    tx_count = db.execute(f"SELECT COUNT(*) c FROM transactions WHERE family_id=? AND date LIKE ? {mf}", (*mp, month_prefix+"%")).fetchone()["c"]
+
+    # Top spending category this month
+    top_row = db.execute(f"""SELECT c.emoji, c.name, COALESCE(SUM(t.amount_eur),0) total
+        FROM transactions t LEFT JOIN categories c ON c.id=t.category_id
+        WHERE t.family_id=? AND t.type='expense' AND t.date LIKE ? {mf}
+        GROUP BY t.category_id ORDER BY total DESC LIMIT 1""", (*mp, month_prefix+"%")).fetchone()
+    top_cat = {"emoji": top_row["emoji"], "name": top_row["name"], "total": round(top_row["total"], 2)} if top_row and top_row["total"] > 0 else None
+
+    # Shopping stats (added_by stores user_name string)
+    sf, sp2 = "", (f,)
+    if member_id:
+        m_row = db.execute("SELECT user_name FROM family_members WHERE user_id=?", (member_id,)).fetchone()
+        if m_row:
+            sf = "AND added_by=?"
+            sp2 = (f, m_row["user_name"])
+    shop_total = db.execute(f"SELECT COUNT(*) c FROM shopping WHERE family_id=? {sf}", sp2).fetchone()["c"]
+    shop_bought = db.execute(f"SELECT COUNT(*) c FROM shopping WHERE family_id=? AND bought=1 {sf}", sp2).fetchone()["c"]
+
+    # Cleaning stats (assigned_to is user_id int)
+    cf = "AND ct.assigned_to=?" if member_id else ""
+    cp = (f, member_id) if member_id else (f,)
+    clean_done = db.execute(f"SELECT COUNT(*) c FROM cleaning_tasks ct WHERE ct.family_id=? AND ct.done=1 {cf}", cp).fetchone()["c"]
+    clean_total = db.execute(f"SELECT COUNT(*) c FROM cleaning_tasks ct WHERE ct.family_id=? {cf}", cp).fetchone()["c"]
+
+    return {
+        "member_id": member_id,
+        "tasks_active": tasks_active, "tasks_done": tasks_done,
+        "tasks_high": tasks_high, "tasks_overdue": tasks_overdue,
+        "spent_month": round(spent_month, 2), "income_month": round(income_month, 2),
+        "spent_week": round(spent_week, 2), "tx_count": tx_count,
+        "top_category": top_cat,
+        "shop_total": shop_total, "shop_bought": shop_bought,
+        "clean_done": clean_done, "clean_total": clean_total,
+    }
+
 # ═════════════════════════════════════════════════════════════════════════
 # BUNDLE (all data in one request)
 # ═════════════════════════════════════════════════════════════════════════
