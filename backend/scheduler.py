@@ -59,13 +59,13 @@ TRELLO_LISTS = ["Video Editing", "Монтаж видео", "Сайты", "Бр�
 WEATHER_LAT = "44.8"
 WEATHER_LON = "20.46"
 
-# Compact emoji map used by digest section (re-exported from weather module)
-WMO = wx.WMO_SHORT
-
-
-async def _get_weather():
-    """Raw Open-Meteo response, with retry + 6h cache fallback (shared impl)."""
-    return await wx.fetch_raw(WEATHER_LAT, WEATHER_LON, TIMEZONE)
+async def refresh_weather():
+    """Hourly job: proactively refresh the weather cache so bundle responses
+    never wait on an HTTP fetch. Logs success/failure but never raises."""
+    try:
+        await wx.refresh(WEATHER_LAT, WEATHER_LON, TIMEZONE)
+    except Exception as e:
+        log.warning(f"refresh_weather job error: {type(e).__name__}: {e}")
 
 # Long-lived HTTP client (lazy init, reused across all jobs to avoid TCP/TLS handshakes)
 _http_client = None
@@ -347,20 +347,16 @@ def _build_digest_sections(con, fid, uid, user_name, now, section_order=None):
         return [f"☀️ *Good morning, {user_name}!*", f"📆 {date_line}"]
     builders["greeting"] = _greeting
 
-    # Weather
+    # Weather — uses shared shaped response (Met Norway, 60-min TTL cache)
     async def _weather_lines():
-        weather = await _get_weather()
-        if not weather: return []
-        cur = weather.get("current", {})
-        daily = weather.get("daily", {})
-        wc = cur.get("weathercode", 0)
-        wl = [f"{WMO.get(wc, '🌤')} *{round(cur.get('temperature_2m', 0))}°C* now"]
+        w = await wx.fetch_shaped(WEATHER_LAT, WEATHER_LON, TIMEZONE)
+        if not w: return []
+        # label is "emoji desc", take just the emoji for compact digest
+        def _icon(lbl): return (lbl or "🌤").split(" ")[0]
+        wl = [f"{_icon(w.get('label'))} *{w.get('now', 0)}°C* now"]
         days_names = ["Today", "Tomorrow", "Day after"]
-        for i in range(min(3, len(daily.get("time", [])))):
-            dwc = daily["weathercode"][i]
-            hi = round(daily["temperature_2m_max"][i])
-            lo = round(daily["temperature_2m_min"][i])
-            wl.append(f"  {days_names[i]}: {WMO.get(dwc, '🌤')} {lo}°..{hi}°")
+        for i, dy in enumerate(w.get("days", [])[:3]):
+            wl.append(f"  {days_names[i]}: {_icon(dy.get('label'))} {dy.get('min')}°..{dy.get('max')}°")
         return wl
     builders["weather"] = _weather_lines
 

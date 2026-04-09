@@ -128,6 +128,7 @@ async def lifespan(app: FastAPI):
     aps.add_job(sched.check_cleaning_resets, "cron", hour=0, minute=5)
     aps.add_job(sched.generate_recurring_tasks, "cron", hour=0, minute=5)
     aps.add_job(sched.morning_digest, "cron", minute=0)
+    aps.add_job(sched.refresh_weather, "interval", minutes=60, next_run_time=datetime.now(ZoneInfo(TIMEZONE)))
     aps.add_job(sched.sync_trello, "interval", minutes=30)
     aps.start(); log.info("✅ Family HQ v5"); yield; aps.shutdown()
 
