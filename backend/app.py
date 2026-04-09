@@ -941,25 +941,25 @@ def profile_stats(member_id: int | None = None, user=Depends(get_uf), db=Depends
 
     # Task stats (assigned_to is user_id int)
     tf = "AND assigned_to=?" if member_id else ""
-    tp = (f, member_id) if member_id else (f,)
-    tasks_active = db.execute(f"SELECT COUNT(*) c FROM tasks WHERE family_id=? AND done=0 {tf}", tp).fetchone()["c"]
-    tasks_done = db.execute(f"SELECT COUNT(*) c FROM tasks WHERE family_id=? AND done=1 {tf}", tp).fetchone()["c"]
-    tasks_high = db.execute(f"SELECT COUNT(*) c FROM tasks WHERE family_id=? AND done=0 AND priority='high' {tf}", tp).fetchone()["c"]
-    tasks_overdue = db.execute(f"SELECT COUNT(*) c FROM tasks WHERE family_id=? AND done=0 AND due_date IS NOT NULL AND due_date<? {tf}", (*tp, today_str)).fetchone()["c"]
+    tx = (member_id,) if member_id else ()
+    tasks_active = db.execute(f"SELECT COUNT(*) c FROM tasks WHERE family_id=? AND done=0 {tf}", (f,) + tx).fetchone()["c"]
+    tasks_done = db.execute(f"SELECT COUNT(*) c FROM tasks WHERE family_id=? AND done=1 {tf}", (f,) + tx).fetchone()["c"]
+    tasks_high = db.execute(f"SELECT COUNT(*) c FROM tasks WHERE family_id=? AND done=0 AND priority='high' {tf}", (f,) + tx).fetchone()["c"]
+    tasks_overdue = db.execute(f"SELECT COUNT(*) c FROM tasks WHERE family_id=? AND done=0 AND due_date IS NOT NULL AND due_date<? {tf}", (f, today_str) + tx).fetchone()["c"]
 
-    # Money stats (member_id column)
+    # Money stats (member_id column — mx appended AFTER positional params)
     mf = "AND member_id=?" if member_id else ""
-    mp = (f, member_id) if member_id else (f,)
-    spent_month = db.execute(f"SELECT COALESCE(SUM(amount_eur),0) s FROM transactions WHERE family_id=? AND type='expense' AND date LIKE ? {mf}", (*mp, month_prefix+"%")).fetchone()["s"]
-    income_month = db.execute(f"SELECT COALESCE(SUM(amount_eur),0) s FROM transactions WHERE family_id=? AND type='income' AND date LIKE ? {mf}", (*mp, month_prefix+"%")).fetchone()["s"]
-    spent_week = db.execute(f"SELECT COALESCE(SUM(amount_eur),0) s FROM transactions WHERE family_id=? AND type='expense' AND date>=? {mf}", (*mp, week_start)).fetchone()["s"]
-    tx_count = db.execute(f"SELECT COUNT(*) c FROM transactions WHERE family_id=? AND date LIKE ? {mf}", (*mp, month_prefix+"%")).fetchone()["c"]
+    mx = (member_id,) if member_id else ()
+    spent_month = db.execute(f"SELECT COALESCE(SUM(amount_eur),0) s FROM transactions WHERE family_id=? AND type='expense' AND date LIKE ? {mf}", (f, month_prefix+"%") + mx).fetchone()["s"]
+    income_month = db.execute(f"SELECT COALESCE(SUM(amount_eur),0) s FROM transactions WHERE family_id=? AND type='income' AND date LIKE ? {mf}", (f, month_prefix+"%") + mx).fetchone()["s"]
+    spent_week = db.execute(f"SELECT COALESCE(SUM(amount_eur),0) s FROM transactions WHERE family_id=? AND type='expense' AND date>=? {mf}", (f, week_start) + mx).fetchone()["s"]
+    tx_count = db.execute(f"SELECT COUNT(*) c FROM transactions WHERE family_id=? AND date LIKE ? {mf}", (f, month_prefix+"%") + mx).fetchone()["c"]
 
     # Top spending category this month
     top_row = db.execute(f"""SELECT c.emoji, c.name, COALESCE(SUM(t.amount_eur),0) total
         FROM transactions t LEFT JOIN categories c ON c.id=t.category_id
         WHERE t.family_id=? AND t.type='expense' AND t.date LIKE ? {mf}
-        GROUP BY t.category_id ORDER BY total DESC LIMIT 1""", (*mp, month_prefix+"%")).fetchone()
+        GROUP BY t.category_id ORDER BY total DESC LIMIT 1""", (f, month_prefix+"%") + mx).fetchone()
     top_cat = {"emoji": top_row["emoji"], "name": top_row["name"], "total": round(top_row["total"], 2)} if top_row and top_row["total"] > 0 else None
 
     # Shopping stats (added_by stores user_name string)
