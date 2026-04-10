@@ -662,11 +662,6 @@ h+='<div class="st" style="border-left:3px solid var(--ok)"><div class="sn" styl
 h+='<div class="st" style="border-left:3px solid var(--ac)"><div class="sn" style="color:var(--ac)"><span class="cu" data-count="'+s.tasks_overdue+'">0</span></div><div class="sl">Overdue</div></div>';
 h+='<div class="st" style="border-left:3px solid var(--wn)"><div class="sn" style="color:var(--wn)"><span class="cu" data-count="'+s.tasks_high+'">0</span></div><div class="sl">High Priority</div></div>';
 h+='</div>';
-// Shopping
-h+='<div class="sc">Shopping</div><div class="sts">';
-h+='<div class="st" style="border-left:3px solid var(--pr)"><div class="sn" style="color:var(--pr)"><span class="cu" data-count="'+s.shop_total+'">0</span></div><div class="sl">Items</div></div>';
-h+='<div class="st" style="border-left:3px solid var(--ok)"><div class="sn" style="color:var(--ok)"><span class="cu" data-count="'+s.shop_bought+'">0</span></div><div class="sl">In Stock</div></div>';
-h+='</div>';
 // Cleaning
 var cPct=s.clean_total>0?Math.round(s.clean_done/s.clean_total*100):0;
 h+='<div class="sc">Cleaning</div>';
