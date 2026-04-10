@@ -717,7 +717,7 @@ var left=(seg.col/7*100).toFixed(2);
 var width=(seg.span/7*100).toFixed(2);
 var top=seg.lane*((bh)+2);
 var mClr="";
-if(seg.type==="task"&&seg.assigned_to){var _m=D.members.find(function(x){return x.user_id===seg.assigned_to});if(_m)mClr=_m.color}
+if(seg.type==="task"&&!seg.done&&seg.assigned_to){var _m=D.members.find(function(x){return x.user_id===seg.assigned_to});if(_m)mClr=_m.color}
 var cls="cal-ev ev-"+seg.color+(seg.done?" ev-done":"");
 var inl=mClr?"background:"+mClr+";":"";
 h+='<div class="'+cls+'" onclick="showCalEv(\''+seg.type+'\','+seg.id+')" style="left:'+left+'%;width:calc('+width+'% - 2px);top:'+top+'px;height:'+bh+'px;line-height:'+bh+'px;cursor:pointer;'+inl+'">'+es(seg.title)+'</div>'
