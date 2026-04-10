@@ -662,16 +662,6 @@ h+='<div class="st" style="border-left:3px solid var(--ok)"><div class="sn" styl
 h+='<div class="st" style="border-left:3px solid var(--ac)"><div class="sn" style="color:var(--ac)"><span class="cu" data-count="'+s.tasks_overdue+'">0</span></div><div class="sl">Overdue</div></div>';
 h+='<div class="st" style="border-left:3px solid var(--wn)"><div class="sn" style="color:var(--wn)"><span class="cu" data-count="'+s.tasks_high+'">0</span></div><div class="sl">High Priority</div></div>';
 h+='</div>';
-// Money
-h+='<div class="sc">Money This Month</div><div class="sts">';
-var spC=s.spent_month>0?"var(--ac)":"var(--ht)",incC=s.income_month>0?"var(--ok)":"var(--ht)";
-h+='<div class="st" style="border-left:3px solid '+spC+'"><div class="sn" style="color:'+spC+';font-size:20px">−€'+s.spent_month.toFixed(0)+'</div><div class="sl">Spent</div></div>';
-h+='<div class="st" style="border-left:3px solid '+incC+'"><div class="sn" style="color:'+incC+';font-size:20px">+€'+s.income_month.toFixed(0)+'</div><div class="sl">Income</div></div>';
-h+='<div class="st" style="border-left:3px solid var(--pr)"><div class="sn" style="color:var(--pr);font-size:20px">€'+s.spent_week.toFixed(0)+'</div><div class="sl">This Week</div></div>';
-h+='<div class="st" style="border-left:3px solid var(--ht)"><div class="sn" style="color:var(--tx)"><span class="cu" data-count="'+s.tx_count+'">0</span></div><div class="sl">Transactions</div></div>';
-h+='</div>';
-// Top category
-if(s.top_category)h+='<div class="c" style="border-left:3px solid var(--wn)"><span style="font-size:24px">'+s.top_category.emoji+'</span><div class="bd"><div class="tt" style="font-weight:600">Top: '+es(s.top_category.name)+'</div><div class="mt">€'+s.top_category.total.toFixed(0)+' this month</div></div></div>';
 // Shopping
 h+='<div class="sc">Shopping</div><div class="sts">';
 h+='<div class="st" style="border-left:3px solid var(--pr)"><div class="sn" style="color:var(--pr)"><span class="cu" data-count="'+s.shop_total+'">0</span></div><div class="sl">Items</div></div>';
