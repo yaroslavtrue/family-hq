@@ -232,13 +232,10 @@ h+='<div class="st" onclick="go(\'clean\')" style="border-left:3px solid var(--w
 var _aInc=0,_aExp=0;D.transactions.forEach(function(tx){if(tx.type==="income")_aInc+=(tx.amount_eur||0);else _aExp+=(tx.amount_eur||0)});var _bal=_aInc-_aExp;var _balC=_bal>=0?"var(--ok)":"var(--ac)";
 var _cm=n.getFullYear()+"-"+String(n.getMonth()+1).padStart(2,"0");var _mInc=0,_mExp=0;D.transactions.forEach(function(tx){if(tx.date&&tx.date.startsWith(_cm)){if(tx.type==="income")_mInc+=(tx.amount_eur||0);else _mExp+=(tx.amount_eur||0)}});
 h+='<div class="st" onclick="go(\'money\')" style="border-left:3px solid '+_balC+'"><div class="sn" style="color:'+_balC+';font-size:20px">'+(_bal>=0?"+":"")+"€"+_bal.toFixed(0)+'</div><div class="sl" style="font-size:11px;line-height:1.3;color:var(--ht)">+€'+_mInc.toFixed(0)+' / −€'+_mExp.toFixed(0)+'</div></div></div>';
-// Top 3 tasks
-var pt=D.tasks.filter(function(x){return!x.done});var priV={high:0,normal:1,low:2};
-pt.sort(function(a,b){var pa=priV[a.priority]||1,pb=priV[b.priority]||1;if(pa!==pb)return pa-pb;var da=a.due_date||"9999",db2=b.due_date||"9999";return da<db2?-1:da>db2?1:0});
-pt=pt.slice(0,3);
-if(pt.length){h+='<div class="sc">Top Tasks</div>';pt.forEach(function(t){
-var priDot=t.priority==="high"?'<span style="width:8px;height:8px;border-radius:50%;background:var(--ac);display:inline-block;margin-right:4px"></span>':"";
-h+='<div class="c"><div class="cb cb-o" onclick="tgTk('+t.id+',this)"></div><div class="bd"><div class="tt">'+priDot+es(t.text)+'</div><div class="mt">'+mChip(t.assigned_to,true)+(t.due_date?' <span style="font-size:11px;color:var(--wn)">📅 '+fD(t.due_date).full+'</span>':"")+'</div></div></div>'})}
+// Calendar strip
+h+='<div class="sc">Calendar</div>';
+h+='<div class="cal-strip" onclick="openCalModal()" id="cal-strip"></div>';
+setTimeout(function(){loadCalStrip()},0);
 // Upcoming 7d
 var upcoming=[];var todayStr=td();
 D.events.forEach(function(ev){var eDate=(ev.event_date||"").split(" ")[0];if(!eDate)return;var diff=Math.round((new Date(eDate)-new Date(todayStr))/86400000);if(diff>=0&&diff<=7)upcoming.push({type:"event",days:diff,icon:"📅",title:es(ev.text),sub:fD(ev.event_date).full,color:"var(--ok)"})});
@@ -666,10 +663,6 @@ h+='</div>';
 var cPct=s.clean_total>0?Math.round(s.clean_done/s.clean_total*100):0;
 h+='<div class="sc">Cleaning</div>';
 h+='<div class="c" style="border-left:3px solid var(--ok)"><div class="bd"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px"><div class="tt" style="font-weight:600">'+s.clean_done+'/'+s.clean_total+' tasks done</div><span style="font-size:13px;font-weight:700;color:var(--ok)">'+cPct+'%</span></div><div style="height:6px;background:var(--bd);border-radius:3px"><div style="height:100%;width:'+cPct+'%;background:var(--ok);border-radius:3px;transition:width .3s"></div></div></div></div>';
-// Calendar strip
-h+='<div class="sc" style="margin-top:16px">Calendar</div>';
-h+='<div class="cal-strip" onclick="openCalModal()" id="cal-strip"></div>';
-setTimeout(function(){loadCalStrip()},0);
 // Count-up animation
 setTimeout(function(){FX.countStats(document.getElementById("ct"))},50);
 return h}
@@ -696,7 +689,7 @@ var span=Math.round((e-s)/864e5)+1;
 if(col<0){span+=col;col=0}
 if(col+span>7)span=7-col;
 if(span<=0)return;
-segs.push({col:col,span:span,title:it.title,color:it.color,startD:s,endD:e,done:it.done,id:it.id,type:it.type,origStart:it.start,origEnd:it.end})
+segs.push({col:col,span:span,title:it.title,color:it.color,startD:s,endD:e,done:it.done,id:it.id,type:it.type,origStart:it.start,origEnd:it.end,assigned_to:it.assigned_to})
 });
 segs.sort(function(a,b){return a.col-b.col||(b.span-a.span)});
 var lanes=[],result=[];
@@ -712,19 +705,31 @@ return{segs:result,maxLanes:lanes.length}
 }
 
 // Render bars HTML for a week
-function _renderBars(items,wsISO,weISO,barH){
-var bh=barH||18;
+function _renderBars(items,wsISO,weISO,barH,maxLn){
+var bh=barH||18;var ml=maxLn||5;
 var res=_assignLanes(items,wsISO,weISO);
 if(!res.segs.length)return{html:'',height:0};
-var h='';
+var h='',overflow=[0,0,0,0,0,0,0];
+var visLanes=Math.min(res.maxLanes,ml);
 res.segs.forEach(function(seg){
+if(seg.lane>=ml){for(var c=seg.col;c<seg.col+seg.span&&c<7;c++)overflow[c]++;return}
 var left=(seg.col/7*100).toFixed(2);
 var width=(seg.span/7*100).toFixed(2);
 var top=seg.lane*((bh)+2);
+var mClr="";
+if(seg.type==="task"&&seg.assigned_to){var _m=D.members.find(function(x){return x.user_id===seg.assigned_to});if(_m)mClr=_m.color}
 var cls="cal-ev ev-"+seg.color+(seg.done?" ev-done":"");
-h+='<div class="'+cls+'" onclick="showCalEv(\''+seg.type+'\','+seg.id+')" style="left:'+left+'%;width:calc('+width+'% - 2px);top:'+top+'px;height:'+bh+'px;line-height:'+bh+'px;cursor:pointer">'+es(seg.title)+'</div>'
+var inl=mClr?"background:"+mClr+";":"";
+h+='<div class="'+cls+'" onclick="showCalEv(\''+seg.type+'\','+seg.id+')" style="left:'+left+'%;width:calc('+width+'% - 2px);top:'+top+'px;height:'+bh+'px;line-height:'+bh+'px;cursor:pointer;'+inl+'">'+es(seg.title)+'</div>'
 });
-return{html:h,height:res.maxLanes*(bh+2)}
+// +N overflow badges
+var oT=visLanes*(bh+2);
+for(var i=0;i<7;i++){if(overflow[i]>0){
+var ol=(i/7*100).toFixed(2);var ow=(1/7*100).toFixed(2);
+h+='<div class="cal-more" style="left:'+ol+'%;width:'+ow+'%;top:'+oT+'px">+'+overflow[i]+'</div>'
+}}
+var hasOv=overflow.some(function(x){return x>0});
+return{html:h,height:visLanes*(bh+2)+(hasOv?(bh-4):0)}
 }
 
 // Week strip for profile
@@ -791,7 +796,7 @@ for(var i=0;i<7;i++){
 var d=_addD(cur,i);var iso=_isoDate(d);
 var inMonth=(d.getMonth()+1===m&&d.getFullYear()===y);
 var cls="cal-dy"+(inMonth?" cur-m":"")+(iso===todayISO?" today":"");
-h+='<div class="'+cls+'"><span class="dn">'+d.getDate()+'</span></div>'}
+h+='<div class="'+cls+'" onclick="openCalDay(\''+iso+'\')"><span class="dn">'+d.getDate()+'</span></div>'}
 h+='</div>';
 h+='<div class="cal-bars" style="height:'+Math.max(bars.height,4)+'px">'+bars.html+'</div>';
 h+='</div>';
@@ -840,6 +845,59 @@ var el=document.createElement("div");el.id="cal-ev-detail";el.innerHTML=h;
 document.getElementById("cal-mo").appendChild(el)
 }
 function closeCalEv(e){var el=document.getElementById("cal-ev-detail");if(el)el.remove()}
+
+// Full-screen day view
+function openCalDay(iso){
+if(!_calData||!_calData.items)return;
+var dayItems=_calData.items.filter(function(it){return it.start<=iso&&it.end>=iso});
+var dd=_parseD(iso);
+var title=dF[dd.getDay()]+", "+dd.getDate()+" "+mN[dd.getMonth()]+" "+dd.getFullYear();
+var h='<div class="cday-overlay">';
+h+='<div class="cday-panel">';
+h+='<div class="cday-hd"><button class="cday-back" onclick="closeCalDay()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" width="20" height="20"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg></button><div class="cday-title">'+title+'</div></div>';
+if(!dayItems.length){
+h+='<div style="text-align:center;padding:40px 20px;color:var(--ht)"><div style="font-size:32px;margin-bottom:8px">📭</div><div>No events this day</div></div>'
+}else{
+// Group: events first, then tasks, then birthdays
+var order={event:0,task:1,birthday:2};
+dayItems.sort(function(a,b){return(order[a.type]||9)-(order[b.type]||9)});
+dayItems.forEach(function(it){
+var icon={event:"📅",task:it.done?"✅":"📋",birthday:"🎂"}[it.type]||"📌";
+var mClr="";
+if(it.type==="task"&&it.assigned_to){var _m=D.members.find(function(x){return x.user_id===it.assigned_to});if(_m)mClr=_m.color}
+var borderC=mClr||{event:"var(--pr)",task:"var(--ac)",birthday:"var(--wn)"}[it.type]||"var(--bd)";
+var sub="";
+if(it.type==="event"){
+var ev=(D.events||[]).find(function(x){return x.id===it.id});
+if(ev){
+var s=fD(ev.event_date),e=fD(ev.end_date);
+sub=s.full;if(ev.end_date&&ev.end_date.split(" ")[0]!==ev.event_date.split(" ")[0])sub=s.full+" → "+e.full
+}
+}else if(it.type==="task"){
+var tk=(D.tasks||[]).find(function(x){return x.id===it.id});
+if(tk){
+var parts=[];
+if(tk.priority&&tk.priority!=="normal")parts.push(tk.priority);
+if(tk.assigned_to)parts.push(mName(tk.assigned_to));
+if(tk.done)parts.push("✓ Done");
+sub=parts.join(" · ")
+}
+}else if(it.type==="birthday"){
+var bd=(D.birthdays||[]).find(function(x){return x.id===it.id});
+if(bd&&bd.days_until!=null)sub=bd.days_until===0?"Today! 🎉":"in "+bd.days_until+" days"
+}
+h+='<div class="cday-item" onclick="showCalEv(\''+it.type+'\','+it.id+')" style="border-left:3px solid '+borderC+'">';
+h+='<span style="font-size:20px">'+icon+'</span>';
+h+='<div class="cday-bd"><div class="cday-tt">'+es(it.title)+'</div>';
+if(sub)h+='<div class="cday-sub">'+sub+'</div>';
+h+='</div></div>'
+})
+}
+h+='</div></div>';
+var el=document.createElement("div");el.id="cal-day-view";el.innerHTML=h;
+document.getElementById("cal-mo").appendChild(el)
+}
+function closeCalDay(){var el=document.getElementById("cal-day-view");if(el)el.remove()}
 
 // ═══════════════════════════════════════════════════════════
 // SETTINGS (hamburger page)

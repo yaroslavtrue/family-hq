@@ -1019,9 +1019,9 @@ def calendar_items(month: str | None = None, user=Depends(get_uf), db=Depends(ge
         if e >= vs and s <= ve:
             items.append({"id": r["id"], "type": "event", "title": r["text"], "start": s, "end": e, "color": "pr"})
     # Tasks with due_date
-    for r in db.execute("SELECT id,text,due_date,done FROM tasks WHERE family_id=? AND due_date IS NOT NULL AND due_date>=? AND due_date<=?", (f, vs, ve)).fetchall():
+    for r in db.execute("SELECT id,text,due_date,done,assigned_to FROM tasks WHERE family_id=? AND due_date IS NOT NULL AND due_date>=? AND due_date<=?", (f, vs, ve)).fetchall():
         items.append({"id": r["id"], "type": "task", "title": r["text"], "start": r["due_date"], "end": r["due_date"],
-                       "color": "ac" if not r["done"] else "ok", "done": bool(r["done"])})
+                       "color": "ac" if not r["done"] else "ok", "done": bool(r["done"]), "assigned_to": r["assigned_to"]})
     # Birthdays (map to this year)
     for r in db.execute("SELECT id,name,emoji,birth_date FROM birthdays WHERE family_id=?", (f,)).fetchall():
         bd = r["birth_date"]
