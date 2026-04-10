@@ -12,6 +12,7 @@ import httpx
 BOT_TOKEN = os.environ.get("BOT_TOKEN", "YOUR_TOKEN_HERE")
 WEBAPP_URL = os.environ.get("WEBAPP_URL", "https://your-domain.com")
 ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_API_KEY", "")
+OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY", "")
 DB_PATH = os.environ.get("DB_PATH", "family.db")
 TIMEZONE = os.environ.get("TZ", "Europe/Belgrade")
 
@@ -870,6 +871,118 @@ async def handle_photo(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(reply, parse_mode="Markdown")
 
 
+async def _transcribe_voice(file_bytes: bytes) -> str | None:
+    """Transcribe voice message using OpenAI Whisper API."""
+    if not OPENAI_API_KEY:
+        return None
+    try:
+        import io
+        files = {"file": ("voice.ogg", io.BytesIO(file_bytes), "audio/ogg")}
+        data = {"model": "whisper-1"}
+        r = await _http().post(
+            "https://api.openai.com/v1/audio/transcriptions",
+            headers={"Authorization": f"Bearer {OPENAI_API_KEY}"},
+            files=files, data=data, timeout=30
+        )
+        return r.json().get("text", "").strip() or None
+    except Exception as e:
+        log.error(f"Whisper transcription error: {e}")
+        return None
+
+
+async def handle_voice(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    """Handle voice messages — transcribe with Whisper, then process with Claude AI."""
+    if not update.message or not update.message.voice:
+        return
+
+    user_id = update.effective_user.id
+    chat_id = update.effective_chat.id
+
+    con = _db()
+    con.execute("UPDATE family_members SET tg_chat_id=? WHERE user_id=?", (chat_id, user_id))
+    con.commit()
+    con.close()
+
+    fid, user_name, uid = _get_family(user_id)
+    if not fid:
+        await update.message.reply_text("You're not in a family yet. Open the app and create or join one first!")
+        return
+
+    if not OPENAI_API_KEY:
+        await update.message.reply_text("🎤 Voice input is not configured. Ask admin to set OPENAI_API_KEY.")
+        return
+
+    if not ANTHROPIC_API_KEY:
+        await update.message.reply_text("AI assistant is not configured.")
+        return
+
+    await update.effective_chat.send_action("typing")
+
+    # Download voice file
+    voice = update.message.voice
+    file = await ctx.bot.get_file(voice.file_id)
+    voice_bytes = await file.download_as_bytearray()
+
+    # Transcribe
+    text = await _transcribe_voice(bytes(voice_bytes))
+    if not text:
+        await update.message.reply_text("🎤 Couldn't understand the voice message. Try again or type it out.")
+        return
+
+    # Show what we heard
+    await update.message.reply_text(f"🎤 _{text}_", parse_mode="Markdown")
+    await update.effective_chat.send_action("typing")
+
+    # Process with Claude AI (same as text messages)
+    result = await _ask_claude(text, fid)
+    if not result:
+        await update.message.reply_text("Sorry, I couldn't understand that. Try again!")
+        return
+
+    actions = result.get("actions", [result] if "action" in result else [])
+    if not actions:
+        await update.message.reply_text("Sorry, I couldn't understand that. Try again!")
+        return
+
+    replies = []
+    for item in actions:
+        action = item.get("action", "unknown")
+        try:
+            if action == "expense":
+                replies.append(await _do_expense(item, fid, uid, user_name, chat_id))
+            elif action == "income":
+                replies.append(await _do_income(item, fid, uid, user_name, chat_id))
+            elif action == "task":
+                replies.append(await _do_task(item, fid, user_name, chat_id))
+            elif action == "recurring_task":
+                replies.append(await _do_recurring_task(item, fid, user_name, chat_id))
+            elif action == "shopping":
+                replies.append(await _do_shopping(item, fid, user_name, chat_id))
+            elif action == "status":
+                replies.append(_get_status(fid))
+            elif action == "edit_task":
+                replies.append(await _do_edit_task(item, fid, user_name, chat_id))
+            elif action == "toggle_task":
+                replies.append(await _do_toggle_task(item, fid, user_name, chat_id))
+            elif action == "edit_transaction":
+                replies.append(await _do_edit_transaction(item, fid, user_name, chat_id))
+            elif action == "edit_shopping":
+                replies.append(await _do_edit_shopping(item, fid, user_name, chat_id))
+            elif action == "edit_event":
+                replies.append(await _do_edit_event(item, fid, user_name, chat_id))
+            elif action == "edit_sub":
+                replies.append(await _do_edit_sub(item, fid, user_name, chat_id))
+            elif action == "delete":
+                replies.append(await _do_delete(item, fid, user_name, chat_id))
+            else:
+                replies.append(item.get("reply", "Я могу помочь с расходами, задачами, покупками и событиями. Просто напиши!"))
+        except Exception as e:
+            log.error(f"Voice action {action} failed: {e}")
+            replies.append(f"⚠️ Error: {e}")
+
+    await update.message.reply_text("\n\n".join(replies), parse_mode="Markdown")
+
+
 async def handle_message(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     """Handle all text messages — parse with Claude AI."""
     if not update.message or not update.message.text:
@@ -952,6 +1065,7 @@ def main():
     app.add_handler(CommandHandler("start", cmd_start))
     app.add_handler(CommandHandler("help", cmd_help))
     app.add_handler(MessageHandler(filters.PHOTO, handle_photo))
+    app.add_handler(MessageHandler(filters.VOICE, handle_voice))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
     log.info("🤖 Family HQ Bot started with AI!")
     app.run_polling(allowed_updates=Update.ALL_TYPES)

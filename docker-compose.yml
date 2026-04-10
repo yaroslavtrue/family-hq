@@ -10,6 +10,7 @@ services:
       - TZ=${TZ:-Europe/Belgrade}
       - DB_PATH=/data/family.db
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
       - TRELLO_API_KEY=${TRELLO_API_KEY}
       - TRELLO_TOKEN=${TRELLO_TOKEN}
       - TRELLO_BOARD_ID=${TRELLO_BOARD_ID}
