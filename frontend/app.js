@@ -696,7 +696,7 @@ var span=Math.round((e-s)/864e5)+1;
 if(col<0){span+=col;col=0}
 if(col+span>7)span=7-col;
 if(span<=0)return;
-segs.push({col:col,span:span,title:it.title,color:it.color,startD:s,endD:e,done:it.done})
+segs.push({col:col,span:span,title:it.title,color:it.color,startD:s,endD:e,done:it.done,id:it.id,type:it.type,origStart:it.start,origEnd:it.end})
 });
 segs.sort(function(a,b){return a.col-b.col||(b.span-a.span)});
 var lanes=[],result=[];
@@ -722,7 +722,7 @@ var left=(seg.col/7*100).toFixed(2);
 var width=(seg.span/7*100).toFixed(2);
 var top=seg.lane*((bh)+2);
 var cls="cal-ev ev-"+seg.color+(seg.done?" ev-done":"");
-h+='<div class="'+cls+'" style="left:'+left+'%;width:calc('+width+'% - 2px);top:'+top+'px;height:'+bh+'px;line-height:'+bh+'px">'+es(seg.title)+'</div>'
+h+='<div class="'+cls+'" onclick="showCalEv(\''+seg.type+'\','+seg.id+')" style="left:'+left+'%;width:calc('+width+'% - 2px);top:'+top+'px;height:'+bh+'px;line-height:'+bh+'px;cursor:pointer">'+es(seg.title)+'</div>'
 });
 return{html:h,height:res.maxLanes*(bh+2)}
 }
@@ -750,7 +750,7 @@ h+='</div>';
 var wkItems=data.items.filter(function(it){return it.end>=wsISO&&it.start<=weISO});
 var bars=_renderBars(wkItems,wsISO,weISO,14);
 h+='<div class="cal-bars" style="height:'+Math.max(bars.height,2)+'px">'+bars.html+'</div>';
-el.innerHTML=h}
+el.innerHTML=h;}
 
 // Full calendar modal
 function openCalModal(){
@@ -786,18 +786,60 @@ var weISO=_isoDate(weD);
 var wkItems=data.items.filter(function(it){return it.end>=wsISO&&it.start<=weISO});
 var bars=_renderBars(wkItems,wsISO,weISO,18);
 h+='<div class="cal-wk">';
-h+='<div class="cal-bars" style="height:'+Math.max(bars.height,4)+'px">'+bars.html+'</div>';
 h+='<div class="cal-days">';
 for(var i=0;i<7;i++){
 var d=_addD(cur,i);var iso=_isoDate(d);
 var inMonth=(d.getMonth()+1===m&&d.getFullYear()===y);
 var cls="cal-dy"+(inMonth?" cur-m":"")+(iso===todayISO?" today":"");
 h+='<div class="'+cls+'"><span class="dn">'+d.getDate()+'</span></div>'}
-h+='</div></div>';
+h+='</div>';
+h+='<div class="cal-bars" style="height:'+Math.max(bars.height,4)+'px">'+bars.html+'</div>';
+h+='</div>';
 cur=_addD(cur,7)
 }
+h+='<div class="cal-legend"><span class="cal-lg"><span class="cal-ld" style="background:var(--pr)"></span>Events</span><span class="cal-lg"><span class="cal-ld" style="background:var(--ac)"></span>Tasks</span><span class="cal-lg"><span class="cal-ld" style="background:color-mix(in srgb,var(--ok),transparent 30%)"></span>Done</span><span class="cal-lg"><span class="cal-ld" style="background:var(--wn)"></span>Birthdays</span></div>';
 body.innerHTML=h
 }
+
+// Calendar event detail card
+function showCalEv(type,id){
+var item=null,title="",icon="",dateStr="",extra="";
+if(type==="event"){
+item=(D.events||[]).find(function(x){return x.id===id});
+if(!item)return;
+icon="📅";title=item.text;
+var s=fD(item.event_date),e=fD(item.end_date);
+dateStr=s.full;if(item.end_date&&item.end_date.split(" ")[0]!==item.event_date.split(" ")[0])dateStr=s.full+" → "+e.full
+}else if(type==="task"){
+item=(D.tasks||[]).find(function(x){return x.id===id});
+if(!item)return;
+icon=item.done?"✅":"📋";title=item.text;
+dateStr=fD(item.due_date).full;
+var pr=item.priority||"normal";
+extra='<div class="ced-row"><span class="ced-lbl">Priority</span><span class="ced-val pr-'+pr+'">'+pr+'</span></div>';
+if(item.assigned_to)extra+='<div class="ced-row"><span class="ced-lbl">Assigned</span><span class="ced-val">'+mAv(item.assigned_to,20)+' '+es(mName(item.assigned_to))+'</span></div>';
+if(item.done)extra+='<div class="ced-row"><span class="ced-lbl">Status</span><span class="ced-val" style="color:var(--ok)">Done ✓</span></div>'
+}else if(type==="birthday"){
+item=(D.birthdays||[]).find(function(x){return x.id===id});
+if(!item)return;
+icon=item.emoji||"🎂";title=item.name;
+dateStr=fD(item.birth_date).full;
+if(item.days_until!=null)extra='<div class="ced-row"><span class="ced-lbl">Next</span><span class="ced-val">'+(item.days_until===0?"Today! 🎉":item.days_until+" days away")+'</span></div>'
+}
+if(!item)return;
+var typeLabel={event:"Event",task:"Task",birthday:"Birthday"}[type]||type;
+var h='<div class="ced-overlay" onclick="closeCalEv(event)">';
+h+='<div class="ced-card" onclick="event.stopPropagation()">';
+h+='<div class="ced-type">'+icon+' '+typeLabel+'</div>';
+h+='<div class="ced-title">'+es(title)+'</div>';
+h+='<div class="ced-row"><span class="ced-lbl">Date</span><span class="ced-val">'+dateStr+'</span></div>';
+h+=extra;
+h+='<button class="btn btn-s" style="margin-top:12px;width:100%" onclick="closeCalEv()">Close</button>';
+h+='</div></div>';
+var el=document.createElement("div");el.id="cal-ev-detail";el.innerHTML=h;
+document.getElementById("cal-mo").appendChild(el)
+}
+function closeCalEv(e){var el=document.getElementById("cal-ev-detail");if(el)el.remove()}
 
 // ═══════════════════════════════════════════════════════════
 // SETTINGS (hamburger page)
