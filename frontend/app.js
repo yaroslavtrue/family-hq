@@ -666,9 +666,138 @@ h+='</div>';
 var cPct=s.clean_total>0?Math.round(s.clean_done/s.clean_total*100):0;
 h+='<div class="sc">Cleaning</div>';
 h+='<div class="c" style="border-left:3px solid var(--ok)"><div class="bd"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px"><div class="tt" style="font-weight:600">'+s.clean_done+'/'+s.clean_total+' tasks done</div><span style="font-size:13px;font-weight:700;color:var(--ok)">'+cPct+'%</span></div><div style="height:6px;background:var(--bd);border-radius:3px"><div style="height:100%;width:'+cPct+'%;background:var(--ok);border-radius:3px;transition:width .3s"></div></div></div></div>';
+// Calendar strip
+h+='<div class="sc" style="margin-top:16px">Calendar</div>';
+h+='<div class="cal-strip" onclick="openCalModal()" id="cal-strip"></div>';
+setTimeout(function(){loadCalStrip()},0);
 // Count-up animation
 setTimeout(function(){FX.countStats(document.getElementById("ct"))},50);
 return h}
+
+// ═══════════════════════════════════════════════════════════
+// CALENDAR
+// ═══════════════════════════════════════════════════════════
+var _calData=null,_calMonth=null,_calCache={};
+function _isoDate(d){return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0")}
+function _parseD(s){var p=s.split("-");return new Date(+p[0],+p[1]-1,+p[2])}
+function _addD(d,n){var r=new Date(d);r.setDate(r.getDate()+n);return r}
+function _curYMCal(){var d=new Date();return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")}
+function _daysBetween(a,b){return Math.round((_parseD(b)-_parseD(a))/864e5)}
+
+// Lane assignment: greedy interval packing
+function _assignLanes(items,wsISO,weISO){
+var ws=_parseD(wsISO),we=_parseD(weISO);
+var segs=[];
+items.forEach(function(it){
+var s=_parseD(it.start<wsISO?wsISO:it.start);
+var e=_parseD(it.end>weISO?weISO:it.end);
+var col=Math.round((s-ws)/864e5);
+var span=Math.round((e-s)/864e5)+1;
+if(col<0){span+=col;col=0}
+if(col+span>7)span=7-col;
+if(span<=0)return;
+segs.push({col:col,span:span,title:it.title,color:it.color,startD:s,endD:e,done:it.done})
+});
+segs.sort(function(a,b){return a.col-b.col||(b.span-a.span)});
+var lanes=[],result=[];
+segs.forEach(function(seg){
+var lane=-1;
+for(var i=0;i<lanes.length;i++){if(lanes[i]<=seg.col){lane=i;break}}
+if(lane===-1){lane=lanes.length;lanes.push(0)}
+lanes[lane]=seg.col+seg.span;
+seg.lane=lane;
+result.push(seg)
+});
+return{segs:result,maxLanes:lanes.length}
+}
+
+// Render bars HTML for a week
+function _renderBars(items,wsISO,weISO,barH){
+var bh=barH||18;
+var res=_assignLanes(items,wsISO,weISO);
+if(!res.segs.length)return{html:'',height:0};
+var h='';
+res.segs.forEach(function(seg){
+var left=(seg.col/7*100).toFixed(2);
+var width=(seg.span/7*100).toFixed(2);
+var top=seg.lane*((bh)+2);
+var cls="cal-ev ev-"+seg.color+(seg.done?" ev-done":"");
+h+='<div class="'+cls+'" style="left:'+left+'%;width:calc('+width+'% - 2px);top:'+top+'px;height:'+bh+'px;line-height:'+bh+'px">'+es(seg.title)+'</div>'
+});
+return{html:h,height:res.maxLanes*(bh+2)}
+}
+
+// Week strip for profile
+async function loadCalStrip(){
+var el=document.getElementById("cal-strip");if(!el)return;
+var today=new Date();
+var dow=today.getDay();var mondayOff=(dow===0)?-6:1-dow;
+var ws=_addD(today,mondayOff);
+var we=_addD(ws,6);
+var wsISO=_isoDate(ws),weISO=_isoDate(we);
+var month=ws.getFullYear()+"-"+String(ws.getMonth()+1).padStart(2,"0");
+var data=_calCache[month];
+if(!data){data=await A("GET","/api/calendar?month="+month);_calCache[month]=data}
+if(!data)return;
+var todayISO=_isoDate(today);
+var h='<div class="cal-dh"><div>Mon</div><div>Tue</div><div>Wed</div><div>Thu</div><div>Fri</div><div>Sat</div><div>Sun</div></div>';
+h+='<div class="cal-days">';
+for(var i=0;i<7;i++){
+var d=_addD(ws,i);var iso=_isoDate(d);
+var cls="cal-dy cur-m"+(iso===todayISO?" today":"");
+h+='<div class="'+cls+'"><span class="dn">'+d.getDate()+'</span></div>'}
+h+='</div>';
+var wkItems=data.items.filter(function(it){return it.end>=wsISO&&it.start<=weISO});
+var bars=_renderBars(wkItems,wsISO,weISO,14);
+h+='<div class="cal-bars" style="height:'+Math.max(bars.height,2)+'px">'+bars.html+'</div>';
+el.innerHTML=h}
+
+// Full calendar modal
+function openCalModal(){
+_calMonth=_calMonth||_curYMCal();
+document.getElementById("cal-mo").classList.add("open");
+loadCalMonth()
+}
+function closeCalModal(){document.getElementById("cal-mo").classList.remove("open")}
+function calShift(delta){
+var y=parseInt(_calMonth.slice(0,4),10),m=parseInt(_calMonth.slice(5,7),10)+delta;
+while(m<=0){m+=12;y--}while(m>12){m-=12;y++}
+_calMonth=y+"-"+String(m).padStart(2,"0");
+loadCalMonth()
+}
+async function loadCalMonth(){
+var data=_calCache[_calMonth];
+if(!data){data=await A("GET","/api/calendar?month="+_calMonth);_calCache[_calMonth]=data}
+if(!data)return;
+_calData=data;
+var y=parseInt(_calMonth.slice(0,4),10),m=parseInt(_calMonth.slice(5,7),10);
+document.getElementById("cal-title").textContent=new Date(y,m-1,1).toLocaleString("en-US",{month:"long",year:"numeric"});
+var body=document.getElementById("cal-body");
+var vs=_parseD(data.vis_start),ve=_parseD(data.vis_end);
+var todayISO=_isoDate(new Date());
+var h='';
+// Iterate week by week
+var cur=new Date(vs);
+while(cur<=ve){
+var wsISO=_isoDate(cur);
+var weD=_addD(cur,6);
+var weISO=_isoDate(weD);
+// Event bars for this week
+var wkItems=data.items.filter(function(it){return it.end>=wsISO&&it.start<=weISO});
+var bars=_renderBars(wkItems,wsISO,weISO,18);
+h+='<div class="cal-wk">';
+h+='<div class="cal-bars" style="height:'+Math.max(bars.height,4)+'px">'+bars.html+'</div>';
+h+='<div class="cal-days">';
+for(var i=0;i<7;i++){
+var d=_addD(cur,i);var iso=_isoDate(d);
+var inMonth=(d.getMonth()+1===m&&d.getFullYear()===y);
+var cls="cal-dy"+(inMonth?" cur-m":"")+(iso===todayISO?" today":"");
+h+='<div class="'+cls+'"><span class="dn">'+d.getDate()+'</span></div>'}
+h+='</div></div>';
+cur=_addD(cur,7)
+}
+body.innerHTML=h
+}
 
 // ═══════════════════════════════════════════════════════════
 // SETTINGS (hamburger page)

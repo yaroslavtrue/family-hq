@@ -989,6 +989,50 @@ def profile_stats(member_id: int | None = None, user=Depends(get_uf), db=Depends
         "clean_done": clean_done, "clean_total": clean_total,
     }
 
+# Calendar — month view items
+@app.get("/api/calendar")
+def calendar_items(month: str | None = None, user=Depends(get_uf), db=Depends(get_db)):
+    from datetime import timedelta
+    f = user["family_id"]
+    now = datetime.now(ZoneInfo(TIMEZONE))
+    cur = now.strftime("%Y-%m")
+    import re as _re
+    sel = cur
+    if month and _re.fullmatch(r"\d{4}-(0[1-9]|1[0-2])", month):
+        sel = month
+    y, m = int(sel[:4]), int(sel[5:7])
+    # Visible range: first Monday ≤ 1st of month, last Sunday ≥ last of month
+    from calendar import monthrange
+    first_day = datetime(y, m, 1).date()
+    _, mdays = monthrange(y, m)
+    last_day = datetime(y, m, mdays).date()
+    # Monday=0 in isoweekday()-1
+    vis_start = first_day - timedelta(days=(first_day.weekday()))  # Monday
+    vis_end = last_day + timedelta(days=(6 - last_day.weekday()))  # Sunday
+    vs, ve = vis_start.isoformat(), vis_end.isoformat()
+
+    items = []
+    # Events (may span multiple days)
+    for r in db.execute("SELECT id,text,event_date,end_date FROM events WHERE family_id=? AND event_date IS NOT NULL", (f,)).fetchall():
+        s = (r["event_date"] or "").split(" ")[0]
+        e = (r["end_date"] or s).split(" ")[0]
+        if e >= vs and s <= ve:
+            items.append({"id": r["id"], "type": "event", "title": r["text"], "start": s, "end": e, "color": "pr"})
+    # Tasks with due_date
+    for r in db.execute("SELECT id,text,due_date,done FROM tasks WHERE family_id=? AND due_date IS NOT NULL AND due_date>=? AND due_date<=?", (f, vs, ve)).fetchall():
+        items.append({"id": r["id"], "type": "task", "title": r["text"], "start": r["due_date"], "end": r["due_date"],
+                       "color": "ac" if not r["done"] else "ok", "done": bool(r["done"])})
+    # Birthdays (map to this year)
+    for r in db.execute("SELECT id,name,emoji,birth_date FROM birthdays WHERE family_id=?", (f,)).fetchall():
+        bd = r["birth_date"]
+        if not bd:
+            continue
+        this_year = f"{y}-{bd[5:]}"
+        if this_year >= vs and this_year <= ve:
+            items.append({"id": r["id"], "type": "birthday", "title": f"{r['emoji']} {r['name']}", "start": this_year, "end": this_year, "color": "wn"})
+
+    return {"month": sel, "vis_start": vs, "vis_end": ve, "items": items}
+
 # ═════════════════════════════════════════════════════════════════════════
 # BUNDLE (all data in one request)
 # ═════════════════════════════════════════════════════════════════════════

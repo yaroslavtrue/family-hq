@@ -242,6 +242,34 @@ input[type="date"],input[type="time"],input[type="number"],select{-webkit-appear
 .ob-pri-normal.s{color:var(--pri-md);background:color-mix(in srgb,var(--pri-md),transparent 82%);border-color:color-mix(in srgb,var(--pri-md),transparent 55%);box-shadow:0 0 0 3px color-mix(in srgb,var(--pri-md),transparent 88%)}
 .ob-pri-high.s{color:var(--pri-hi);background:color-mix(in srgb,var(--pri-hi),transparent 80%);border-color:color-mix(in srgb,var(--pri-hi),transparent 50%);box-shadow:0 0 0 3px color-mix(in srgb,var(--pri-hi),transparent 85%)}
 
+/* Calendar */
+.cal-mo{position:fixed;inset:0;background:var(--bg);z-index:60;display:none;flex-direction:column}
+.cal-mo.open{display:flex}
+.cal-hd{display:flex;align-items:center;justify-content:space-between;padding:16px 20px;border-bottom:1px solid var(--bd)}
+.cal-hd-t{font-size:17px;font-weight:700}
+.cal-nav{display:flex;align-items:center;gap:12px}
+.cal-nav button{background:none;border:none;color:var(--tx);font-size:18px;cursor:pointer;padding:4px 8px;border-radius:8px}
+.cal-nav button:active{background:var(--cd)}
+.cal-close{background:none;border:none;color:var(--ht);cursor:pointer;padding:4px}
+.cal-body{flex:1;overflow-y:auto;padding:8px 10px 40px}
+.cal-dh{display:grid;grid-template-columns:repeat(7,1fr);text-align:center;font-size:10px;font-weight:600;color:var(--ht);padding:8px 0;position:sticky;top:0;background:var(--bg);z-index:2;text-transform:uppercase;letter-spacing:.5px}
+.cal-wk{margin-bottom:2px;border-bottom:1px solid var(--bd)}
+.cal-days{display:grid;grid-template-columns:repeat(7,1fr);text-align:center}
+.cal-dy{padding:6px 0 4px;font-size:12px;font-weight:500;color:var(--ht);min-height:28px}
+.cal-dy.cur-m{color:var(--tx)}
+.cal-dy.today{color:var(--pr);font-weight:800}
+.cal-dy .dn{width:22px;height:22px;display:inline-flex;align-items:center;justify-content:center;border-radius:50%}
+.cal-dy.today .dn{background:var(--pr);color:#fff}
+.cal-bars{position:relative;min-height:4px;padding:0 1px}
+.cal-ev{position:absolute;height:18px;border-radius:4px;font-size:9px;font-weight:600;line-height:18px;padding:0 4px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;color:#fff;cursor:default;transition:opacity .15s}
+.cal-ev.ev-pr{background:var(--pr)}.cal-ev.ev-ac{background:var(--ac)}.cal-ev.ev-ok{background:color-mix(in srgb,var(--ok),transparent 30%)}.cal-ev.ev-wn{background:var(--wn);color:#1a1a2f}
+.cal-strip{cursor:pointer;border-radius:14px;background:var(--cd);border:1px solid var(--bd);padding:12px;margin-top:8px;transition:background .15s}
+.cal-strip:active{background:var(--sf)}
+.cal-strip .cal-days{font-size:11px}
+.cal-strip .cal-dy{padding:4px 0 2px;min-height:auto}
+.cal-strip .cal-bars{min-height:2px}
+.cal-strip .cal-ev{height:14px;font-size:8px;line-height:14px;border-radius:3px}
+.cal-strip .cal-dh{font-size:9px;padding:0 0 4px;position:static}
 .hidden{display:none!important}
 </style>
 </head>
@@ -264,6 +292,14 @@ input[type="date"],input[type="time"],input[type="number"],select{-webkit-appear
 <button class="fab hidden" id="fab" onclick="oMo()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></button>
 <!-- Modal -->
 <div class="mo" id="mo" onclick="cMo()"><div class="mx" onclick="event.stopPropagation()"><div class="mh"><span class="mt2" id="mt3">Add</span><button class="bi" onclick="cMo()" style="color:var(--tx)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" width="18" height="18"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button></div><div id="mb"></div></div></div>
+<!-- Calendar Modal -->
+<div class="cal-mo" id="cal-mo">
+<div class="cal-hd"><button class="cal-close" onclick="closeCalModal()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" width="20" height="20"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button><div class="cal-nav"><button onclick="calShift(-1)">◀</button><span class="cal-hd-t" id="cal-title">April 2026</span><button onclick="calShift(1)">▶</button></div><div style="width:20px"></div></div>
+<div class="cal-dh">
+<div>Mon</div><div>Tue</div><div>Wed</div><div>Thu</div><div>Fri</div><div>Sat</div><div>Sun</div>
+</div>
+<div class="cal-body" id="cal-body"></div>
+</div>
 <!-- Hamburger Menu Overlay -->
 <div class="menu-ov" id="menu-overlay" onclick="toggleMenu()">
 <div class="menu-p" onclick="event.stopPropagation()">
@@ -283,6 +319,6 @@ input[type="date"],input[type="time"],input[type="number"],select{-webkit-appear
 <!-- Debug -->
 <div class="dbg hidden" id="dbg"><button class="dbg-cp" onclick="navigator.clipboard.writeText(dbgLog.join('\n'))">Copy</button></div>
 <!-- Load JS -->
-<script src="/static/app.js?v=78"></script>
+<script src="/static/app.js?v=79"></script>
 </body>
 </html>
