@@ -1054,6 +1054,18 @@ def calendar_items(month: str | None = None, user=Depends(get_uf), db=Depends(ge
                                "color": "ac", "assigned_to": r["assigned_to"], "done": False})
             d += timedelta(days=1)
 
+    # Subscriptions — billing_day mapped to each month in visible range
+    for r in db.execute("SELECT id,name,emoji,amount,currency,billing_day FROM subscriptions WHERE family_id=?", (f,)).fetchall():
+        bd = r["billing_day"] or 1
+        # Check each month in visible range
+        for check_y, check_m in set([(vis_start.year, vis_start.month), (y, m), (vis_end.year, vis_end.month)]):
+            _, mx = monthrange(check_y, check_m)
+            day = min(bd, mx)
+            ds = f"{check_y}-{check_m:02d}-{day:02d}"
+            if vs <= ds <= ve:
+                items.append({"id": r["id"], "type": "subscription", "title": f"{r['emoji']} {r['name']}", "start": ds, "end": ds,
+                               "color": "wn", "amount": r["amount"], "currency": r["currency"]})
+
     return {"month": sel, "vis_start": vs, "vis_end": ve, "items": items}
 
 # ═════════════════════════════════════════════════════════════════════════

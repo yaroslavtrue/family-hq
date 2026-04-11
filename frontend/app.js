@@ -664,7 +664,7 @@ return h}
 // CALENDAR
 // ═══════════════════════════════════════════════════════════
 var _calData=null,_calMonth=null,_calCache={};
-var _calFilters={event:true,task:true,recurring:true,birthday:true,member:null};
+var _calFilters={event:true,task:true,recurring:true,birthday:true,subscription:true,member:null};
 function _isoDate(d){return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0")}
 function _parseD(s){var p=s.split("-");return new Date(+p[0],+p[1]-1,+p[2])}
 function _addD(d,n){var r=new Date(d);r.setDate(r.getDate()+n);return r}
@@ -714,7 +714,7 @@ var mClr="";
 if(seg.type==="task"&&!seg.done&&seg.assigned_to){var _m=D.members.find(function(x){return x.user_id===seg.assigned_to});if(_m)mClr=_m.color}
 var cls="cal-ev ev-"+seg.color+(seg.done?" ev-done":"")+(seg.type==="recurring"?" ev-rec":"");
 var inl=mClr?"background:"+mClr+";":"";
-var ico={event:"📅",task:seg.done?"✓":"📋",recurring:"🔁",birthday:"🎂"}[seg.type]||"";
+var ico={event:"📅",task:seg.done?"✓":"📋",recurring:"🔁",birthday:"🎂",subscription:"💳"}[seg.type]||"";
 var icoH=bh>=16?'<span class="ev-ico">'+ico+'</span>':"";
 h+='<div class="'+cls+'" onclick="showCalEv(\''+seg.type+'\','+seg.id+')" style="left:'+left+'%;width:calc('+width+'% - 2px);top:'+top+'px;height:'+bh+'px;line-height:'+bh+'px;cursor:pointer;'+inl+'">'+icoH+es(seg.title)+'</div>'
 });
@@ -762,7 +762,8 @@ var dots="";
 if(di){var dt=di.types;
 if(dt.event)dots+='<i class="cd-dot" style="background:var(--pr)"></i>';
 if(dt.task)dots+='<i class="cd-dot" style="background:var(--ac)"></i>';
-if(dt.birthday)dots+='<i class="cd-dot" style="background:var(--wn)"></i>'}
+if(dt.birthday)dots+='<i class="cd-dot" style="background:var(--wn)"></i>';
+if(dt.subscription)dots+='<i class="cd-dot" style="background:var(--ok)"></i>'}
 h+='<div class="'+cls+'">';
 h+='<div class="csh-dn">'+["Mon","Tue","Wed","Thu","Fri","Sat","Sun"][i]+'</div>';
 h+='<div class="csh-num">'+(isToday?'<span class="csh-td">'+d.getDate()+'</span>':d.getDate())+'</div>';
@@ -783,10 +784,10 @@ items.forEach(function(it){var k=it.type+"-"+it.id;if(!seen[k]){seen[k]=true;uni
 h+='<div class="csh-sec"><span class="csh-label">'+sec.label+'</span>';
 var show=unique.slice(0,3);
 show.forEach(function(it){
-var ico={event:"📅",task:it.done?"✅":"📋",recurring:"🔁",birthday:"🎂"}[it.type]||"📌";
+var ico={event:"📅",task:it.done?"✅":"📋",recurring:"🔁",birthday:"🎂",subscription:"💳"}[it.type]||"📌";
 var mClr="";
 if((it.type==="task"||it.type==="recurring")&&!it.done&&it.assigned_to){var _m=D.members.find(function(x){return x.user_id===it.assigned_to});if(_m)mClr=_m.color}
-var bc=mClr||{event:"var(--pr)",task:"var(--ac)",recurring:"var(--ac)",birthday:"var(--wn)"}[it.type]||"var(--bd)";
+var bc=mClr||{event:"var(--pr)",task:"var(--ac)",recurring:"var(--ac)",birthday:"var(--wn)",subscription:"var(--ok)"}[it.type]||"var(--bd)";
 h+='<div class="csh-item" style="border-left:2px solid '+bc+'"><span class="csh-ico">'+ico+'</span><span class="csh-txt">'+es(it.title)+'</span></div>'
 });
 if(unique.length>3)h+='<div class="csh-more">+'+( unique.length-3)+' more</div>';
@@ -835,7 +836,7 @@ var vs=_parseD(data.vis_start),ve=_parseD(data.vis_end);
 var todayISO=_isoDate(new Date());
 // Filter chips
 var h='<div class="cal-chips">';
-var types=[{k:"event",l:"Events",c:"var(--pr)"},{k:"task",l:"Tasks",c:"var(--ac)"},{k:"recurring",l:"Recurring",c:"var(--ac)"},{k:"birthday",l:"Birthdays",c:"var(--wn)"}];
+var types=[{k:"event",l:"Events",c:"var(--pr)"},{k:"task",l:"Tasks",c:"var(--ac)"},{k:"recurring",l:"Recurring",c:"var(--ac)"},{k:"birthday",l:"Birthdays",c:"var(--wn)"},{k:"subscription",l:"Subs",c:"var(--wn)"}];
 types.forEach(function(t){var on=_calFilters[t.k];h+='<span class="cal-chip'+(on?" on":"")+'" style="--cc:'+t.c+'" onclick="calToggleType(\''+t.k+'\')">'+t.l+'</span>'});
 h+='<span class="cal-chip-sep"></span>';
 (D.members||[]).forEach(function(m){var on=_calFilters.member===m.user_id;h+='<span class="cal-chip'+(on?" on":"")+'" style="--cc:'+m.color+'" onclick="calSetMember('+m.user_id+')">'+m.emoji+' '+es(m.user_name)+'</span>'});
@@ -877,7 +878,8 @@ var dots="";
 if(dm&&inMonth){var dt=dm.types;
 if(dt.event)dots+='<i class="cd-dot" style="background:var(--pr)"></i>';
 if(dt.task)dots+='<i class="cd-dot" style="background:var(--ac)"></i>';
-if(dt.birthday)dots+='<i class="cd-dot" style="background:var(--wn)"></i>'}
+if(dt.birthday)dots+='<i class="cd-dot" style="background:var(--wn)"></i>';
+if(dt.subscription)dots+='<i class="cd-dot" style="background:var(--ok)"></i>'}
 h+='<div class="'+cls+'" onclick="openCalDay(\''+iso+'\')"><span class="dn">'+d.getDate()+'</span>'+(dots?'<div class="cd-dots">'+dots+'</div>':'')+'</div>'}
 h+='</div>';
 h+='<div class="cal-bars" style="height:'+Math.max(bars.height,4)+'px">'+bars.html+'</div>';
@@ -919,9 +921,15 @@ if(!item)return;
 icon=item.emoji||"🎂";title=item.name;
 dateStr=fD(item.birth_date).full;
 if(item.days_until!=null)extra='<div class="ced-row"><span class="ced-lbl">Next</span><span class="ced-val">'+(item.days_until===0?"Today! 🎉":item.days_until+" days away")+'</span></div>'
+}else if(type==="subscription"){
+item=(D.subs||[]).find(function(x){return x.id===id});
+if(!item)return;
+icon=item.emoji||"💳";title=item.name;
+dateStr="Every month on day "+item.billing_day;
+extra='<div class="ced-row"><span class="ced-lbl">Amount</span><span class="ced-val">'+item.amount+' '+item.currency+'</span></div>'
 }
 if(!item)return;
-var typeLabel={event:"Event",task:"Task",recurring:"Recurring Task",birthday:"Birthday"}[type]||type;
+var typeLabel={event:"Event",task:"Task",recurring:"Recurring Task",birthday:"Birthday",subscription:"Subscription"}[type]||type;
 var h='<div class="ced-overlay" onclick="closeCalEv(event)">';
 h+='<div class="ced-card" onclick="event.stopPropagation()">';
 h+='<div class="ced-type">'+icon+' '+typeLabel+'</div>';
@@ -954,7 +962,7 @@ dayItems.forEach(function(it){
 var icon={event:"📅",task:it.done?"✅":"📋",recurring:"🔁",birthday:"🎂"}[it.type]||"📌";
 var mClr="";
 if((it.type==="task"||it.type==="recurring")&&!it.done&&it.assigned_to){var _m=D.members.find(function(x){return x.user_id===it.assigned_to});if(_m)mClr=_m.color}
-var borderC=mClr||{event:"var(--pr)",task:"var(--ac)",recurring:"var(--ac)",birthday:"var(--wn)"}[it.type]||"var(--bd)";
+var borderC=mClr||{event:"var(--pr)",task:"var(--ac)",recurring:"var(--ac)",birthday:"var(--wn)",subscription:"var(--ok)"}[it.type]||"var(--bd)";
 var sub="";
 if(it.type==="event"){
 var ev=(D.events||[]).find(function(x){return x.id===it.id});
