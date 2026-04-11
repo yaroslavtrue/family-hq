@@ -1031,6 +1031,29 @@ def calendar_items(month: str | None = None, user=Depends(get_uf), db=Depends(ge
         if this_year >= vs and this_year <= ve:
             items.append({"id": r["id"], "type": "birthday", "title": f"{r['emoji']} {r['name']}", "start": this_year, "end": this_year, "color": "wn"})
 
+    # Recurring tasks — expand rrule into occurrences within visible range
+    day_map = {"mon": 0, "tue": 1, "wed": 2, "thu": 3, "fri": 4, "sat": 5, "sun": 6}
+    for r in db.execute("SELECT id,text,rrule,assigned_to FROM recurring_tasks WHERE family_id=? AND active=1", (f,)).fetchall():
+        rrule = r["rrule"]
+        d = vis_start
+        while d <= vis_end:
+            match = False
+            if rrule == "daily":
+                match = True
+            elif rrule.startswith("weekly:"):
+                days = rrule.split(":")[1].split(",")
+                match = d.weekday() in [day_map.get(x.strip(), -1) for x in days]
+            elif rrule.startswith("monthly:"):
+                try:
+                    match = d.day == int(rrule.split(":")[1])
+                except:
+                    pass
+            if match:
+                ds = d.isoformat()
+                items.append({"id": r["id"], "type": "recurring", "title": f"🔁 {r['text']}", "start": ds, "end": ds,
+                               "color": "ac", "assigned_to": r["assigned_to"], "done": False})
+            d += timedelta(days=1)
+
     return {"month": sel, "vis_start": vs, "vis_end": ve, "items": items}
 
 # ═════════════════════════════════════════════════════════════════════════

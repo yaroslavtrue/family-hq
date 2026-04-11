@@ -232,9 +232,17 @@ h+='<div class="st" onclick="go(\'clean\')" style="border-left:3px solid var(--w
 var _aInc=0,_aExp=0;D.transactions.forEach(function(tx){if(tx.type==="income")_aInc+=(tx.amount_eur||0);else _aExp+=(tx.amount_eur||0)});var _bal=_aInc-_aExp;var _balC=_bal>=0?"var(--ok)":"var(--ac)";
 var _cm=n.getFullYear()+"-"+String(n.getMonth()+1).padStart(2,"0");var _mInc=0,_mExp=0;D.transactions.forEach(function(tx){if(tx.date&&tx.date.startsWith(_cm)){if(tx.type==="income")_mInc+=(tx.amount_eur||0);else _mExp+=(tx.amount_eur||0)}});
 h+='<div class="st" onclick="go(\'money\')" style="border-left:3px solid '+_balC+'"><div class="sn" style="color:'+_balC+';font-size:20px">'+(_bal>=0?"+":"")+"€"+_bal.toFixed(0)+'</div><div class="sl" style="font-size:11px;line-height:1.3;color:var(--ht)">+€'+_mInc.toFixed(0)+' / −€'+_mExp.toFixed(0)+'</div></div></div>';
+// Countdown to nearest big event
+var _cdEv=null,_cdDays=Infinity;var todayStr2=td();
+D.events.forEach(function(ev){var eDate=(ev.event_date||"").split(" ")[0];if(!eDate)return;var diff=Math.round((new Date(eDate)-new Date(todayStr2))/86400000);if(diff>0&&diff<_cdDays){_cdDays=diff;_cdEv=ev}});
+if(_cdEv&&_cdDays<=30){
+var cdLabel=_cdDays===1?"tomorrow":"in "+_cdDays+" days";
+h+='<div class="cd-banner" onclick="go(\'events\')"><span class="cd-icon">📅</span><div class="cd-bd"><div class="cd-title">'+es(_cdEv.text)+'</div><div class="cd-sub">'+cdLabel+' · '+fD(_cdEv.event_date).full+'</div></div><span class="cd-days">'+_cdDays+'d</span></div>'
+}
 // Calendar strip
 h+='<div class="sc">Calendar</div>';
 h+='<div class="cal-strip" onclick="openCalModal()" id="cal-strip"></div>';
+h+='<div class="cal-week-sum" id="cal-week-sum"></div>';
 setTimeout(function(){loadCalStrip()},0);
 // Upcoming 7d
 var upcoming=[];var todayStr=td();
@@ -671,6 +679,7 @@ return h}
 // CALENDAR
 // ═══════════════════════════════════════════════════════════
 var _calData=null,_calMonth=null,_calCache={};
+var _calFilters={event:true,task:true,recurring:true,birthday:true,member:null};
 function _isoDate(d){return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0")}
 function _parseD(s){var p=s.split("-");return new Date(+p[0],+p[1]-1,+p[2])}
 function _addD(d,n){var r=new Date(d);r.setDate(r.getDate()+n);return r}
@@ -718,7 +727,7 @@ var width=(seg.span/7*100).toFixed(2);
 var top=seg.lane*((bh)+2);
 var mClr="";
 if(seg.type==="task"&&!seg.done&&seg.assigned_to){var _m=D.members.find(function(x){return x.user_id===seg.assigned_to});if(_m)mClr=_m.color}
-var cls="cal-ev ev-"+seg.color+(seg.done?" ev-done":"");
+var cls="cal-ev ev-"+seg.color+(seg.done?" ev-done":"")+(seg.type==="recurring"?" ev-rec":"");
 var inl=mClr?"background:"+mClr+";":"";
 h+='<div class="'+cls+'" onclick="showCalEv(\''+seg.type+'\','+seg.id+')" style="left:'+left+'%;width:calc('+width+'% - 2px);top:'+top+'px;height:'+bh+'px;line-height:'+bh+'px;cursor:pointer;'+inl+'">'+es(seg.title)+'</div>'
 });
@@ -755,7 +764,18 @@ h+='</div>';
 var wkItems=data.items.filter(function(it){return it.end>=wsISO&&it.start<=weISO});
 var bars=_renderBars(wkItems,wsISO,weISO,14);
 h+='<div class="cal-bars" style="height:'+Math.max(bars.height,2)+'px">'+bars.html+'</div>';
-el.innerHTML=h;}
+el.innerHTML=h;
+// Week summary
+var sumEl=document.getElementById("cal-week-sum");
+if(sumEl){
+var nTasks=0,nEvents=0,nBdays=0;
+wkItems.forEach(function(it){if(it.type==="task")nTasks++;else if(it.type==="event")nEvents++;else if(it.type==="birthday")nBdays++;else if(it.type==="recurring")nTasks++});
+var parts=[];
+if(nTasks)parts.push(nTasks+" task"+(nTasks>1?"s":""));
+if(nEvents)parts.push(nEvents+" event"+(nEvents>1?"s":""));
+if(nBdays)parts.push(nBdays+" birthday"+(nBdays>1?"s":"")+" 🎂");
+sumEl.textContent=parts.length?"This week: "+parts.join(", "):"Free week — nothing planned!"
+}}
 
 // Full calendar modal
 function openCalModal(){
@@ -770,6 +790,15 @@ while(m<=0){m+=12;y--}while(m>12){m-=12;y++}
 _calMonth=y+"-"+String(m).padStart(2,"0");
 loadCalMonth()
 }
+function calToggleType(t){_calFilters[t]=!_calFilters[t];loadCalMonth()}
+function calSetMember(uid){_calFilters.member=_calFilters.member===uid?null:uid;loadCalMonth()}
+function _calFilterItems(items){
+return items.filter(function(it){
+var t=it.type==="recurring"?"recurring":it.type;
+if(!_calFilters[t])return false;
+if(_calFilters.member&&it.assigned_to&&it.assigned_to!==_calFilters.member)return false;
+return true
+})}
 async function loadCalMonth(){
 var data=_calCache[_calMonth];
 if(!data){data=await A("GET","/api/calendar?month="+_calMonth);_calCache[_calMonth]=data}
@@ -780,7 +809,15 @@ document.getElementById("cal-title").textContent=new Date(y,m-1,1).toLocaleStrin
 var body=document.getElementById("cal-body");
 var vs=_parseD(data.vis_start),ve=_parseD(data.vis_end);
 var todayISO=_isoDate(new Date());
-var h='';
+// Filter chips
+var h='<div class="cal-chips">';
+var types=[{k:"event",l:"Events",c:"var(--pr)"},{k:"task",l:"Tasks",c:"var(--ac)"},{k:"recurring",l:"Recurring",c:"var(--ac)"},{k:"birthday",l:"Birthdays",c:"var(--wn)"}];
+types.forEach(function(t){var on=_calFilters[t.k];h+='<span class="cal-chip'+(on?" on":"")+'" style="--cc:'+t.c+'" onclick="calToggleType(\''+t.k+'\')">'+t.l+'</span>'});
+h+='<span class="cal-chip-sep"></span>';
+(D.members||[]).forEach(function(m){var on=_calFilters.member===m.user_id;h+='<span class="cal-chip'+(on?" on":"")+'" style="--cc:'+m.color+'" onclick="calSetMember('+m.user_id+')">'+m.emoji+' '+es(m.user_name)+'</span>'});
+h+='</div>';
+// Filtered items
+var filtered=_calFilterItems(data.items);
 // Iterate week by week
 var cur=new Date(vs);
 while(cur<=ve){
@@ -788,7 +825,7 @@ var wsISO=_isoDate(cur);
 var weD=_addD(cur,6);
 var weISO=_isoDate(weD);
 // Event bars for this week
-var wkItems=data.items.filter(function(it){return it.end>=wsISO&&it.start<=weISO});
+var wkItems=filtered.filter(function(it){return it.end>=wsISO&&it.start<=weISO});
 var bars=_renderBars(wkItems,wsISO,weISO,18);
 h+='<div class="cal-wk">';
 h+='<div class="cal-days">';
@@ -802,7 +839,7 @@ h+='<div class="cal-bars" style="height:'+Math.max(bars.height,4)+'px">'+bars.ht
 h+='</div>';
 cur=_addD(cur,7)
 }
-h+='<div class="cal-legend"><span class="cal-lg"><span class="cal-ld" style="background:var(--pr)"></span>Events</span><span class="cal-lg"><span class="cal-ld" style="background:var(--ac)"></span>Tasks</span><span class="cal-lg"><span class="cal-ld" style="background:color-mix(in srgb,var(--ok),transparent 30%)"></span>Done</span><span class="cal-lg"><span class="cal-ld" style="background:var(--wn)"></span>Birthdays</span></div>';
+h+='<div class="cal-legend"><span class="cal-lg"><span class="cal-ld" style="background:var(--pr)"></span>Events</span><span class="cal-lg"><span class="cal-ld" style="background:var(--ac)"></span>Tasks</span><span class="cal-lg"><span class="cal-ld" style="background:var(--ac);border:1px dashed #fff"></span>Recurring</span><span class="cal-lg"><span class="cal-ld" style="background:color-mix(in srgb,var(--ok),transparent 30%)"></span>Done</span><span class="cal-lg"><span class="cal-ld" style="background:var(--wn)"></span>Birthdays</span></div>';
 body.innerHTML=h
 }
 
@@ -824,6 +861,13 @@ var pr=item.priority||"normal";
 extra='<div class="ced-row"><span class="ced-lbl">Priority</span><span class="ced-val pr-'+pr+'">'+pr+'</span></div>';
 if(item.assigned_to)extra+='<div class="ced-row"><span class="ced-lbl">Assigned</span><span class="ced-val">'+mAv(item.assigned_to,20)+' '+es(mName(item.assigned_to))+'</span></div>';
 if(item.done)extra+='<div class="ced-row"><span class="ced-lbl">Status</span><span class="ced-val" style="color:var(--ok)">Done ✓</span></div>'
+}else if(type==="recurring"){
+item=(D.recurring||[]).find(function(x){return x.id===id});
+if(!item){item={id:id,text:"Recurring task"}}
+icon="🔁";title=item.text;
+dateStr=item.rrule||"";
+if(item.assigned_to)extra='<div class="ced-row"><span class="ced-lbl">Assigned</span><span class="ced-val">'+mAv(item.assigned_to,20)+' '+es(mName(item.assigned_to))+'</span></div>';
+extra+='<div class="ced-row"><span class="ced-lbl">Schedule</span><span class="ced-val">'+es(item.rrule||"")+'</span></div>'
 }else if(type==="birthday"){
 item=(D.birthdays||[]).find(function(x){return x.id===id});
 if(!item)return;
@@ -832,7 +876,7 @@ dateStr=fD(item.birth_date).full;
 if(item.days_until!=null)extra='<div class="ced-row"><span class="ced-lbl">Next</span><span class="ced-val">'+(item.days_until===0?"Today! 🎉":item.days_until+" days away")+'</span></div>'
 }
 if(!item)return;
-var typeLabel={event:"Event",task:"Task",birthday:"Birthday"}[type]||type;
+var typeLabel={event:"Event",task:"Task",recurring:"Recurring Task",birthday:"Birthday"}[type]||type;
 var h='<div class="ced-overlay" onclick="closeCalEv(event)">';
 h+='<div class="ced-card" onclick="event.stopPropagation()">';
 h+='<div class="ced-type">'+icon+' '+typeLabel+'</div>';
@@ -849,7 +893,7 @@ function closeCalEv(e){var el=document.getElementById("cal-ev-detail");if(el)el.
 // Full-screen day view
 function openCalDay(iso){
 if(!_calData||!_calData.items)return;
-var dayItems=_calData.items.filter(function(it){return it.start<=iso&&it.end>=iso});
+var dayItems=_calFilterItems(_calData.items).filter(function(it){return it.start<=iso&&it.end>=iso});
 var dd=_parseD(iso);
 var title=dF[dd.getDay()]+", "+dd.getDate()+" "+mN[dd.getMonth()]+" "+dd.getFullYear();
 var h='<div class="cday-overlay">';
@@ -859,13 +903,13 @@ if(!dayItems.length){
 h+='<div style="text-align:center;padding:40px 20px;color:var(--ht)"><div style="font-size:32px;margin-bottom:8px">📭</div><div>No events this day</div></div>'
 }else{
 // Group: events first, then tasks, then birthdays
-var order={event:0,task:1,birthday:2};
+var order={event:0,task:1,recurring:2,birthday:3};
 dayItems.sort(function(a,b){return(order[a.type]||9)-(order[b.type]||9)});
 dayItems.forEach(function(it){
-var icon={event:"📅",task:it.done?"✅":"📋",birthday:"🎂"}[it.type]||"📌";
+var icon={event:"📅",task:it.done?"✅":"📋",recurring:"🔁",birthday:"🎂"}[it.type]||"📌";
 var mClr="";
-if(it.type==="task"&&it.assigned_to){var _m=D.members.find(function(x){return x.user_id===it.assigned_to});if(_m)mClr=_m.color}
-var borderC=mClr||{event:"var(--pr)",task:"var(--ac)",birthday:"var(--wn)"}[it.type]||"var(--bd)";
+if((it.type==="task"||it.type==="recurring")&&!it.done&&it.assigned_to){var _m=D.members.find(function(x){return x.user_id===it.assigned_to});if(_m)mClr=_m.color}
+var borderC=mClr||{event:"var(--pr)",task:"var(--ac)",recurring:"var(--ac)",birthday:"var(--wn)"}[it.type]||"var(--bd)";
 var sub="";
 if(it.type==="event"){
 var ev=(D.events||[]).find(function(x){return x.id===it.id});
@@ -882,6 +926,9 @@ if(tk.assigned_to)parts.push(mName(tk.assigned_to));
 if(tk.done)parts.push("✓ Done");
 sub=parts.join(" · ")
 }
+}else if(it.type==="recurring"){
+var rc=(D.recurring||[]).find(function(x){return x.id===it.id});
+if(rc){var parts2=[];if(rc.assigned_to)parts2.push(mName(rc.assigned_to));parts2.push(rc.rrule);sub=parts2.join(" · ")}
 }else if(it.type==="birthday"){
 var bd=(D.birthdays||[]).find(function(x){return x.id===it.id});
 if(bd&&bd.days_until!=null)sub=bd.days_until===0?"Today! 🎉":"in "+bd.days_until+" days"
