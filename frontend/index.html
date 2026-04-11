@@ -200,20 +200,43 @@ input[type="date"],input[type="time"],input[type="number"],select{-webkit-appear
 .sk-c{height:60px;margin-bottom:10px}
 
 /* Weather ambient backgrounds (all CSS, no JS animation loops) */
-.wbg{position:relative;overflow:hidden;border-radius:16px;padding:10px 12px;margin:0 -8px 16px;border:1px solid var(--bd);background:color-mix(in srgb,var(--cd),transparent 40%)}
-.wbg>*{position:relative;z-index:1}
-.wbg::before{content:'';position:absolute;inset:0;pointer-events:none;z-index:0}
-.wbg-clear::before{background:radial-gradient(circle at 85% 20%,color-mix(in srgb,var(--wn),transparent 55%) 0%,transparent 45%);animation:sunP 5s ease-in-out infinite}
-@keyframes sunP{0%,100%{opacity:.55;transform:scale(1)}50%{opacity:.9;transform:scale(1.08)}}
-.wbg-cloud::before{background:linear-gradient(180deg,color-mix(in srgb,var(--ht),transparent 82%) 0%,transparent 70%)}
-.wbg-rain::before{background:repeating-linear-gradient(105deg,transparent 0,transparent 7px,color-mix(in srgb,var(--pr),transparent 55%) 7px,color-mix(in srgb,var(--pr),transparent 55%) 8px);background-size:40px 40px;animation:rainD .9s linear infinite;opacity:.6}
-@keyframes rainD{from{background-position:0 0}to{background-position:-40px 40px}}
-.wbg-snow::before{background:radial-gradient(circle 1.5px at 15% 18%,#fff,transparent 60%),radial-gradient(circle 1.5px at 38% 8%,#fff,transparent 60%),radial-gradient(circle 1px at 62% 22%,#fff,transparent 60%),radial-gradient(circle 1.5px at 82% 12%,#fff,transparent 60%),radial-gradient(circle 1px at 25% 55%,#fff,transparent 60%),radial-gradient(circle 1.5px at 55% 45%,#fff,transparent 60%),radial-gradient(circle 1px at 78% 60%,#fff,transparent 60%),radial-gradient(circle 1.5px at 10% 82%,#fff,transparent 60%),radial-gradient(circle 1px at 45% 88%,#fff,transparent 60%),radial-gradient(circle 1.5px at 72% 90%,#fff,transparent 60%);background-size:100% 100%;animation:snowF 8s linear infinite}
-@keyframes snowF{from{transform:translateY(-14px)}to{transform:translateY(14px)}}
-.wbg-night::before{background:radial-gradient(circle 1px at 12% 22%,#fff,transparent 50%),radial-gradient(circle 1px at 28% 12%,#fff,transparent 50%),radial-gradient(circle 1px at 45% 18%,#fff,transparent 50%),radial-gradient(circle 1px at 62% 8%,#fff,transparent 50%),radial-gradient(circle 1px at 78% 25%,#fff,transparent 50%),radial-gradient(circle 1px at 88% 15%,#fff,transparent 50%),radial-gradient(circle 1px at 20% 45%,#fff,transparent 50%),radial-gradient(circle 1px at 55% 55%,#fff,transparent 50%),radial-gradient(circle 1px at 72% 48%,#fff,transparent 50%),radial-gradient(circle 1px at 38% 72%,#fff,transparent 50%);opacity:.55;animation:twink 3.5s ease-in-out infinite alternate}
-@keyframes twink{from{opacity:.3}to{opacity:.75}}
-.wbg-storm::before{background:repeating-linear-gradient(108deg,transparent 0,transparent 6px,color-mix(in srgb,var(--ac),transparent 60%) 6px,color-mix(in srgb,var(--ac),transparent 60%) 7px);background-size:42px 42px;animation:rainD .7s linear infinite,lit 6s ease-in-out infinite}
-@keyframes lit{0%,91%,100%{filter:brightness(1)}93%{filter:brightness(2.2)}95%{filter:brightness(.8)}96%{filter:brightness(1.9)}}
+.wbg{position:relative;overflow:hidden;border-radius:16px;padding:14px 14px;margin:0 -8px 16px;border:1px solid rgba(255,255,255,.08)}
+.wbg>*{position:relative;z-index:2}
+.wbg::before,.wbg::after{content:'';position:absolute;inset:0;pointer-events:none;z-index:0}
+.wbg::after{z-index:1}
+/* Clear / Sunny */
+.wbg-clear{background:linear-gradient(135deg,#1a3a5c 0%,#2d6aa0 40%,#f0a33a 100%)}
+.wbg-clear::before{background:radial-gradient(circle 60px at 88% 15%,#ffe066 0%,rgba(255,180,40,.5) 40%,transparent 70%);animation:sunGlow 4s ease-in-out infinite}
+.wbg-clear::after{background:radial-gradient(circle 90px at 88% 15%,rgba(255,220,100,.15) 0%,transparent 60%);animation:sunRay 6s ease-in-out infinite}
+@keyframes sunGlow{0%,100%{opacity:.8;transform:scale(1)}50%{opacity:1;transform:scale(1.15)}}
+@keyframes sunRay{0%,100%{opacity:.3;transform:scale(1) rotate(0deg)}50%{opacity:.6;transform:scale(1.2) rotate(5deg)}}
+/* Cloudy */
+.wbg-cloud{background:linear-gradient(135deg,#2a3444 0%,#3d4f63 50%,#4a5d73 100%)}
+.wbg-cloud::before{background:radial-gradient(ellipse 100px 40px at 20% 25%,rgba(180,195,210,.2),transparent),radial-gradient(ellipse 120px 35px at 65% 35%,rgba(160,180,200,.18),transparent),radial-gradient(ellipse 80px 30px at 85% 55%,rgba(170,190,210,.12),transparent);animation:cloudDrift 12s ease-in-out infinite}
+@keyframes cloudDrift{0%,100%{transform:translateX(0)}50%{transform:translateX(8px)}}
+/* Rain */
+.wbg-rain{background:linear-gradient(180deg,#1c2a3a 0%,#2a3d54 60%,#1a2838 100%)}
+.wbg-rain::before{background:repeating-linear-gradient(100deg,transparent 0,transparent 4px,rgba(120,170,255,.3) 4px,rgba(120,170,255,.01) 6px);background-size:20px 30px;animation:rainFall .5s linear infinite}
+.wbg-rain::after{background:repeating-linear-gradient(98deg,transparent 0,transparent 8px,rgba(100,150,230,.15) 8px,rgba(100,150,230,.01) 10px);background-size:30px 40px;animation:rainFall2 .7s linear infinite}
+@keyframes rainFall{from{background-position:0 -30px}to{background-position:-20px 30px}}
+@keyframes rainFall2{from{background-position:0 -40px}to{background-position:-15px 40px}}
+/* Snow */
+.wbg-snow{background:linear-gradient(180deg,#2d3a4a 0%,#4a5a6e 50%,#3d4d5f 100%)}
+.wbg-snow::before{background:radial-gradient(circle 2px at 10% 15%,#fff,transparent),radial-gradient(circle 1.5px at 25% 8%,#e8f0ff,transparent),radial-gradient(circle 2px at 42% 22%,#fff,transparent),radial-gradient(circle 1px at 58% 12%,#e8f0ff,transparent),radial-gradient(circle 2px at 75% 18%,#fff,transparent),radial-gradient(circle 1.5px at 90% 10%,#e8f0ff,transparent),radial-gradient(circle 1px at 18% 50%,#fff,transparent),radial-gradient(circle 2px at 35% 58%,#e8f0ff,transparent),radial-gradient(circle 1.5px at 52% 45%,#fff,transparent),radial-gradient(circle 1px at 68% 55%,#fff,transparent),radial-gradient(circle 2px at 82% 48%,#e8f0ff,transparent),radial-gradient(circle 1.5px at 15% 82%,#fff,transparent),radial-gradient(circle 1px at 48% 90%,#e8f0ff,transparent),radial-gradient(circle 2px at 70% 85%,#fff,transparent);animation:snowDrift 6s linear infinite;opacity:.9}
+.wbg-snow::after{background:radial-gradient(circle 1.5px at 5% 35%,#fff,transparent),radial-gradient(circle 2px at 30% 40%,#e8f0ff,transparent),radial-gradient(circle 1px at 55% 32%,#fff,transparent),radial-gradient(circle 1.5px at 80% 38%,#e8f0ff,transparent),radial-gradient(circle 1px at 22% 70%,#fff,transparent),radial-gradient(circle 2px at 60% 75%,#e8f0ff,transparent),radial-gradient(circle 1.5px at 88% 72%,#fff,transparent);animation:snowDrift2 8s linear infinite;opacity:.6}
+@keyframes snowDrift{0%{transform:translate(0,-10px)}100%{transform:translate(-6px,10px)}}
+@keyframes snowDrift2{0%{transform:translate(0,-8px)}100%{transform:translate(4px,8px)}}
+/* Night — starry sky with twinkling */
+.wbg-night{background:linear-gradient(180deg,#0a0e1a 0%,#111833 40%,#1a2444 100%)}
+.wbg-night::before{background:radial-gradient(circle 1.5px at 8% 18%,#fff,transparent),radial-gradient(circle 1px at 15% 65%,#aaccff,transparent),radial-gradient(circle 2px at 22% 10%,#fff,transparent),radial-gradient(circle 1px at 30% 42%,#ddeeff,transparent),radial-gradient(circle 1.5px at 38% 78%,#fff,transparent),radial-gradient(circle 1px at 45% 25%,#aaccff,transparent),radial-gradient(circle 2px at 52% 55%,#fff,transparent),radial-gradient(circle 1px at 60% 15%,#ddeeff,transparent),radial-gradient(circle 1.5px at 68% 72%,#fff,transparent),radial-gradient(circle 1px at 75% 35%,#aaccff,transparent),radial-gradient(circle 2px at 82% 8%,#fff,transparent),radial-gradient(circle 1px at 88% 58%,#ddeeff,transparent),radial-gradient(circle 1.5px at 92% 82%,#fff,transparent),radial-gradient(circle 1px at 35% 90%,#aaccff,transparent);animation:starTwinkle 4s ease-in-out infinite alternate}
+.wbg-night::after{background:radial-gradient(circle 1px at 5% 40%,#fff,transparent),radial-gradient(circle 1.5px at 18% 85%,#ddeeff,transparent),radial-gradient(circle 1px at 42% 48%,#fff,transparent),radial-gradient(circle 1.5px at 57% 88%,#aaccff,transparent),radial-gradient(circle 1px at 72% 52%,#fff,transparent),radial-gradient(circle 1.5px at 95% 30%,#ddeeff,transparent),radial-gradient(ellipse 18px 14px at 80% 20%,rgba(230,230,180,.08),transparent);animation:starTwinkle2 5s ease-in-out infinite alternate}
+@keyframes starTwinkle{0%{opacity:.4}100%{opacity:.9}}
+@keyframes starTwinkle2{0%{opacity:.7}100%{opacity:.35}}
+/* Storm */
+.wbg-storm{background:linear-gradient(180deg,#0f1520 0%,#1a2535 50%,#0d1520 100%)}
+.wbg-storm::before{background:repeating-linear-gradient(102deg,transparent 0,transparent 3px,rgba(140,180,255,.25) 3px,rgba(140,180,255,.01) 5px);background-size:18px 24px;animation:rainFall .4s linear infinite}
+.wbg-storm::after{background:none;animation:lightning 7s ease-in-out infinite}
+@keyframes lightning{0%,89%,93%,95%,100%{background:transparent}90%{background:rgba(200,220,255,.15)}92%{background:transparent}94%{background:rgba(180,200,255,.25)}}
 
 /* Task complete — spring scale, then slide & fade */
 @keyframes tkPop{0%{transform:scale(1)}30%{transform:scale(1.035)}60%{transform:scale(.97)}100%{transform:scale(1)}}
@@ -382,6 +405,6 @@ input[type="date"],input[type="time"],input[type="number"],select{-webkit-appear
 <!-- Debug -->
 <div class="dbg hidden" id="dbg"><button class="dbg-cp" onclick="navigator.clipboard.writeText(dbgLog.join('\n'))">Copy</button></div>
 <!-- Load JS -->
-<script src="/static/app.js?v=91"></script>
+<script src="/static/app.js?v=92"></script>
 </body>
 </html>
