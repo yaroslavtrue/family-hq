@@ -255,14 +255,32 @@ input[type="date"],input[type="time"],input[type="number"],select{-webkit-appear
 .cal-dh{display:grid;grid-template-columns:repeat(7,1fr);text-align:center;font-size:10px;font-weight:600;color:var(--ht);padding:8px 0;position:sticky;top:0;background:var(--bg);z-index:2;text-transform:uppercase;letter-spacing:.5px}
 .cal-wk{margin-bottom:2px;border-bottom:1px solid var(--bd)}
 .cal-days{display:grid;grid-template-columns:repeat(7,1fr);text-align:center}
-.cal-dy{padding:6px 0 4px;font-size:12px;font-weight:500;color:var(--ht);min-height:28px}
+.cal-dy{padding:4px 0 2px;font-size:12px;font-weight:500;color:var(--ht);min-height:32px;display:flex;flex-direction:column;align-items:center;gap:1px;border-radius:6px;transition:background .15s}
 .cal-dy.cur-m{color:var(--tx)}
+.cal-dy.wkend{background:color-mix(in srgb,var(--bd),transparent 60%)}
 .cal-dy.today{color:var(--pr);font-weight:800}
 .cal-dy .dn{width:22px;height:22px;display:inline-flex;align-items:center;justify-content:center;border-radius:50%}
 .cal-dy.today .dn{background:var(--pr);color:#fff}
+.cal-dy.heat-1{background:color-mix(in srgb,var(--pr),transparent 92%)}
+.cal-dy.heat-2{background:color-mix(in srgb,var(--pr),transparent 85%)}
+.cal-dy.heat-3{background:color-mix(in srgb,var(--pr),transparent 78%)}
+.cal-dy.heat-4{background:color-mix(in srgb,var(--pr),transparent 70%)}
+.cal-dy.heat-5{background:color-mix(in srgb,var(--pr),transparent 62%)}
+.cal-dy.wkend.heat-1{background:color-mix(in srgb,var(--ac),transparent 90%)}
+.cal-dy.wkend.heat-2{background:color-mix(in srgb,var(--ac),transparent 83%)}
+.cal-dy.wkend.heat-3,.cal-dy.wkend.heat-4,.cal-dy.wkend.heat-5{background:color-mix(in srgb,var(--ac),transparent 75%)}
+.cd-dots{display:flex;gap:2px;justify-content:center;height:4px}
+.cd-dot{width:4px;height:4px;border-radius:50%;display:block}
+.cal-wk-cur{background:color-mix(in srgb,var(--pr),transparent 93%);border-radius:8px}
 .cal-bars{position:relative;min-height:4px;padding:0 1px}
-.cal-ev{position:absolute;height:18px;border-radius:4px;font-size:9px;font-weight:600;line-height:18px;padding:0 4px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;color:#fff;cursor:pointer;transition:opacity .15s}
+.cal-ev{position:absolute;height:18px;border-radius:6px;font-size:9px;font-weight:600;line-height:18px;padding:0 4px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;color:#fff;cursor:pointer;transition:opacity .15s;box-shadow:0 1px 3px rgba(0,0,0,.15)}
 .cal-ev:active{opacity:.7}
+.ev-ico{font-size:8px;margin-right:2px}
+.cal-ev.ev-done{text-decoration:line-through;opacity:.65}
+@keyframes calSlideL{from{transform:translateX(30px);opacity:0}to{transform:translateX(0);opacity:1}}
+@keyframes calSlideR{from{transform:translateX(-30px);opacity:0}to{transform:translateX(0);opacity:1}}
+.cal-slide-l{animation:calSlideL .25s ease-out}
+.cal-slide-r{animation:calSlideR .25s ease-out}
 .cal-more{position:absolute;text-align:center;font-size:9px;font-weight:700;color:var(--ht);height:14px;line-height:14px}
 .cal-dy{cursor:pointer}.cal-dy:active .dn{background:var(--sf)}
 .cday-overlay{position:fixed;inset:0;background:var(--bg);z-index:65;display:flex;flex-direction:column;animation:fadeIn .15s}
@@ -357,6 +375,6 @@ input[type="date"],input[type="time"],input[type="number"],select{-webkit-appear
 <!-- Debug -->
 <div class="dbg hidden" id="dbg"><button class="dbg-cp" onclick="navigator.clipboard.writeText(dbgLog.join('\n'))">Copy</button></div>
 <!-- Load JS -->
-<script src="/static/app.js?v=83"></script>
+<script src="/static/app.js?v=84"></script>
 </body>
 </html>

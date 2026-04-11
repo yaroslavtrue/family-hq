@@ -729,7 +729,9 @@ var mClr="";
 if(seg.type==="task"&&!seg.done&&seg.assigned_to){var _m=D.members.find(function(x){return x.user_id===seg.assigned_to});if(_m)mClr=_m.color}
 var cls="cal-ev ev-"+seg.color+(seg.done?" ev-done":"")+(seg.type==="recurring"?" ev-rec":"");
 var inl=mClr?"background:"+mClr+";":"";
-h+='<div class="'+cls+'" onclick="showCalEv(\''+seg.type+'\','+seg.id+')" style="left:'+left+'%;width:calc('+width+'% - 2px);top:'+top+'px;height:'+bh+'px;line-height:'+bh+'px;cursor:pointer;'+inl+'">'+es(seg.title)+'</div>'
+var ico={event:"📅",task:seg.done?"✓":"📋",recurring:"🔁",birthday:"🎂"}[seg.type]||"";
+var icoH=bh>=16?'<span class="ev-ico">'+ico+'</span>':"";
+h+='<div class="'+cls+'" onclick="showCalEv(\''+seg.type+'\','+seg.id+')" style="left:'+left+'%;width:calc('+width+'% - 2px);top:'+top+'px;height:'+bh+'px;line-height:'+bh+'px;cursor:pointer;'+inl+'">'+icoH+es(seg.title)+'</div>'
 });
 // +N overflow badges
 var oT=visLanes*(bh+2);
@@ -788,6 +790,9 @@ function calShift(delta){
 var y=parseInt(_calMonth.slice(0,4),10),m=parseInt(_calMonth.slice(5,7),10)+delta;
 while(m<=0){m+=12;y--}while(m>12){m-=12;y++}
 _calMonth=y+"-"+String(m).padStart(2,"0");
+var body=document.getElementById("cal-body");
+if(body){var dir=delta>0?"cal-slide-l":"cal-slide-r";body.classList.add(dir);
+setTimeout(function(){body.classList.remove(dir)},250)}
 loadCalMonth()
 }
 function calToggleType(t){_calFilters[t]=!_calFilters[t];loadCalMonth()}
@@ -818,22 +823,43 @@ h+='<span class="cal-chip-sep"></span>';
 h+='</div>';
 // Filtered items
 var filtered=_calFilterItems(data.items);
+// Pre-compute per-day dot types and counts
+var dayMap={};
+filtered.forEach(function(it){
+var s=_parseD(it.start),e=_parseD(it.end);
+for(var dd=new Date(s);dd<=e;dd.setDate(dd.getDate()+1)){
+var k=_isoDate(dd);
+if(!dayMap[k])dayMap[k]={types:{},count:0};
+dayMap[k].types[it.type==="recurring"?"task":it.type]=true;
+dayMap[k].count++
+}});
+// Current week range for highlight
+var _tw=new Date();var _twOff=(_tw.getDay()||7)-1;
+var _twStart=_isoDate(_addD(_tw,-_twOff)),_twEnd=_isoDate(_addD(_tw,6-_twOff));
 // Iterate week by week
 var cur=new Date(vs);
 while(cur<=ve){
 var wsISO=_isoDate(cur);
 var weD=_addD(cur,6);
 var weISO=_isoDate(weD);
-// Event bars for this week
+var isCurWk=(wsISO<=_twEnd&&weISO>=_twStart);
 var wkItems=filtered.filter(function(it){return it.end>=wsISO&&it.start<=weISO});
 var bars=_renderBars(wkItems,wsISO,weISO,18);
-h+='<div class="cal-wk">';
+h+='<div class="cal-wk'+(isCurWk?" cal-wk-cur":"")+'">';
 h+='<div class="cal-days">';
 for(var i=0;i<7;i++){
 var d=_addD(cur,i);var iso=_isoDate(d);
 var inMonth=(d.getMonth()+1===m&&d.getFullYear()===y);
-var cls="cal-dy"+(inMonth?" cur-m":"")+(iso===todayISO?" today":"");
-h+='<div class="'+cls+'" onclick="openCalDay(\''+iso+'\')"><span class="dn">'+d.getDate()+'</span></div>'}
+var isWkend=(d.getDay()===0||d.getDay()===6);
+var dm=dayMap[iso];var heat=dm?Math.min(dm.count,5):0;
+var cls="cal-dy"+(inMonth?" cur-m":"")+(iso===todayISO?" today":"")+(isWkend?" wkend":"")+(heat?" heat-"+heat:"");
+// Dot indicators
+var dots="";
+if(dm&&inMonth){var dt=dm.types;
+if(dt.event)dots+='<i class="cd-dot" style="background:var(--pr)"></i>';
+if(dt.task)dots+='<i class="cd-dot" style="background:var(--ac)"></i>';
+if(dt.birthday)dots+='<i class="cd-dot" style="background:var(--wn)"></i>'}
+h+='<div class="'+cls+'" onclick="openCalDay(\''+iso+'\')"><span class="dn">'+d.getDate()+'</span>'+(dots?'<div class="cd-dots">'+dots+'</div>':'')+'</div>'}
 h+='</div>';
 h+='<div class="cal-bars" style="height:'+Math.max(bars.height,4)+'px">'+bars.html+'</div>';
 h+='</div>';
