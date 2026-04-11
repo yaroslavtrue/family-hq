@@ -39,10 +39,10 @@ Family organizer Telegram Mini App for 2 people (Yaroslav + Ella). Full-stack ap
 └── requirements.txt
 ```
 
-## Current Version: v6.3
+## Current Version: v6.9
 
 ### Navigation
-- **Bottom nav**: 4 tabs — Home | Tasks | Shop | Money
+- **Bottom nav**: 5 tabs — Home | Tasks | Shop | Money | Profile
 - **Hamburger menu ☰**: Events | Birthdays | Cleaning | Subscriptions | Settings
 - **FAB (+)**: Context-aware add button per tab
 
@@ -52,6 +52,7 @@ Family organizer Telegram Mini App for 2 people (Yaroslav + Ella). Full-stack ap
 - **Shopping**: Folders (Lidl, etc), full add form (name+qty+price+folder), folder edit/delete, In Stock with totals, price in din.
 - **Money**: Transactions tab (balance card, expense/income with categories, multi-currency, member assignment, receipt split per transaction), Analytics tab (6-month bar chart, category breakdown, limits with progress bars)
 - **Receipt Split**: Modal per transaction — allocation progress bar, scrollable item list, 3-row add form (Name → Qty+Price+Currency → Add button), edit modal per item. Dedicated `transaction_items` table with name, quantity, amount, currency fields.
+- **Profile**: Personal stats dashboard with member switcher (Family/Yaroslav/Ella). Shows tasks (active/completed/overdue/high), cleaning progress bar. Week strip calendar preview — tap opens full-screen month modal with multi-day event bars, month navigation, Monday-first weeks. Data via `/api/profile/stats` and `/api/calendar`.
 - **Cleaning**: Zones with per-task reset periods, collapsible, assign to member, dirty/clean status
 - **Calendar** (in hamburger): Events with timeline, Birthdays sorted by nearest with reminders
 - **Subscriptions** (in hamburger): Multi-currency, billing day, reminders, monthly total in EUR
@@ -105,9 +106,12 @@ Key columns:
 - settings: theme, digest_time, last_digest, digest_sections (JSON text)
 
 Migration history: v1 (base cols), v2 (zone reminders), v3 (shopping), v4 (categories seed), v5 (trello_card_id), v6 (last_digest), v7 (digest_sections), v8 (transaction_items table), v9 (currency column fix), v10 (quantity column)
+Schema version: v11
 
 ## API Endpoints (key)
 - GET /api/bundle — all data in one request (includes tx_items grouped by transaction_id)
+- GET /api/calendar?month=YYYY-MM — month calendar items (events, tasks, birthdays) with visible range
+- GET /api/profile/stats?member_id=ID — personal stats (tasks, cleaning) per member or family aggregate
 - POST /api/transactions/{tid}/items — create receipt item {name, quantity, amount, currency}
 - PUT /api/transactions/items/{iid} — edit receipt item
 - DELETE /api/transactions/items/{iid} — delete receipt item

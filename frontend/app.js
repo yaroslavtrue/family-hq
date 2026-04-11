@@ -225,13 +225,6 @@ var w=D.weather;
 if(w&&w.days){var cat=FX.wCat(w.label);
 h+='<div class="wbg wbg-'+cat+'"><div style="display:flex;align-items:center;gap:10px"><span style="font-size:28px">'+wIcon(w.label)+'</span><div><span style="font-size:22px;font-weight:800">'+w.now+'°</span><span style="font-size:12px;color:var(--ht);margin-left:6px">feels '+w.feels+'°</span></div><div style="display:flex;gap:8px;margin-left:auto">';
 w.days.forEach(function(dy,i){var label=i===0?"Today":wDayName(dy.date);h+='<div style="text-align:center;min-width:44px"><div style="font-size:10px;color:var(--ht);font-weight:600">'+label+'</div><div style="font-size:18px;margin:2px 0">'+wIcon(dy.label)+'</div><div style="font-size:11px;font-weight:700">'+dy.max+'°</div><div style="font-size:10px;color:var(--ht)">'+dy.min+'°</div></div>'});h+='</div></div></div>'}else h+='<div style="margin-bottom:16px"></div>';
-// Countdown to nearest big event
-var _cdEv=null,_cdDays=Infinity;var todayStr2=td();
-D.events.forEach(function(ev){var eDate=(ev.event_date||"").split(" ")[0];if(!eDate)return;var diff=Math.round((new Date(eDate)-new Date(todayStr2))/86400000);if(diff>0&&diff<_cdDays){_cdDays=diff;_cdEv=ev}});
-if(_cdEv&&_cdDays<=30){
-var cdLabel=_cdDays===1?"tomorrow":"in "+_cdDays+" days";
-h+='<div class="cd-banner" onclick="go(\'events\')"><span class="cd-icon">📅</span><div class="cd-bd"><div class="cd-title">'+es(_cdEv.text)+'</div><div class="cd-sub">'+cdLabel+' · '+fD(_cdEv.event_date).full+'</div></div><span class="cd-days">'+_cdDays+'d</span></div>'
-}
 // Calendar strip
 h+='<div class="sc">Calendar</div>';
 h+='<div class="cal-strip" onclick="openCalModal()" id="cal-strip"></div>';
