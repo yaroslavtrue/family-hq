@@ -712,7 +712,7 @@ var width=(seg.span/7*100).toFixed(2);
 var top=seg.lane*((bh)+2);
 var mClr="";
 if(seg.type==="task"&&!seg.done&&seg.assigned_to){var _m=D.members.find(function(x){return x.user_id===seg.assigned_to});if(_m)mClr=_m.color}
-var cls="cal-ev ev-"+seg.color+(seg.done?" ev-done":"")+(seg.type==="recurring"?" ev-rec":"");
+var cls="cal-ev ev-"+seg.color+(seg.done?" ev-done":"")+(seg.type==="recurring"?" ev-rec":"")+(seg.type==="subscription"?" ev-sub":"");
 var inl=mClr?"background:"+mClr+";":"";
 var ico={event:"📅",task:seg.done?"✓":"📋",recurring:"🔁",birthday:"🎂",subscription:"💳"}[seg.type]||"";
 var icoH=bh>=16?'<span class="ev-ico">'+ico+'</span>':"";
@@ -763,7 +763,7 @@ if(di){var dt=di.types;
 if(dt.event)dots+='<i class="cd-dot" style="background:var(--pr)"></i>';
 if(dt.task)dots+='<i class="cd-dot" style="background:var(--ac)"></i>';
 if(dt.birthday)dots+='<i class="cd-dot" style="background:var(--wn)"></i>';
-if(dt.subscription)dots+='<i class="cd-dot" style="background:#2e7d32"></i>'}
+if(dt.subscription)dots+='<i class="cd-dot" style="background:var(--pr)"></i>'}
 h+='<div class="'+cls+'">';
 h+='<div class="csh-dn">'+["Mon","Tue","Wed","Thu","Fri","Sat","Sun"][i]+'</div>';
 h+='<div class="csh-num">'+(isToday?'<span class="csh-td">'+d.getDate()+'</span>':d.getDate())+'</div>';
@@ -787,7 +787,7 @@ show.forEach(function(it){
 var ico={event:"📅",task:it.done?"✅":"📋",recurring:"🔁",birthday:"🎂",subscription:"💳"}[it.type]||"📌";
 var mClr="";
 if((it.type==="task"||it.type==="recurring")&&!it.done&&it.assigned_to){var _m=D.members.find(function(x){return x.user_id===it.assigned_to});if(_m)mClr=_m.color}
-var bc=mClr||{event:"var(--pr)",task:"var(--ac)",recurring:"var(--ac)",birthday:"var(--wn)",subscription:"#2e7d32"}[it.type]||"var(--bd)";
+var bc=mClr||{event:"var(--pr)",task:"var(--ac)",recurring:"var(--ac)",birthday:"var(--wn)",subscription:"var(--pr)"}[it.type]||"var(--bd)";
 h+='<div class="csh-item" style="border-left:2px solid '+bc+'"><span class="csh-ico">'+ico+'</span><span class="csh-txt">'+es(it.title)+'</span></div>'
 });
 if(unique.length>3)h+='<div class="csh-more">+'+( unique.length-3)+' more</div>';
@@ -836,11 +836,13 @@ var vs=_parseD(data.vis_start),ve=_parseD(data.vis_end);
 var todayISO=_isoDate(new Date());
 // Filter chips
 var h='<div class="cal-chips">';
-var types=[{k:"event",l:"Events",c:"var(--pr)"},{k:"task",l:"Tasks",c:"var(--ac)"},{k:"recurring",l:"Recurring",c:"var(--ac)"},{k:"birthday",l:"Birthdays",c:"var(--wn)"},{k:"subscription",l:"Subs",c:"#2e7d32"}];
+var types=[{k:"event",l:"Events",c:"var(--pr)"},{k:"task",l:"Tasks",c:"var(--ac)"},{k:"recurring",l:"Recurring",c:"var(--ac)"},{k:"birthday",l:"Birthdays",c:"var(--wn)"},{k:"subscription",l:"Subs",c:"var(--pr)"}];
 types.forEach(function(t){var on=_calFilters[t.k];h+='<span class="cal-chip'+(on?" on":"")+'" style="--cc:'+t.c+'" onclick="calToggleType(\''+t.k+'\')">'+t.l+'</span>'});
 h+='<span class="cal-chip-sep"></span>';
 (D.members||[]).forEach(function(m){var on=_calFilters.member===m.user_id;h+='<span class="cal-chip'+(on?" on":"")+'" style="--cc:'+m.color+'" onclick="calSetMember('+m.user_id+')">'+m.emoji+' '+es(m.user_name)+'</span>'});
 h+='</div>';
+// Weekday header
+h+='<div class="cal-dh"><div>Mon</div><div>Tue</div><div>Wed</div><div>Thu</div><div>Fri</div><div>Sat</div><div>Sun</div></div>';
 // Filtered items
 var filtered=_calFilterItems(data.items);
 // Pre-compute per-day dot types and counts
@@ -879,14 +881,14 @@ if(dm&&inMonth){var dt=dm.types;
 if(dt.event)dots+='<i class="cd-dot" style="background:var(--pr)"></i>';
 if(dt.task)dots+='<i class="cd-dot" style="background:var(--ac)"></i>';
 if(dt.birthday)dots+='<i class="cd-dot" style="background:var(--wn)"></i>';
-if(dt.subscription)dots+='<i class="cd-dot" style="background:#2e7d32"></i>'}
+if(dt.subscription)dots+='<i class="cd-dot" style="background:var(--pr)"></i>'}
 h+='<div class="'+cls+'" onclick="openCalDay(\''+iso+'\')"><span class="dn">'+d.getDate()+'</span>'+(dots?'<div class="cd-dots">'+dots+'</div>':'')+'</div>'}
 h+='</div>';
 h+='<div class="cal-bars" style="height:'+Math.max(bars.height,4)+'px">'+bars.html+'</div>';
 h+='</div>';
 cur=_addD(cur,7)
 }
-h+='<div class="cal-legend"><span class="cal-lg"><span class="cal-ld" style="background:var(--pr)"></span>Events</span><span class="cal-lg"><span class="cal-ld" style="background:var(--ac)"></span>Tasks</span><span class="cal-lg"><span class="cal-ld" style="background:var(--ac);border:1px dashed #fff"></span>Recurring</span><span class="cal-lg"><span class="cal-ld" style="background:color-mix(in srgb,var(--ok),transparent 30%)"></span>Done</span><span class="cal-lg"><span class="cal-ld" style="background:var(--wn)"></span>Birthdays</span><span class="cal-lg"><span class="cal-ld" style="background:#2e7d32"></span>Subs</span></div>';
+h+='<div class="cal-legend"><span class="cal-lg"><span class="cal-ld" style="background:var(--pr)"></span>Events</span><span class="cal-lg"><span class="cal-ld" style="background:var(--ac)"></span>Tasks</span><span class="cal-lg"><span class="cal-ld" style="background:var(--ac);border:1px dashed #fff"></span>Recurring</span><span class="cal-lg"><span class="cal-ld" style="background:color-mix(in srgb,var(--ok),transparent 30%)"></span>Done</span><span class="cal-lg"><span class="cal-ld" style="background:var(--wn)"></span>Birthdays</span><span class="cal-lg"><span class="cal-ld" style="background:var(--pr);border:1px dashed #fff"></span>Subs</span></div>';
 body.innerHTML=h
 }
 
@@ -962,7 +964,7 @@ dayItems.forEach(function(it){
 var icon={event:"📅",task:it.done?"✅":"📋",recurring:"🔁",birthday:"🎂"}[it.type]||"📌";
 var mClr="";
 if((it.type==="task"||it.type==="recurring")&&!it.done&&it.assigned_to){var _m=D.members.find(function(x){return x.user_id===it.assigned_to});if(_m)mClr=_m.color}
-var borderC=mClr||{event:"var(--pr)",task:"var(--ac)",recurring:"var(--ac)",birthday:"var(--wn)",subscription:"#2e7d32"}[it.type]||"var(--bd)";
+var borderC=mClr||{event:"var(--pr)",task:"var(--ac)",recurring:"var(--ac)",birthday:"var(--wn)",subscription:"var(--pr)"}[it.type]||"var(--bd)";
 var sub="";
 if(it.type==="event"){
 var ev=(D.events||[]).find(function(x){return x.id===it.id});

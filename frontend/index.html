@@ -293,7 +293,7 @@ input[type="date"],input[type="time"],input[type="number"],select{-webkit-appear
 .cday-bd{flex:1;min-width:0}
 .cday-tt{font-size:15px;font-weight:600;color:var(--tx);line-height:1.3}
 .cday-sub{font-size:12px;color:var(--ht);margin-top:3px}
-.cal-ev.ev-pr{background:var(--pr)}.cal-ev.ev-ac{background:var(--ac)}.cal-ev.ev-ok{background:color-mix(in srgb,var(--ok),transparent 30%)}.cal-ev.ev-wn{background:var(--wn);color:#1a1a2f}.cal-ev.ev-sub{background:#2e7d32}
+.cal-ev.ev-pr{background:var(--pr)}.cal-ev.ev-ac{background:var(--ac)}.cal-ev.ev-ok{background:color-mix(in srgb,var(--ok),transparent 30%)}.cal-ev.ev-wn{background:var(--wn);color:#1a1a2f}.cal-ev.ev-sub{border:1.5px dashed rgba(255,255,255,.6);background:color-mix(in srgb,var(--pr),transparent 40%)}
 .cal-ev.ev-rec{border:1.5px dashed rgba(255,255,255,.6);background:color-mix(in srgb,var(--ac),transparent 40%)}
 .csh-week{display:grid;grid-template-columns:repeat(7,1fr);gap:3px;margin-bottom:10px}
 .csh-day{display:flex;flex-direction:column;align-items:center;gap:1px;padding:4px 0;border-radius:8px;transition:background .15s}
@@ -361,9 +361,6 @@ input[type="date"],input[type="time"],input[type="number"],select{-webkit-appear
 <!-- Calendar Modal -->
 <div class="cal-mo" id="cal-mo">
 <div class="cal-hd"><button class="cal-close" onclick="closeCalModal()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" width="20" height="20"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button><div class="cal-nav"><button onclick="calShift(-1)">◀</button><span class="cal-hd-t" id="cal-title">April 2026</span><button onclick="calShift(1)">▶</button></div><div style="width:20px"></div></div>
-<div class="cal-dh">
-<div>Mon</div><div>Tue</div><div>Wed</div><div>Thu</div><div>Fri</div><div>Sat</div><div>Sun</div>
-</div>
 <div class="cal-body" id="cal-body"></div>
 </div>
 <!-- Hamburger Menu Overlay -->
@@ -385,6 +382,6 @@ input[type="date"],input[type="time"],input[type="number"],select{-webkit-appear
 <!-- Debug -->
 <div class="dbg hidden" id="dbg"><button class="dbg-cp" onclick="navigator.clipboard.writeText(dbgLog.join('\n'))">Copy</button></div>
 <!-- Load JS -->
-<script src="/static/app.js?v=89"></script>
+<script src="/static/app.js?v=91"></script>
 </body>
 </html>
