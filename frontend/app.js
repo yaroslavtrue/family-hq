@@ -242,7 +242,6 @@ h+='<div class="cd-banner" onclick="go(\'events\')"><span class="cd-icon">📅</
 // Calendar strip
 h+='<div class="sc">Calendar</div>';
 h+='<div class="cal-strip" onclick="openCalModal()" id="cal-strip"></div>';
-h+='<div class="cal-week-sum" id="cal-week-sum"></div>';
 setTimeout(function(){loadCalStrip()},0);
 // Upcoming 7d
 var upcoming=[];var todayStr=td();
@@ -743,7 +742,7 @@ var hasOv=overflow.some(function(x){return x>0});
 return{html:h,height:visLanes*(bh+2)+(hasOv?(bh-4):0)}
 }
 
-// Week strip for profile
+// Week strip for Home
 async function loadCalStrip(){
 var el=document.getElementById("cal-strip");if(!el)return;
 var today=new Date();
@@ -756,28 +755,62 @@ var data=_calCache[month];
 if(!data){data=await A("GET","/api/calendar?month="+month);_calCache[month]=data}
 if(!data)return;
 var todayISO=_isoDate(today);
-var h='<div class="cal-dh"><div>Mon</div><div>Tue</div><div>Wed</div><div>Thu</div><div>Fri</div><div>Sat</div><div>Sun</div></div>';
-h+='<div class="cal-days">';
+var wkItems=data.items.filter(function(it){return it.end>=wsISO&&it.start<=weISO});
+// Build per-day map
+var dm={};
+wkItems.forEach(function(it){
+var s=_parseD(it.start<wsISO?wsISO:it.start),e=_parseD(it.end>weISO?weISO:it.end);
+for(var dd=new Date(s);dd<=e;dd.setDate(dd.getDate()+1)){
+var k=_isoDate(dd);if(!dm[k])dm[k]={types:{},count:0,items:[]};
+dm[k].types[it.type==="recurring"?"task":it.type]=true;
+dm[k].count++;dm[k].items.push(it)
+}});
+// Week header with dots
+var h='<div class="csh-week">';
 for(var i=0;i<7;i++){
 var d=_addD(ws,i);var iso=_isoDate(d);
-var cls="cal-dy cur-m"+(iso===todayISO?" today":"");
-h+='<div class="'+cls+'"><span class="dn">'+d.getDate()+'</span></div>'}
+var isToday=iso===todayISO;var isWkend=(d.getDay()===0||d.getDay()===6);
+var di=dm[iso];var heat=di?Math.min(di.count,5):0;
+var cls="csh-day"+(isToday?" csh-today":"")+(isWkend?" csh-wkend":"")+(heat?" heat-"+heat:"");
+var dots="";
+if(di){var dt=di.types;
+if(dt.event)dots+='<i class="cd-dot" style="background:var(--pr)"></i>';
+if(dt.task)dots+='<i class="cd-dot" style="background:var(--ac)"></i>';
+if(dt.birthday)dots+='<i class="cd-dot" style="background:var(--wn)"></i>'}
+h+='<div class="'+cls+'">';
+h+='<div class="csh-dn">'+["Mon","Tue","Wed","Thu","Fri","Sat","Sun"][i]+'</div>';
+h+='<div class="csh-num">'+(isToday?'<span class="csh-td">'+d.getDate()+'</span>':d.getDate())+'</div>';
+if(dots)h+='<div class="cd-dots">'+dots+'</div>';
+h+='</div>'}
 h+='</div>';
-var wkItems=data.items.filter(function(it){return it.end>=wsISO&&it.start<=weISO});
-var bars=_renderBars(wkItems,wsISO,weISO,14);
-h+='<div class="cal-bars" style="height:'+Math.max(bars.height,2)+'px">'+bars.html+'</div>';
-el.innerHTML=h;
+// Mini agenda: today + tomorrow
+var tmrISO=_isoDate(_addD(today,1));
+var sections=[{label:"Today",iso:todayISO},{label:"Tomorrow",iso:tmrISO}];
+var hasAgenda=false;
+sections.forEach(function(sec){
+var items=dm[sec.iso]?dm[sec.iso].items:[];
+if(!items.length)return;
+hasAgenda=true;
+// Deduplicate multi-day items by id+type
+var seen={};var unique=[];
+items.forEach(function(it){var k=it.type+"-"+it.id;if(!seen[k]){seen[k]=true;unique.push(it)}});
+h+='<div class="csh-sec"><span class="csh-label">'+sec.label+'</span>';
+var show=unique.slice(0,3);
+show.forEach(function(it){
+var ico={event:"📅",task:it.done?"✅":"📋",recurring:"🔁",birthday:"🎂"}[it.type]||"📌";
+var mClr="";
+if((it.type==="task"||it.type==="recurring")&&!it.done&&it.assigned_to){var _m=D.members.find(function(x){return x.user_id===it.assigned_to});if(_m)mClr=_m.color}
+var bc=mClr||{event:"var(--pr)",task:"var(--ac)",recurring:"var(--ac)",birthday:"var(--wn)"}[it.type]||"var(--bd)";
+h+='<div class="csh-item" style="border-left:2px solid '+bc+'"><span class="csh-ico">'+ico+'</span><span class="csh-txt">'+es(it.title)+'</span></div>'
+});
+if(unique.length>3)h+='<div class="csh-more">+'+( unique.length-3)+' more</div>';
+h+='</div>'});
+if(!hasAgenda)h+='<div class="csh-empty">Nothing planned today</div>';
 // Week summary
-var sumEl=document.getElementById("cal-week-sum");
-if(sumEl){
-var nTasks=0,nEvents=0,nBdays=0;
-wkItems.forEach(function(it){if(it.type==="task")nTasks++;else if(it.type==="event")nEvents++;else if(it.type==="birthday")nBdays++;else if(it.type==="recurring")nTasks++});
-var parts=[];
-if(nTasks)parts.push(nTasks+" task"+(nTasks>1?"s":""));
-if(nEvents)parts.push(nEvents+" event"+(nEvents>1?"s":""));
-if(nBdays)parts.push(nBdays+" birthday"+(nBdays>1?"s":"")+" 🎂");
-sumEl.textContent=parts.length?"This week: "+parts.join(", "):"Free week — nothing planned!"
-}}
+var nT=0,nE=0;wkItems.forEach(function(it){if(it.type==="task"||it.type==="recurring")nT++;else if(it.type==="event")nE++});
+var sum=[];if(nT)sum.push(nT+" task"+(nT>1?"s":""));if(nE)sum.push(nE+" event"+(nE>1?"s":""));
+h+='<div class="csh-sum">'+(sum.length?sum.join(" · "):"Free week")+'</div>';
+el.innerHTML=h}
 
 // Full calendar modal
 function openCalModal(){

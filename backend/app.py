@@ -1050,7 +1050,7 @@ def calendar_items(month: str | None = None, user=Depends(get_uf), db=Depends(ge
                     pass
             if match:
                 ds = d.isoformat()
-                items.append({"id": r["id"], "type": "recurring", "title": f"🔁 {r['text']}", "start": ds, "end": ds,
+                items.append({"id": r["id"], "type": "recurring", "title": r["text"], "start": ds, "end": ds,
                                "color": "ac", "assigned_to": r["assigned_to"], "done": False})
             d += timedelta(days=1)
 
