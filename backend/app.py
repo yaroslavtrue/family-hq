@@ -1063,8 +1063,8 @@ def calendar_items(month: str | None = None, user=Depends(get_uf), db=Depends(ge
             day = min(bd, mx)
             ds = f"{check_y}-{check_m:02d}-{day:02d}"
             if vs <= ds <= ve:
-                items.append({"id": r["id"], "type": "subscription", "title": f"{r['emoji']} {r['name']}", "start": ds, "end": ds,
-                               "color": "wn", "amount": r["amount"], "currency": r["currency"]})
+                items.append({"id": r["id"], "type": "subscription", "title": r["name"], "start": ds, "end": ds,
+                               "color": "sub", "amount": r["amount"], "currency": r["currency"]})
 
     return {"month": sel, "vis_start": vs, "vis_end": ve, "items": items}
 
