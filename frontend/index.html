@@ -280,18 +280,10 @@ input[type="date"],input[type="time"],input[type="number"],select{-webkit-appear
 .cal-days{display:grid;grid-template-columns:repeat(7,1fr);text-align:center}
 .cal-dy{padding:4px 0 2px;font-size:12px;font-weight:500;color:var(--ht);min-height:32px;display:flex;flex-direction:column;align-items:center;gap:1px;border-radius:6px;transition:background .15s}
 .cal-dy.cur-m{color:var(--tx)}
-.cal-dy.wkend{background:color-mix(in srgb,var(--bd),transparent 60%)}
+.cal-dy.wkend{color:#e74c3c}
 .cal-dy.today{color:var(--pr);font-weight:800}
 .cal-dy .dn{width:22px;height:22px;display:inline-flex;align-items:center;justify-content:center;border-radius:50%}
 .cal-dy.today .dn{background:var(--pr);color:#fff}
-.cal-dy.heat-1{background:color-mix(in srgb,var(--pr),transparent 92%)}
-.cal-dy.heat-2{background:color-mix(in srgb,var(--pr),transparent 85%)}
-.cal-dy.heat-3{background:color-mix(in srgb,var(--pr),transparent 78%)}
-.cal-dy.heat-4{background:color-mix(in srgb,var(--pr),transparent 70%)}
-.cal-dy.heat-5{background:color-mix(in srgb,var(--pr),transparent 62%)}
-.cal-dy.wkend.heat-1{background:color-mix(in srgb,var(--ac),transparent 90%)}
-.cal-dy.wkend.heat-2{background:color-mix(in srgb,var(--ac),transparent 83%)}
-.cal-dy.wkend.heat-3,.cal-dy.wkend.heat-4,.cal-dy.wkend.heat-5{background:color-mix(in srgb,var(--ac),transparent 75%)}
 .cd-dots{display:flex;gap:2px;justify-content:center;height:4px}
 .cd-dot{width:4px;height:4px;border-radius:50%;display:block}
 .cal-wk-cur{background:color-mix(in srgb,var(--pr),transparent 93%);border-radius:8px}
@@ -320,14 +312,12 @@ input[type="date"],input[type="time"],input[type="number"],select{-webkit-appear
 .cal-ev.ev-rec{border:1.5px dashed rgba(255,255,255,.6);background:color-mix(in srgb,var(--ac),transparent 40%)}
 .csh-week{display:grid;grid-template-columns:repeat(7,1fr);gap:3px;margin-bottom:10px}
 .csh-day{display:flex;flex-direction:column;align-items:center;gap:1px;padding:4px 0;border-radius:8px;transition:background .15s}
-.csh-day.csh-wkend{background:color-mix(in srgb,var(--bd),transparent 50%)}
+.csh-day.csh-wkend{}
 .csh-day.csh-today{background:color-mix(in srgb,var(--pr),transparent 85%)}
 .csh-dn{font-size:9px;font-weight:600;color:var(--ht);text-transform:uppercase;letter-spacing:.3px}
 .csh-num{font-size:14px;font-weight:600;color:var(--tx)}
-.csh-day.csh-wkend .csh-num{color:var(--ht)}
+.csh-day.csh-wkend .csh-dn,.csh-day.csh-wkend .csh-num{color:#e74c3c}
 .csh-td{width:24px;height:24px;display:inline-flex;align-items:center;justify-content:center;border-radius:50%;background:var(--pr);color:#fff;font-weight:800}
-.csh-day.heat-1,.csh-day.heat-2{background:color-mix(in srgb,var(--pr),transparent 90%)}
-.csh-day.heat-3,.csh-day.heat-4,.csh-day.heat-5{background:color-mix(in srgb,var(--pr),transparent 82%)}
 .csh-sec{margin-top:6px}
 .csh-label{font-size:11px;font-weight:700;color:var(--ht);text-transform:uppercase;letter-spacing:.3px}
 .csh-item{display:flex;align-items:center;gap:6px;padding:5px 8px;margin-top:4px;border-radius:8px;background:color-mix(in srgb,var(--bd),transparent 40%)}
@@ -405,6 +395,6 @@ input[type="date"],input[type="time"],input[type="number"],select{-webkit-appear
 <!-- Debug -->
 <div class="dbg hidden" id="dbg"><button class="dbg-cp" onclick="navigator.clipboard.writeText(dbgLog.join('\n'))">Copy</button></div>
 <!-- Load JS -->
-<script src="/static/app.js?v=92"></script>
+<script src="/static/app.js?v=93"></script>
 </body>
 </html>

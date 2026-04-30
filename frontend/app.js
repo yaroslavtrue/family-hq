@@ -757,7 +757,7 @@ for(var i=0;i<7;i++){
 var d=_addD(ws,i);var iso=_isoDate(d);
 var isToday=iso===todayISO;var isWkend=(d.getDay()===0||d.getDay()===6);
 var di=dm[iso];var heat=di?Math.min(di.count,5):0;
-var cls="csh-day"+(isToday?" csh-today":"")+(isWkend?" csh-wkend":"")+(heat?" heat-"+heat:"");
+var cls="csh-day"+(isToday?" csh-today":"")+(isWkend?" csh-wkend":"");
 var dots="";
 if(di){var dt=di.types;
 if(dt.event)dots+='<i class="cd-dot" style="background:var(--pr)"></i>';
@@ -842,7 +842,7 @@ h+='<span class="cal-chip-sep"></span>';
 (D.members||[]).forEach(function(m){var on=_calFilters.member===m.user_id;h+='<span class="cal-chip'+(on?" on":"")+'" style="--cc:'+m.color+'" onclick="calSetMember('+m.user_id+')">'+m.emoji+' '+es(m.user_name)+'</span>'});
 h+='</div>';
 // Weekday header
-h+='<div class="cal-dh"><div>Mon</div><div>Tue</div><div>Wed</div><div>Thu</div><div>Fri</div><div>Sat</div><div>Sun</div></div>';
+h+='<div class="cal-dh"><div>Mon</div><div>Tue</div><div>Wed</div><div>Thu</div><div>Fri</div><div style="color:#e74c3c">Sat</div><div style="color:#e74c3c">Sun</div></div>';
 // Filtered items
 var filtered=_calFilterItems(data.items);
 // Pre-compute per-day dot types and counts
@@ -874,7 +874,7 @@ var d=_addD(cur,i);var iso=_isoDate(d);
 var inMonth=(d.getMonth()+1===m&&d.getFullYear()===y);
 var isWkend=(d.getDay()===0||d.getDay()===6);
 var dm=dayMap[iso];var heat=dm?Math.min(dm.count,5):0;
-var cls="cal-dy"+(inMonth?" cur-m":"")+(iso===todayISO?" today":"")+(isWkend?" wkend":"")+(heat?" heat-"+heat:"");
+var cls="cal-dy"+(inMonth?" cur-m":"")+(iso===todayISO?" today":"")+(isWkend?" wkend":"");
 // Dot indicators
 var dots="";
 if(dm&&inMonth){var dt=dm.types;
