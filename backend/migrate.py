@@ -32,6 +32,31 @@ def _seed_exercises(con, fid):
             "INSERT INTO exercises (family_id,name,emoji,muscle_group,rest_seconds) VALUES (?,?,?,?,?)",
             (fid, name, emoji, mg, rs))
 
+def _migrate_v13_templates(con):
+    """Workout templates + started_at/finished_at on workouts."""
+    safe_add_col(con, "workouts", "started_at", "TEXT")
+    safe_add_col(con, "workouts", "finished_at", "TEXT")
+    con.executescript("""
+        CREATE TABLE IF NOT EXISTS workout_templates (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            family_id INTEGER NOT NULL,
+            member_id INTEGER,
+            name TEXT NOT NULL,
+            notes TEXT,
+            created_at TEXT DEFAULT (datetime('now'))
+        );
+        CREATE TABLE IF NOT EXISTS template_exercises (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            template_id INTEGER NOT NULL,
+            exercise_id INTEGER NOT NULL,
+            sort_order INTEGER DEFAULT 0,
+            notes TEXT
+        );
+        CREATE INDEX IF NOT EXISTS idx_templates_family ON workout_templates(family_id);
+        CREATE INDEX IF NOT EXISTS idx_te_template ON template_exercises(template_id);
+    """)
+    con.commit()
+
 def _migrate_v12_trainings(con):
     """Add indexes for trainings tables and seed default catalog for existing families."""
     con.executescript("""
@@ -276,7 +301,24 @@ def migrate(db_path):
             date TEXT NOT NULL,
             name TEXT,
             notes TEXT,
+            started_at TEXT,
+            finished_at TEXT,
             created_at TEXT DEFAULT (datetime('now'))
+        );
+        CREATE TABLE IF NOT EXISTS workout_templates (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            family_id INTEGER NOT NULL,
+            member_id INTEGER,
+            name TEXT NOT NULL,
+            notes TEXT,
+            created_at TEXT DEFAULT (datetime('now'))
+        );
+        CREATE TABLE IF NOT EXISTS template_exercises (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            template_id INTEGER NOT NULL,
+            exercise_id INTEGER NOT NULL,
+            sort_order INTEGER DEFAULT 0,
+            notes TEXT
         );
         CREATE TABLE IF NOT EXISTS workout_exercises (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -386,6 +428,8 @@ def migrate(db_path):
         """),
         # v12: trainings — exercise catalog + workout sessions + sets + indexes + seed
         _migrate_v12_trainings,
+        # v13: workout templates + workout duration tracking (started_at/finished_at)
+        _migrate_v13_templates,
     ]
 
     for i, mig in enumerate(migrations):

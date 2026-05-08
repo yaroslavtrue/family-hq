@@ -246,6 +246,12 @@ class WorkoutSetCreate(BaseModel):
 class WorkoutSetEdit(BaseModel):
     reps: int | None = None; weight: float | None = None
     weight_unit: str | None = None; notes: str | None = None
+class TemplateCreate(BaseModel):
+    name: str; member_id: int | None = None; notes: str | None = None
+    exercise_ids: list[int] = []
+class TemplateEdit(BaseModel):
+    name: str | None = None; member_id: int | None = None; notes: str | None = None
+    exercise_ids: list[int] | None = None  # if provided, replaces existing list
 
 # ═════════════════════════════════════════════════════════════════════════
 # FAMILY
@@ -1218,6 +1224,120 @@ def del_set(sid: int, user=Depends(get_uf), db=Depends(get_db)):
     db.commit()
     return {"ok": True}
 
+# ─── Workout templates ────────────────────────────────────────────────────
+@app.get("/api/workout-templates")
+def list_templates(member_id: int | None = None, user=Depends(get_uf), db=Depends(get_db)):
+    f = user["family_id"]
+    where = "family_id=?"
+    params = [f]
+    if member_id is not None:
+        where += " AND (member_id=? OR member_id IS NULL)"
+        params.append(member_id)
+    templates = [dict(r) for r in db.execute(
+        f"SELECT * FROM workout_templates WHERE {where} ORDER BY created_at DESC", params).fetchall()]
+    # Attach exercises for each template (single grouped query)
+    if templates:
+        ids = [t["id"] for t in templates]
+        rows = db.execute(f"""
+            SELECT te.id, te.template_id, te.exercise_id, te.sort_order, te.notes,
+                   e.name, e.emoji, e.image_url, e.muscle_group, e.rest_seconds
+            FROM template_exercises te JOIN exercises e ON e.id=te.exercise_id
+            WHERE te.template_id IN ({','.join('?'*len(ids))})
+            ORDER BY te.template_id, te.sort_order, te.id
+        """, ids).fetchall()
+        by_t = _group_by(rows, "template_id")
+        for t in templates:
+            t["exercises_list"] = by_t.get(t["id"], [])
+    return templates
+
+@app.post("/api/workout-templates")
+def create_template(body: TemplateCreate, user=Depends(get_uf), db=Depends(get_db)):
+    tid = db.execute(
+        "INSERT INTO workout_templates (family_id,member_id,name,notes) VALUES (?,?,?,?)",
+        (user["family_id"], body.member_id, body.name, body.notes)).lastrowid
+    for i, eid in enumerate(body.exercise_ids):
+        db.execute("INSERT INTO template_exercises (template_id,exercise_id,sort_order) VALUES (?,?,?)",
+                    (tid, eid, i))
+    db.commit()
+    return {"id": tid}
+
+@app.put("/api/workout-templates/{tid}")
+def edit_template(tid: int, body: TemplateEdit, user=Depends(get_uf), db=Depends(get_db)):
+    f = user["family_id"]
+    if not db.execute("SELECT 1 FROM workout_templates WHERE id=? AND family_id=?", (tid, f)).fetchone():
+        raise HTTPException(404)
+    _update_fields(db, "workout_templates", "id=? AND family_id=?", (tid, f), body, {
+        "name": "name", "member_id": "member_id", "notes": "notes",
+    })
+    if body.exercise_ids is not None:
+        db.execute("DELETE FROM template_exercises WHERE template_id=?", (tid,))
+        for i, eid in enumerate(body.exercise_ids):
+            db.execute("INSERT INTO template_exercises (template_id,exercise_id,sort_order) VALUES (?,?,?)",
+                        (tid, eid, i))
+    db.commit()
+    return {"ok": True}
+
+@app.delete("/api/workout-templates/{tid}")
+def del_template(tid: int, user=Depends(get_uf), db=Depends(get_db)):
+    if not db.execute("SELECT 1 FROM workout_templates WHERE id=? AND family_id=?", (tid, user["family_id"])).fetchone():
+        raise HTTPException(404)
+    db.execute("DELETE FROM template_exercises WHERE template_id=?", (tid,))
+    db.execute("DELETE FROM workout_templates WHERE id=?", (tid,))
+    db.commit()
+    return {"ok": True}
+
+@app.post("/api/workout-templates/{tid}/start")
+def start_workout_from_template(tid: int, user=Depends(get_uf), db=Depends(get_db)):
+    """Create a fresh workout from template, copying exercises (no sets), set started_at=now."""
+    f = user["family_id"]
+    t = db.execute("SELECT * FROM workout_templates WHERE id=? AND family_id=?", (tid, f)).fetchone()
+    if not t: raise HTTPException(404)
+    today = datetime.now(ZoneInfo(TIMEZONE)).strftime("%Y-%m-%d")
+    now_iso = datetime.now(ZoneInfo(TIMEZONE)).isoformat()
+    # Reuse existing workout for today if any (idempotent)
+    existing = db.execute("SELECT id FROM workouts WHERE family_id=? AND member_id=? AND date=?",
+                          (f, user["id"], today)).fetchone()
+    if existing:
+        # Set started_at if not already started
+        db.execute("UPDATE workouts SET started_at=COALESCE(started_at, ?) WHERE id=?",
+                    (now_iso, existing["id"]))
+        db.commit()
+        return {"id": existing["id"], "existing": True}
+    wid = db.execute(
+        "INSERT INTO workouts (family_id,member_id,date,name,started_at) VALUES (?,?,?,?,?)",
+        (f, user["id"], today, t["name"], now_iso)).lastrowid
+    # Copy template_exercises into workout_exercises (preserving order, no sets)
+    for i, te in enumerate(db.execute(
+        "SELECT exercise_id, notes FROM template_exercises WHERE template_id=? ORDER BY sort_order, id",
+        (tid,)).fetchall()):
+        db.execute(
+            "INSERT INTO workout_exercises (workout_id,exercise_id,sort_order,notes) VALUES (?,?,?,?)",
+            (wid, te["exercise_id"], i, te["notes"]))
+    db.commit()
+    return {"id": wid, "existing": False}
+
+@app.post("/api/workouts/{wid}/start")
+def start_workout(wid: int, user=Depends(get_uf), db=Depends(get_db)):
+    """Mark a workout as started (sets started_at if null). For ad-hoc workouts."""
+    if not db.execute("SELECT 1 FROM workouts WHERE id=? AND family_id=?", (wid, user["family_id"])).fetchone():
+        raise HTTPException(404)
+    now_iso = datetime.now(ZoneInfo(TIMEZONE)).isoformat()
+    db.execute("UPDATE workouts SET started_at=COALESCE(started_at, ?) WHERE id=?", (now_iso, wid))
+    db.commit()
+    return {"ok": True, "started_at": now_iso}
+
+@app.post("/api/workouts/{wid}/finish")
+def finish_workout(wid: int, user=Depends(get_uf), db=Depends(get_db)):
+    """Mark a workout as finished. Returns summary."""
+    f = user["family_id"]
+    if not db.execute("SELECT 1 FROM workouts WHERE id=? AND family_id=?", (wid, f)).fetchone():
+        raise HTTPException(404)
+    now_iso = datetime.now(ZoneInfo(TIMEZONE)).isoformat()
+    db.execute("UPDATE workouts SET finished_at=? WHERE id=?", (now_iso, wid))
+    db.commit()
+    summary = _workout_summary_row(db, f, wid)
+    return {"ok": True, "finished_at": now_iso, **summary}
+
 @app.get("/api/trainings/stats")
 def trainings_stats(member_id: int | None = None, user=Depends(get_uf), db=Depends(get_db)):
     """Tonnage today/week/month + last 8 weeks bar chart + top 5 exercises + PRs.
@@ -1542,12 +1662,12 @@ async def bundle(user=Depends(get_uf), db=Depends(get_db)):
     # Weather (cached + retried inside weather.py)
     weather = await get_weather()
 
-    # Trainings — exercise catalog + recent workouts (last 14 days, summary only)
+    # Trainings — exercise catalog + recent workouts (last 14 days, summary only) + templates
     exercises = [dict(r) for r in db.execute(
         "SELECT * FROM exercises WHERE family_id=? ORDER BY muscle_group, name", (f,)).fetchall()]
     recent_cutoff = (today - timedelta(days=14)).isoformat()
     recent_workouts = [dict(r) | {"tonnage": round(r["tonnage"] or 0, 2)} for r in db.execute("""
-        SELECT w.id, w.date, w.name, w.member_id, w.notes,
+        SELECT w.id, w.date, w.name, w.member_id, w.notes, w.started_at, w.finished_at,
                COALESCE(SUM(ws.reps * ws.weight), 0) AS tonnage,
                COUNT(DISTINCT wx.id) AS exercises,
                COUNT(ws.id) AS sets
@@ -1557,6 +1677,20 @@ async def bundle(user=Depends(get_uf), db=Depends(get_db)):
         WHERE w.family_id=? AND w.date >= ?
         GROUP BY w.id ORDER BY w.date DESC, w.id DESC
     """, (f, recent_cutoff)).fetchall()]
+    workout_templates = [dict(r) for r in db.execute(
+        "SELECT * FROM workout_templates WHERE family_id=? ORDER BY created_at DESC", (f,)).fetchall()]
+    if workout_templates:
+        ids = [t["id"] for t in workout_templates]
+        rows = db.execute(f"""
+            SELECT te.template_id, te.exercise_id, te.sort_order,
+                   e.name, e.emoji, e.muscle_group
+            FROM template_exercises te JOIN exercises e ON e.id=te.exercise_id
+            WHERE te.template_id IN ({','.join('?'*len(ids))})
+            ORDER BY te.template_id, te.sort_order, te.id
+        """, ids).fetchall()
+        by_t = _group_by(rows, "template_id")
+        for t in workout_templates:
+            t["exercises_list"] = by_t.get(t["id"], [])
 
     return {
         "tasks": tasks, "recurring": recurring, "shopping": shopping, "folders": folders,
@@ -1566,6 +1700,7 @@ async def bundle(user=Depends(get_uf), db=Depends(get_db)):
         "weather": weather, "categories": categories, "transactions": transactions,
         "tx_items": tx_items,
         "exercises": exercises, "recent_workouts": recent_workouts,
+        "workout_templates": workout_templates,
     }
 
 # ═════════════════════════════════════════════════════════════════════════
@@ -1578,7 +1713,7 @@ async def weather_endpoint():
     return w
 
 # ─── Debug & Serve ───────────────────────────────────────────────────────
-APP_VERSION = "v8.0"
+APP_VERSION = "v8.1"
 
 @app.get("/api/debug/ping")
 def ping(): return {"ok": True, "version": APP_VERSION, "time": datetime.now(ZoneInfo(TIMEZONE)).isoformat()}

@@ -26,11 +26,11 @@ document.body.classList.toggle("ls",!!t.l);cTheme=id;}
 // ─── State ──────────────────────────────────────────────────
 let tab="home",cTheme="midnight",filt=null,fS=null,ex={},dbgOn=false,dbgLog=[];
 let taskTab="active",calTab="events",moneyTab="transactions",shopFold=null,searchQ="",searchOpen=false,menuOpen=false;
-let D={tasks:[],recurring:[],shopping:[],folders:[],events:[],birthdays:[],subs:[],dashboard:{},members:[],zones:[],settings:{},weather:null,categories:[],transactions:[],exercises:[],recentWorkouts:[]};
+let D={tasks:[],recurring:[],shopping:[],folders:[],events:[],birthdays:[],subs:[],dashboard:{},members:[],zones:[],settings:{},weather:null,categories:[],transactions:[],exercises:[],recentWorkouts:[],workoutTemplates:[]};
 let allSubs={task:{},event:{}};
 let _assign=0,_pri="normal",_rems=[],_zRems=[],_bdRems=[],_subRems=[],zOpen={};
 // Trainings state — _trainMember undefined means "not yet initialized" (first render → my_id)
-var _trainMember,_trainStats=null,_trainView="recent",_curWorkout=null,_restTimer=null;
+var _trainMember,_trainStats=null,_trainView="recent",_curWorkout=null,_restTimer=null,_wkTimer=null;
 
 // ─── API ────────────────────────────────────────────────────
 async function A(m,p,b){
@@ -179,7 +179,7 @@ var si=document.getElementById("si");if(si)si.value="";
 document.querySelectorAll(".ni").forEach(function(e){e.classList.toggle("a",e.dataset.t===t)});
 document.getElementById("ht").textContent=(TT[t]||["",""])[0];
 document.getElementById("hs").textContent=(TT[t]||["",""])[1];
-var noFab=["home","settings","clean","events","birthdays","subs","profile"];
+var noFab=["home","settings","clean","events","birthdays","subs","profile","trainings"];
 document.getElementById("fab").classList.toggle("hidden",noFab.indexOf(t)>=0);
 if(t==="home")_firstHomeRender=true;
 if(t==="profile")_profStats=null;
@@ -206,7 +206,7 @@ D.dashboard=b.dashboard||{};D.members=b.members||[];D.settings=b.settings||{};
 if(b.family&&b.family.joined)fS=b.family;D.zones=b.zones||[];
 allSubs.task=b.subtasks_task||{};allSubs.event=b.subtasks_event||{};D.txItems=b.tx_items||{};
 D.weather=b.weather||null;D.categories=b.categories||[];D.transactions=b.transactions||[];
-D.exercises=b.exercises||[];D.recentWorkouts=b.recent_workouts||[];
+D.exercises=b.exercises||[];D.recentWorkouts=b.recent_workouts||[];D.workoutTemplates=b.workout_templates||[];
 if(D.settings.theme)aT(D.settings.theme);ren()}
 
 // ─── Render ─────────────────────────────────────────────────
@@ -246,10 +246,10 @@ var items=[
 var h='';
 items.forEach(function(it){
 var b=it.cnt>0?'<span class="mi-cnt">'+it.cnt+'</span>':'';
-h+='<button class="menu-i" onclick="go(\''+it.id+'\');toggleMenu()"><span class="mi-ico">'+it.emoji+'</span><span class="mi-l">'+it.label+'</span>'+b+'</button>';
+h+='<button class="menu-i" onclick="go(\''+it.id+'\')"><span class="mi-ico">'+it.emoji+'</span><span class="mi-l">'+it.label+'</span>'+b+'</button>';
 });
 h+='<div style="height:1px;background:var(--bd);margin:8px 0"></div>';
-h+='<button class="menu-i" onclick="go(\'settings\');toggleMenu()"><span class="mi-ico">⚙️</span><span class="mi-l">Settings</span></button>';
+h+='<button class="menu-i" onclick="go(\'settings\')"><span class="mi-ico">⚙️</span><span class="mi-l">Settings</span></button>';
 el.innerHTML=h;
 // Show dot on hamburger icon if any section has active items
 var totalActive=Object.values(cnt).reduce(function(a,b){return a+b},0);
@@ -636,13 +636,12 @@ if(_trainMember===null){
   return h;
 }
 
-// Per-member view: weekly summary card + recent workouts list + Progress button
+// Per-member view: weekly summary + templates + today's workout + recent
 var memberWorkouts=(D.recentWorkouts||[]).filter(function(w){return w.member_id===_trainMember});
-// Compute today/week tonnage from recent workouts (cheap, in-memory)
 var today=td();var weekStart=_weekStartISO();
-var tdayT=0,tdaySets=0,tdayCount=0,wkT=0,wkSets=0,wkCount=0;
+var tdayT=0,tdaySets=0,wkT=0,wkSets=0,wkCount=0;
 memberWorkouts.forEach(function(w){
-  if(w.date===today){tdayT+=w.tonnage||0;tdaySets+=w.sets||0;tdayCount++}
+  if(w.date===today){tdayT+=w.tonnage||0;tdaySets+=w.sets||0}
   if(w.date>=weekStart){wkT+=w.tonnage||0;wkSets+=w.sets||0;wkCount++}
 });
 
@@ -655,24 +654,54 @@ h+='</div>';
 // Progress button
 h+='<button class="btn btn-s" style="margin-bottom:14px;width:100%" onclick="openTrainStats()">📊 Progress & PRs</button>';
 
-// Today's workout (or "Start workout today" CTA)
+// Today's workout (or Start CTA)
 var todayW=memberWorkouts.find(function(w){return w.date===today});
 if(todayW){
-  h+='<div class="sc">📅 Today</div>';
+  h+='<div class="sc">📅 Today'+(todayW.started_at&&!todayW.finished_at?' · <span style="color:var(--ok)">in progress</span>':'')+'</div>';
   h+=_workoutCard(todayW,true);
 }else if(_trainMember===myId){
-  h+='<button class="btn" style="margin-bottom:16px" onclick="startTodayWorkout()">+ Start Today\'s Workout</button>';
+  // Start Workout button (uses template picker if templates exist)
+  if((D.workoutTemplates||[]).length>0){
+    h+='<button class="btn" style="margin-bottom:8px" onclick="openStartWorkoutPicker()">▶ Start Workout</button>';
+    h+='<button class="btn btn-s" style="margin-bottom:16px;background:transparent;border:1.5px solid var(--bd);color:var(--tx)" onclick="startBlankWorkout()">+ Empty workout</button>';
+  }else{
+    h+='<button class="btn" style="margin-bottom:8px" onclick="startBlankWorkout()">▶ Start Empty Workout</button>';
+    h+='<div style="font-size:12px;color:var(--ht);margin-bottom:14px;text-align:center">Or create a template below to reuse a program</div>';
+  }
+}
+
+// Templates section
+if(_trainMember===myId){
+  h+='<div class="sc" style="display:flex;justify-content:space-between;align-items:center"><span>📋 My Templates · '+(D.workoutTemplates||[]).filter(function(t){return!t.member_id||t.member_id===myId}).length+'</span><button class="bi" style="padding:4px 10px;color:var(--pr);font-size:12px;font-weight:600" onclick="openNewTemplate()">+ New</button></div>';
+  var myTpls=(D.workoutTemplates||[]).filter(function(t){return!t.member_id||t.member_id===myId});
+  if(myTpls.length===0){
+    h+='<div style="font-size:12px;color:var(--ht);padding:8px 12px;border:1.5px dashed var(--bd);border-radius:10px;margin-bottom:14px;text-align:center">No templates yet · tap + New to create your first program</div>';
+  }else{
+    myTpls.forEach(function(t){h+=_templateCard(t)});
+  }
 }
 
 // Recent workouts (excluding today)
 var others=memberWorkouts.filter(function(w){return w.date!==today});
 if(others.length){
-  h+='<div class="sc">Recent</div>';
+  h+='<div class="sc" style="margin-top:14px">Recent</div>';
   others.forEach(function(w){h+=_workoutCard(w,false)});
-}else if(!todayW){
-  h+=em("🏋️","No workouts yet","Tap + above to start");
 }
 return h
+}
+
+function _templateCard(t){
+  var exs=t.exercises_list||[];
+  var preview=exs.slice(0,3).map(function(e){return (e.emoji||"💪")+" "+es(e.name)}).join(" · ");
+  if(exs.length>3)preview+=" · +"+(exs.length-3);
+  return '<div class="c" style="display:block;padding:12px 14px;cursor:pointer" onclick="startFromTemplate('+t.id+')">'+
+    '<div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">'+
+    '<div style="flex:1;font-weight:700">📋 '+es(t.name)+'</div>'+
+    '<button class="bi" onclick="event.stopPropagation();editTemplate('+t.id+')" style="padding:4px;color:var(--ht)">'+I.ed+'</button>'+
+    '<span class="btn btn-s" style="padding:4px 12px;width:auto">▶ Start</span>'+
+    '</div>'+
+    (preview?'<div style="font-size:11px;color:var(--ht)">'+preview+'</div>':'<div style="font-size:11px;color:var(--ht);font-style:italic">No exercises yet — tap '+I.ed+' to add</div>')+
+    '</div>';
 }
 
 function _fmtTon(t){
@@ -756,19 +785,186 @@ async function openWorkout(wid){
   var el=document.getElementById("workout-view");
   if(el){el.remove()}
   el=document.createElement("div");el.id="workout-view";el.innerHTML=html;
-  document.body.appendChild(el)
+  document.body.appendChild(el);
+  if(w.started_at&&!w.finished_at)_startWkTimer(w.started_at);
 }
-function closeWorkout(){var el=document.getElementById("workout-view");if(el)el.remove();_curWorkout=null;_clearRestTimer();load()}
+function closeWorkout(){var el=document.getElementById("workout-view");if(el)el.remove();_curWorkout=null;_clearRestTimer();_stopWkTimer();load()}
+
+// Re-render the open workout (used after add/delete set)
+async function _refreshWorkoutView(wid){
+  var w=await A("GET","/api/workouts/"+wid);if(!w)return;
+  _curWorkout=w;
+  var view=document.getElementById("workout-view");if(!view)return;
+  view.innerHTML=_workoutDetailHtml(w);
+  if(w.started_at&&!w.finished_at)_startWkTimer(w.started_at);else _stopWkTimer();
+}
+
+// Start an ad-hoc workout (no template)
+async function startBlankWorkout(){
+  var name=prompt("Workout name (optional):","");
+  var r=await A("POST","/api/workouts",{date:td(),name:name||null,member_id:_trainMember});
+  if(!r||!r.id)return;
+  // Mark as started
+  await A("POST","/api/workouts/"+r.id+"/start");
+  hp("ok");await load();openWorkout(r.id);
+}
+// Backwards compat: old callers
+function startTodayWorkout(){startBlankWorkout()}
+
+// Pick a template to start a workout from
+function openStartWorkoutPicker(){
+  var myId=_trainMyId();
+  var tpls=(D.workoutTemplates||[]).filter(function(t){return!t.member_id||t.member_id===myId});
+  var h='<div style="margin-bottom:8px;font-size:13px;color:var(--ht)">Pick a program to start:</div>';
+  if(!tpls.length){
+    h+='<div style="padding:20px;text-align:center;color:var(--ht);font-size:13px">No templates yet</div>';
+  }else{
+    tpls.forEach(function(t){
+      var preview=(t.exercises_list||[]).slice(0,4).map(function(e){return (e.emoji||"💪")+" "+es(e.name)}).join(" · ");
+      if((t.exercises_list||[]).length>4)preview+=" · +"+((t.exercises_list||[]).length-4);
+      h+='<div class="c" style="cursor:pointer" onclick="cMo();startFromTemplate('+t.id+')">'+
+        '<div class="bd"><div class="tt" style="font-weight:700">📋 '+es(t.name)+'</div>'+
+        (preview?'<div class="mt" style="font-size:11px">'+preview+'</div>':'')+
+        '</div><span class="btn btn-s" style="padding:4px 12px;width:auto">▶</span></div>';
+    });
+  }
+  h+='<div style="margin-top:14px;padding-top:14px;border-top:1px solid var(--bd)">'+
+    '<button class="btn btn-s" style="background:transparent;border:1.5px solid var(--bd);color:var(--tx)" onclick="cMo();startBlankWorkout()">+ Empty workout (no template)</button></div>';
+  oMC("Start Workout",h);
+}
+
+async function startFromTemplate(tid){
+  var r=await A("POST","/api/workout-templates/"+tid+"/start");
+  if(!r||!r.id)return;
+  hp("ok");await load();openWorkout(r.id);
+}
+
+async function startThisWorkout(wid){
+  await A("POST","/api/workouts/"+wid+"/start");hp("ok");
+  _refreshWorkoutView(wid);
+}
+
+async function finishWorkout(wid){
+  var r=await A("POST","/api/workouts/"+wid+"/finish");
+  if(!r)return;
+  hp("ok");_stopWkTimer();_clearRestTimer();
+  toast("✓ Workout done · "+r.sets+" sets · "+_fmtTon(r.tonnage||0));
+  await load();
+  // Refresh detail view to show finished state
+  _refreshWorkoutView(wid);
+}
+
+async function reopenWorkout(wid){
+  toast("Workout finished. Start a new one for next session.");
+}
+
+// ─── Workout templates editor ───────────────────────────────────────────
+var _tplDraft=null; // {id?, name, exercise_ids: []}
+
+function openNewTemplate(){
+  _tplDraft={id:null,name:"",exercise_ids:[]};
+  oMC("New Template",_tplEditorHtml());
+}
+function editTemplate(tid){
+  var t=(D.workoutTemplates||[]).find(function(x){return x.id===tid});
+  if(!t)return;
+  _tplDraft={id:tid,name:t.name,exercise_ids:(t.exercises_list||[]).map(function(e){return e.exercise_id})};
+  oMC("Edit Template",_tplEditorHtml());
+}
+function _tplEditorHtml(){
+  var t=_tplDraft;
+  var h='<div class="lb">Name</div><input class="inp" id="tpl-n" value="'+es(t.name||"")+'" placeholder="e.g. Push Day">';
+  h+='<div class="lb" style="margin-top:14px">Exercises · '+t.exercise_ids.length+'</div>';
+  h+='<div id="tpl-ex-list" style="margin-bottom:10px">';
+  if(!t.exercise_ids.length){
+    h+='<div style="font-size:12px;color:var(--ht);padding:10px;text-align:center;border:1.5px dashed var(--bd);border-radius:10px">No exercises yet</div>';
+  }else{
+    t.exercise_ids.forEach(function(eid,i){
+      var e=(D.exercises||[]).find(function(x){return x.id===eid});
+      if(!e)return;
+      h+='<div class="c" style="padding:10px 12px;margin-bottom:4px">'+
+        '<span style="font-size:20px">'+(e.emoji||"💪")+'</span>'+
+        '<div class="bd"><div class="tt">'+es(e.name)+'</div></div>'+
+        (i>0?'<button class="bi" onclick="_tplMove('+i+',-1)">▲</button>':'')+
+        (i<t.exercise_ids.length-1?'<button class="bi" onclick="_tplMove('+i+',1)">▼</button>':'')+
+        '<button class="bi" onclick="_tplRemove('+i+')" style="color:var(--ac)">'+I.x+'</button>'+
+        '</div>';
+    });
+  }
+  h+='</div>';
+  h+='<button class="btn btn-s" style="background:transparent;border:1.5px solid var(--bd);color:var(--tx);margin-bottom:14px" onclick="_tplPickExercise()">+ Add exercise</button>';
+  h+='<button class="btn" onclick="saveTemplate()">'+(t.id?"Save":"Create template")+'</button>';
+  if(t.id){
+    h+='<div style="margin-top:14px;padding-top:14px;border-top:1px solid var(--bd)">'+
+      '<button class="btn btn-s" style="color:var(--ac);background:transparent;border:1.5px solid var(--bd)" onclick="deleteTemplate('+t.id+')">Delete template</button></div>';
+  }
+  return h;
+}
+function _tplRefresh(){document.getElementById("mb").innerHTML=_tplEditorHtml()}
+function _tplMove(i,d){var arr=_tplDraft.exercise_ids;var tmp=arr[i];arr[i]=arr[i+d];arr[i+d]=tmp;_tplRefresh()}
+function _tplRemove(i){_tplDraft.exercise_ids.splice(i,1);_tplRefresh()}
+function _tplPickExercise(){
+  // Save name from current input before re-render
+  var nameI=document.getElementById("tpl-n");if(nameI)_tplDraft.name=nameI.value;
+  // Show picker that adds to draft
+  var byGroup={};
+  (D.exercises||[]).forEach(function(e){var g=e.muscle_group||"other";if(!byGroup[g])byGroup[g]=[];byGroup[g].push(e)});
+  var groupOrder=["chest","back","legs","shoulders","arms","core","other"];
+  var h='<input class="inp" id="ex-search" placeholder="Search exercise..." oninput="_filterExercises(this.value)">';
+  h+='<div id="ex-list" style="max-height:50vh;overflow-y:auto;margin-top:10px">';
+  groupOrder.forEach(function(g){
+    if(!byGroup[g])return;
+    h+='<div class="ex-grp"><div class="lb" style="margin-top:8px">'+g.toUpperCase()+'</div>';
+    byGroup[g].forEach(function(e){
+      h+='<div class="c ex-item" data-name="'+es(e.name).toLowerCase()+'" style="cursor:pointer;margin-bottom:4px;padding:10px 12px" onclick="_tplAddEx('+e.id+')">'+
+        '<span style="font-size:22px">'+(e.emoji||"💪")+'</span>'+
+        '<div class="bd"><div class="tt">'+es(e.name)+'</div></div></div>';
+    });
+    h+='</div>';
+  });
+  h+='</div>';
+  oMC("Add exercise to template",h);
+}
+function _tplAddEx(eid){
+  _tplDraft.exercise_ids.push(eid);
+  // Re-open editor (cMo + new modal)
+  oMC(_tplDraft.id?"Edit Template":"New Template",_tplEditorHtml());
+}
+async function saveTemplate(){
+  var nameI=document.getElementById("tpl-n");
+  var name=nameI?nameI.value.trim():_tplDraft.name;
+  if(!name){toast("Name required");return}
+  var body={name:name,member_id:_trainMyId(),exercise_ids:_tplDraft.exercise_ids};
+  if(_tplDraft.id){
+    await A("PUT","/api/workout-templates/"+_tplDraft.id,body);
+  }else{
+    await A("POST","/api/workout-templates",body);
+  }
+  cMo();hp("ok");_tplDraft=null;await load();
+}
+async function deleteTemplate(tid){
+  if(!confirm("Delete template? (Workouts created from it stay intact)"))return;
+  await A("DELETE","/api/workout-templates/"+tid);
+  cMo();hp("warn");_tplDraft=null;await load();
+}
 
 function _workoutDetailHtml(w){
   var memberName=mName(w.member_id);
   var dateLbl=w.date===td()?"Today":fD(w.date).full;
+  var inProgress=w.started_at&&!w.finished_at;
   var h='<div class="cday-overlay">';
-  h+='<div class="cday-panel">';
+  h+='<div class="cday-panel" style="padding-bottom:80px">';
   h+='<div class="cday-hd"><button class="cday-back" onclick="closeWorkout()">←</button>'+
     '<div class="cday-title">💪 '+(w.name?es(w.name):"Workout")+'</div>'+
     '<button class="bi" onclick="editWorkoutMeta('+w.id+')" style="padding:4px;color:var(--ht)">'+I.ed+'</button>'+
     '</div>';
+  // Live timer (if in progress)
+  if(inProgress){
+    h+='<div id="wk-timer" style="background:var(--pg);color:var(--pr);padding:8px 16px;text-align:center;font-weight:700;font-size:18px;border-bottom:1px solid var(--bd)">⏱ <span id="wk-elapsed">0:00</span> · in progress</div>';
+  }else if(w.finished_at){
+    var dur=_durationStr(w.started_at,w.finished_at);
+    h+='<div style="background:color-mix(in srgb,var(--ok) 15%,transparent);color:var(--ok);padding:8px 16px;text-align:center;font-weight:700;font-size:14px;border-bottom:1px solid var(--bd)">✓ Completed · '+dur+'</div>';
+  }
   // Summary card
   h+='<div style="padding:8px 16px"><div class="c" style="margin-bottom:8px"><div class="bd">'+
     '<div style="font-size:12px;color:var(--ht)">'+dateLbl+' · '+es(memberName)+'</div>'+
@@ -778,7 +974,16 @@ function _workoutDetailHtml(w){
   // Exercises list
   h+='<div style="padding:0 16px">';
   (w.exercises_list||[]).forEach(function(wx){h+=_exerciseBlock(wx)});
-  h+='<button class="btn" style="margin-top:12px" onclick="openExercisePicker('+w.id+')">+ Add exercise</button>';
+  h+='<button class="btn btn-s" style="margin-top:8px;background:transparent;border:1.5px solid var(--bd);color:var(--tx)" onclick="openExercisePicker('+w.id+')">+ Add exercise</button>';
+  // Finish (if in progress) or Re-open
+  if(inProgress){
+    h+='<button class="btn" style="margin-top:16px;background:var(--ok);color:#fff" onclick="finishWorkout('+w.id+')">✓ Finish Workout</button>';
+  }else if(w.finished_at){
+    h+='<button class="btn btn-s" style="margin-top:16px;background:transparent;border:1.5px solid var(--bd);color:var(--tx)" onclick="reopenWorkout('+w.id+')">↺ Reopen workout</button>';
+  }else{
+    // Workout exists but not yet started
+    h+='<button class="btn" style="margin-top:16px;background:var(--ok);color:#fff" onclick="startThisWorkout('+w.id+')">▶ Start Workout</button>';
+  }
   // Delete workout button at bottom
   h+='<div style="margin-top:24px;padding-top:16px;border-top:1px solid var(--bd)">'+
     '<button class="btn btn-s" style="color:var(--ac);background:transparent;border:1.5px solid var(--bd)" onclick="deleteWorkout('+w.id+')">Delete workout</button>'+
@@ -788,6 +993,29 @@ function _workoutDetailHtml(w){
   h+='<div id="rest-banner" style="position:fixed;bottom:0;left:0;right:0;background:var(--pr);color:#fff;padding:12px 16px;display:none;align-items:center;justify-content:space-between;font-weight:700;z-index:90;box-shadow:0 -4px 16px rgba(0,0,0,.3)"></div>';
   h+='</div></div>';
   return h;
+}
+
+// Live workout timer (counts up from started_at)
+function _startWkTimer(startedAtIso){
+  _stopWkTimer();
+  var t0=new Date(startedAtIso).getTime();
+  function tick(){
+    var el=document.getElementById("wk-elapsed");if(!el){_stopWkTimer();return}
+    var sec=Math.floor((Date.now()-t0)/1000);
+    var hh=Math.floor(sec/3600),mm=Math.floor((sec%3600)/60),ss=sec%60;
+    el.textContent=(hh>0?hh+":"+String(mm).padStart(2,"0"):mm)+":"+String(ss).padStart(2,"0");
+  }
+  tick();
+  _wkTimer=setInterval(tick,1000);
+}
+function _stopWkTimer(){if(_wkTimer){clearInterval(_wkTimer);_wkTimer=null}}
+function _durationStr(startedAt,finishedAt){
+  if(!startedAt||!finishedAt)return "";
+  var sec=Math.floor((new Date(finishedAt).getTime()-new Date(startedAt).getTime())/1000);
+  if(sec<60)return sec+"s";
+  var mm=Math.floor(sec/60);
+  if(mm<60)return mm+" min";
+  return Math.floor(mm/60)+"h "+(mm%60)+"m";
 }
 
 function _exerciseBlock(wx){
@@ -843,18 +1071,14 @@ async function addSet(wxid,restSec){
   if(r<=0)return;
   await A("POST","/api/workout-exercises/"+wxid+"/sets",{reps:r,weight:w,weight_unit:"kg"});
   hp("ok");
-  // Reload current workout
-  if(_curWorkout){
-    var w2=await A("GET","/api/workouts/"+_curWorkout.id);
-    if(w2){_curWorkout=w2;document.getElementById("workout-view").innerHTML=_workoutDetailHtml(w2)}
-  }
+  if(_curWorkout)await _refreshWorkoutView(_curWorkout.id);
   startRestTimer(restSec);
 }
 
 async function deleteSet(sid){
   if(!confirm("Delete set?"))return;
   await A("DELETE","/api/workout-sets/"+sid);hp("warn");
-  if(_curWorkout){var w=await A("GET","/api/workouts/"+_curWorkout.id);if(w){_curWorkout=w;document.getElementById("workout-view").innerHTML=_workoutDetailHtml(w)}}
+  if(_curWorkout)await _refreshWorkoutView(_curWorkout.id);
 }
 
 function editSet(sid,wxid,reps,weight,unit){
@@ -868,13 +1092,13 @@ async function svSet(sid){
   var w=parseFloat(document.getElementById("es-w").value)||0;
   if(r<=0)return;
   await A("PUT","/api/workout-sets/"+sid,{reps:r,weight:w});cMo();hp();
-  if(_curWorkout){var w2=await A("GET","/api/workouts/"+_curWorkout.id);if(w2){_curWorkout=w2;document.getElementById("workout-view").innerHTML=_workoutDetailHtml(w2)}}
+  if(_curWorkout)await _refreshWorkoutView(_curWorkout.id);
 }
 
 async function removeExercise(wxid){
   if(!confirm("Remove exercise from this workout?"))return;
   await A("DELETE","/api/workout-exercises/"+wxid);hp("warn");
-  if(_curWorkout){var w=await A("GET","/api/workouts/"+_curWorkout.id);if(w){_curWorkout=w;document.getElementById("workout-view").innerHTML=_workoutDetailHtml(w)}}
+  if(_curWorkout)await _refreshWorkoutView(_curWorkout.id);
 }
 
 async function deleteWorkout(wid){
@@ -897,8 +1121,7 @@ async function svWorkoutMeta(wid){
   var notes=document.getElementById("ew-notes").value.trim();
   await A("PUT","/api/workouts/"+wid,{name:n||null,date:d,notes:notes||null});
   cMo();hp();
-  var w=await A("GET","/api/workouts/"+wid);
-  if(w){_curWorkout=w;document.getElementById("workout-view").innerHTML=_workoutDetailHtml(w)}
+  await _refreshWorkoutView(wid);
 }
 
 // Exercise picker — choose from catalog or create new
@@ -933,8 +1156,7 @@ function _filterExercises(q){
 async function addExToWorkout(wid,exId){
   await A("POST","/api/workouts/"+wid+"/exercises",{exercise_id:exId});
   cMo();hp("ok");
-  var w=await A("GET","/api/workouts/"+wid);
-  if(w){_curWorkout=w;document.getElementById("workout-view").innerHTML=_workoutDetailHtml(w)}
+  await _refreshWorkoutView(wid);
 }
 function newExercise(wid){
   oMC("New exercise",
@@ -1519,7 +1741,7 @@ var nInc=D.categories.filter(function(c){return c.type==="income"}).length;
 h+='<div class="sc">Categories</div><div class="c" onclick="openCatMgr()" style="cursor:pointer"><span style="font-size:20px">📂</span><div class="bd"><div class="tt">Manage Categories</div><div style="font-size:12px;color:var(--ht)">'+nExp+' expense · '+nInc+' income</div></div><span style="color:var(--ht);font-size:18px">›</span></div>';
 h+='<div class="sc">Integrations</div><div class="c" onclick="syncTrello()" style="cursor:pointer"><span style="font-size:20px">🔵</span><div class="bd"><div class="tt">Trello Sync</div><div style="font-size:12px;color:var(--ht)">Board: Работа</div></div><span id="trello-btn" style="padding:6px 14px;border-radius:10px;font-size:12px;font-weight:600;background:var(--pg);color:var(--pr);white-space:nowrap">Sync Now</span></div>';
 h+='<div class="sc">Debug</div><div class="c" style="cursor:pointer" onclick="dbgOn=!dbgOn;document.getElementById(\'dbg\').classList.toggle(\'hidden\',!dbgOn);ren()"><span style="font-size:20px">🐛</span><div class="bd"><div class="tt">Debug Mode '+(dbgOn?"ON":"OFF")+'</div></div></div>';
-h+='<div style="margin-top:8px;text-align:center;font-size:11px;color:var(--ht)">Family HQ v8.0</div>';return h}
+h+='<div style="margin-top:8px;text-align:center;font-size:11px;color:var(--ht)">Family HQ v8.1</div>';return h}
 async function setTh(id){aT(id);hp();await A("PATCH","/api/settings",{theme:id});ren()}
 function openThemePicker(){var h='<div class="tg">';Object.keys(TH).forEach(function(id){var t=TH[id];var sel=cTheme===id;h+='<div class="tc" onclick="setTh(\''+id+'\');cMo()" style="background:'+t.cd+';border:2px solid '+(sel?t.pr:t.bd)+'"><div class="te">'+t.e+'</div><div class="tn" style="color:'+t.tx+'">'+t.n+'</div><div class="td">'+[t.pr,t.ac,t.ok,t.wn].map(function(c){return '<div class="tdd" style="background:'+c+'"></div>'}).join("")+'</div></div>'});h+='</div>';oMC("Choose theme",h)}
 async function setDg(v){await A("PATCH","/api/settings",{digest_time:v});hp()}
@@ -1561,13 +1783,6 @@ switch(tab){
 case"tasks":
     if(taskTab==="recurring"){oMC("New Recurring Task",'<input class="inp" id="f-t" placeholder="Task name"><div class="lb">Assign to</div>'+assignPk("ap",null)+'<div class="lb">Schedule</div><div class="or"><button class="ob s" onclick="document.getElementById(\'rr\').value=\'daily\';this.parentNode.querySelectorAll(\'.ob\').forEach(function(b){b.classList.remove(\'s\')});this.classList.add(\'s\');document.getElementById(\'wd\').classList.add(\'hidden\');document.getElementById(\'md\').classList.add(\'hidden\')">Daily</button><button class="ob" onclick="document.getElementById(\'rr\').value=\'weekly:\';this.parentNode.querySelectorAll(\'.ob\').forEach(function(b){b.classList.remove(\'s\')});this.classList.add(\'s\');document.getElementById(\'wd\').classList.remove(\'hidden\');document.getElementById(\'md\').classList.add(\'hidden\')">Weekly</button><button class="ob" onclick="document.getElementById(\'rr\').value=\'monthly:\';this.parentNode.querySelectorAll(\'.ob\').forEach(function(b){b.classList.remove(\'s\')});this.classList.add(\'s\');document.getElementById(\'md\').classList.remove(\'hidden\');document.getElementById(\'wd\').classList.add(\'hidden\')">Monthly</button></div><input type="hidden" id="rr" value="daily"><div id="wd" class="hidden"><div class="lb">Days</div><div class="or">'+["mon","tue","wed","thu","fri","sat","sun"].map(function(d){return '<button class="ob" onclick="this.classList.toggle(\'s\')">'+d+'</button>'}).join("")+'</div></div><div id="md" class="hidden"><div class="lb">Day of month</div><input class="inp" id="f-md" type="number" min="1" max="28" value="1"></div><button class="btn" onclick="doRec()">Create</button>')}
     else{oMC("New Task",'<input class="inp" id="f-t" placeholder="What needs to be done?"><div class="lb">Assign to</div>'+assignPk("ap",null)+'<div class="lb">Priority</div><div class="or">'+["low","normal","high"].map(function(p){return '<button class="ob ob-pri-'+p+' '+(p==="normal"?"s":"")+'" onclick="_pri=\''+p+'\';this.parentNode.querySelectorAll(\'.ob\').forEach(function(b){b.classList.remove(\'s\')});this.classList.add(\'s\')">'+p[0].toUpperCase()+p.slice(1)+'</button>'}).join("")+'</div><div class="lb">Due Date</div><div class="dr"><div><input type="date" id="f-dd" min="'+dy+'"></div></div><div class="lb">Reminders</div><div id="rw">'+remPk()+'</div><button class="btn" onclick="doTk()">Add Task</button>')}break;
-case"trainings":
-    if(_trainMember!==null&&_trainMember!==_trainMyId()){
-        toast("Switch to your profile to start a workout");
-        return;
-    }
-    startTodayWorkout();
-    return;
 case"shop":
     // Enhanced: full form like edit
     var folderOpts='<button class="ob s" onclick="window._newShopFold=0;this.parentNode.querySelectorAll(\'.ob\').forEach(function(b){b.classList.remove(\'s\')});this.classList.add(\'s\')">None</button>';
