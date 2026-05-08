@@ -2,7 +2,8 @@
 🏠 Family HQ v5 — Backend API
 """
 import os, sqlite3, hashlib, hmac, json, logging, random, re
-from datetime import datetime
+from datetime import datetime, timedelta, date
+from calendar import monthrange
 from urllib.parse import parse_qs
 from contextlib import asynccontextmanager
 from zoneinfo import ZoneInfo
@@ -69,11 +70,12 @@ async def get_user(r: Request):
 
 async def get_uf(r: Request, db=Depends(get_db)):
     u = await get_user(r)
-    row = db.execute("SELECT family_id FROM family_members WHERE user_id=?", (u["id"],)).fetchone()
+    row = db.execute("SELECT family_id, photo_url FROM family_members WHERE user_id=?", (u["id"],)).fetchone()
     if not row: raise HTTPException(404, "Not in a family")
     u["family_id"] = row["family_id"]
-    if u.get("photo_url"):
-        db.execute("UPDATE family_members SET photo_url=? WHERE user_id=?", (u["photo_url"], u["id"])); db.commit()
+    new_photo = u.get("photo_url")
+    if new_photo and new_photo != row["photo_url"]:
+        db.execute("UPDATE family_members SET photo_url=? WHERE user_id=?", (new_photo, u["id"])); db.commit()
     return u
 
 # ─── Notify ──────────────────────────────────────────────────────────────
@@ -85,6 +87,28 @@ async def notify_all(fid, msg, db):
 # Coerce assigned_to / member_id / category_id / folder_id where 0 means "unassigned"
 _zero_to_none = lambda v: v if v != 0 else None
 _or_none = lambda v: v or None
+
+def _group_by(rows, key):
+    """Group sqlite Row objects into {key_value: [dict, ...]}."""
+    out = {}
+    for r in rows:
+        out.setdefault(r[key], []).append(dict(r))
+    return out
+
+# ─── Cleaning-zone "dirty" computation (shared by /api/dashboard, /api/cleaning/zones, /api/bundle) ──
+def _is_zone_dirty(tasks, today):
+    """Is a cleaning zone overdue? Tasks come from `cleaning_tasks` rows (dict)."""
+    for t in tasks:
+        if not t["done"] and not t.get("last_done"):
+            return True
+        if t["done"] and t.get("last_done"):
+            try:
+                if (today - datetime.strptime(t["last_done"], "%Y-%m-%d").date()).days >= (t.get("reset_days") or 7):
+                    return True
+            except: return True
+        elif not t["done"]:
+            return True
+    return False
 
 def _update_fields(db, table, where, where_params, body, mapping):
     """
@@ -268,21 +292,13 @@ def update_member(uid: int, body: MemberUpdate, user=Depends(get_uf), db=Depends
 @app.get("/api/dashboard")
 def dashboard(user=Depends(get_uf), db=Depends(get_db)):
     f = user["family_id"]
-    # Count dirty zones
+    # Count dirty zones (single query + Python grouping — no N+1)
     today = datetime.now(ZoneInfo(TIMEZONE)).date()
     zones_all = db.execute("SELECT id FROM cleaning_zones WHERE family_id=?", (f,)).fetchall()
-    cleaning_dirty = 0
-    for z in zones_all:
-        tasks = db.execute("SELECT done, last_done, reset_days FROM cleaning_tasks WHERE zone_id=? AND family_id=?", (z["id"], f)).fetchall()
-        zd = False
-        for t in tasks:
-            if not t["done"] and not t.get("last_done"): zd = True
-            elif t["done"] and t.get("last_done"):
-                try:
-                    if (today - datetime.strptime(t["last_done"], "%Y-%m-%d").date()).days >= (t.get("reset_days") or 7): zd = True
-                except: zd = True
-            elif not t["done"]: zd = True
-        if zd: cleaning_dirty += 1
+    by_zone = _group_by(db.execute(
+        "SELECT zone_id, done, last_done, reset_days FROM cleaning_tasks WHERE family_id=?", (f,)).fetchall(),
+        "zone_id")
+    cleaning_dirty = sum(1 for z in zones_all if _is_zone_dirty(by_zone.get(z["id"], []), today))
     total_ct = len(zones_all)
     return {
         "tasks_pending": db.execute("SELECT COUNT(*) c FROM tasks WHERE family_id=? AND done=0", (f,)).fetchone()["c"],
@@ -688,21 +704,16 @@ def del_tx_item(iid: int, user=Depends(get_uf), db=Depends(get_db)):
 # ═════════════════════════════════════════════════════════════════════════
 @app.get("/api/cleaning/zones")
 def list_zones(user=Depends(get_uf), db=Depends(get_db)):
-    zones = [dict(r) for r in db.execute("SELECT * FROM cleaning_zones WHERE family_id=? ORDER BY sort_order", (user["family_id"],)).fetchall()]
+    f = user["family_id"]
+    zones = [dict(r) for r in db.execute("SELECT * FROM cleaning_zones WHERE family_id=? ORDER BY sort_order", (f,)).fetchall()]
     today = datetime.now(ZoneInfo(TIMEZONE)).date()
+    # Single query each, group in Python (no N+1)
+    by_zone_tasks = _group_by(db.execute("SELECT * FROM cleaning_tasks WHERE family_id=? ORDER BY zone_id, id", (f,)).fetchall(), "zone_id")
+    by_zone_rems = _group_by(db.execute("SELECT id, zone_id, remind_at, sent FROM zone_reminders WHERE family_id=?", (f,)).fetchall(), "zone_id")
     for z in zones:
-        z["tasks"] = [dict(r) for r in db.execute("SELECT * FROM cleaning_tasks WHERE zone_id=? AND family_id=? ORDER BY id", (z["id"], user["family_id"])).fetchall()]
-        z["reminders"] = [dict(r) for r in db.execute("SELECT id, remind_at, sent FROM zone_reminders WHERE zone_id=? AND family_id=?", (z["id"], user["family_id"])).fetchall()]
-        # Zone is dirty if any task is overdue or never done
-        dirty = False
-        for t in z["tasks"]:
-            if not t["done"] and not t.get("last_done"): dirty = True
-            elif t["done"] and t.get("last_done"):
-                try:
-                    if (today - datetime.strptime(t["last_done"], "%Y-%m-%d").date()).days >= (t.get("reset_days") or 7): dirty = True
-                except: dirty = True
-            elif not t["done"]: dirty = True
-        z["dirty"] = dirty
+        z["tasks"] = by_zone_tasks.get(z["id"], [])
+        z["reminders"] = by_zone_rems.get(z["id"], [])
+        z["dirty"] = _is_zone_dirty(z["tasks"], today)
     return zones
 
 @app.post("/api/cleaning/zones")
@@ -886,7 +897,6 @@ def money_summary(month: str | None = None, user=Depends(get_uf), db=Depends(get
     now = datetime.now(ZoneInfo(TIMEZONE))
     cur_month = now.strftime("%Y-%m")
     # Validate & resolve month (YYYY-MM). Falls back to current if invalid/missing.
-    import re
     sel_month = cur_month
     if month and re.fullmatch(r"\d{4}-(0[1-9]|1[0-2])", month):
         sel_month = month
@@ -920,7 +930,6 @@ def money_summary(month: str | None = None, user=Depends(get_uf), db=Depends(get
         FROM category_limits cl JOIN categories c ON c.id=cl.category_id WHERE cl.family_id=?
     """, (sel_month+"%", f)).fetchall()]
     # This week spend (only meaningful for current month view)
-    from datetime import timedelta
     week_start = (now - timedelta(days=now.weekday())).strftime("%Y-%m-%d")
     week_exp = db.execute("SELECT COALESCE(SUM(amount_eur),0) s FROM transactions WHERE family_id=? AND type='expense' AND date>=?", (f, week_start)).fetchone()["s"] if is_current else 0
     return {
@@ -946,7 +955,6 @@ def del_limit(cid: int, user=Depends(get_uf), db=Depends(get_db)):
 # Profile stats
 @app.get("/api/profile/stats")
 def profile_stats(member_id: int | None = None, user=Depends(get_uf), db=Depends(get_db)):
-    from datetime import timedelta
     f = user["family_id"]
     now = datetime.now(ZoneInfo(TIMEZONE))
     today_str = now.strftime("%Y-%m-%d")
@@ -1006,17 +1014,14 @@ def profile_stats(member_id: int | None = None, user=Depends(get_uf), db=Depends
 # Calendar — month view items
 @app.get("/api/calendar")
 def calendar_items(month: str | None = None, user=Depends(get_uf), db=Depends(get_db)):
-    from datetime import timedelta
     f = user["family_id"]
     now = datetime.now(ZoneInfo(TIMEZONE))
     cur = now.strftime("%Y-%m")
-    import re as _re
     sel = cur
-    if month and _re.fullmatch(r"\d{4}-(0[1-9]|1[0-2])", month):
+    if month and re.fullmatch(r"\d{4}-(0[1-9]|1[0-2])", month):
         sel = month
     y, m = int(sel[:4]), int(sel[5:7])
     # Visible range: first Monday ≤ 1st of month, last Sunday ≥ last of month
-    from calendar import monthrange
     first_day = datetime(y, m, 1).date()
     _, mdays = monthrange(y, m)
     last_day = datetime(y, m, mdays).date()
@@ -1085,32 +1090,6 @@ def calendar_items(month: str | None = None, user=Depends(get_uf), db=Depends(ge
 # ═════════════════════════════════════════════════════════════════════════
 # BUNDLE (all data in one request)
 # ═════════════════════════════════════════════════════════════════════════
-def _calc_dirty(db, fid, tz):
-    today = datetime.now(ZoneInfo(tz)).date()
-    zones_all = db.execute("SELECT id FROM cleaning_zones WHERE family_id=?", (fid,)).fetchall()
-    dirty = 0
-    for z in zones_all:
-        tasks = [dict(t) for t in db.execute("SELECT done, last_done, reset_days FROM cleaning_tasks WHERE zone_id=? AND family_id=?", (z["id"], fid)).fetchall()]
-        zd = False
-        for t in tasks:
-            if not t["done"] and not t.get("last_done"): zd = True
-            elif t["done"] and t.get("last_done"):
-                try:
-                    if (today - datetime.strptime(t["last_done"], "%Y-%m-%d").date()).days >= (t.get("reset_days") or 7): zd = True
-                except: zd = True
-            elif not t["done"]: zd = True
-        if zd: dirty += 1
-    return dirty, len(zones_all)
-
-def _group_by(rows, key):
-    """Group sqlite Row objects into {key_value: [dict, ...]}."""
-    out = {}
-    for r in rows:
-        k = r[key]
-        out.setdefault(k, []).append(dict(r))
-    return out
-
-
 @app.get("/api/bundle")
 async def bundle(user=Depends(get_uf), db=Depends(get_db)):
     f = user["family_id"]
@@ -1234,20 +1213,8 @@ async def bundle(user=Depends(get_uf), db=Depends(get_db)):
     for z in zones:
         z["tasks"] = zone_tasks_grouped.get(z["id"], [])
         z["reminders"] = zone_reminders_grouped.get(z["id"], [])
-        dirty_z = False
-        for t in z["tasks"]:
-            if not t["done"] and not t.get("last_done"):
-                dirty_z = True
-            elif t["done"] and t.get("last_done"):
-                try:
-                    if (today - datetime.strptime(t["last_done"], "%Y-%m-%d").date()).days >= (t.get("reset_days") or 7):
-                        dirty_z = True
-                except:
-                    dirty_z = True
-            elif not t["done"]:
-                dirty_z = True
-        z["dirty"] = dirty_z
-        if dirty_z:
+        z["dirty"] = _is_zone_dirty(z["tasks"], today)
+        if z["dirty"]:
             dirty_cnt += 1
 
     # ─── Subtasks (one query covers both task + event parents) ───────────────
@@ -1305,8 +1272,10 @@ async def weather_endpoint():
     return w
 
 # ─── Debug & Serve ───────────────────────────────────────────────────────
+APP_VERSION = "v7.7"
+
 @app.get("/api/debug/ping")
-def ping(): return {"ok": True, "version": "v6.1", "time": datetime.now(ZoneInfo(TIMEZONE)).isoformat()}
+def ping(): return {"ok": True, "version": APP_VERSION, "time": datetime.now(ZoneInfo(TIMEZONE)).isoformat()}
 
 FRONTEND_DIR = os.path.join(os.path.dirname(__file__), "..", "frontend")
 

@@ -2,8 +2,8 @@
 🤖 Family HQ Bot — AI-powered Telegram assistant.
 Parses natural language via Claude Haiku to create expenses, income, tasks, shopping items.
 """
-import os, json, logging, sqlite3, base64
-from datetime import datetime
+import os, json, logging, sqlite3, base64, html
+from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 from telegram import Update, WebAppInfo, MenuButtonWebApp, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
@@ -165,7 +165,7 @@ def _get_existing_data(family_id):
 
 
 async def _notify_other(family_id, exclude_chat_id, text):
-    """Notify other family members."""
+    """Notify other family members. text is HTML (use html.escape on user data)."""
     con = _db()
     members = con.execute(
         "SELECT tg_chat_id FROM family_members WHERE family_id=? AND tg_chat_id IS NOT NULL AND tg_chat_id!=?",
@@ -175,7 +175,8 @@ async def _notify_other(family_id, exclude_chat_id, text):
         try:
             await _http().post(
                 f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage",
-                json={"chat_id": m["tg_chat_id"], "text": text, "parse_mode": "Markdown"},
+                json={"chat_id": m["tg_chat_id"], "text": text, "parse_mode": "HTML",
+                      "disable_web_page_preview": True},
                 timeout=10)
         except:
             pass
@@ -274,7 +275,6 @@ async def _ask_claude(message: str, family_id: int) -> dict | None:
     now = datetime.now(ZoneInfo(TIMEZONE))
     today = now.strftime("%Y-%m-%d")
     weekday = now.strftime("%A")  # e.g. "Sunday"
-    from datetime import timedelta
     tomorrow = (now + timedelta(days=1)).strftime("%Y-%m-%d")
     yesterday = (now - timedelta(days=1)).strftime("%Y-%m-%d")
 
@@ -336,6 +336,7 @@ async def _ask_claude(message: str, family_id: int) -> dict | None:
 
 async def _do_expense(data: dict, family_id: int, user_id: int, user_name: str, chat_id: int) -> str:
     """Create an expense transaction."""
+    e = html.escape
     con = _db()
     amount = data["amount"]
     currency = data.get("currency", "RSD")
@@ -360,24 +361,26 @@ async def _do_expense(data: dict, family_id: int, user_id: int, user_name: str, 
                 "INSERT INTO transaction_items (transaction_id,family_id,name,quantity,amount,currency) VALUES (?,?,?,?,?,?)",
                 (tx_id, family_id, it.get("name", ""), it.get("quantity", 1), it.get("amount", 0), currency))
         con.commit()
-        items_str = "\n🧾 *Receipt:*\n" + "\n".join(
-            f"  • {it.get('name', '')} ×{it.get('quantity', 1)} — {it.get('quantity', 1) * it.get('amount', 0):.0f} {currency}" for it in items)
+        items_str = "\n🧾 <b>Receipt:</b>\n" + "\n".join(
+            f"  • {e(it.get('name', ''))} ×{it.get('quantity', 1)} — {it.get('quantity', 1) * it.get('amount', 0):.0f} {e(currency)}" for it in items)
 
     # Format reply
     cat_str = ""
     if cat_id:
         cat = con.execute("SELECT emoji, name FROM categories WHERE id=?", (cat_id,)).fetchone()
         if cat:
-            cat_str = f"\n📂 {cat['emoji']} {cat['name']}"
+            cat_str = f"\n📂 {cat['emoji']} {e(cat['name'])}"
     con.close()
 
-    reply = f"💸 *Expense: {amount} {currency}*{cat_str}\n🏷 {desc}\n📅 {date}{items_str}" if desc else f"💸 *Expense: {amount} {currency}*{cat_str}\n📅 {date}{items_str}"
-    await _notify_other(family_id, chat_id, f"💸 *{user_name}*: {amount} {currency}{(' — ' + desc) if desc else ''}")
+    head = f"💸 <b>Expense: {amount} {e(currency)}</b>{cat_str}"
+    reply = f"{head}\n🏷 {e(desc)}\n📅 {date}{items_str}" if desc else f"{head}\n📅 {date}{items_str}"
+    await _notify_other(family_id, chat_id, f"💸 <b>{e(user_name)}</b>: {amount} {e(currency)}{(' — ' + e(desc)) if desc else ''}")
     return reply
 
 
 async def _do_income(data: dict, family_id: int, user_id: int, user_name: str, chat_id: int) -> str:
     """Create an income transaction."""
+    e = html.escape
     con = _db()
     amount = data["amount"]
     currency = data.get("currency", "RSD")
@@ -396,16 +399,18 @@ async def _do_income(data: dict, family_id: int, user_id: int, user_name: str, c
     if cat_id:
         cat = con.execute("SELECT emoji, name FROM categories WHERE id=?", (cat_id,)).fetchone()
         if cat:
-            cat_str = f"\n📂 {cat['emoji']} {cat['name']}"
+            cat_str = f"\n📂 {cat['emoji']} {e(cat['name'])}"
     con.close()
 
-    reply = f"💰 *Income: {amount} {currency}*{cat_str}\n🏷 {desc}\n📅 {date}" if desc else f"💰 *Income: {amount} {currency}*{cat_str}\n📅 {date}"
-    await _notify_other(family_id, chat_id, f"💰 *{user_name}*: {amount} {currency}{(' — ' + desc) if desc else ''}")
+    head = f"💰 <b>Income: {amount} {e(currency)}</b>{cat_str}"
+    reply = f"{head}\n🏷 {e(desc)}\n📅 {date}" if desc else f"{head}\n📅 {date}"
+    await _notify_other(family_id, chat_id, f"💰 <b>{e(user_name)}</b>: {amount} {e(currency)}{(' — ' + e(desc)) if desc else ''}")
     return reply
 
 
 async def _do_task(data: dict, family_id: int, user_name: str, chat_id: int) -> str:
     """Create a task."""
+    e = html.escape
     con = _db()
     text = data["text"]
     due = data.get("due_date")
@@ -418,18 +423,19 @@ async def _do_task(data: dict, family_id: int, user_name: str, chat_id: int) -> 
     con.commit()
     con.close()
 
-    parts = [f"📋 *Task added: {text}*"]
+    parts = [f"📋 <b>Task added: {e(text)}</b>"]
     if due:
-        parts.append(f"📅 {due}")
+        parts.append(f"📅 {e(due)}")
     if priority != "normal":
-        parts.append(f"⚡ {priority}")
+        parts.append(f"⚡ {e(priority)}")
 
-    await _notify_other(family_id, chat_id, f"📋 *{user_name}* added task: *{text}*")
+    await _notify_other(family_id, chat_id, f"📋 <b>{e(user_name)}</b> added task: <b>{e(text)}</b>")
     return "\n".join(parts)
 
 
 async def _do_recurring_task(data: dict, family_id: int, user_name: str, chat_id: int) -> str:
     """Create a recurring task."""
+    e = html.escape
     con = _db()
     text = data["text"]
     rrule = data.get("rrule", "daily")
@@ -452,12 +458,13 @@ async def _do_recurring_task(data: dict, family_id: int, user_name: str, chat_id
     else:
         sched_str = rrule
 
-    await _notify_other(family_id, chat_id, f"🔁 *{user_name}* added recurring: *{text}* ({sched_str})")
-    return f"🔁 *Recurring task added: {text}*\n🗓 {sched_str}"
+    await _notify_other(family_id, chat_id, f"🔁 <b>{e(user_name)}</b> added recurring: <b>{e(text)}</b> ({e(sched_str)})")
+    return f"🔁 <b>Recurring task added: {e(text)}</b>\n🗓 {e(sched_str)}"
 
 
 async def _do_shopping(data: dict, family_id: int, user_name: str, chat_id: int) -> str:
     """Add shopping items."""
+    e = html.escape
     con = _db()
     items = data.get("items", [])
     folder_id = data.get("folder_id")
@@ -470,11 +477,12 @@ async def _do_shopping(data: dict, family_id: int, user_name: str, chat_id: int)
     con.close()
 
     names = ", ".join(items)
-    await _notify_other(family_id, chat_id, f"🛒 *{user_name}* added: *{names}*")
-    return f"🛒 *Added to shopping:*\n" + "\n".join(f"  • {i}" for i in items)
+    await _notify_other(family_id, chat_id, f"🛒 <b>{e(user_name)}</b> added: <b>{e(names)}</b>")
+    return "🛒 <b>Added to shopping:</b>\n" + "\n".join(f"  • {e(i)}" for i in items)
 
 
 async def _do_edit_task(data: dict, family_id: int, user_name: str, chat_id: int) -> str:
+    e = html.escape
     con = _db()
     tid = data["id"]
     if not con.execute("SELECT 1 FROM tasks WHERE id=? AND family_id=?", (tid, family_id)).fetchone():
@@ -485,10 +493,10 @@ async def _do_edit_task(data: dict, family_id: int, user_name: str, chat_id: int
         con.commit()
     new_task = con.execute("SELECT text, due_date, priority FROM tasks WHERE id=?", (tid,)).fetchone()
     con.close()
-    parts = [f"✏️ *Task updated: {new_task['text']}*"]
-    if new_task["due_date"]: parts.append(f"📅 {new_task['due_date']}")
-    if new_task["priority"] != "normal": parts.append(f"⚡ {new_task['priority']}")
-    await _notify_other(family_id, chat_id, f"✏️ *{user_name}* updated task: *{new_task['text']}*")
+    parts = [f"✏️ <b>Task updated: {e(new_task['text'])}</b>"]
+    if new_task["due_date"]: parts.append(f"📅 {e(new_task['due_date'])}")
+    if new_task["priority"] != "normal": parts.append(f"⚡ {e(new_task['priority'])}")
+    await _notify_other(family_id, chat_id, f"✏️ <b>{e(user_name)}</b> updated task: <b>{e(new_task['text'])}</b>")
     return "\n".join(parts)
 
 
@@ -504,11 +512,12 @@ async def _do_toggle_task(data: dict, family_id: int, user_name: str, chat_id: i
     con.commit()
     con.close()
 
+    e = html.escape
     if new_done:
-        await _notify_other(family_id, chat_id, f"✅ *{user_name}* completed: *{task['text']}*")
-        return f"✅ *Completed: {task['text']}*"
+        await _notify_other(family_id, chat_id, f"✅ <b>{e(user_name)}</b> completed: <b>{e(task['text'])}</b>")
+        return f"✅ <b>Completed: {e(task['text'])}</b>"
     else:
-        return f"🔄 *Reopened: {task['text']}*"
+        return f"🔄 <b>Reopened: {e(task['text'])}</b>"
 
 
 async def _do_edit_transaction(data: dict, family_id: int, user_name: str, chat_id: int) -> str:
@@ -527,10 +536,11 @@ async def _do_edit_transaction(data: dict, family_id: int, user_name: str, chat_
         "SELECT t.*, c.emoji, c.name as cat_name FROM transactions t LEFT JOIN categories c ON c.id=t.category_id WHERE t.id=?",
         (tid,)).fetchone()
     con.close()
-    cat_str = f"\n📂 {updated['emoji']} {updated['cat_name']}" if updated["cat_name"] else ""
-    desc_str = f"\n🏷 {updated['description']}" if updated["description"] else ""
+    e = html.escape
+    cat_str = f"\n📂 {updated['emoji']} {e(updated['cat_name'])}" if updated["cat_name"] else ""
+    desc_str = f"\n🏷 {e(updated['description'])}" if updated["description"] else ""
     sign = "💸" if updated["type"] == "expense" else "💰"
-    return f"✏️ *Transaction updated:*\n{sign} {updated['amount']} {updated['currency']}{cat_str}{desc_str}\n📅 {updated['date']}"
+    return f"✏️ <b>Transaction updated:</b>\n{sign} {updated['amount']} {e(updated['currency'])}{cat_str}{desc_str}\n📅 {e(updated['date'])}"
 
 
 async def _do_edit_shopping(data: dict, family_id: int, user_name: str, chat_id: int) -> str:
@@ -544,9 +554,10 @@ async def _do_edit_shopping(data: dict, family_id: int, user_name: str, chat_id:
         con.commit()
     updated = con.execute("SELECT * FROM shopping WHERE id=?", (sid,)).fetchone()
     con.close()
-    price_str = f" — {updated['price']} {updated['currency'] or 'RSD'}" if updated["price"] else ""
-    qty_str = f" x{updated['quantity']}" if updated["quantity"] else ""
-    return f"✏️ *Shopping updated: {updated['item']}*{qty_str}{price_str}"
+    e = html.escape
+    price_str = f" — {updated['price']} {e(updated['currency'] or 'RSD')}" if updated["price"] else ""
+    qty_str = f" x{e(str(updated['quantity']))}" if updated["quantity"] else ""
+    return f"✏️ <b>Shopping updated: {e(updated['item'])}</b>{qty_str}{price_str}"
 
 
 async def _do_edit_event(data: dict, family_id: int, user_name: str, chat_id: int) -> str:
@@ -560,9 +571,10 @@ async def _do_edit_event(data: dict, family_id: int, user_name: str, chat_id: in
         con.commit()
     updated = con.execute("SELECT * FROM events WHERE id=?", (eid,)).fetchone()
     con.close()
-    end_str = f" → {updated['end_date']}" if updated["end_date"] else ""
-    await _notify_other(family_id, chat_id, f"✏️ *{user_name}* updated event: *{updated['text']}*")
-    return f"✏️ *Event updated: {updated['text']}*\n📅 {updated['event_date']}{end_str}"
+    e = html.escape
+    end_str = f" → {e(updated['end_date'])}" if updated["end_date"] else ""
+    await _notify_other(family_id, chat_id, f"✏️ <b>{e(user_name)}</b> updated event: <b>{e(updated['text'])}</b>")
+    return f"✏️ <b>Event updated: {e(updated['text'])}</b>\n📅 {e(updated['event_date'])}{end_str}"
 
 
 async def _do_edit_sub(data: dict, family_id: int, user_name: str, chat_id: int) -> str:
@@ -582,7 +594,8 @@ async def _do_edit_sub(data: dict, family_id: int, user_name: str, chat_id: int)
         con.commit()
     updated = con.execute("SELECT * FROM subscriptions WHERE id=?", (sid,)).fetchone()
     con.close()
-    return f"✏️ *Subscription updated: {updated['emoji']} {updated['name']}*\n💰 {updated['amount']} {updated['currency']} — day {updated['billing_day']}"
+    e = html.escape
+    return f"✏️ <b>Subscription updated: {updated['emoji']} {e(updated['name'])}</b>\n💰 {updated['amount']} {e(updated['currency'])} — day {updated['billing_day']}"
 
 
 async def _do_delete(data: dict, family_id: int, user_name: str, chat_id: int) -> str:
@@ -624,10 +637,9 @@ async def _do_delete(data: dict, family_id: int, user_name: str, chat_id: int) -
     con.commit()
     con.close()
 
-    emoji_map = {"task": "📋", "transaction": "💸", "shopping": "🛒", "event": "📅", "birthday": "🎂", "subscription": "💳"}
-    e = emoji_map.get(item_type, "🗑")
-    await _notify_other(family_id, chat_id, f"🗑 *{user_name}* deleted {item_type}: *{name}*")
-    return f"🗑 *Deleted {item_type}: {name}*"
+    esc = html.escape
+    await _notify_other(family_id, chat_id, f"🗑 <b>{esc(user_name)}</b> deleted {esc(item_type)}: <b>{esc(name)}</b>")
+    return f"🗑 <b>Deleted {esc(item_type)}: {esc(name)}</b>"
 
 
 def _get_status(family_id: int) -> str:
@@ -647,12 +659,12 @@ def _get_status(family_id: int) -> str:
     con.close()
 
     return (
-        f"📊 *Family Status*\n\n"
-        f"📋 Active tasks: *{tasks}*\n"
-        f"🛒 Shopping items: *{shop}*\n"
-        f"💸 Expenses (this month): *€{expenses:.2f}*\n"
-        f"💰 Income (this month): *€{income:.2f}*\n"
-        f"💎 Balance: *€{income - expenses:.2f}*"
+        f"📊 <b>Family Status</b>\n\n"
+        f"📋 Active tasks: <b>{tasks}</b>\n"
+        f"🛒 Shopping items: <b>{shop}</b>\n"
+        f"💸 Expenses (this month): <b>€{expenses:.2f}</b>\n"
+        f"💰 Income (this month): <b>€{income:.2f}</b>\n"
+        f"💎 Balance: <b>€{income - expenses:.2f}</b>"
     )
 
 
@@ -682,27 +694,27 @@ async def cmd_start(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         "✅ Tasks and reminders\n"
         "📊 Budget status\n\n"
         "Just type naturally! For example:\n"
-        "• _spent 2000 din at Lidl_\n"
-        "• _add milk and bread to shopping_\n"
-        "• _salary 1500 eur_\n"
-        "• _task: buy birthday gift_\n"
-        "• _status_\n"
-        "• 📷 Send a *receipt photo* to scan it!",
-        reply_markup=kb, parse_mode="Markdown")
+        "• <i>spent 2000 din at Lidl</i>\n"
+        "• <i>add milk and bread to shopping</i>\n"
+        "• <i>salary 1500 eur</i>\n"
+        "• <i>task: buy birthday gift</i>\n"
+        "• <i>status</i>\n"
+        "• 📷 Send a <b>receipt photo</b> to scan it!",
+        reply_markup=kb, parse_mode="HTML")
 
 
 async def cmd_help(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
-        "📖 *How to use Family HQ Bot:*\n\n"
-        "💸 *Expenses:* \"spent 500 din on food\"\n"
-        "💰 *Income:* \"got paid 1500 eur\"\n"
-        "🛒 *Shopping:* \"add milk, eggs to shopping\"\n"
-        "📋 *Tasks:* \"task: call dentist tomorrow\"\n"
-        "🔁 *Recurring:* \"every wed and thu study Russian\"\n"
-        "📷 *Receipt:* send a photo of your receipt!\n"
-        "📊 *Status:* \"status\"\n\n"
+        "📖 <b>How to use Family HQ Bot:</b>\n\n"
+        "💸 <b>Expenses:</b> \"spent 500 din on food\"\n"
+        "💰 <b>Income:</b> \"got paid 1500 eur\"\n"
+        "🛒 <b>Shopping:</b> \"add milk, eggs to shopping\"\n"
+        "📋 <b>Tasks:</b> \"task: call dentist tomorrow\"\n"
+        "🔁 <b>Recurring:</b> \"every wed and thu study Russian\"\n"
+        "📷 <b>Receipt:</b> send a photo of your receipt!\n"
+        "📊 <b>Status:</b> \"status\"\n\n"
         "Works in English and Russian!",
-        parse_mode="Markdown")
+        parse_mode="HTML")
 
 
 RECEIPT_PROMPT = """You are a receipt parser for a family in Belgrade, Serbia. Extract ALL items from this receipt/screenshot.
@@ -848,11 +860,12 @@ async def handle_photo(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     con.commit()
 
     # Format reply
+    e = html.escape
     cat_str = ""
     if cat_id:
         cat = con.execute("SELECT emoji, name FROM categories WHERE id=?", (cat_id,)).fetchone()
         if cat:
-            cat_str = f"\n📂 {cat['emoji']} {cat['name']}"
+            cat_str = f"\n📂 {cat['emoji']} {e(cat['name'])}"
     con.close()
 
     items_str = ""
@@ -863,12 +876,12 @@ async def handle_photo(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
             amt = it.get("amount", 0)
             line_total = qty * amt
             qty_str = f" ×{qty}" if qty > 1 else ""
-            lines.append(f"  • {it.get('name', '')}{qty_str} — {line_total:.0f} {currency}")
-        items_str = "\n🧾 *Receipt:*\n" + "\n".join(lines)
+            lines.append(f"  • {e(it.get('name', ''))}{qty_str} — {line_total:.0f} {e(currency)}")
+        items_str = "\n🧾 <b>Receipt:</b>\n" + "\n".join(lines)
 
-    reply = f"💸 *Expense: {total} {currency}*{cat_str}\n🏷 {desc}\n📅 {today}{items_str}"
-    await _notify_other(fid, chat_id, f"💸 *{user_name}*: {total} {currency}{(' — ' + desc) if desc else ''}")
-    await update.message.reply_text(reply, parse_mode="Markdown")
+    reply = f"💸 <b>Expense: {total} {e(currency)}</b>{cat_str}\n🏷 {e(desc)}\n📅 {e(today)}{items_str}"
+    await _notify_other(fid, chat_id, f"💸 <b>{e(user_name)}</b>: {total} {e(currency)}{(' — ' + e(desc)) if desc else ''}")
+    await update.message.reply_text(reply, parse_mode="HTML")
 
 
 async def _transcribe_voice(file_bytes: bytes) -> str | None:
@@ -888,6 +901,40 @@ async def _transcribe_voice(file_bytes: bytes) -> str | None:
     except Exception as e:
         log.error(f"Whisper transcription error: {e}")
         return None
+
+
+# ─── Action dispatch (shared by handle_message + handle_voice) ──────────
+ACTION_HANDLERS = {
+    "expense": lambda d, fid, uid, name, cid: _do_expense(d, fid, uid, name, cid),
+    "income": lambda d, fid, uid, name, cid: _do_income(d, fid, uid, name, cid),
+    "task": lambda d, fid, uid, name, cid: _do_task(d, fid, name, cid),
+    "recurring_task": lambda d, fid, uid, name, cid: _do_recurring_task(d, fid, name, cid),
+    "shopping": lambda d, fid, uid, name, cid: _do_shopping(d, fid, name, cid),
+    "edit_task": lambda d, fid, uid, name, cid: _do_edit_task(d, fid, name, cid),
+    "toggle_task": lambda d, fid, uid, name, cid: _do_toggle_task(d, fid, name, cid),
+    "edit_transaction": lambda d, fid, uid, name, cid: _do_edit_transaction(d, fid, name, cid),
+    "edit_shopping": lambda d, fid, uid, name, cid: _do_edit_shopping(d, fid, name, cid),
+    "edit_event": lambda d, fid, uid, name, cid: _do_edit_event(d, fid, name, cid),
+    "edit_sub": lambda d, fid, uid, name, cid: _do_edit_sub(d, fid, name, cid),
+    "delete": lambda d, fid, uid, name, cid: _do_delete(d, fid, name, cid),
+}
+
+async def _dispatch_actions(actions: list, fid: int, uid: int, user_name: str, chat_id: int) -> list[str]:
+    """Run each action, gather reply strings. Status is sync; rest are coroutines."""
+    replies = []
+    for item in actions:
+        action = item.get("action", "unknown")
+        try:
+            if action == "status":
+                replies.append(_get_status(fid))
+            elif action in ACTION_HANDLERS:
+                replies.append(await ACTION_HANDLERS[action](item, fid, uid, user_name, chat_id))
+            else:
+                replies.append(html.escape(item.get("reply", "Я могу помочь с расходами, задачами, покупками и событиями. Просто напиши!")))
+        except Exception as ex:
+            log.error(f"Action {action} failed: {ex}")
+            replies.append(f"⚠️ Error: {html.escape(str(ex))}")
+    return replies
 
 
 async def handle_voice(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
@@ -930,7 +977,7 @@ async def handle_voice(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         return
 
     # Show what we heard
-    await update.message.reply_text(f"🎤 _{text}_", parse_mode="Markdown")
+    await update.message.reply_text(f"🎤 <i>{html.escape(text)}</i>", parse_mode="HTML")
     await update.effective_chat.send_action("typing")
 
     # Process with Claude AI (same as text messages)
@@ -944,43 +991,8 @@ async def handle_voice(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("Sorry, I couldn't understand that. Try again!")
         return
 
-    replies = []
-    for item in actions:
-        action = item.get("action", "unknown")
-        try:
-            if action == "expense":
-                replies.append(await _do_expense(item, fid, uid, user_name, chat_id))
-            elif action == "income":
-                replies.append(await _do_income(item, fid, uid, user_name, chat_id))
-            elif action == "task":
-                replies.append(await _do_task(item, fid, user_name, chat_id))
-            elif action == "recurring_task":
-                replies.append(await _do_recurring_task(item, fid, user_name, chat_id))
-            elif action == "shopping":
-                replies.append(await _do_shopping(item, fid, user_name, chat_id))
-            elif action == "status":
-                replies.append(_get_status(fid))
-            elif action == "edit_task":
-                replies.append(await _do_edit_task(item, fid, user_name, chat_id))
-            elif action == "toggle_task":
-                replies.append(await _do_toggle_task(item, fid, user_name, chat_id))
-            elif action == "edit_transaction":
-                replies.append(await _do_edit_transaction(item, fid, user_name, chat_id))
-            elif action == "edit_shopping":
-                replies.append(await _do_edit_shopping(item, fid, user_name, chat_id))
-            elif action == "edit_event":
-                replies.append(await _do_edit_event(item, fid, user_name, chat_id))
-            elif action == "edit_sub":
-                replies.append(await _do_edit_sub(item, fid, user_name, chat_id))
-            elif action == "delete":
-                replies.append(await _do_delete(item, fid, user_name, chat_id))
-            else:
-                replies.append(item.get("reply", "Я могу помочь с расходами, задачами, покупками и событиями. Просто напиши!"))
-        except Exception as e:
-            log.error(f"Voice action {action} failed: {e}")
-            replies.append(f"⚠️ Error: {e}")
-
-    await update.message.reply_text("\n\n".join(replies), parse_mode="Markdown")
+    replies = await _dispatch_actions(actions, fid, uid, user_name, chat_id)
+    await update.message.reply_text("\n\n".join(replies), parse_mode="HTML")
 
 
 async def handle_message(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
@@ -1021,43 +1033,8 @@ async def handle_message(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("Sorry, I couldn't understand that. Try again!")
         return
 
-    replies = []
-    for item in actions:
-        action = item.get("action", "unknown")
-        try:
-            if action == "expense":
-                replies.append(await _do_expense(item, fid, uid, user_name, chat_id))
-            elif action == "income":
-                replies.append(await _do_income(item, fid, uid, user_name, chat_id))
-            elif action == "task":
-                replies.append(await _do_task(item, fid, user_name, chat_id))
-            elif action == "recurring_task":
-                replies.append(await _do_recurring_task(item, fid, user_name, chat_id))
-            elif action == "shopping":
-                replies.append(await _do_shopping(item, fid, user_name, chat_id))
-            elif action == "status":
-                replies.append(_get_status(fid))
-            elif action == "edit_task":
-                replies.append(await _do_edit_task(item, fid, user_name, chat_id))
-            elif action == "toggle_task":
-                replies.append(await _do_toggle_task(item, fid, user_name, chat_id))
-            elif action == "edit_transaction":
-                replies.append(await _do_edit_transaction(item, fid, user_name, chat_id))
-            elif action == "edit_shopping":
-                replies.append(await _do_edit_shopping(item, fid, user_name, chat_id))
-            elif action == "edit_event":
-                replies.append(await _do_edit_event(item, fid, user_name, chat_id))
-            elif action == "edit_sub":
-                replies.append(await _do_edit_sub(item, fid, user_name, chat_id))
-            elif action == "delete":
-                replies.append(await _do_delete(item, fid, user_name, chat_id))
-            else:
-                replies.append(item.get("reply", "Я могу помочь с расходами, задачами, покупками и событиями. Просто напиши!"))
-        except Exception as e:
-            log.error(f"Action {action} failed: {e}")
-            replies.append(f"⚠️ Error: {e}")
-
-    await update.message.reply_text("\n\n".join(replies), parse_mode="Markdown")
+    replies = await _dispatch_actions(actions, fid, uid, user_name, chat_id)
+    await update.message.reply_text("\n\n".join(replies), parse_mode="HTML")
 
 
 def main():
