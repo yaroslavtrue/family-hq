@@ -712,6 +712,7 @@ async def cmd_help(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         "📋 <b>Tasks:</b> \"task: call dentist tomorrow\"\n"
         "🔁 <b>Recurring:</b> \"every wed and thu study Russian\"\n"
         "📷 <b>Receipt:</b> send a photo of your receipt!\n"
+        "🏋️ <b>Exercise image:</b> photo with caption <i>exercise: bench press</i>\n"
         "📊 <b>Status:</b> \"status\"\n\n"
         "Works in English and Russian!",
         parse_mode="HTML")
@@ -793,8 +794,47 @@ async def _parse_receipt_image(image_bytes: bytes, family_id: int) -> dict | Non
         return None
 
 
+EXERCISE_IMG_DIR = os.environ.get("EXERCISE_IMG_DIR", "/data/exercise_images")
+import re as _re
+_EXERCISE_CAPTION_RE = _re.compile(r"^(?:exercise|упражнение)\s*[:\-]?\s*(.+)$", _re.IGNORECASE)
+
+async def _save_exercise_image(update, ctx, fid: int, user_name: str, ex_name: str):
+    """Match exercise by case-insensitive name, download photo, save to disk, update image_url."""
+    e = html.escape
+    con = _db()
+    ex = con.execute(
+        "SELECT id, name, emoji FROM exercises WHERE family_id=? AND LOWER(name)=LOWER(?)",
+        (fid, ex_name.strip())).fetchone()
+    if not ex:
+        # Try fuzzy: contains
+        ex = con.execute(
+            "SELECT id, name, emoji FROM exercises WHERE family_id=? AND LOWER(name) LIKE LOWER(?) LIMIT 1",
+            (fid, "%" + ex_name.strip() + "%")).fetchone()
+    if not ex:
+        con.close()
+        await update.message.reply_text(
+            f"❌ Exercise <b>{e(ex_name)}</b> not found. Create it in the app first.",
+            parse_mode="HTML")
+        return
+    photo = update.message.photo[-1]
+    file = await ctx.bot.get_file(photo.file_id)
+    img_bytes = await file.download_as_bytearray()
+    os.makedirs(EXERCISE_IMG_DIR, exist_ok=True)
+    fn = f"{ex['id']}.jpg"
+    with open(os.path.join(EXERCISE_IMG_DIR, fn), "wb") as f:
+        f.write(bytes(img_bytes))
+    img_url = f"/api/exercise-images/{fn}"
+    con.execute("UPDATE exercises SET image_url=? WHERE id=?", (img_url, ex["id"]))
+    con.commit()
+    con.close()
+    await update.message.reply_text(
+        f"📸 Image saved for {ex['emoji'] or '💪'} <b>{e(ex['name'])}</b>",
+        parse_mode="HTML")
+
+
 async def handle_photo(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
-    """Handle photo messages — parse receipts with Claude Vision."""
+    """Handle photo messages — exercise image upload (caption 'exercise: <name>')
+    or receipt scanning via Claude Vision."""
     if not update.message or not update.message.photo:
         return
 
@@ -810,6 +850,13 @@ async def handle_photo(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     fid, user_name, uid = _get_family(user_id)
     if not fid:
         await update.message.reply_text("You're not in a family yet. Open the app first!")
+        return
+
+    # Route: caption "exercise: bench press" → save as exercise image
+    caption = (update.message.caption or "").strip()
+    m = _EXERCISE_CAPTION_RE.match(caption)
+    if m:
+        await _save_exercise_image(update, ctx, fid, user_name, m.group(1))
         return
 
     if not ANTHROPIC_API_KEY:

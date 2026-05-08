@@ -1051,10 +1051,17 @@ function _exerciseBlock(wx){
     });
     h+='</div>';
   }
-  // Add set form (inline)
-  // Pre-fill with last set's reps/weight if any
-  var lastReps=sets.length?sets[sets.length-1].reps:8;
-  var lastWeight=sets.length?sets[sets.length-1].weight:0;
+  // Add set form (inline) — pre-fill priority: last set in current → last_session (prior workout) → defaults
+  var lastReps,lastWeight,prefillHint='';
+  if(sets.length){
+    lastReps=sets[sets.length-1].reps;lastWeight=sets[sets.length-1].weight;
+  }else if(wx.last_session){
+    lastReps=wx.last_session.reps;lastWeight=wx.last_session.weight;
+    prefillHint='<div style="font-size:10px;color:var(--ht);margin-bottom:4px">Last time ('+(fD(wx.last_session.date).date||"")+'): '+wx.last_session.reps+' × '+wx.last_session.weight+' kg</div>';
+  }else{
+    lastReps=8;lastWeight=0;
+  }
+  h+=prefillHint;
   h+='<div style="display:flex;gap:6px;align-items:center">';
   h+='<input class="inp" type="number" min="1" id="set-reps-'+wx.id+'" value="'+lastReps+'" placeholder="reps" style="flex:1;padding:8px;font-size:13px">';
   h+='<span style="color:var(--ht);font-size:11px">×</span>';
@@ -1230,13 +1237,13 @@ async function openTrainStats(){
     });
     h+='</div>';
   }
-  // Top exercises
+  // Top exercises (tappable → progression chart)
   if(s.top_exercises&&s.top_exercises.length){
-    h+='<div class="sc">Top this month</div>';
+    h+='<div class="sc">Top this month <span style="font-weight:400;color:var(--ht);font-size:11px">· tap for progression</span></div>';
     var maxT=s.top_exercises[0].tonnage||1;
     s.top_exercises.forEach(function(t){
       var pct=Math.max(2,t.tonnage/maxT*100);
-      h+='<div style="margin-bottom:8px"><div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:3px"><span>'+t.emoji+' '+es(t.name)+'</span><span style="font-weight:700">'+_fmtTon(t.tonnage)+'</span></div><div style="height:6px;background:var(--bd);border-radius:3px"><div style="height:100%;width:'+pct+'%;background:var(--pr);border-radius:3px"></div></div></div>';
+      h+='<div style="margin-bottom:8px;cursor:pointer" onclick="openExerciseProgression('+t.id+')"><div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:3px"><span>'+t.emoji+' '+es(t.name)+'</span><span style="font-weight:700">'+_fmtTon(t.tonnage)+'</span></div><div style="height:6px;background:var(--bd);border-radius:3px"><div style="height:100%;width:'+pct+'%;background:var(--pr);border-radius:3px"></div></div></div>';
     });
   }
   // Personal records
@@ -1248,6 +1255,57 @@ async function openTrainStats(){
     });
   }
   oMC("📊 Progress",h);
+}
+
+// Per-exercise progression chart
+async function openExerciseProgression(eid){
+  var q=_trainMember?("?member_id="+_trainMember):"";
+  var r=await A("GET","/api/exercises/"+eid+"/progression"+q);
+  if(!r||!r.points){toast("No data");return}
+  var ex=r.exercise,pts=r.points;
+  var h='';
+  // Header card
+  if(ex.image_url)h+='<div style="text-align:center;margin-bottom:12px"><img src="'+ex.image_url+'" style="max-width:100%;max-height:180px;border-radius:12px;object-fit:cover" onerror="this.style.display=\'none\'"></div>';
+  if(!pts.length){
+    h+='<div style="text-align:center;padding:30px;color:var(--ht)">No sessions logged yet</div>';
+    oMC((ex.emoji||"💪")+" "+es(ex.name),h);return;
+  }
+  // Latest stats
+  var latest=pts[pts.length-1];
+  h+='<div class="dr" style="margin-bottom:14px">';
+  h+='<div class="c" style="margin-bottom:0;flex:1;border-left:3px solid var(--pr)"><div class="bd"><div style="font-size:11px;color:var(--ht)">Latest top</div><div style="font-size:16px;font-weight:800;color:var(--pr)">'+latest.top_weight+' kg</div></div></div>';
+  h+='<div class="c" style="margin-bottom:0;flex:1;border-left:3px solid var(--ok)"><div class="bd"><div style="font-size:11px;color:var(--ht)">Est 1RM</div><div style="font-size:16px;font-weight:800;color:var(--ok)">'+Math.round(latest.one_rm_est)+' kg</div></div></div>';
+  h+='<div class="c" style="margin-bottom:0;flex:1;border-left:3px solid var(--wn)"><div class="bd"><div style="font-size:11px;color:var(--ht)">Sessions</div><div style="font-size:16px;font-weight:800;color:var(--wn)">'+pts.length+'</div></div></div>';
+  h+='</div>';
+  // Bar chart of top_weight over time
+  var maxW=Math.max.apply(null,pts.map(function(p){return p.top_weight}))||1;
+  h+='<div class="sc">Top set (kg) over time</div>';
+  h+='<div style="display:flex;gap:3px;align-items:flex-end;height:120px;margin-bottom:8px;padding-bottom:18px;position:relative">';
+  pts.forEach(function(p,i){
+    var ph=Math.max(3,p.top_weight/maxW*110);
+    var label=fD(p.date).date.replace(/\s/," ");
+    var lbl=(i===pts.length-1||i===0||i===Math.floor(pts.length/2))?label:"";
+    h+='<div style="flex:1;text-align:center;min-width:14px">'+
+       '<div style="height:110px;display:flex;align-items:flex-end;justify-content:center"><div style="width:100%;max-width:24px;height:'+ph+'px;background:var(--pr);border-radius:3px 3px 0 0" title="'+label+': '+p.top_weight+'kg"></div></div>'+
+       '<div style="font-size:9px;color:var(--ht);margin-top:3px;white-space:nowrap;overflow:hidden">'+lbl+'</div>'+
+       '</div>';
+  });
+  h+='</div>';
+  // Tonnage line
+  var maxT=Math.max.apply(null,pts.map(function(p){return p.tonnage}))||1;
+  h+='<div class="sc" style="margin-top:14px">Tonnage per session</div>';
+  h+='<div style="display:flex;gap:3px;align-items:flex-end;height:80px;margin-bottom:14px">';
+  pts.forEach(function(p){
+    var ph=Math.max(3,p.tonnage/maxT*70);
+    h+='<div style="flex:1;text-align:center;min-width:14px"><div style="height:70px;display:flex;align-items:flex-end;justify-content:center"><div style="width:100%;max-width:24px;height:'+ph+'px;background:var(--ok);border-radius:3px 3px 0 0"></div></div></div>';
+  });
+  h+='</div>';
+  // Recent sessions list
+  h+='<div class="sc">Recent sessions</div>';
+  pts.slice().reverse().slice(0,6).forEach(function(p){
+    h+='<div class="c" style="padding:10px 12px;margin-bottom:4px"><div class="bd"><div class="tt" style="font-weight:600">'+fD(p.date).full+'</div><div class="mt"><span style="color:var(--pr);font-weight:600">'+p.top_weight+' kg</span> · '+p.sets+' sets · '+_fmtTon(p.tonnage)+' · est 1RM '+Math.round(p.one_rm_est)+'kg</div></div></div>';
+  });
+  oMC((ex.emoji||"💪")+" "+es(ex.name),h);
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -1741,7 +1799,7 @@ var nInc=D.categories.filter(function(c){return c.type==="income"}).length;
 h+='<div class="sc">Categories</div><div class="c" onclick="openCatMgr()" style="cursor:pointer"><span style="font-size:20px">📂</span><div class="bd"><div class="tt">Manage Categories</div><div style="font-size:12px;color:var(--ht)">'+nExp+' expense · '+nInc+' income</div></div><span style="color:var(--ht);font-size:18px">›</span></div>';
 h+='<div class="sc">Integrations</div><div class="c" onclick="syncTrello()" style="cursor:pointer"><span style="font-size:20px">🔵</span><div class="bd"><div class="tt">Trello Sync</div><div style="font-size:12px;color:var(--ht)">Board: Работа</div></div><span id="trello-btn" style="padding:6px 14px;border-radius:10px;font-size:12px;font-weight:600;background:var(--pg);color:var(--pr);white-space:nowrap">Sync Now</span></div>';
 h+='<div class="sc">Debug</div><div class="c" style="cursor:pointer" onclick="dbgOn=!dbgOn;document.getElementById(\'dbg\').classList.toggle(\'hidden\',!dbgOn);ren()"><span style="font-size:20px">🐛</span><div class="bd"><div class="tt">Debug Mode '+(dbgOn?"ON":"OFF")+'</div></div></div>';
-h+='<div style="margin-top:8px;text-align:center;font-size:11px;color:var(--ht)">Family HQ v8.1</div>';return h}
+h+='<div style="margin-top:8px;text-align:center;font-size:11px;color:var(--ht)">Family HQ v8.2</div>';return h}
 async function setTh(id){aT(id);hp();await A("PATCH","/api/settings",{theme:id});ren()}
 function openThemePicker(){var h='<div class="tg">';Object.keys(TH).forEach(function(id){var t=TH[id];var sel=cTheme===id;h+='<div class="tc" onclick="setTh(\''+id+'\');cMo()" style="background:'+t.cd+';border:2px solid '+(sel?t.pr:t.bd)+'"><div class="te">'+t.e+'</div><div class="tn" style="color:'+t.tx+'">'+t.n+'</div><div class="td">'+[t.pr,t.ac,t.ok,t.wn].map(function(c){return '<div class="tdd" style="background:'+c+'"></div>'}).join("")+'</div></div>'});h+='</div>';oMC("Choose theme",h)}
 async function setDg(v){await A("PATCH","/api/settings",{digest_time:v});hp()}

@@ -1126,12 +1126,64 @@ def get_workout(wid: int, user=Depends(get_uf), db=Depends(get_db)):
         JOIN workout_exercises wx ON wx.id = ws.workout_exercise_id
         WHERE wx.workout_id = ? ORDER BY ws.workout_exercise_id, ws.set_number
     """, (wid,)).fetchall(), "workout_exercise_id")
+    # last_session per exercise — most recent set from a *prior* workout of the same member
+    last_session = {}
+    if wxs:
+        ex_ids = list({wx["exercise_id"] for wx in wxs})
+        rows = db.execute(f"""
+            SELECT exercise_id, reps, weight, weight_unit, date FROM (
+                SELECT wx.exercise_id, ws.reps, ws.weight, ws.weight_unit, w.date,
+                       ROW_NUMBER() OVER (PARTITION BY wx.exercise_id
+                                          ORDER BY w.date DESC, ws.set_number DESC) AS rn
+                FROM workout_sets ws
+                JOIN workout_exercises wx ON wx.id = ws.workout_exercise_id
+                JOIN workouts w ON w.id = wx.workout_id
+                WHERE w.family_id=? AND w.member_id=? AND w.id<>?
+                  AND wx.exercise_id IN ({','.join('?'*len(ex_ids))})
+            ) WHERE rn = 1
+        """, [f, w["member_id"], wid] + ex_ids).fetchall()
+        for r in rows:
+            last_session[r["exercise_id"]] = {"reps": r["reps"], "weight": r["weight"],
+                                               "weight_unit": r["weight_unit"], "date": r["date"]}
     for wx in wxs:
         sets = sets_by_wx.get(wx["id"], [])
         wx["sets"] = sets
         wx["tonnage"] = round(sum(s["reps"] * s["weight"] for s in sets), 2)
+        wx["last_session"] = last_session.get(wx["exercise_id"])
     workout["exercises_list"] = wxs
     return workout
+
+@app.get("/api/exercises/{eid}/progression")
+def exercise_progression(eid: int, member_id: int | None = None, limit: int = 20,
+                          user=Depends(get_uf), db=Depends(get_db)):
+    """Per-exercise progression: top set per workout for the last N workouts."""
+    f = user["family_id"]
+    ex = db.execute("SELECT * FROM exercises WHERE id=? AND family_id=?", (eid, f)).fetchone()
+    if not ex: raise HTTPException(404)
+    where_member = "AND w.member_id=?" if member_id else ""
+    params = [f, eid]
+    if member_id: params.append(member_id)
+    params.append(limit)
+    rows = db.execute(f"""
+        SELECT w.id AS workout_id, w.date, w.member_id,
+               COALESCE(MAX(ws.weight), 0) AS top_weight,
+               COALESCE(SUM(ws.reps * ws.weight), 0) AS tonnage,
+               COUNT(ws.id) AS sets,
+               COALESCE(MAX(ws.weight * 36.0 / NULLIF(37 - ws.reps, 0)), 0) AS one_rm_est
+        FROM workouts w
+        JOIN workout_exercises wx ON wx.workout_id=w.id
+        LEFT JOIN workout_sets ws ON ws.workout_exercise_id=wx.id
+        WHERE w.family_id=? AND wx.exercise_id=? {where_member}
+        GROUP BY w.id HAVING COUNT(ws.id) > 0
+        ORDER BY w.date DESC LIMIT ?
+    """, params).fetchall()
+    points = [dict(r) | {
+        "top_weight": round(r["top_weight"] or 0, 1),
+        "tonnage": round(r["tonnage"] or 0, 2),
+        "one_rm_est": round(r["one_rm_est"] or 0, 1),
+    } for r in rows]
+    points.reverse()  # oldest → newest for chart
+    return {"exercise": dict(ex), "points": points}
 
 @app.post("/api/workouts")
 def create_workout(body: WorkoutCreate, user=Depends(get_uf), db=Depends(get_db)):
@@ -1712,8 +1764,22 @@ async def weather_endpoint():
     if not w: return {"error": "unavailable"}
     return w
 
+# ─── Exercise images (uploaded via Telegram bot, served from Docker volume) ──
+EXERCISE_IMG_DIR = os.environ.get("EXERCISE_IMG_DIR", "/data/exercise_images")
+
+@app.get("/api/exercise-images/{fn}")
+def serve_exercise_image(fn: str):
+    # Hardened against path traversal
+    if "/" in fn or "\\" in fn or ".." in fn:
+        raise HTTPException(400)
+    fp = os.path.join(EXERCISE_IMG_DIR, fn)
+    if not os.path.isfile(fp): raise HTTPException(404)
+    r = FileResponse(fp, media_type="image/jpeg")
+    r.headers["Cache-Control"] = "public, max-age=86400"
+    return r
+
 # ─── Debug & Serve ───────────────────────────────────────────────────────
-APP_VERSION = "v8.1"
+APP_VERSION = "v8.2"
 
 @app.get("/api/debug/ping")
 def ping(): return {"ok": True, "version": APP_VERSION, "time": datetime.now(ZoneInfo(TIMEZONE)).isoformat()}
