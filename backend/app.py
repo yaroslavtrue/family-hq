@@ -14,7 +14,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 
-from backend.migrate import migrate
+from backend.migrate import migrate, _seed_exercises
 from backend import scheduler as sched
 from backend import weather as wx
 
@@ -227,6 +227,25 @@ class TxItemCreate(BaseModel):
     name: str; quantity: int = 1; amount: float = 0; currency: str = "RSD"
 class TxItemEdit(BaseModel):
     name: str | None = None; quantity: int | None = None; amount: float | None = None; currency: str | None = None
+class ExerciseCreate(BaseModel):
+    name: str; emoji: str = "💪"; image_url: str | None = None
+    muscle_group: str = "other"; description: str | None = None
+    rest_seconds: int = 90
+class ExerciseEdit(BaseModel):
+    name: str | None = None; emoji: str | None = None; image_url: str | None = None
+    muscle_group: str | None = None; description: str | None = None
+    rest_seconds: int | None = None
+class WorkoutCreate(BaseModel):
+    date: str; name: str | None = None; member_id: int | None = None; notes: str | None = None
+class WorkoutEdit(BaseModel):
+    date: str | None = None; name: str | None = None; notes: str | None = None
+class WorkoutExerciseCreate(BaseModel):
+    exercise_id: int; notes: str | None = None
+class WorkoutSetCreate(BaseModel):
+    reps: int; weight: float = 0; weight_unit: str = "kg"; notes: str | None = None
+class WorkoutSetEdit(BaseModel):
+    reps: int | None = None; weight: float | None = None
+    weight_unit: str | None = None; notes: str | None = None
 
 # ═════════════════════════════════════════════════════════════════════════
 # FAMILY
@@ -253,6 +272,7 @@ def create_family(body: FamilyCreate, user=Depends(get_user), db=Depends(get_db)
             db.execute("INSERT INTO cleaning_tasks (zone_id,family_id,text) VALUES (?,?,?)", (zid, fid, t))
     db.execute("INSERT INTO settings (family_id) VALUES (?)", (fid,))
     _ensure_categories(db, fid)
+    _seed_exercises(db, fid)
     db.commit()
     return {"family_id": fid, "invite_code": code, "name": body.name}
 
@@ -1011,6 +1031,275 @@ def profile_stats(member_id: int | None = None, user=Depends(get_uf), db=Depends
         "clean_done": clean_done, "clean_total": clean_total,
     }
 
+# ═════════════════════════════════════════════════════════════════════════
+# TRAININGS — exercises catalog + workouts + sets
+# ═════════════════════════════════════════════════════════════════════════
+def _workout_summary_row(db, fid, wid):
+    """Return tonnage + sets count for a single workout."""
+    r = db.execute("""
+        SELECT COALESCE(SUM(ws.reps * ws.weight), 0) AS tonnage,
+               COUNT(ws.id) AS sets,
+               COUNT(DISTINCT wx.id) AS exercises
+        FROM workouts w
+        LEFT JOIN workout_exercises wx ON wx.workout_id = w.id
+        LEFT JOIN workout_sets ws ON ws.workout_exercise_id = wx.id
+        WHERE w.id = ? AND w.family_id = ?
+    """, (wid, fid)).fetchone()
+    return {"tonnage": round(r["tonnage"] or 0, 2), "sets": r["sets"] or 0, "exercises": r["exercises"] or 0}
+
+@app.get("/api/exercises")
+def list_exercises(user=Depends(get_uf), db=Depends(get_db)):
+    return [dict(r) for r in db.execute(
+        "SELECT * FROM exercises WHERE family_id=? ORDER BY muscle_group, name",
+        (user["family_id"],)).fetchall()]
+
+@app.post("/api/exercises")
+def create_exercise(body: ExerciseCreate, user=Depends(get_uf), db=Depends(get_db)):
+    eid = db.execute(
+        "INSERT INTO exercises (family_id,name,emoji,image_url,muscle_group,description,rest_seconds) VALUES (?,?,?,?,?,?,?)",
+        (user["family_id"], body.name, body.emoji, body.image_url, body.muscle_group, body.description, body.rest_seconds)).lastrowid
+    db.commit()
+    return {"id": eid}
+
+@app.put("/api/exercises/{eid}")
+def edit_exercise(eid: int, body: ExerciseEdit, user=Depends(get_uf), db=Depends(get_db)):
+    if _update_fields(db, "exercises", "id=? AND family_id=?", (eid, user["family_id"]), body, {
+        "name": "name", "emoji": "emoji", "image_url": "image_url",
+        "muscle_group": "muscle_group", "description": "description",
+        "rest_seconds": "rest_seconds",
+    }):
+        db.commit()
+    return {"ok": True}
+
+@app.delete("/api/exercises/{eid}")
+def del_exercise(eid: int, user=Depends(get_uf), db=Depends(get_db)):
+    used = db.execute("SELECT 1 FROM workout_exercises WHERE exercise_id=? LIMIT 1", (eid,)).fetchone()
+    if used:
+        raise HTTPException(400, "Exercise is used in workouts; remove those first")
+    db.execute("DELETE FROM exercises WHERE id=? AND family_id=?", (eid, user["family_id"]))
+    db.commit()
+    return {"ok": True}
+
+@app.get("/api/workouts")
+def list_workouts(member_id: int | None = None, frm: str | None = None, to: str | None = None,
+                  user=Depends(get_uf), db=Depends(get_db)):
+    f = user["family_id"]
+    where = ["w.family_id=?"]; params = [f]
+    if member_id: where.append("w.member_id=?"); params.append(member_id)
+    if frm: where.append("w.date>=?"); params.append(frm)
+    if to: where.append("w.date<=?"); params.append(to)
+    rows = db.execute(f"""
+        SELECT w.id, w.date, w.name, w.member_id, w.notes,
+               COALESCE(SUM(ws.reps * ws.weight), 0) AS tonnage,
+               COUNT(DISTINCT wx.id) AS exercises,
+               COUNT(ws.id) AS sets
+        FROM workouts w
+        LEFT JOIN workout_exercises wx ON wx.workout_id = w.id
+        LEFT JOIN workout_sets ws ON ws.workout_exercise_id = wx.id
+        WHERE {' AND '.join(where)}
+        GROUP BY w.id ORDER BY w.date DESC, w.id DESC
+    """, params).fetchall()
+    return [dict(r) | {"tonnage": round(r["tonnage"] or 0, 2)} for r in rows]
+
+@app.get("/api/workouts/{wid}")
+def get_workout(wid: int, user=Depends(get_uf), db=Depends(get_db)):
+    f = user["family_id"]
+    w = db.execute("SELECT * FROM workouts WHERE id=? AND family_id=?", (wid, f)).fetchone()
+    if not w: raise HTTPException(404)
+    workout = dict(w)
+    workout.update(_workout_summary_row(db, f, wid))
+    # Load all exercises in this workout, then their sets
+    wxs = [dict(r) for r in db.execute("""
+        SELECT wx.id, wx.exercise_id, wx.sort_order, wx.notes,
+               e.name, e.emoji, e.image_url, e.muscle_group, e.rest_seconds
+        FROM workout_exercises wx JOIN exercises e ON e.id = wx.exercise_id
+        WHERE wx.workout_id = ? ORDER BY wx.sort_order, wx.id
+    """, (wid,)).fetchall()]
+    sets_by_wx = _group_by(db.execute("""
+        SELECT ws.* FROM workout_sets ws
+        JOIN workout_exercises wx ON wx.id = ws.workout_exercise_id
+        WHERE wx.workout_id = ? ORDER BY ws.workout_exercise_id, ws.set_number
+    """, (wid,)).fetchall(), "workout_exercise_id")
+    for wx in wxs:
+        sets = sets_by_wx.get(wx["id"], [])
+        wx["sets"] = sets
+        wx["tonnage"] = round(sum(s["reps"] * s["weight"] for s in sets), 2)
+    workout["exercises_list"] = wxs
+    return workout
+
+@app.post("/api/workouts")
+def create_workout(body: WorkoutCreate, user=Depends(get_uf), db=Depends(get_db)):
+    mid = body.member_id or user["id"]
+    # One-workout-per-member-per-day enforcement (return existing if any)
+    existing = db.execute("SELECT id FROM workouts WHERE family_id=? AND member_id=? AND date=?",
+                           (user["family_id"], mid, body.date)).fetchone()
+    if existing:
+        return {"id": existing["id"], "existing": True}
+    wid = db.execute("INSERT INTO workouts (family_id,member_id,date,name,notes) VALUES (?,?,?,?,?)",
+                      (user["family_id"], mid, body.date, body.name, body.notes)).lastrowid
+    db.commit()
+    return {"id": wid, "existing": False}
+
+@app.put("/api/workouts/{wid}")
+def edit_workout(wid: int, body: WorkoutEdit, user=Depends(get_uf), db=Depends(get_db)):
+    if _update_fields(db, "workouts", "id=? AND family_id=?", (wid, user["family_id"]), body,
+                       {"date": "date", "name": "name", "notes": "notes"}):
+        db.commit()
+    return {"ok": True}
+
+@app.delete("/api/workouts/{wid}")
+def del_workout(wid: int, user=Depends(get_uf), db=Depends(get_db)):
+    # Cascade
+    db.execute("""DELETE FROM workout_sets WHERE workout_exercise_id IN
+                   (SELECT id FROM workout_exercises WHERE workout_id=?)""", (wid,))
+    db.execute("DELETE FROM workout_exercises WHERE workout_id=?", (wid,))
+    db.execute("DELETE FROM workouts WHERE id=? AND family_id=?", (wid, user["family_id"]))
+    db.commit()
+    return {"ok": True}
+
+@app.post("/api/workouts/{wid}/exercises")
+def add_workout_exercise(wid: int, body: WorkoutExerciseCreate, user=Depends(get_uf), db=Depends(get_db)):
+    # Verify ownership
+    if not db.execute("SELECT 1 FROM workouts WHERE id=? AND family_id=?", (wid, user["family_id"])).fetchone():
+        raise HTTPException(404)
+    mx = db.execute("SELECT COALESCE(MAX(sort_order),0) m FROM workout_exercises WHERE workout_id=?",
+                     (wid,)).fetchone()["m"]
+    wxid = db.execute("INSERT INTO workout_exercises (workout_id,exercise_id,sort_order,notes) VALUES (?,?,?,?)",
+                       (wid, body.exercise_id, mx + 1, body.notes)).lastrowid
+    db.commit()
+    return {"id": wxid}
+
+@app.delete("/api/workout-exercises/{wxid}")
+def del_workout_exercise(wxid: int, user=Depends(get_uf), db=Depends(get_db)):
+    # Verify ownership via join
+    own = db.execute("""SELECT 1 FROM workout_exercises wx
+                       JOIN workouts w ON w.id = wx.workout_id
+                       WHERE wx.id=? AND w.family_id=?""", (wxid, user["family_id"])).fetchone()
+    if not own: raise HTTPException(404)
+    db.execute("DELETE FROM workout_sets WHERE workout_exercise_id=?", (wxid,))
+    db.execute("DELETE FROM workout_exercises WHERE id=?", (wxid,))
+    db.commit()
+    return {"ok": True}
+
+@app.post("/api/workout-exercises/{wxid}/sets")
+def add_set(wxid: int, body: WorkoutSetCreate, user=Depends(get_uf), db=Depends(get_db)):
+    own = db.execute("""SELECT 1 FROM workout_exercises wx
+                       JOIN workouts w ON w.id = wx.workout_id
+                       WHERE wx.id=? AND w.family_id=?""", (wxid, user["family_id"])).fetchone()
+    if not own: raise HTTPException(404)
+    n = db.execute("SELECT COALESCE(MAX(set_number),0)+1 AS n FROM workout_sets WHERE workout_exercise_id=?",
+                    (wxid,)).fetchone()["n"]
+    sid = db.execute("INSERT INTO workout_sets (workout_exercise_id,set_number,reps,weight,weight_unit,notes) VALUES (?,?,?,?,?,?)",
+                      (wxid, n, body.reps, body.weight, body.weight_unit, body.notes)).lastrowid
+    db.commit()
+    return {"id": sid, "set_number": n}
+
+@app.put("/api/workout-sets/{sid}")
+def edit_set(sid: int, body: WorkoutSetEdit, user=Depends(get_uf), db=Depends(get_db)):
+    own = db.execute("""SELECT 1 FROM workout_sets ws
+                       JOIN workout_exercises wx ON wx.id = ws.workout_exercise_id
+                       JOIN workouts w ON w.id = wx.workout_id
+                       WHERE ws.id=? AND w.family_id=?""", (sid, user["family_id"])).fetchone()
+    if not own: raise HTTPException(404)
+    if _update_fields(db, "workout_sets", "id=?", (sid,), body, {
+        "reps": "reps", "weight": "weight", "weight_unit": "weight_unit", "notes": "notes",
+    }):
+        db.commit()
+    return {"ok": True}
+
+@app.delete("/api/workout-sets/{sid}")
+def del_set(sid: int, user=Depends(get_uf), db=Depends(get_db)):
+    own = db.execute("""SELECT 1 FROM workout_sets ws
+                       JOIN workout_exercises wx ON wx.id = ws.workout_exercise_id
+                       JOIN workouts w ON w.id = wx.workout_id
+                       WHERE ws.id=? AND w.family_id=?""", (sid, user["family_id"])).fetchone()
+    if not own: raise HTTPException(404)
+    db.execute("DELETE FROM workout_sets WHERE id=?", (sid,))
+    db.commit()
+    return {"ok": True}
+
+@app.get("/api/trainings/stats")
+def trainings_stats(member_id: int | None = None, user=Depends(get_uf), db=Depends(get_db)):
+    """Tonnage today/week/month + last 8 weeks bar chart + top 5 exercises + PRs.
+    If member_id is None, returns family aggregates."""
+    f = user["family_id"]
+    now = datetime.now(ZoneInfo(TIMEZONE))
+    today = now.date()
+    week_start = today - timedelta(days=today.weekday())  # Monday
+    month_start = today.replace(day=1)
+
+    where_member = "AND w.member_id=?" if member_id else ""
+    params_member = [member_id] if member_id else []
+
+    def _ton(date_from):
+        r = db.execute(f"""
+            SELECT COALESCE(SUM(ws.reps * ws.weight), 0) AS tonnage,
+                   COUNT(DISTINCT w.id) AS workouts,
+                   COUNT(ws.id) AS sets
+            FROM workouts w
+            LEFT JOIN workout_exercises wx ON wx.workout_id = w.id
+            LEFT JOIN workout_sets ws ON ws.workout_exercise_id = wx.id
+            WHERE w.family_id=? AND w.date>=? {where_member}
+        """, [f, date_from] + params_member).fetchone()
+        return {"tonnage": round(r["tonnage"] or 0, 2), "workouts": r["workouts"] or 0, "sets": r["sets"] or 0}
+
+    today_stats = _ton(today.isoformat())
+    week_stats = _ton(week_start.isoformat())
+    month_stats = _ton(month_start.isoformat())
+
+    # Last 8 weeks weekly tonnage bars
+    weeks = []
+    for i in range(7, -1, -1):
+        ws = week_start - timedelta(weeks=i)
+        we = ws + timedelta(days=6)
+        r = db.execute(f"""
+            SELECT COALESCE(SUM(ws.reps * ws.weight), 0) AS tonnage
+            FROM workouts w
+            LEFT JOIN workout_exercises wx ON wx.workout_id = w.id
+            LEFT JOIN workout_sets ws ON ws.workout_exercise_id = wx.id
+            WHERE w.family_id=? AND w.date>=? AND w.date<=? {where_member}
+        """, [f, ws.isoformat(), we.isoformat()] + params_member).fetchone()
+        weeks.append({"week_start": ws.isoformat(), "tonnage": round(r["tonnage"] or 0, 2)})
+
+    # Top 5 exercises by total tonnage this month
+    top = db.execute(f"""
+        SELECT e.id, e.name, e.emoji,
+               COALESCE(SUM(ws.reps * ws.weight), 0) AS tonnage,
+               COUNT(DISTINCT w.id) AS sessions
+        FROM exercises e
+        JOIN workout_exercises wx ON wx.exercise_id = e.id
+        JOIN workouts w ON w.id = wx.workout_id
+        LEFT JOIN workout_sets ws ON ws.workout_exercise_id = wx.id
+        WHERE e.family_id=? AND w.date>=? {where_member}
+        GROUP BY e.id ORDER BY tonnage DESC LIMIT 5
+    """, [f, month_start.isoformat()] + params_member).fetchall()
+    top_exercises = [dict(r) | {"tonnage": round(r["tonnage"] or 0, 2)} for r in top]
+
+    # Personal records — heaviest single set per exercise (for member or family)
+    prs = db.execute(f"""
+        SELECT e.name, e.emoji, ws.reps, ws.weight, w.date
+        FROM workout_sets ws
+        JOIN workout_exercises wx ON wx.id = ws.workout_exercise_id
+        JOIN workouts w ON w.id = wx.workout_id
+        JOIN exercises e ON e.id = wx.exercise_id
+        WHERE w.family_id=? {where_member}
+            AND ws.weight = (
+                SELECT MAX(ws2.weight) FROM workout_sets ws2
+                JOIN workout_exercises wx2 ON wx2.id = ws2.workout_exercise_id
+                JOIN workouts w2 ON w2.id = wx2.workout_id
+                WHERE wx2.exercise_id = wx.exercise_id AND w2.family_id = w.family_id
+                {where_member.replace('w.', 'w2.')}
+            )
+        GROUP BY e.id ORDER BY ws.weight DESC LIMIT 10
+    """, [f] + params_member + params_member).fetchall()
+    personal_records = [dict(r) for r in prs]
+
+    return {
+        "member_id": member_id,
+        "today": today_stats, "week": week_stats, "month": month_stats,
+        "weeks": weeks, "top_exercises": top_exercises, "personal_records": personal_records,
+    }
+
 # Calendar — month view items
 @app.get("/api/calendar")
 def calendar_items(month: str | None = None, user=Depends(get_uf), db=Depends(get_db)):
@@ -1253,6 +1542,22 @@ async def bundle(user=Depends(get_uf), db=Depends(get_db)):
     # Weather (cached + retried inside weather.py)
     weather = await get_weather()
 
+    # Trainings — exercise catalog + recent workouts (last 14 days, summary only)
+    exercises = [dict(r) for r in db.execute(
+        "SELECT * FROM exercises WHERE family_id=? ORDER BY muscle_group, name", (f,)).fetchall()]
+    recent_cutoff = (today - timedelta(days=14)).isoformat()
+    recent_workouts = [dict(r) | {"tonnage": round(r["tonnage"] or 0, 2)} for r in db.execute("""
+        SELECT w.id, w.date, w.name, w.member_id, w.notes,
+               COALESCE(SUM(ws.reps * ws.weight), 0) AS tonnage,
+               COUNT(DISTINCT wx.id) AS exercises,
+               COUNT(ws.id) AS sets
+        FROM workouts w
+        LEFT JOIN workout_exercises wx ON wx.workout_id = w.id
+        LEFT JOIN workout_sets ws ON ws.workout_exercise_id = wx.id
+        WHERE w.family_id=? AND w.date >= ?
+        GROUP BY w.id ORDER BY w.date DESC, w.id DESC
+    """, (f, recent_cutoff)).fetchall()]
+
     return {
         "tasks": tasks, "recurring": recurring, "shopping": shopping, "folders": folders,
         "events": events, "birthdays": bdays, "subs": subs, "dashboard": dashboard,
@@ -1260,6 +1565,7 @@ async def bundle(user=Depends(get_uf), db=Depends(get_db)):
         "subtasks_task": subtasks_task, "subtasks_event": subtasks_event,
         "weather": weather, "categories": categories, "transactions": transactions,
         "tx_items": tx_items,
+        "exercises": exercises, "recent_workouts": recent_workouts,
     }
 
 # ═════════════════════════════════════════════════════════════════════════
@@ -1272,7 +1578,7 @@ async def weather_endpoint():
     return w
 
 # ─── Debug & Serve ───────────────────────────────────────────────────────
-APP_VERSION = "v7.7"
+APP_VERSION = "v8.0"
 
 @app.get("/api/debug/ping")
 def ping(): return {"ok": True, "version": APP_VERSION, "time": datetime.now(ZoneInfo(TIMEZONE)).isoformat()}

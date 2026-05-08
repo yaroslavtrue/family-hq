@@ -186,7 +186,9 @@ input[type="date"],input[type="time"],input[type="number"],select{-webkit-appear
 .menu-h{font-size:17px;font-weight:700;margin-bottom:16px;color:var(--ht)}
 .menu-i{display:flex;align-items:center;gap:12px;width:100%;padding:13px 12px;border:none;background:none;color:var(--tx);font-size:15px;font-weight:500;cursor:pointer;border-radius:12px;font-family:inherit;text-align:left;transition:background .15s}
 .menu-i:active{background:var(--cd)}
-.menu-i span{font-size:20px;width:28px;text-align:center}
+.menu-i .mi-ico{font-size:20px;width:28px;text-align:center;flex-shrink:0}
+.menu-i .mi-l{flex:1}
+.menu-i .mi-cnt{min-width:22px;height:22px;padding:0 7px;border-radius:11px;background:var(--ac);color:#fff;font-size:11px;font-weight:700;display:inline-flex;align-items:center;justify-content:center}
 
 /* ═══ v6.6 effects pack — keep lightweight, GPU-only ═══ */
 
@@ -360,7 +362,7 @@ input[type="date"],input[type="time"],input[type="number"],select{-webkit-appear
     <div><h1 id="ht">🏠 Family HQ</h1><div class="hd-s" id="hs">Everything at a glance</div></div>
     <div class="hd-r">
         <button class="hd-g" id="sb-btn" onclick="toggleSearch()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></button>
-        <button class="hd-g" onclick="toggleMenu()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg></button>
+        <button class="hd-g" onclick="toggleMenu()" style="position:relative"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg><span id="hm-dot" class="hidden" style="position:absolute;top:4px;right:4px;width:8px;height:8px;border-radius:50%;background:var(--ac);box-shadow:0 0 6px var(--ac)"></span></button>
     </div>
 </div>
 <!-- Search -->
@@ -382,12 +384,7 @@ input[type="date"],input[type="time"],input[type="number"],select{-webkit-appear
 <div class="menu-ov" id="menu-overlay" onclick="toggleMenu()">
 <div class="menu-p" onclick="event.stopPropagation()">
 <div class="menu-h">Menu</div>
-<button class="menu-i" onclick="go('events')"><span>📅</span> Events</button>
-<button class="menu-i" onclick="go('birthdays')"><span>🎂</span> Birthdays</button>
-<button class="menu-i" onclick="go('clean')"><span>🧹</span> Cleaning</button>
-<button class="menu-i" onclick="go('subs')"><span>💳</span> Subscriptions</button>
-<div style="height:1px;background:var(--bd);margin:8px 0"></div>
-<button class="menu-i" onclick="go('settings')"><span>⚙️</span> Settings</button>
+<div id="menu-items"></div>
 </div>
 </div>
 <!-- Nav -->
@@ -397,6 +394,6 @@ input[type="date"],input[type="time"],input[type="number"],select{-webkit-appear
 <!-- Debug -->
 <div class="dbg hidden" id="dbg"><button class="dbg-cp" onclick="navigator.clipboard.writeText(dbgLog.join('\n'))">Copy</button></div>
 <!-- Load JS -->
-<script src="/static/app.js?v=102"></script>
+<script src="/static/app.js?v=103"></script>
 </body>
 </html>

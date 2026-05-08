@@ -10,6 +10,41 @@ def safe_add_col(con, table, col, ctype):
     try: con.execute(f"ALTER TABLE {table} ADD COLUMN {col} {ctype}"); con.commit()
     except: pass
 
+DEFAULT_EXERCISES = [
+    ("Bench Press", "🪑", "chest", 120),
+    ("Squat", "🦵", "legs", 180),
+    ("Deadlift", "🏋️", "back", 180),
+    ("Overhead Press", "💪", "shoulders", 120),
+    ("Barbell Row", "🚣", "back", 90),
+    ("Pull-up", "🤸", "back", 90),
+    ("Dip", "🤸", "chest", 90),
+    ("Bicep Curl", "💪", "arms", 60),
+    ("Tricep Extension", "💪", "arms", 60),
+    ("Plank", "🧘", "core", 60),
+]
+
+def _seed_exercises(con, fid):
+    """Seed default catalog of strength exercises for a family. Idempotent."""
+    if con.execute("SELECT COUNT(*) FROM exercises WHERE family_id=?", (fid,)).fetchone()[0] > 0:
+        return
+    for name, emoji, mg, rs in DEFAULT_EXERCISES:
+        con.execute(
+            "INSERT INTO exercises (family_id,name,emoji,muscle_group,rest_seconds) VALUES (?,?,?,?,?)",
+            (fid, name, emoji, mg, rs))
+
+def _migrate_v12_trainings(con):
+    """Add indexes for trainings tables and seed default catalog for existing families."""
+    con.executescript("""
+        CREATE INDEX IF NOT EXISTS idx_exercises_family ON exercises(family_id);
+        CREATE INDEX IF NOT EXISTS idx_workouts_member_date ON workouts(member_id, date DESC);
+        CREATE INDEX IF NOT EXISTS idx_workouts_family ON workouts(family_id, date DESC);
+        CREATE INDEX IF NOT EXISTS idx_we_workout ON workout_exercises(workout_id);
+        CREATE INDEX IF NOT EXISTS idx_ws_we ON workout_sets(workout_exercise_id);
+    """)
+    for f in con.execute("SELECT id FROM families").fetchall():
+        _seed_exercises(con, f[0])
+    con.commit()
+
 def _seed_categories(con):
     """Seed default expense/income categories for all existing families."""
     defaults_expense = [("🍔", "Food", 0), ("🏠", "Home / bills", 1), ("🎉", "Entertainment", 2), ("🚕", "Transport", 3), ("🛒", "Shopping", 4), ("💊", "Health", 5), ("📦", "Other", 6)]
@@ -223,6 +258,43 @@ def migrate(db_path):
             currency TEXT DEFAULT 'RSD',
             created_at TEXT DEFAULT (datetime('now'))
         );
+        CREATE TABLE IF NOT EXISTS exercises (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            family_id INTEGER NOT NULL,
+            name TEXT NOT NULL,
+            emoji TEXT DEFAULT '💪',
+            image_url TEXT,
+            muscle_group TEXT DEFAULT 'other',
+            description TEXT,
+            rest_seconds INTEGER DEFAULT 90,
+            created_at TEXT DEFAULT (datetime('now'))
+        );
+        CREATE TABLE IF NOT EXISTS workouts (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            family_id INTEGER NOT NULL,
+            member_id INTEGER NOT NULL,
+            date TEXT NOT NULL,
+            name TEXT,
+            notes TEXT,
+            created_at TEXT DEFAULT (datetime('now'))
+        );
+        CREATE TABLE IF NOT EXISTS workout_exercises (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            workout_id INTEGER NOT NULL,
+            exercise_id INTEGER NOT NULL,
+            sort_order INTEGER DEFAULT 0,
+            notes TEXT
+        );
+        CREATE TABLE IF NOT EXISTS workout_sets (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            workout_exercise_id INTEGER NOT NULL,
+            set_number INTEGER NOT NULL,
+            reps INTEGER NOT NULL,
+            weight REAL NOT NULL DEFAULT 0,
+            weight_unit TEXT DEFAULT 'kg',
+            notes TEXT,
+            created_at TEXT DEFAULT (datetime('now'))
+        );
     """)
     con.commit()
 
@@ -312,6 +384,8 @@ def migrate(db_path):
             CREATE INDEX IF NOT EXISTS idx_categories_family ON categories(family_id, type);
             CREATE INDEX IF NOT EXISTS idx_members_family ON family_members(family_id);
         """),
+        # v12: trainings — exercise catalog + workout sessions + sets + indexes + seed
+        _migrate_v12_trainings,
     ]
 
     for i, mig in enumerate(migrations):
