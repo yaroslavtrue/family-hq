@@ -293,9 +293,9 @@ if(doing&&card){
 async function dlTk(id){var t=D.tasks.find(function(x){return x.id===id});hp("warn");await A("DELETE","/api/tasks/"+id);await load();if(t)toast("🗑 Deleted",function(){A("POST","/api/tasks",{text:t.text,assigned_to:t.assigned_to,priority:t.priority,due_date:t.due_date}).then(load)})}
 async function dlRec(id){hp();await A("DELETE","/api/recurring/"+id);await load();toast("🗑 Deleted")}
 function edTk(id){var t=D.tasks.find(function(x){return x.id===id});if(!t)return;_assign=t.assigned_to||0;_pri=t.priority;_rems=(t.reminders||[]).map(function(r){return r.remind_at});oMC("Edit Task",'<input class="inp" id="f-t" value="'+es(t.text)+'"><div class="lb">Assign to</div>'+assignPk("ap",t.assigned_to)+'<div class="lb">Priority</div><div class="or">'+["low","normal","high"].map(function(p){return '<button class="ob ob-pri-'+p+' '+(t.priority===p?"s":"")+'" onclick="_pri=\''+p+'\';this.parentNode.querySelectorAll(\'.ob\').forEach(function(b){b.classList.remove(\'s\')});this.classList.add(\'s\')">'+p[0].toUpperCase()+p.slice(1)+'</button>'}).join("")+'</div><div class="lb">Due Date</div><div class="dr"><div><input type="date" id="f-dd" value="'+(t.due_date?(t.due_date.split(" ")[0]):"")+'"></div></div><div class="lb">Reminders</div><div id="rw">'+remPk()+'</div><button class="btn" onclick="svTk('+id+')">Save</button>')}
-async function svTk(id){var text=document.getElementById("f-t").value.trim();if(!text)return;var dd=document.getElementById("f-dd")?document.getElementById("f-dd").value:null;await A("PUT","/api/tasks/"+id,{text:text,assigned_to:_assign||null,priority:_pri,due_date:dd||null,reminders:_rems});cMo();hp();await load()}
+async function svTk(id){var text=document.getElementById("f-t").value.trim();if(!text)return;var dd=document.getElementById("f-dd")?document.getElementById("f-dd").value:null;await A("PUT","/api/tasks/"+id,{text:text,assigned_to:_assign||null,priority:_pri,due_date:dd||null,reminders:_rems});cMo();hp();await load();if(_calEditCb){var cb=_calEditCb;_calEditCb=null;cb()}}
 function edRec(id){var r=D.recurring.find(function(x){return x.id===id});if(!r)return;_assign=r.assigned_to||0;oMC("Edit Recurring",'<input class="inp" id="f-t" value="'+es(r.text)+'"><div class="lb">Assign to</div>'+assignPk("ap",r.assigned_to)+'<div class="lb">Schedule</div><div class="or"><button class="ob '+(r.rrule==="daily"?"s":"")+'" onclick="document.getElementById(\'rr\').value=\'daily\';this.parentNode.querySelectorAll(\'.ob\').forEach(function(b){b.classList.remove(\'s\')});this.classList.add(\'s\');document.getElementById(\'wd\').classList.add(\'hidden\');document.getElementById(\'md\').classList.add(\'hidden\')">Daily</button><button class="ob '+(r.rrule.startsWith("weekly")?"s":"")+'" onclick="document.getElementById(\'rr\').value=\'weekly:\';this.parentNode.querySelectorAll(\'.ob\').forEach(function(b){b.classList.remove(\'s\')});this.classList.add(\'s\');document.getElementById(\'wd\').classList.remove(\'hidden\');document.getElementById(\'md\').classList.add(\'hidden\')">Weekly</button><button class="ob '+(r.rrule.startsWith("monthly")?"s":"")+'" onclick="document.getElementById(\'rr\').value=\'monthly:\';this.parentNode.querySelectorAll(\'.ob\').forEach(function(b){b.classList.remove(\'s\')});this.classList.add(\'s\');document.getElementById(\'md\').classList.remove(\'hidden\');document.getElementById(\'wd\').classList.add(\'hidden\')">Monthly</button></div><input type="hidden" id="rr" value="'+r.rrule+'"><div id="wd" class="'+(r.rrule.startsWith("weekly")?"":"hidden")+'"><div class="lb">Days</div><div class="or">'+["mon","tue","wed","thu","fri","sat","sun"].map(function(d){return '<button class="ob '+(r.rrule.indexOf(d)>=0?"s":"")+'" onclick="this.classList.toggle(\'s\')">'+d+'</button>'}).join("")+'</div></div><div id="md" class="'+(r.rrule.startsWith("monthly")?"":"hidden")+'"><div class="lb">Day of month</div><input class="inp" id="f-md" type="number" min="1" max="28" value="'+(r.rrule.startsWith("monthly:")?r.rrule.split(":")[1]:"1")+'"></div><div class="lb">Status</div><div class="or"><button class="ob '+(r.active?"s":"")+'" onclick="_recActive=1;this.parentNode.querySelectorAll(\'.ob\').forEach(function(b){b.classList.remove(\'s\')});this.classList.add(\'s\')">Active</button><button class="ob '+(!r.active?"s":"")+'" onclick="_recActive=0;this.parentNode.querySelectorAll(\'.ob\').forEach(function(b){b.classList.remove(\'s\')});this.classList.add(\'s\')">Paused</button></div><button class="btn" onclick="svRec('+id+')">Save</button>');window._recActive=r.active}
-async function svRec(id){var text=document.getElementById("f-t").value.trim();if(!text)return;var rr=document.getElementById("rr").value;if(rr==="weekly:"){var days=[];document.querySelectorAll("#wd .ob.s").forEach(function(b){days.push(b.textContent)});rr="weekly:"+days.join(",")}else if(rr==="monthly:"){rr="monthly:"+(document.getElementById("f-md")?document.getElementById("f-md").value:"1")}await A("PUT","/api/recurring/"+id,{text:text,assigned_to:_assign||null,rrule:rr,active:window._recActive});cMo();hp();await load()}
+async function svRec(id){var text=document.getElementById("f-t").value.trim();if(!text)return;var rr=document.getElementById("rr").value;if(rr==="weekly:"){var days=[];document.querySelectorAll("#wd .ob.s").forEach(function(b){days.push(b.textContent)});rr="weekly:"+days.join(",")}else if(rr==="monthly:"){rr="monthly:"+(document.getElementById("f-md")?document.getElementById("f-md").value:"1")}await A("PUT","/api/recurring/"+id,{text:text,assigned_to:_assign||null,rrule:rr,active:window._recActive});cMo();hp();await load();if(_calEditCb){var cb=_calEditCb;_calEditCb=null;cb()}}
 
 // ═══════════════════════════════════════════════════════════
 // SHOPPING — enhanced add flow
@@ -667,7 +667,7 @@ return h}
 // ═══════════════════════════════════════════════════════════
 // CALENDAR
 // ═══════════════════════════════════════════════════════════
-var _calData=null,_calMonth=null,_calCache={},_calDayIso=null;
+var _calData=null,_calMonth=null,_calCache={},_calDayIso=null,_calEditCb=null;
 var _calFilters={event:true,task:true,recurring:true,birthday:true,subscription:true,member:null};
 function _isoDate(d){return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0")}
 function _parseD(s){var p=s.split("-");return new Date(+p[0],+p[1]-1,+p[2])}
@@ -936,9 +936,10 @@ extra='<div class="ced-row"><span class="ced-lbl">Amount</span><span class="ced-
 }
 if(!item)return;
 var typeLabel={event:"Event",task:"Task",recurring:"Recurring Task",birthday:"Birthday",subscription:"Subscription"}[type]||type;
+var editFn={task:"calEdTk",event:"calEdEv",recurring:"calEdRec"}[type];
 var h='<div class="ced-overlay" onclick="closeCalEv(event)">';
 h+='<div class="ced-card" onclick="event.stopPropagation()">';
-h+='<div class="ced-type">'+icon+' '+typeLabel+'</div>';
+h+='<div class="ced-type" style="display:flex;justify-content:space-between;align-items:center"><span>'+icon+' '+typeLabel+'</span>'+(editFn?'<button class="bi" style="padding:4px;color:var(--ht)" onclick="'+editFn+'('+id+')" title="Edit">'+I.ed+'</button>':'')+'</div>';
 h+='<div class="ced-title">'+es(title)+'</div>';
 h+='<div class="ced-row"><span class="ced-lbl">Date</span><span class="ced-val">'+dateStr+'</span></div>';
 h+=extra;
@@ -1032,6 +1033,21 @@ setTimeout(function(){var i=document.querySelector("#mb input.inp");if(i)i.focus
 async function doTkCal(){var t=document.getElementById("f-t").value.trim();if(!t)return;var dd=document.getElementById("f-dd")?document.getElementById("f-dd").value:null;await A("POST","/api/tasks",{text:t,assigned_to:_assign||null,priority:_pri,due_date:dd||null,reminders:_rems});cMo();hp();await load();_calRefresh()}
 async function doEvCal(){var t=document.getElementById("f-t").value.trim();var d=document.getElementById("f-d").value;var tm=document.getElementById("f-tm").value||"12:00";if(!t||!d)return;var ed=document.getElementById("f-ed")?document.getElementById("f-ed").value:"";var et=document.getElementById("f-et")?document.getElementById("f-et").value:"";var end=ed?ed+" "+(et||tm):null;await A("POST","/api/events",{text:t,event_date:d+" "+tm,end_date:end});cMo();hp();await load();_calRefresh()}
 async function calMarkDone(id){await A("PATCH","/api/tasks/"+id+"/toggle");hp();closeCalEv();await load();_calRefresh()}
+
+// Edit Event modal (no edEv existed before)
+function edEv(id){
+var e=(D.events||[]).find(function(x){return x.id===id});if(!e)return;
+var sd=(e.event_date||"").split(" "),ed=(e.end_date||"").split(" ");
+var sDate=sd[0]||"",sTime=((sd[1]||"12:00")+"").slice(0,5);
+var eDate=ed[0]||sDate,eTime=((ed[1]||sTime)+"").slice(0,5);
+oMC("Edit Event",'<input class="inp" id="f-t" value="'+es(e.text)+'"><div class="lb">Start</div><div class="dr"><div><div class="dl">Date</div><input type="date" id="f-d" value="'+sDate+'"></div><div><div class="dl">Time</div><input type="time" id="f-tm" value="'+sTime+'" step="60"></div></div><div class="lb">End <span style="color:var(--ht);font-weight:400;font-size:11px">(extend for multi-day)</span></div><div class="dr"><div><input type="date" id="f-ed" value="'+eDate+'"></div><div><input type="time" id="f-et" value="'+eTime+'" step="60"></div></div><button class="btn" onclick="svEv('+id+')">Save</button><div style="margin-top:16px;padding-top:16px;border-top:1px solid var(--bd)"><button class="btn btn-s" style="color:var(--ac);background:transparent;border:1.5px solid var(--bd)" onclick="dEv('+id+');cMo();if(_calEditCb){var cb=_calEditCb;_calEditCb=null;cb()}">Delete Event</button></div>')
+}
+async function svEv(id){var t=document.getElementById("f-t").value.trim();var d=document.getElementById("f-d").value;var tm=document.getElementById("f-tm").value||"12:00";if(!t||!d)return;var ed=document.getElementById("f-ed")?document.getElementById("f-ed").value:"";var et=document.getElementById("f-et")?document.getElementById("f-et").value:"";var end=ed?ed+" "+(et||tm):null;await A("PUT","/api/events/"+id,{text:t,event_date:d+" "+tm,end_date:end});cMo();hp();await load();if(_calEditCb){var cb=_calEditCb;_calEditCb=null;cb()}}
+
+// Calendar wrappers — close detail card, register refresh callback, open edit modal
+function calEdTk(id){closeCalEv();_calEditCb=_calRefresh;edTk(id)}
+function calEdEv(id){closeCalEv();_calEditCb=_calRefresh;edEv(id)}
+function calEdRec(id){closeCalEv();_calEditCb=_calRefresh;edRec(id)}
 
 // ═══════════════════════════════════════════════════════════
 // SETTINGS (hamburger page)

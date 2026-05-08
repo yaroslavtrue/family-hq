@@ -159,6 +159,8 @@ class FolderCreate(BaseModel):
     name: str; emoji: str = "📁"
 class EventCreate(BaseModel):
     text: str; event_date: str; end_date: str | None = None
+class EventEdit(BaseModel):
+    text: str | None = None; event_date: str | None = None; end_date: str | None = None
 class BirthdayCreate(BaseModel):
     name: str; emoji: str = "🎂"; birth_date: str; reminders: list[dict] = []
 class BirthdayEdit(BaseModel):
@@ -486,6 +488,18 @@ async def create_event(body: EventCreate, user=Depends(get_uf), db=Depends(get_d
     db.execute("INSERT INTO events (family_id,text,event_date,end_date,created_by) VALUES (?,?,?,?,?)",
         (user["family_id"], body.text, body.event_date, body.end_date, user["first_name"])); db.commit()
     await notify_all(user["family_id"], f"📅 *{user['first_name']}* added event: *{body.text}*", db)
+    return {"ok": True}
+
+@app.put("/api/events/{eid}")
+def edit_event(eid: int, body: EventEdit, user=Depends(get_uf), db=Depends(get_db)):
+    sets, vals = [], []
+    for f in ("text", "event_date", "end_date"):
+        v = getattr(body, f)
+        if v is not None or f == "end_date":
+            sets.append(f + "=?"); vals.append(v)
+    if not sets: return {"ok": True}
+    vals += [eid, user["family_id"]]
+    db.execute("UPDATE events SET " + ",".join(sets) + " WHERE id=? AND family_id=?", vals); db.commit()
     return {"ok": True}
 
 @app.delete("/api/events/{eid}")
