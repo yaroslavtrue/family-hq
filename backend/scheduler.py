@@ -2,7 +2,7 @@
 Background schedulers: task reminders, birthday reminders, cleaning resets,
 subscription reminders, recurring task generation, morning digest.
 """
-import sqlite3, json
+import sqlite3, json, html
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 import httpx, logging
@@ -80,12 +80,16 @@ def _con():
     c.row_factory = sqlite3.Row
     return c
 
-async def _send(chat_id, text):
+async def _send(chat_id, text, parse_mode="Markdown", reply_markup=None):
     try:
+        payload = {"chat_id": chat_id, "text": text, "parse_mode": parse_mode}
+        if parse_mode == "HTML":
+            payload["disable_web_page_preview"] = True
+        if reply_markup:
+            payload["reply_markup"] = reply_markup
         await _http().post(
             f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage",
-            json={"chat_id": chat_id, "text": text, "parse_mode": "Markdown"},
-            timeout=10)
+            json=payload, timeout=10)
     except Exception as e:
         log.error(f"Send error: {e}")
 
@@ -334,51 +338,83 @@ async def sync_trello():
 DEFAULT_SECTIONS = ["greeting","weather","tasks_today","tasks_tomorrow","cleaning","events","subs","birthdays","tip"]
 
 def _build_digest_sections(con, fid, uid, user_name, now, section_order=None):
-    """Build digest sections in the configured order. Returns list of lines."""
+    """Build digest sections (HTML parse_mode). Each builder returns list of HTML lines."""
     today_str = now.strftime("%Y-%m-%d")
     tomorrow_str = (now + timedelta(days=1)).strftime("%Y-%m-%d")
     order = section_order or DEFAULT_SECTIONS
+    e = html.escape  # short alias for user-data escaping
+
+    # Pretty date label for an event/task — Today / Tomorrow / Sun 11
+    def _date_label(ds):
+        if ds == today_str: return "Today"
+        if ds == tomorrow_str: return "Tomorrow"
+        try:
+            d = datetime.strptime(ds, "%Y-%m-%d").date()
+            return d.strftime("%a %-d")  # Sun 11
+        except: return ds
 
     builders = {}
 
-    # Greeting
+    # ─── Greeting — bold name + italic date subline
     def _greeting():
         date_line = now.strftime("%A, %B %-d")
-        return [f"☀️ *Good morning, {user_name}!*", f"📆 {date_line}"]
+        week_no = now.isocalendar().week
+        return [
+            f"☀️ <b>Good morning, {e(user_name)}!</b>",
+            f"<i>{date_line} · Week {week_no}</i>",
+        ]
     builders["greeting"] = _greeting
 
-    # Weather — uses shared shaped response (Met Norway, 60-min TTL cache)
+    # ─── Weather — header + current temp + 3-day forecast with arrows
     async def _weather_lines():
         w = await wx.fetch_shaped(WEATHER_LAT, WEATHER_LON, TIMEZONE)
         if not w: return []
-        # label is "emoji desc", take just the emoji for compact digest
         def _icon(lbl): return (lbl or "🌤").split(" ")[0]
-        wl = [f"{_icon(w.get('label'))} *{w.get('now', 0)}°C* now"]
-        days_names = ["Today", "Tomorrow", "Day after"]
+        lines = [
+            "🌤 <b>WEATHER</b>",
+            f"<b>{w.get('now', 0)}°</b> now · feels {w.get('feels', w.get('now', 0))}°",
+        ]
+        days_names = ["Today", "Tomorrow"]
         for i, dy in enumerate(w.get("days", [])[:3]):
-            wl.append(f"  {days_names[i]}: {_icon(dy.get('label'))} {dy.get('min')}°..{dy.get('max')}°")
-        return wl
+            if i < 2:
+                lbl = days_names[i]
+            else:
+                # 3rd day — actual weekday short
+                try:
+                    d = datetime.strptime(dy.get("date"), "%Y-%m-%d").date()
+                    lbl = d.strftime("%a")
+                except: lbl = "Day after"
+            lines.append(f"{_icon(dy.get('label'))} {lbl} · {dy.get('min')}°—{dy.get('max')}°")
+        return lines
     builders["weather"] = _weather_lines
 
-    # Tasks today (include overdue)
+    # ─── Tasks today — colored priority circles (🔴🟡⚪)
     def _tasks_today():
         rows = con.execute(
-            "SELECT text FROM tasks WHERE family_id=? AND done=0 AND (assigned_to=? OR assigned_to IS NULL) AND due_date<=?",
+            "SELECT text, priority FROM tasks WHERE family_id=? AND done=0 AND (assigned_to=? OR assigned_to IS NULL) AND due_date<=? ORDER BY CASE priority WHEN 'high' THEN 0 WHEN 'normal' THEN 1 ELSE 2 END",
             (fid, uid, today_str + " 23:59")).fetchall()
         if not rows: return []
-        return ["📋 *Tasks today:*"] + [f"  • {t['text']}" for t in rows]
+        pri_dot = {"high": "🔴", "normal": "🟡", "low": "⚪"}
+        lines = [f"📋 <b>TASKS TODAY · {len(rows)}</b>"]
+        for t in rows:
+            dot = pri_dot.get(t["priority"] or "normal", "🟡")
+            lines.append(f"{dot} {e(t['text'])}")
+        return lines
     builders["tasks_today"] = _tasks_today
 
-    # Tasks tomorrow
+    # ─── Tasks tomorrow — bullet style, distinct from Today
     def _tasks_tomorrow():
         rows = con.execute(
             "SELECT text FROM tasks WHERE family_id=? AND done=0 AND (assigned_to=? OR assigned_to IS NULL) AND due_date LIKE ?",
             (fid, uid, tomorrow_str + "%")).fetchall()
         if not rows: return []
-        return ["📋 *Tasks tomorrow:*"] + [f"  • {t['text']}" for t in rows]
+        lines = [f"↗️ <b>TOMORROW · {len(rows)}</b>"]
+        for t in rows:
+            lines.append(f"• {e(t['text'])}")
+        return lines
     builders["tasks_tomorrow"] = _tasks_tomorrow
 
-    # Cleaning
+    # ─── Cleaning — ⚠️ marker + (Xd overdue) italic suffix when applicable
     def _cleaning():
         ct_tasks = con.execute("""
             SELECT ct.text, cz.name, ct.last_done, ct.reset_days
@@ -386,39 +422,46 @@ def _build_digest_sections(con, fid, uid, user_name, now, section_order=None):
             WHERE ct.family_id=? AND ct.done=1 AND ct.last_done IS NOT NULL
             AND (ct.assigned_to=? OR ct.assigned_to IS NULL OR cz.assigned_to=? OR cz.assigned_to IS NULL)
         """, (fid, uid, uid)).fetchall()
-        overdue = []
+        overdue = []  # list of (text_html,)
         for ct2 in ct_tasks:
             try:
                 d = (now.date() - datetime.strptime(ct2["last_done"], "%Y-%m-%d").date()).days
-                if d >= (ct2["reset_days"] or 7): overdue.append(f"{ct2['name']}: {ct2['text']}")
+                rd = ct2["reset_days"] or 7
+                if d >= rd:
+                    over = d - rd
+                    suffix = f" <i>({over}d overdue)</i>" if over > 0 else ""
+                    overdue.append(f"⚠️ {e(ct2['name'])} — {e(ct2['text'])}{suffix}")
             except: pass
         never = con.execute("""
             SELECT ct.text, cz.name FROM cleaning_tasks ct JOIN cleaning_zones cz ON cz.id=ct.zone_id
             WHERE ct.family_id=? AND ct.done=0
             AND (ct.assigned_to=? OR ct.assigned_to IS NULL OR cz.assigned_to=? OR cz.assigned_to IS NULL)
         """, (fid, uid, uid)).fetchall()
-        for n in never: overdue.append(f"{n['name']}: {n['text']}")
+        for n in never:
+            overdue.append(f"⚠️ {e(n['name'])} — {e(n['text'])}")
         if not overdue: return []
-        return ["🧹 *Cleaning needed:*"] + [f"  • {o}" for o in overdue[:5]]
+        return [f"🧹 <b>CLEANING · {len(overdue)} overdue</b>"] + overdue[:5]
     builders["cleaning"] = _cleaning
 
-    # Events
+    # ─── Events — bold date label · text
     def _events():
         future = (now + timedelta(days=3)).strftime("%Y-%m-%d 23:59")
-        evts = con.execute("SELECT text, event_date FROM events WHERE family_id=? AND event_date>=? AND event_date<=? ORDER BY event_date",
+        evts = con.execute(
+            "SELECT text, event_date FROM events WHERE family_id=? AND event_date>=? AND event_date<=? ORDER BY event_date",
             (fid, today_str, future)).fetchall()
         if not evts: return []
-        lines = ["📅 *Upcoming events:*"]
-        for e in evts:
-            ed = e["event_date"].split(" ")[0]
-            lbl = "today" if ed == today_str else ("tomorrow" if ed == tomorrow_str else ed)
-            lines.append(f"  • {e['text']} — {lbl}")
+        lines = ["📅 <b>EVENTS · next 3 days</b>"]
+        for ev in evts:
+            ed = ev["event_date"].split(" ")[0]
+            lines.append(f"<b>{_date_label(ed)}</b> · {e(ev['text'])}")
         return lines
     builders["events"] = _events
 
-    # Subscriptions
+    # ─── Subscriptions — emoji name · amount · italic time
     def _subs():
-        subs = con.execute("SELECT name, emoji, amount, currency, billing_day, assigned_to FROM subscriptions WHERE family_id=?", (fid,)).fetchall()
+        subs = con.execute(
+            "SELECT name, emoji, amount, currency, billing_day, assigned_to FROM subscriptions WHERE family_id=?",
+            (fid,)).fetchall()
         upcoming = []
         for s2 in subs:
             if s2["assigned_to"] and s2["assigned_to"] != uid: continue
@@ -428,13 +471,14 @@ def _build_digest_sections(con, fid, uid, user_name, now, section_order=None):
                 if diff < 0: diff += 30
                 if 0 <= diff <= 5:
                     lbl = "today" if diff == 0 else f"in {diff}d"
-                    upcoming.append(f"{s2['emoji']} {s2['name']} — {s2['amount']} {s2['currency']} ({lbl})")
+                    upcoming.append((diff, f"{s2['emoji']} {e(s2['name'])} · {s2['amount']} {e(s2['currency'])} · <i>{lbl}</i>"))
             except: pass
         if not upcoming: return []
-        return ["💳 *Subscriptions:*"] + [f"  • {s}" for s in upcoming]
+        upcoming.sort()
+        return ["💳 <b>BILLING SOON</b>"] + [l for _, l in upcoming]
     builders["subs"] = _subs
 
-    # Birthdays
+    # ─── Birthdays — emoji bold-name · italic time, "today!" highlighted
     def _birthdays():
         bdays = con.execute("SELECT name, emoji, birth_date FROM birthdays WHERE family_id=?", (fid,)).fetchall()
         upcoming = []
@@ -444,26 +488,34 @@ def _build_digest_sections(con, fid, uid, user_name, now, section_order=None):
                 bd = datetime(now.date().year, int(p[1]), int(p[2])).date()
                 diff = (bd - now.date()).days
                 if 0 <= diff <= 7:
-                    w = "today! 🎉" if diff == 0 else f"in {diff}d"
-                    upcoming.append((diff, f"{b['emoji']} {b['name']} — {w}"))
+                    w = "🎉 <b>today!</b>" if diff == 0 else f"<i>in {diff}d</i>"
+                    upcoming.append((diff, f"{b['emoji']} <b>{e(b['name'])}</b> · {w}"))
             except: pass
         upcoming.sort()
         if not upcoming: return []
-        return ["🎂 *Birthdays:*"] + [f"  • {l}" for _, l in upcoming]
+        return ["🎂 <b>BIRTHDAYS</b>"] + [l for _, l in upcoming]
     builders["birthdays"] = _birthdays
 
-    # Tip
+    # ─── Tip of the day — blockquote (Telegram renders with vertical accent line)
     def _tip():
-        tip = DAILY_TIPS[now.timetuple().tm_yday % len(DAILY_TIPS)]
-        return [tip]
+        raw = DAILY_TIPS[now.timetuple().tm_yday % len(DAILY_TIPS)]
+        # strip leading "💡 " from the tip body (header has its own emoji)
+        body = raw[2:].strip() if raw.startswith("💡") else raw
+        return [
+            "💡 <b>Tip of the day</b>",
+            f"<blockquote>{e(body)}</blockquote>",
+        ]
     builders["tip"] = _tip
 
     return builders, order
 
 
+# Visual divider between sections
+SECTION_SEP = "━━━━━━━━━━━━━━━"
+
 async def _render_digest(con, fid, uid, user_name, now, section_order=None):
     builders, order = _build_digest_sections(con, fid, uid, user_name, now, section_order)
-    lines = []
+    blocks = []  # list of joined-lines per section
     for sec in order:
         fn = builders.get(sec)
         if not fn: continue
@@ -472,10 +524,8 @@ async def _render_digest(con, fid, uid, user_name, now, section_order=None):
         if asyncio.iscoroutine(result):
             result = await result
         if result:
-            if lines and sec != "greeting":
-                lines.append("")
-            lines.extend(result)
-    return "\n".join(lines)
+            blocks.append("\n".join(result))
+    return ("\n\n" + SECTION_SEP + "\n\n").join(blocks)
 
 
 async def send_digest_to(family_id, user_id, is_test=False):
@@ -497,8 +547,8 @@ async def send_digest_to(family_id, user_id, is_test=False):
 
     text = await _render_digest(con, family_id, user_id, member["user_name"], now, section_order)
     if is_test:
-        text = "🧪 *TEST DIGEST*\n\n" + text
-    await _send(member["tg_chat_id"], text)
+        text = "🧪 <b>TEST DIGEST</b>\n\n" + text
+    await _send(member["tg_chat_id"], text, parse_mode="HTML")
     con.close()
 
 
@@ -528,5 +578,5 @@ async def morning_digest():
         for member in members:
             if not member["tg_chat_id"]: continue
             text = await _render_digest(con, fid, member["user_id"], member["user_name"], now, section_order)
-            await _send(member["tg_chat_id"], text)
+            await _send(member["tg_chat_id"], text, parse_mode="HTML")
     con.close()
