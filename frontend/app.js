@@ -132,12 +132,12 @@ return '<span class="av-em" style="width:'+sz+'px;height:'+sz+'px;font-size:'+Ma
 function mName(uid){const m=D.members.find(function(x){return x.user_id===uid});return m?m.user_name:"Everyone"}
 function mChip(uid,sm){if(!uid)return '<span class="ch'+(sm?" ch-s":"")+'" style="background:var(--wn)22;color:var(--wn)">👨‍👩‍👧 Everyone</span>';
 const m=D.members.find(function(x){return x.user_id===uid});if(!m)return "";
-return '<span class="ch'+(sm?" ch-s":"")+'" style="background:'+m.color+'22;color:'+m.color+'">'+m.emoji+" "+es(m.user_name)+'</span>'}
+var sz=sm?16:18;return '<span class="ch'+(sm?" ch-s":"")+'" style="background:'+m.color+'22;color:'+m.color+';display:inline-flex;align-items:center;gap:5px">'+mAv(uid,sz)+es(m.user_name)+'</span>'}
 function pri(p){const c={high:"var(--pri-hi)",normal:"var(--pri-md)",low:"var(--pri-lo)"};return '<span class="pr" style="color:'+c[p]+'">'+I.fl+" "+p+'</span>'}
 
 function assignPk(id,sel){
 let h='<div class="or" id="'+id+'"><span class="ch'+((!sel)?" s":"")+'" style="background:var(--wn)22;color:var(--wn);cursor:pointer" onclick="document.querySelectorAll(\'#'+id+' .ch\').forEach(function(c){c.classList.remove(\'s\')});this.classList.add(\'s\');_assign=0">👨‍👩‍👧</span>';
-D.members.forEach(function(m){h+='<span class="ch'+(sel===m.user_id?" s":"")+'" style="background:'+m.color+'22;color:'+m.color+';cursor:pointer" onclick="document.querySelectorAll(\'#'+id+' .ch\').forEach(function(c){c.classList.remove(\'s\')});this.classList.add(\'s\');_assign='+m.user_id+'">'+m.emoji+" "+es(m.user_name)+'</span>'});
+D.members.forEach(function(m){h+='<span class="ch'+(sel===m.user_id?" s":"")+'" style="background:'+m.color+'22;color:'+m.color+';cursor:pointer;display:inline-flex;align-items:center;gap:6px" onclick="document.querySelectorAll(\'#'+id+' .ch\').forEach(function(c){c.classList.remove(\'s\')});this.classList.add(\'s\');_assign='+m.user_id+'">'+mAv(m.user_id,18)+es(m.user_name)+'</span>'});
 return h+'</div>'}
 
 // ─── Reminder pickers ───────────────────────────────────────
@@ -251,7 +251,7 @@ return h}
 function rT(){var h='<div class="tabs"><button class="tab '+(taskTab==="active"?"a":"")+'" onclick="taskTab=\'active\';ren()">📋 Active</button><button class="tab '+(taskTab==="recurring"?"a":"")+'" onclick="taskTab=\'recurring\';ren()">🔁 Recurring</button></div>';
 if(taskTab==="recurring")return h+rRecur();
 h+='<div class="fb2"><button class="fi '+(!filt?"a":"")+'" onclick="filt=null;ren()">All</button>';
-D.members.forEach(function(m){h+='<button class="fi '+(filt===m.user_id?"a":"")+'" onclick="filt='+m.user_id+';ren()">'+m.emoji+'</button>'});h+='</div>';
+D.members.forEach(function(m){h+='<button class="fi '+(filt===m.user_id?"a":"")+'" style="padding:3px 6px;display:inline-flex;align-items:center" onclick="filt='+m.user_id+';ren()">'+mAv(m.user_id,22)+'</button>'});h+='</div>';
 var all=D.tasks;if(filt)all=all.filter(function(x){return x.assigned_to===filt});
 if(searchQ)all=all.filter(function(x){return matchQ(x.text)});
 var pend=all.filter(function(x){return!x.done}),done=all.filter(function(x){return x.done});
@@ -363,7 +363,7 @@ var bal=tInc-tExp;var balC=bal>=0?"var(--ok)":"var(--ac)";
 var h='<div class="c" style="border-left:3px solid '+balC+'"><div class="bd"><div style="display:flex;justify-content:space-between;align-items:baseline"><div style="font-size:12px;color:var(--ht)">Balance</div><div style="font-size:20px;font-weight:800;color:'+balC+'">'+(bal>=0?"+":"")+'€'+bal.toFixed(2)+'</div></div><div class="mt" style="gap:16px;margin-top:4px"><span style="color:var(--ok)">+€'+tInc.toFixed(2)+'</span><span style="color:var(--ac)">−€'+tExp.toFixed(2)+'</span></div></div></div>';
 if(!txs.length)return h+em("💸","No transactions","Tap + to add");
 h+='<div class="fb2"><button class="fi '+(!filt?"a":"")+'" onclick="filt=null;ren()">All</button>';
-D.members.forEach(function(m){h+='<button class="fi '+(filt===m.user_id?"a":"")+'" onclick="filt='+m.user_id+';ren()">'+m.emoji+'</button>'});h+='</div>';
+D.members.forEach(function(m){h+='<button class="fi '+(filt===m.user_id?"a":"")+'" style="padding:3px 6px;display:inline-flex;align-items:center" onclick="filt='+m.user_id+';ren()">'+mAv(m.user_id,22)+'</button>'});h+='</div>';
 txs.forEach(function(tx){
 var cat=cats[tx.category_id];var catLabel=cat?(cat.emoji+" "+cat.name):"";
 var isInc=tx.type==="income";
@@ -422,7 +422,7 @@ h+='</div>';
 h+='<div class="lb">Test Send</div>';
 h+='<div style="display:flex;gap:8px;margin-bottom:16px">';
 D.members.forEach(function(m){
-h+='<button class="btn btn-s" style="flex:1" onclick="dgTest('+m.user_id+')">'+m.emoji+' '+es(m.user_name)+'</button>'});
+h+='<button class="btn btn-s" style="flex:1;display:inline-flex;align-items:center;justify-content:center;gap:6px" onclick="dgTest('+m.user_id+')">'+mAv(m.user_id,18)+es(m.user_name)+'</button>'});
 h+='</div>';
 h+='<button class="btn" onclick="dgSave()">Save</button>';
 return h}
@@ -519,7 +519,7 @@ if(!D.subs.length)return em("💳","No subscriptions","Add below")+rSubAddBtn();
 var items=D.subs;if(searchQ)items=items.filter(function(s){return matchQ(s.name)});
 var totalEur=0;items.forEach(function(s){totalEur+=(s.amount_eur||0)});
 var h=rSubAddBtn()+'<div class="c" style="border-left:3px solid var(--wn)"><div class="bd"><div class="tt" style="font-weight:700">Monthly total</div><div class="mt" style="font-size:16px;color:var(--wn);font-weight:800">€'+totalEur.toFixed(2)+'</div></div></div>';
-h+='<div class="fb2"><button class="fi '+(filt===null?"a":"")+'" onclick="filt=null;ren()">All</button>';D.members.forEach(function(m){h+='<button class="fi '+(filt===m.user_id?"a":"")+'" onclick="filt='+m.user_id+';ren()">'+m.emoji+'</button>'});h+='</div>';
+h+='<div class="fb2"><button class="fi '+(filt===null?"a":"")+'" onclick="filt=null;ren()">All</button>';D.members.forEach(function(m){h+='<button class="fi '+(filt===m.user_id?"a":"")+'" style="padding:3px 6px;display:inline-flex;align-items:center" onclick="filt='+m.user_id+';ren()">'+mAv(m.user_id,22)+'</button>'});h+='</div>';
 if(filt)items=items.filter(function(s){return s.assigned_to===filt});
 items.forEach(function(s){var daysTxt=s.days_until===0?"Due today":s.days_until===1?"Tomorrow":"in "+s.days_until+"d";
 h+='<div class="c"><span style="font-size:28px">'+s.emoji+'</span><div class="bd"><div class="tt" style="font-weight:700">'+es(s.name)+'</div><div class="mt">'+s.amount+" "+s.currency+(s.currency!=="EUR"?" (€"+(s.amount_eur||0).toFixed(2)+")":"")+" · Day "+s.billing_day+" · "+daysTxt+" "+mChip(s.assigned_to,true)+'</div></div><button class="bi" onclick="edSub('+s.id+')">'+I.ed+'</button><button class="bi" onclick="dlSub('+s.id+')">'+I.tr+'</button></div>'});return h}
@@ -645,7 +645,7 @@ var s=_profStats,h='';
 // Member switcher
 h+='<div class="fb2" style="margin-bottom:16px">';
 h+='<button class="fi '+(!_profMember?"a":"")+'" onclick="setProfMember(null)">👨‍👩‍👧 Family</button>';
-D.members.forEach(function(m){h+='<button class="fi '+(_profMember===m.user_id?"a":"")+'" onclick="setProfMember('+m.user_id+')">'+m.emoji+' '+es(m.user_name)+'</button>'});
+D.members.forEach(function(m){h+='<button class="fi '+(_profMember===m.user_id?"a":"")+'" style="display:inline-flex;align-items:center;gap:5px" onclick="setProfMember('+m.user_id+')">'+mAv(m.user_id,18)+es(m.user_name)+'</button>'});
 h+='</div>';
 // Header with avatar
 if(_profMember){var m=D.members.find(function(x){return x.user_id===_profMember});if(m)h+='<div style="display:flex;align-items:center;gap:12px;margin-bottom:16px">'+mAv(m.user_id,48)+'<div><div style="font-size:18px;font-weight:700">'+es(m.user_name)+'</div><div style="font-size:12px;color:var(--ht)">Personal stats</div></div></div>'}
@@ -843,7 +843,7 @@ var h='<div class="cal-chips">';
 var types=[{k:"event",l:"Events",c:"var(--pr)"},{k:"task",l:"Tasks",c:"var(--ac)"},{k:"recurring",l:"Recurring",c:"var(--ac)"},{k:"birthday",l:"Birthdays",c:"var(--wn)"},{k:"subscription",l:"Subs",c:"var(--pr)"}];
 types.forEach(function(t){var on=_calFilters[t.k];h+='<span class="cal-chip'+(on?" on":"")+'" style="--cc:'+t.c+'" onclick="calToggleType(\''+t.k+'\')">'+t.l+'</span>'});
 h+='<span class="cal-chip-sep"></span>';
-(D.members||[]).forEach(function(m){var on=_calFilters.member===m.user_id;h+='<span class="cal-chip'+(on?" on":"")+'" style="--cc:'+m.color+'" onclick="calSetMember('+m.user_id+')">'+m.emoji+' '+es(m.user_name)+'</span>'});
+(D.members||[]).forEach(function(m){var on=_calFilters.member===m.user_id;h+='<span class="cal-chip'+(on?" on":"")+'" style="--cc:'+m.color+';display:inline-flex;align-items:center;gap:5px" onclick="calSetMember('+m.user_id+')">'+mAv(m.user_id,16)+es(m.user_name)+'</span>'});
 h+='</div>';
 // Weekday header
 h+='<div class="cal-dh"><div>Mon</div><div>Tue</div><div>Wed</div><div>Thu</div><div>Fri</div><div style="color:#e74c3c">Sat</div><div style="color:#e74c3c">Sun</div></div>';
