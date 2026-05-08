@@ -8,18 +8,19 @@ const iD=tg?.initData||"";
 
 // ─── Themes ─────────────────────────────────────────────────
 const TH={
-midnight:{n:"Midnight",e:"🌙",bg:"#0f0f1a",sf:"#1a1a2f",cd:"#212140",bd:"rgba(255,255,255,0.10)",tx:"#e8e6f0",ht:"#9f9dba",pr:"#7c6aef",pg:"rgba(124,106,239,0.15)",ac:"#ef6a7a",ok:"#5cd6a0",wn:"#f0c45a",gd:"linear-gradient(135deg,#7c6aef,#a78bfa)",l:0},
-dawn:{n:"Dawn",e:"🌅",bg:"#faf7f2",sf:"#fff8f0",cd:"#ffffff",bd:"rgba(0,0,0,0.10)",tx:"#2d2a24",ht:"#7a7066",pr:"#d4783c",pg:"rgba(212,120,60,0.12)",ac:"#c44d56",ok:"#4a9e6e",wn:"#c9982a",gd:"linear-gradient(135deg,#d4783c,#e8a46c)",l:1},
-forest:{n:"Forest",e:"🌲",bg:"#0d1a14",sf:"#142420",cd:"#1c3329",bd:"rgba(255,255,255,0.10)",tx:"#d4e8dc",ht:"#85b59a",pr:"#4ec98b",pg:"rgba(78,201,139,0.12)",ac:"#e87461",ok:"#4ec98b",wn:"#d4b84a",gd:"linear-gradient(135deg,#4ec98b,#82dbb0)",l:0},
-ocean:{n:"Ocean",e:"🌊",bg:"#0a1628",sf:"#0f1f38",cd:"#162a48",bd:"rgba(255,255,255,0.10)",tx:"#d0e4f5",ht:"#7da8cc",pr:"#38a2d4",pg:"rgba(56,162,212,0.15)",ac:"#ef7b5c",ok:"#4ac4a0",wn:"#e0b84c",gd:"linear-gradient(135deg,#38a2d4,#6cc0e8)",l:0},
-rose:{n:"Rosé",e:"🌸",bg:"#1a0f15",sf:"#261822",cd:"#351f2e",bd:"rgba(255,255,255,0.10)",tx:"#f0dce4",ht:"#bb8aa0",pr:"#e0689a",pg:"rgba(224,104,154,0.15)",ac:"#6ac4dc",ok:"#5cc4a2",wn:"#d8b44e",gd:"linear-gradient(135deg,#e0689a,#f0a0c0)",l:0},
-chalk:{n:"Chalk",e:"🤍",bg:"#f5f3ef",sf:"#edeae4",cd:"#ffffff",bd:"rgba(0,0,0,0.12)",tx:"#1a1816",ht:"#706b62",pr:"#444038",pg:"rgba(68,64,56,0.08)",ac:"#b8442a",ok:"#3a8a5a",wn:"#a8882a",gd:"linear-gradient(135deg,#444038,#6a645a)",l:1},
-onyx:{n:"Onyx",e:"🖤",bg:"#000000",sf:"#0a0a0a",cd:"#141414",bd:"rgba(212,175,55,0.18)",tx:"#f5f0e0",ht:"#b8a878",pr:"#d4af37",pg:"rgba(212,175,55,0.12)",ac:"#e85d75",ok:"#5cd6a0",wn:"#f0c45a",gd:"linear-gradient(135deg,#d4af37,#f4cd5a)",l:0},
-lavender:{n:"Lavender",e:"💜",bg:"#f8f5fb",sf:"#f1ecf6",cd:"#ffffff",bd:"rgba(60,30,90,0.12)",tx:"#2a1f3a",ht:"#6b5d80",pr:"#7c3aed",pg:"rgba(124,58,237,0.10)",ac:"#db2777",ok:"#059669",wn:"#d97706",gd:"linear-gradient(135deg,#7c3aed,#a78bfa)",l:1},
-sunset:{n:"Sunset",e:"🌇",bg:"#1a0d0a",sf:"#251510",cd:"#2f1c16",bd:"rgba(255,180,120,0.14)",tx:"#f5dccd",ht:"#d4a890",pr:"#ff6b35",pg:"rgba(255,107,53,0.15)",ac:"#ffd166",ok:"#6dc36b",wn:"#ffd166",gd:"linear-gradient(135deg,#ff6b35,#ff9b6b)",l:0}
+midnight:{n:"Midnight",e:"🌙",bg:"#0f0f1a",sf:"#1a1a2f",cd:"#212140",bd:"rgba(255,255,255,0.10)",tx:"#e8e6f0",ht:"#9f9dba",pr:"#7c6aef",pg:"rgba(124,106,239,0.15)",ac:"#ef6a7a",ok:"#5cd6a0",wn:"#f0c45a",gd:"linear-gradient(135deg,#5a4cd0,#7c6aef)",gtx:"#fff",l:0},
+dawn:{n:"Dawn",e:"🌅",bg:"#faf7f2",sf:"#fff8f0",cd:"#ffffff",bd:"rgba(0,0,0,0.10)",tx:"#2d2a24",ht:"#7a7066",pr:"#d4783c",pg:"rgba(212,120,60,0.12)",ac:"#c44d56",ok:"#4a9e6e",wn:"#c9982a",gd:"linear-gradient(135deg,#b85e1e,#d4783c)",gtx:"#fff",l:1},
+forest:{n:"Forest",e:"🌲",bg:"#0d1a14",sf:"#142420",cd:"#1c3329",bd:"rgba(255,255,255,0.10)",tx:"#d4e8dc",ht:"#85b59a",pr:"#4ec98b",pg:"rgba(78,201,139,0.12)",ac:"#e87461",ok:"#4ec98b",wn:"#d4b84a",gd:"linear-gradient(135deg,#2e9c63,#4ec98b)",gtx:"#fff",l:0},
+ocean:{n:"Ocean",e:"🌊",bg:"#0a1628",sf:"#0f1f38",cd:"#162a48",bd:"rgba(255,255,255,0.10)",tx:"#d0e4f5",ht:"#7da8cc",pr:"#38a2d4",pg:"rgba(56,162,212,0.15)",ac:"#ef7b5c",ok:"#4ac4a0",wn:"#e0b84c",gd:"linear-gradient(135deg,#1f7eb8,#38a2d4)",gtx:"#fff",l:0},
+rose:{n:"Rosé",e:"🌸",bg:"#1a0f15",sf:"#261822",cd:"#351f2e",bd:"rgba(255,255,255,0.10)",tx:"#f0dce4",ht:"#bb8aa0",pr:"#e0689a",pg:"rgba(224,104,154,0.15)",ac:"#6ac4dc",ok:"#5cc4a2",wn:"#d8b44e",gd:"linear-gradient(135deg,#c44680,#e0689a)",gtx:"#fff",l:0},
+chalk:{n:"Chalk",e:"🤍",bg:"#f5f3ef",sf:"#edeae4",cd:"#ffffff",bd:"rgba(0,0,0,0.12)",tx:"#1a1816",ht:"#706b62",pr:"#444038",pg:"rgba(68,64,56,0.08)",ac:"#b8442a",ok:"#3a8a5a",wn:"#a8882a",gd:"linear-gradient(135deg,#2a2620,#444038)",gtx:"#fff",l:1},
+onyx:{n:"Onyx",e:"🖤",bg:"#000000",sf:"#0a0a0a",cd:"#141414",bd:"rgba(212,175,55,0.18)",tx:"#f5f0e0",ht:"#b8a878",pr:"#d4af37",pg:"rgba(212,175,55,0.12)",ac:"#e85d75",ok:"#5cd6a0",wn:"#f0c45a",gd:"linear-gradient(135deg,#d4af37,#f4cd5a)",gtx:"#000000",l:0},
+lavender:{n:"Lavender",e:"💜",bg:"#f8f5fb",sf:"#f1ecf6",cd:"#ffffff",bd:"rgba(60,30,90,0.12)",tx:"#2a1f3a",ht:"#6b5d80",pr:"#7c3aed",pg:"rgba(124,58,237,0.10)",ac:"#db2777",ok:"#059669",wn:"#d97706",gd:"linear-gradient(135deg,#5b1fc7,#7c3aed)",gtx:"#fff",l:1},
+sunset:{n:"Sunset",e:"🌇",bg:"#1a0d0a",sf:"#251510",cd:"#2f1c16",bd:"rgba(255,180,120,0.14)",tx:"#f5dccd",ht:"#d4a890",pr:"#ff6b35",pg:"rgba(255,107,53,0.15)",ac:"#ffd166",ok:"#6dc36b",wn:"#ffd166",gd:"linear-gradient(135deg,#d04515,#ff6b35)",gtx:"#fff",l:0}
 };
 function aT(id){const t=TH[id];if(!t)return;const r=document.documentElement.style;
 ["bg","sf","cd","bd","tx","ht","pr","pg","ac","ok","wn","gd"].forEach(k=>r.setProperty("--"+k,t[k]));
+r.setProperty("--gtx",t.gtx||"#fff");
 document.body.classList.toggle("ls",!!t.l);cTheme=id;}
 
 // ─── State ──────────────────────────────────────────────────
