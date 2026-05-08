@@ -667,7 +667,7 @@ return h}
 // ═══════════════════════════════════════════════════════════
 // CALENDAR
 // ═══════════════════════════════════════════════════════════
-var _calData=null,_calMonth=null,_calCache={};
+var _calData=null,_calMonth=null,_calCache={},_calDayIso=null;
 var _calFilters={event:true,task:true,recurring:true,birthday:true,subscription:true,member:null};
 function _isoDate(d){return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0")}
 function _parseD(s){var p=s.split("-");return new Date(+p[0],+p[1]-1,+p[2])}
@@ -942,7 +942,16 @@ h+='<div class="ced-type">'+icon+' '+typeLabel+'</div>';
 h+='<div class="ced-title">'+es(title)+'</div>';
 h+='<div class="ced-row"><span class="ced-lbl">Date</span><span class="ced-val">'+dateStr+'</span></div>';
 h+=extra;
-h+='<button class="btn btn-s" style="margin-top:12px;width:100%" onclick="closeCalEv()">Close</button>';
+h+='<div style="display:flex;gap:8px;margin-top:14px">';
+if(type==="task"&&item){
+var doneLbl=item.done?"↺ Reopen":"✓ Mark Done";
+var doneStyle=item.done?"flex:1;background:transparent;border:1.5px solid var(--bd);color:var(--tx)":"flex:1;background:var(--ok);border:none;color:#fff";
+h+='<button class="btn btn-s" style="'+doneStyle+'" onclick="calMarkDone('+id+')">'+doneLbl+'</button>';
+h+='<button class="btn btn-s" style="flex:1;background:transparent;border:1.5px solid var(--bd);color:var(--tx)" onclick="closeCalEv()">Close</button>';
+}else{
+h+='<button class="btn btn-s" style="flex:1" onclick="closeCalEv()">Close</button>';
+}
+h+='</div>';
 h+='</div></div>';
 var el=document.createElement("div");el.id="cal-ev-detail";el.innerHTML=h;
 document.getElementById("cal-mo").appendChild(el)
@@ -952,14 +961,16 @@ function closeCalEv(e){var el=document.getElementById("cal-ev-detail");if(el)el.
 // Full-screen day view
 function openCalDay(iso){
 if(!_calData||!_calData.items)return;
+_calDayIso=iso;
 var dayItems=_calFilterItems(_calData.items).filter(function(it){return it.start<=iso&&it.end>=iso});
 var dd=_parseD(iso);
 var title=dF[dd.getDay()]+", "+dd.getDate()+" "+mN[dd.getMonth()]+" "+dd.getFullYear();
 var h='<div class="cday-overlay">';
 h+='<div class="cday-panel">';
 h+='<div class="cday-hd"><button class="cday-back" onclick="closeCalDay()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" width="20" height="20"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg></button><div class="cday-title">'+title+'</div></div>';
+h+='<div style="display:flex;gap:8px;padding:12px 16px 4px"><button class="btn btn-s" style="flex:1" onclick="oMoTkDay(\''+iso+'\')">+ Task</button><button class="btn btn-s" style="flex:1" onclick="oMoEvtDay(\''+iso+'\')">+ Event</button></div>';
 if(!dayItems.length){
-h+='<div style="text-align:center;padding:40px 20px;color:var(--ht)"><div style="font-size:32px;margin-bottom:8px">📭</div><div>No events this day</div></div>'
+h+='<div style="text-align:center;padding:40px 20px;color:var(--ht)"><div style="font-size:32px;margin-bottom:8px">📭</div><div>No events this day</div><div style="font-size:12px;margin-top:6px;opacity:.7">Tap + above to add one</div></div>'
 }else{
 // Group: events first, then tasks, then birthdays
 var order={event:0,task:1,recurring:2,birthday:3};
@@ -1003,7 +1014,24 @@ h+='</div></div>';
 var el=document.createElement("div");el.id="cal-day-view";el.innerHTML=h;
 document.getElementById("cal-mo").appendChild(el)
 }
-function closeCalDay(){var el=document.getElementById("cal-day-view");if(el)el.remove()}
+function closeCalDay(){var el=document.getElementById("cal-day-view");if(el)el.remove();_calDayIso=null}
+function _calRefresh(){var iso=_calDayIso;_calCache={};if(_calMonth)loadCalMonth().then(function(){if(iso){closeCalDay();openCalDay(iso)}})}
+
+// Add Task / Event from calendar day view (pre-fills the date)
+function oMoTkDay(iso){
+_assign=0;_pri="normal";_rems=[];
+oMC("New Task",'<input class="inp" id="f-t" placeholder="What needs to be done?"><div class="lb">Assign to</div>'+assignPk("ap",null)+'<div class="lb">Priority</div><div class="or">'+["low","normal","high"].map(function(p){return '<button class="ob ob-pri-'+p+' '+(p==="normal"?"s":"")+'" onclick="_pri=\''+p+'\';this.parentNode.querySelectorAll(\'.ob\').forEach(function(b){b.classList.remove(\'s\')});this.classList.add(\'s\')">'+p[0].toUpperCase()+p.slice(1)+'</button>'}).join("")+'</div><div class="lb">Due Date</div><div class="dr"><div><input type="date" id="f-dd" value="'+iso+'"></div></div><div class="lb">Reminders</div><div id="rw">'+remPk()+'</div><button class="btn" onclick="doTkCal()">Add Task</button>');
+document.getElementById("mo").classList.add("op");
+setTimeout(function(){var i=document.querySelector("#mb input.inp");if(i)i.focus()},300)
+}
+function oMoEvtDay(iso){
+oMC("New Event",'<input class="inp" id="f-t" placeholder="Event name"><div class="lb">Start</div><div class="dr"><div><div class="dl">Date</div><input type="date" id="f-d" value="'+iso+'"></div><div><div class="dl">Time</div><input type="time" id="f-tm" value="12:00" step="60"></div></div><div class="lb">End <span style="color:var(--ht);font-weight:400;font-size:11px">(extend for multi-day events)</span></div><div class="dr"><div><input type="date" id="f-ed" value="'+iso+'"></div><div><input type="time" id="f-et" value="13:00" step="60"></div></div><button class="btn" onclick="doEvCal()">Add Event</button>');
+document.getElementById("mo").classList.add("op");
+setTimeout(function(){var i=document.querySelector("#mb input.inp");if(i)i.focus()},300)
+}
+async function doTkCal(){var t=document.getElementById("f-t").value.trim();if(!t)return;var dd=document.getElementById("f-dd")?document.getElementById("f-dd").value:null;await A("POST","/api/tasks",{text:t,assigned_to:_assign||null,priority:_pri,due_date:dd||null,reminders:_rems});cMo();hp();await load();_calRefresh()}
+async function doEvCal(){var t=document.getElementById("f-t").value.trim();var d=document.getElementById("f-d").value;var tm=document.getElementById("f-tm").value||"12:00";if(!t||!d)return;var ed=document.getElementById("f-ed")?document.getElementById("f-ed").value:"";var et=document.getElementById("f-et")?document.getElementById("f-et").value:"";var end=ed?ed+" "+(et||tm):null;await A("POST","/api/events",{text:t,event_date:d+" "+tm,end_date:end});cMo();hp();await load();_calRefresh()}
+async function calMarkDone(id){await A("PATCH","/api/tasks/"+id+"/toggle");hp();closeCalEv();await load();_calRefresh()}
 
 // ═══════════════════════════════════════════════════════════
 // SETTINGS (hamburger page)
