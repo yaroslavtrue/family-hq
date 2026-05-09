@@ -424,7 +424,6 @@ var DIGEST_SECS=[
 {id:"weather",emoji:"🌤",name:"Weather Forecast",color:"#5bc0de"},
 {id:"tasks_today",emoji:"📋",name:"Tasks Today",color:"var(--pr)"},
 {id:"tasks_tomorrow",emoji:"📋",name:"Tasks Tomorrow",color:"var(--ok)"},
-{id:"cleaning",emoji:"🧹",name:"Cleaning",color:"#a78bfa"},
 {id:"events",emoji:"📅",name:"Upcoming Events",color:"var(--ok)"},
 {id:"subs",emoji:"💳",name:"Subscriptions",color:"var(--pr)"},
 {id:"birthdays",emoji:"🎂",name:"Birthdays",color:"var(--wn)"},
@@ -434,8 +433,12 @@ var _dgOrder=null;
 
 function _getDigestOrder(){
 if(_dgOrder)return _dgOrder;
-try{_dgOrder=JSON.parse(D.settings.digest_sections||"null")}catch(e){}
-if(!_dgOrder)_dgOrder=DIGEST_SECS.map(function(s){return s.id});
+var saved=null;
+try{saved=JSON.parse(D.settings.digest_sections||"null")}catch(e){}
+// Drop any sections that no longer exist (e.g. "cleaning" removed in v8.3)
+var known={};DIGEST_SECS.forEach(function(s){known[s.id]=true});
+if(saved&&Array.isArray(saved))_dgOrder=saved.filter(function(id){return known[id]});
+if(!_dgOrder||!_dgOrder.length)_dgOrder=DIGEST_SECS.map(function(s){return s.id});
 return _dgOrder}
 
 function openDigestCfg(){
@@ -1799,7 +1802,7 @@ var nInc=D.categories.filter(function(c){return c.type==="income"}).length;
 h+='<div class="sc">Categories</div><div class="c" onclick="openCatMgr()" style="cursor:pointer"><span style="font-size:20px">📂</span><div class="bd"><div class="tt">Manage Categories</div><div style="font-size:12px;color:var(--ht)">'+nExp+' expense · '+nInc+' income</div></div><span style="color:var(--ht);font-size:18px">›</span></div>';
 h+='<div class="sc">Integrations</div><div class="c" onclick="syncTrello()" style="cursor:pointer"><span style="font-size:20px">🔵</span><div class="bd"><div class="tt">Trello Sync</div><div style="font-size:12px;color:var(--ht)">Board: Работа</div></div><span id="trello-btn" style="padding:6px 14px;border-radius:10px;font-size:12px;font-weight:600;background:var(--pg);color:var(--pr);white-space:nowrap">Sync Now</span></div>';
 h+='<div class="sc">Debug</div><div class="c" style="cursor:pointer" onclick="dbgOn=!dbgOn;document.getElementById(\'dbg\').classList.toggle(\'hidden\',!dbgOn);ren()"><span style="font-size:20px">🐛</span><div class="bd"><div class="tt">Debug Mode '+(dbgOn?"ON":"OFF")+'</div></div></div>';
-h+='<div style="margin-top:8px;text-align:center;font-size:11px;color:var(--ht)">Family HQ v8.2</div>';return h}
+h+='<div style="margin-top:8px;text-align:center;font-size:11px;color:var(--ht)">Family HQ v8.3</div>';return h}
 async function setTh(id){aT(id);hp();await A("PATCH","/api/settings",{theme:id});ren()}
 function openThemePicker(){var h='<div class="tg">';Object.keys(TH).forEach(function(id){var t=TH[id];var sel=cTheme===id;h+='<div class="tc" onclick="setTh(\''+id+'\');cMo()" style="background:'+t.cd+';border:2px solid '+(sel?t.pr:t.bd)+'"><div class="te">'+t.e+'</div><div class="tn" style="color:'+t.tx+'">'+t.n+'</div><div class="td">'+[t.pr,t.ac,t.ok,t.wn].map(function(c){return '<div class="tdd" style="background:'+c+'"></div>'}).join("")+'</div></div>'});h+='</div>';oMC("Choose theme",h)}
 async function setDg(v){await A("PATCH","/api/settings",{digest_time:v});hp()}

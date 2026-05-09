@@ -335,7 +335,7 @@ async def sync_trello():
     con.close()
     log.info(f"Trello sync done: {len(relevant)} cards processed")
 
-DEFAULT_SECTIONS = ["greeting","weather","tasks_today","tasks_tomorrow","cleaning","events","subs","birthdays","tip"]
+DEFAULT_SECTIONS = ["greeting","weather","tasks_today","tasks_tomorrow","events","subs","birthdays","tip"]
 
 def _build_digest_sections(con, fid, uid, user_name, now, section_order=None):
     """Build digest sections (HTML parse_mode). Each builder returns list of HTML lines."""
@@ -355,25 +355,21 @@ def _build_digest_sections(con, fid, uid, user_name, now, section_order=None):
 
     builders = {}
 
-    # ─── Greeting — bold name + italic date subline
+    # ─── Greeting — bold name + date in blockquote
     def _greeting():
         date_line = now.strftime("%A, %B %-d")
-        week_no = now.isocalendar().week
         return [
             f"☀️ <b>Good morning, {e(user_name)}!</b>",
-            f"<i>{date_line} · Week {week_no}</i>",
+            f"<blockquote>{date_line}</blockquote>",
         ]
     builders["greeting"] = _greeting
 
-    # ─── Weather — header + current temp + 3-day forecast with arrows
+    # ─── Weather — header + 3-day forecast, monospace temperature ranges
     async def _weather_lines():
         w = await wx.fetch_shaped(WEATHER_LAT, WEATHER_LON, TIMEZONE)
         if not w: return []
         def _icon(lbl): return (lbl or "🌤").split(" ")[0]
-        lines = [
-            "🌤 <b>WEATHER</b>",
-            f"<b>{w.get('now', 0)}°</b> now · feels {w.get('feels', w.get('now', 0))}°",
-        ]
+        lines = ["🌤 <b>WEATHER</b>"]
         days_names = ["Today", "Tomorrow"]
         for i, dy in enumerate(w.get("days", [])[:3]):
             if i < 2:
@@ -384,7 +380,7 @@ def _build_digest_sections(con, fid, uid, user_name, now, section_order=None):
                     d = datetime.strptime(dy.get("date"), "%Y-%m-%d").date()
                     lbl = d.strftime("%a")
                 except: lbl = "Day after"
-            lines.append(f"{_icon(dy.get('label'))} {lbl} · {dy.get('min')}°—{dy.get('max')}°")
+            lines.append(f"{_icon(dy.get('label'))} {lbl} <code>{dy.get('min')}° – {dy.get('max')}°</code>")
         return lines
     builders["weather"] = _weather_lines
 
@@ -413,35 +409,6 @@ def _build_digest_sections(con, fid, uid, user_name, now, section_order=None):
             lines.append(f"• {e(t['text'])}")
         return lines
     builders["tasks_tomorrow"] = _tasks_tomorrow
-
-    # ─── Cleaning — ⚠️ marker + (Xd overdue) italic suffix when applicable
-    def _cleaning():
-        ct_tasks = con.execute("""
-            SELECT ct.text, cz.name, ct.last_done, ct.reset_days
-            FROM cleaning_tasks ct JOIN cleaning_zones cz ON cz.id=ct.zone_id
-            WHERE ct.family_id=? AND ct.done=1 AND ct.last_done IS NOT NULL
-            AND (ct.assigned_to=? OR ct.assigned_to IS NULL OR cz.assigned_to=? OR cz.assigned_to IS NULL)
-        """, (fid, uid, uid)).fetchall()
-        overdue = []  # list of (text_html,)
-        for ct2 in ct_tasks:
-            try:
-                d = (now.date() - datetime.strptime(ct2["last_done"], "%Y-%m-%d").date()).days
-                rd = ct2["reset_days"] or 7
-                if d >= rd:
-                    over = d - rd
-                    suffix = f" <i>({over}d overdue)</i>" if over > 0 else ""
-                    overdue.append(f"⚠️ {e(ct2['name'])} — {e(ct2['text'])}{suffix}")
-            except: pass
-        never = con.execute("""
-            SELECT ct.text, cz.name FROM cleaning_tasks ct JOIN cleaning_zones cz ON cz.id=ct.zone_id
-            WHERE ct.family_id=? AND ct.done=0
-            AND (ct.assigned_to=? OR ct.assigned_to IS NULL OR cz.assigned_to=? OR cz.assigned_to IS NULL)
-        """, (fid, uid, uid)).fetchall()
-        for n in never:
-            overdue.append(f"⚠️ {e(n['name'])} — {e(n['text'])}")
-        if not overdue: return []
-        return [f"🧹 <b>CLEANING · {len(overdue)} overdue</b>"] + overdue[:5]
-    builders["cleaning"] = _cleaning
 
     # ─── Events — bold date label · text
     def _events():
@@ -510,9 +477,6 @@ def _build_digest_sections(con, fid, uid, user_name, now, section_order=None):
     return builders, order
 
 
-# Visual divider between sections
-SECTION_SEP = "━━━━━━━━━━━━━━━"
-
 async def _render_digest(con, fid, uid, user_name, now, section_order=None):
     builders, order = _build_digest_sections(con, fid, uid, user_name, now, section_order)
     blocks = []  # list of joined-lines per section
@@ -525,7 +489,8 @@ async def _render_digest(con, fid, uid, user_name, now, section_order=None):
             result = await result
         if result:
             blocks.append("\n".join(result))
-    return ("\n\n" + SECTION_SEP + "\n\n").join(blocks)
+    # Just blank line between sections — no divider
+    return "\n\n".join(blocks)
 
 
 async def send_digest_to(family_id, user_id, is_test=False):
