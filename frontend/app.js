@@ -8,7 +8,22 @@ const iD=tg?.initData||"";
 // Session token (PWA / browser auth via Telegram Login Widget). Persistent across reloads.
 function _getSess(){try{return localStorage.getItem("fhq_session")||""}catch(e){return""}}
 function _setSess(t){try{t?localStorage.setItem("fhq_session",t):localStorage.removeItem("fhq_session")}catch(e){}}
-function _logoutPwa(){_setSess("");location.reload()}
+// Aggressive logout: clear localStorage + SW + caches, then hard reload.
+async function _logoutPwa(){
+  try{localStorage.clear()}catch(e){}
+  try{sessionStorage.clear()}catch(e){}
+  try{
+    if(navigator.serviceWorker&&navigator.serviceWorker.getRegistrations){
+      var regs=await navigator.serviceWorker.getRegistrations();
+      for(var i=0;i<regs.length;i++){await regs[i].unregister()}
+    }
+  }catch(e){}
+  try{
+    if(window.caches){var keys=await caches.keys();for(var i=0;i<keys.length;i++){await caches.delete(keys[i])}}
+  }catch(e){}
+  // Force a full reload bypassing browser cache
+  location.replace(location.pathname+"?nocache="+Date.now());
+}
 
 // ─── Themes ─────────────────────────────────────────────────
 const TH={
@@ -273,8 +288,13 @@ location.reload();
 function rOnb(){
 document.getElementById("fab").classList.add("hidden");
 document.querySelectorAll(".ni").forEach(function(e){e.style.opacity=".3"});
+// Show currently authenticated user_id (from session token) so user can see who they're logged in as
+var currentUid="";
+if(!iD&&_getSess()){
+  try{var parts=_getSess().split(".");if(parts.length>=2)currentUid='<div style="font-size:11px;color:var(--ht);margin-top:8px;font-family:monospace">Logged in as Telegram user '+parts[0]+'</div>'}catch(e){}
+}
 var pwaLogout=(!iD&&_getSess())?'<div style="margin-top:24px;padding-top:16px;border-top:1px solid var(--bd);text-align:center"><div style="font-size:12px;color:var(--ht);margin-bottom:10px">Wrong Telegram account?</div><button class="onb-b s2" style="background:transparent;border:1.5px solid var(--ac);color:var(--ac)" onclick="_logoutPwa()">Sign out & try different account</button></div>':'';
-document.getElementById("ct").innerHTML='<div class="onb"><div class="onb-e">👨‍👩‍👧‍👦</div><div class="onb-t">Welcome to Family HQ</div><div class="onb-s">Create a family or join with a code.</div><button class="onb-b p" onclick="shCr()">Create Family</button><div style="color:var(--ht);font-size:13px;margin:8px 0 20px">— or —</div><button class="onb-b s2" onclick="shJn()">Join with Code</button>'+pwaLogout+'</div>'
+document.getElementById("ct").innerHTML='<div class="onb"><div class="onb-e">👨‍👩‍👧‍👦</div><div class="onb-t">Welcome to Family HQ</div><div class="onb-s">Create a family or join with a code.</div>'+currentUid+'<div style="height:16px"></div><button class="onb-b p" onclick="shCr()">Create Family</button><div style="color:var(--ht);font-size:13px;margin:8px 0 20px">— or —</div><button class="onb-b s2" onclick="shJn()">Join with Code</button>'+pwaLogout+'</div>'
 }
 function shCr(){oMC("Create Family",'<input class="inp" id="fn" placeholder="Family name" value="Our Family"><button class="btn" onclick="doCr()">Create</button>')}
 function shJn(){oMC("Join Family",'<div style="text-align:center;margin-bottom:16px"><div style="font-size:14px;color:var(--ht);margin-bottom:12px">Enter 6-character code</div><input class="ci2" id="fc" placeholder="ABC123" maxlength="6"></div><button class="btn" onclick="doJn()">Join</button>')}
