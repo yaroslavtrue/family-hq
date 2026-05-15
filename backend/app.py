@@ -1,7 +1,7 @@
 """
 🏠 Family HQ v5 — Backend API
 """
-import os, sqlite3, hashlib, hmac, json, logging, random, re
+import os, sqlite3, hashlib, hmac, json, logging, random, re, time
 from datetime import datetime, timedelta, date
 from calendar import monthrange
 from urllib.parse import parse_qs
@@ -13,6 +13,7 @@ from fastapi.responses import FileResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
+import httpx
 
 from backend.migrate import migrate, _seed_exercises
 from backend import scheduler as sched
@@ -48,9 +49,11 @@ def gen_code():
     return "".join(random.choices("ABCDEFGHJKMNPQRSTUVWXYZ23456789", k=6))
 
 # ─── Auth ────────────────────────────────────────────────────────────────
+SESSION_TTL = 30 * 86400  # 30 days
+
 def validate_init(data):
-    if not data or BOT_TOKEN == "YOUR_TOKEN_HERE":
-        return {"id": 0, "first_name": "Dev", "photo_url": None}
+    """Validate Telegram Mini App initData. Returns user dict or None."""
+    if not data: return None
     try:
         p = parse_qs(data); parts, hv = [], None
         for k in sorted(p.keys()):
@@ -63,13 +66,50 @@ def validate_init(data):
         return {"id": u.get("id", 0), "first_name": u.get("first_name", "User"), "photo_url": u.get("photo_url")}
     except: return None
 
-async def get_user(r: Request):
-    u = validate_init(r.headers.get("X-Telegram-Init-Data", ""))
-    if not u: raise HTTPException(401)
-    return u
+def make_session_token(user_id: int) -> str:
+    """Stateless signed session token: <user_id>.<expires>.<sig>"""
+    expires = int(time.time()) + SESSION_TTL
+    payload = f"{user_id}.{expires}"
+    sig = hmac.new(BOT_TOKEN.encode(), payload.encode(), hashlib.sha256).hexdigest()[:32]
+    return f"{payload}.{sig}"
+
+def validate_session_token(token: str):
+    """Returns user_id (int) if token is valid + not expired, else None."""
+    if not token: return None
+    try:
+        user_id_s, expires_s, sig = token.split(".")
+        if int(expires_s) < time.time(): return None
+        payload = f"{user_id_s}.{expires_s}"
+        expected = hmac.new(BOT_TOKEN.encode(), payload.encode(), hashlib.sha256).hexdigest()[:32]
+        if not hmac.compare_digest(sig, expected): return None
+        return int(user_id_s)
+    except: return None
+
+def _user_from_session(token: str, db) -> dict | None:
+    uid = validate_session_token(token)
+    if not uid: return None
+    row = db.execute("SELECT user_id, user_name, photo_url FROM family_members WHERE user_id=?", (uid,)).fetchone()
+    if not row: return None
+    return {"id": row["user_id"], "first_name": row["user_name"], "photo_url": row["photo_url"]}
+
+async def get_user(r: Request, db=Depends(get_db)):
+    # 1. Session token (PWA / browser auth via Telegram Login Widget)
+    tok = r.headers.get("X-Session-Token", "")
+    if tok:
+        u = _user_from_session(tok, db)
+        if u: return u
+    # 2. Telegram Mini App initData
+    init = r.headers.get("X-Telegram-Init-Data", "")
+    if init:
+        u = validate_init(init)
+        if u: return u
+    # 3. Dev fallback — only when BOT_TOKEN is unconfigured
+    if BOT_TOKEN == "YOUR_TOKEN_HERE":
+        return {"id": 0, "first_name": "Dev", "photo_url": None}
+    raise HTTPException(401, "Authentication required")
 
 async def get_uf(r: Request, db=Depends(get_db)):
-    u = await get_user(r)
+    u = await get_user(r, db)
     row = db.execute("SELECT family_id, photo_url FROM family_members WHERE user_id=?", (u["id"],)).fetchone()
     if not row: raise HTTPException(404, "Not in a family")
     u["family_id"] = row["family_id"]
@@ -223,6 +263,14 @@ class CategoryEdit(BaseModel):
     name: str | None = None; emoji: str | None = None
 class LimitSet(BaseModel):
     monthly_limit: float
+class TelegramLoginPayload(BaseModel):
+    id: int
+    first_name: str
+    last_name: str | None = None
+    username: str | None = None
+    photo_url: str | None = None
+    auth_date: int
+    hash: str
 class TxItemCreate(BaseModel):
     name: str; quantity: int = 1; amount: float = 0; currency: str = "RSD"
 class TxItemEdit(BaseModel):
@@ -256,6 +304,70 @@ class TemplateEdit(BaseModel):
 # ═════════════════════════════════════════════════════════════════════════
 # FAMILY
 # ═════════════════════════════════════════════════════════════════════════
+# ═════════════════════════════════════════════════════════════════════════
+# AUTH — Telegram Login Widget (for PWA / browser, outside Telegram)
+# ═════════════════════════════════════════════════════════════════════════
+_BOT_USERNAME_CACHE = None
+
+@app.get("/api/auth/bot-info")
+async def bot_info():
+    """Return bot @username so the frontend can embed the Telegram Login Widget."""
+    global _BOT_USERNAME_CACHE
+    if _BOT_USERNAME_CACHE:
+        return {"bot_username": _BOT_USERNAME_CACHE}
+    if BOT_TOKEN == "YOUR_TOKEN_HERE":
+        return {"bot_username": None}
+    try:
+        async with httpx.AsyncClient(timeout=5) as c:
+            r = await c.get(f"https://api.telegram.org/bot{BOT_TOKEN}/getMe")
+            data = r.json()
+            if data.get("ok"):
+                _BOT_USERNAME_CACHE = data["result"]["username"]
+                return {"bot_username": _BOT_USERNAME_CACHE}
+    except Exception as e:
+        log.error(f"getMe failed: {e}")
+    return {"bot_username": None}
+
+@app.post("/api/auth/telegram-login")
+def telegram_login(body: TelegramLoginPayload, db=Depends(get_db)):
+    """
+    Validate a Telegram Login Widget payload per the spec:
+    https://core.telegram.org/widgets/login#checking-authorization
+    Returns a session token if hash + auth_date are valid.
+    """
+    if BOT_TOKEN == "YOUR_TOKEN_HERE":
+        raise HTTPException(500, "BOT_TOKEN not configured")
+    # 1. Verify auth_date is recent (<24h)
+    if int(time.time()) - body.auth_date > 86400:
+        raise HTTPException(401, "Auth data expired — sign in again")
+    # 2. Build data_check_string per Telegram spec
+    fields = body.model_dump()
+    received_hash = fields.pop("hash")
+    pairs = []
+    for k in sorted(fields.keys()):
+        v = fields[k]
+        if v is None: continue
+        pairs.append(f"{k}={v}")
+    data_check = "\n".join(pairs)
+    # 3. Compute expected hash: HMAC-SHA256(data_check) with key=SHA256(bot_token)
+    secret_key = hashlib.sha256(BOT_TOKEN.encode()).digest()
+    expected = hmac.new(secret_key, data_check.encode(), hashlib.sha256).hexdigest()
+    if not hmac.compare_digest(received_hash, expected):
+        raise HTTPException(401, "Invalid Telegram signature")
+    # 4. Refresh photo_url + first_name in DB if user already exists (member of some family)
+    row = db.execute("SELECT user_id, family_id FROM family_members WHERE user_id=?", (body.id,)).fetchone()
+    if row:
+        if body.photo_url:
+            db.execute("UPDATE family_members SET photo_url=? WHERE user_id=?", (body.photo_url, body.id))
+        db.commit()
+    # 5. Issue session token (works even if user isn't in a family yet — they can join/create after)
+    token = make_session_token(body.id)
+    return {
+        "token": token, "user_id": body.id,
+        "first_name": body.first_name, "photo_url": body.photo_url,
+        "joined": bool(row),
+    }
+
 @app.get("/api/family/status")
 def family_status(user=Depends(get_user), db=Depends(get_db)):
     row = db.execute("SELECT fm.family_id, f.name, f.invite_code FROM family_members fm JOIN families f ON f.id=fm.family_id WHERE fm.user_id=?", (user["id"],)).fetchone()
@@ -1779,7 +1891,7 @@ def serve_exercise_image(fn: str):
     return r
 
 # ─── Debug & Serve ───────────────────────────────────────────────────────
-APP_VERSION = "v8.4"
+APP_VERSION = "v8.5"
 
 @app.get("/api/debug/ping")
 def ping(): return {"ok": True, "version": APP_VERSION, "time": datetime.now(ZoneInfo(TIMEZONE)).isoformat()}

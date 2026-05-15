@@ -5,6 +5,10 @@
 const tg=window.Telegram?.WebApp;
 if(tg){tg.ready();tg.expand();try{tg.enableClosingConfirmation()}catch(e){}}
 const iD=tg?.initData||"";
+// Session token (PWA / browser auth via Telegram Login Widget). Persistent across reloads.
+function _getSess(){try{return localStorage.getItem("fhq_session")||""}catch(e){return""}}
+function _setSess(t){try{t?localStorage.setItem("fhq_session",t):localStorage.removeItem("fhq_session")}catch(e){}}
+function _logoutPwa(){_setSess("");location.reload()}
 
 // ─── Themes ─────────────────────────────────────────────────
 const TH={
@@ -34,9 +38,15 @@ var _trainMember,_trainStats=null,_trainView="recent",_curWorkout=null,_restTime
 
 // ─── API ────────────────────────────────────────────────────
 async function A(m,p,b){
-const o={method:m,headers:{"Content-Type":"application/json","X-Telegram-Init-Data":iD}};
+var h={"Content-Type":"application/json"};
+if(iD)h["X-Telegram-Init-Data"]=iD;
+var sess=_getSess();
+if(sess)h["X-Session-Token"]=sess;
+const o={method:m,headers:h};
 if(b)o.body=JSON.stringify(b);
-try{const r=await fetch(p,o);const j=await r.json();
+try{const r=await fetch(p,o);
+if(r.status===401){_setSess("");if(!iD){location.reload();return null}}
+const j=await r.json();
 if(dbgOn){dbgLog.push(m+" "+p+" → "+r.status);if(dbgLog.length>50)dbgLog.shift();var el=document.getElementById("dbg");if(el)el.textContent=dbgLog.slice(-10).join("\n")}
 if(!r.ok)return null;return j}catch(e){if(dbgOn){dbgLog.push("ERR "+m+" "+p+": "+e.message)}return null}}
 
@@ -190,8 +200,58 @@ ren();hp("sel")}
 function toggleMenu(){menuOpen=!menuOpen;document.getElementById("menu-overlay").classList.toggle("open",menuOpen)}
 
 // ─── Onboarding ─────────────────────────────────────────────
-async function init(){try{var r=await A("GET","/api/family/status");if(!r)return;fS=r;
+async function init(){
+// If we're in a browser (no Telegram WebApp) and not logged in, show login screen first.
+if(!tg && !_getSess()){rLogin();return}
+try{var r=await A("GET","/api/family/status");if(!r){if(!tg)rLogin();return}fS=r;
 if(r.joined){document.querySelectorAll(".ni").forEach(function(e){e.style.opacity="1"});await load()}else rOnb()}catch(e){document.getElementById("ct").innerHTML='<pre style="color:red">'+e.message+'</pre>'}}
+
+// ─── Telegram Login Widget screen (PWA / browser only) ──────
+async function rLogin(){
+document.getElementById("fab").classList.add("hidden");
+document.querySelectorAll(".ni").forEach(function(e){e.style.opacity=".3"});
+// Fetch bot username for the widget
+var info=null;
+try{var r=await fetch("/api/auth/bot-info");info=await r.json()}catch(e){}
+var bot=info&&info.bot_username;
+var ct=document.getElementById("ct");
+var h='<div class="onb"><div class="onb-e">🔐</div>'+
+  '<div class="onb-t">Sign in with Telegram</div>'+
+  '<div class="onb-s">Family HQ uses your Telegram account so all data stays in sync with the mini app and bot.</div>';
+if(!bot){
+  h+='<div style="color:var(--ac);font-size:13px;text-align:center;padding:16px">⚠️ Bot not configured. Try opening this app from inside Telegram.</div>';
+}else{
+  h+='<div id="tg-widget-host" style="margin-top:20px;display:flex;justify-content:center"></div>';
+  h+='<div style="font-size:11px;color:var(--ht);margin-top:14px;text-align:center;max-width:280px">After login, your data syncs with whatever you have in the Telegram mini app — same family, same workouts, same everything.</div>';
+}
+h+='</div>';
+ct.innerHTML=h;
+if(bot){
+  // Inject the Telegram Login Widget script
+  var s=document.createElement("script");
+  s.async=true;
+  s.src="https://telegram.org/js/telegram-widget.js?22";
+  s.setAttribute("data-telegram-login",bot);
+  s.setAttribute("data-size","large");
+  s.setAttribute("data-radius","12");
+  s.setAttribute("data-onauth","onTelegramAuth(user)");
+  s.setAttribute("data-request-access","write");
+  document.getElementById("tg-widget-host").appendChild(s);
+}
+}
+
+// Called by Telegram widget after successful login
+async function onTelegramAuth(user){
+hp("ok");
+var r=await A("POST","/api/auth/telegram-login",user);
+if(!r||!r.token){
+  toast("Login failed — check that this domain is set in BotFather (/setdomain)");
+  return;
+}
+_setSess(r.token);
+// Reload — init() will now see a session and load normally
+location.reload();
+}
 function rOnb(){document.getElementById("fab").classList.add("hidden");document.querySelectorAll(".ni").forEach(function(e){e.style.opacity=".3"});document.getElementById("ct").innerHTML='<div class="onb"><div class="onb-e">👨‍👩‍👧‍👦</div><div class="onb-t">Welcome to Family HQ</div><div class="onb-s">Create a family or join with a code.</div><button class="onb-b p" onclick="shCr()">Create Family</button><div style="color:var(--ht);font-size:13px;margin:8px 0 20px">— or —</div><button class="onb-b s2" onclick="shJn()">Join with Code</button></div>'}
 function shCr(){oMC("Create Family",'<input class="inp" id="fn" placeholder="Family name" value="Our Family"><button class="btn" onclick="doCr()">Create</button>')}
 function shJn(){oMC("Join Family",'<div style="text-align:center;margin-bottom:16px"><div style="font-size:14px;color:var(--ht);margin-bottom:12px">Enter 6-character code</div><input class="ci2" id="fc" placeholder="ABC123" maxlength="6"></div><button class="btn" onclick="doJn()">Join</button>')}
@@ -1794,7 +1854,9 @@ function calEdRec(id){closeCalEv();_calEditCb=_calRefresh;edRec(id)}
 function rSet(){var h='';
 if(fS&&fS.joined){h+='<div class="sc">Family</div><div class="c"><span style="font-size:28px">👨‍👩‍👧</span><div class="bd"><div class="tt" style="font-weight:600">'+es(fS.name||"My Family")+'</div></div></div><div class="cd2" style="margin-bottom:16px"><div class="ct2">'+(fS.invite_code||"...")+'</div><div class="cl2">Share this code</div></div>';
 h+='<div class="sc">Members</div>';(fS.members||[]).forEach(function(m){h+='<div class="c">'+mAv(m.user_id,40)+'<div class="bd"><div class="tt" style="font-weight:600">'+es(m.user_name)+'</div><div style="width:24px;height:4px;border-radius:2px;background:'+m.color+';margin-top:3px"></div></div><button class="bi" onclick="edMe('+m.user_id+',\''+es(m.user_name)+'\',\''+m.emoji+'\',\''+m.color+'\')">'+I.ed+'</button></div>'});
-h+='<div style="margin-bottom:20px"><button class="btn btn-s" style="font-size:13px" onclick="if(confirm(\'Leave family?\'))leaveFam()">Leave Family</button></div>'}
+h+='<div style="margin-bottom:20px;display:flex;gap:8px"><button class="btn btn-s" style="font-size:13px;flex:1" onclick="if(confirm(\'Leave family?\'))leaveFam()">Leave Family</button>'+
+(!tg&&_getSess()?'<button class="btn btn-s" style="font-size:13px;flex:1;background:transparent;border:1.5px solid var(--bd);color:var(--tx)" onclick="_logoutPwa()">Log out</button>':'')+
+'</div>'}
 var curTh=TH[cTheme]||TH.midnight;h+='<div class="sc">Theme</div><div class="c" onclick="openThemePicker()" style="cursor:pointer;margin-bottom:24px"><span style="font-size:20px">'+curTh.e+'</span><div class="bd"><div class="tt">'+curTh.n+'</div><div style="font-size:12px;color:var(--ht)">Tap to change · '+Object.keys(TH).length+' themes</div></div><span style="color:var(--ht);font-size:18px">›</span></div>';
 h+='<div class="sc">Morning Digest</div><div class="c" onclick="openDigestCfg()" style="cursor:pointer"><span style="font-size:20px">📨</span><div class="bd"><div class="tt">Configure Digest</div><div style="font-size:12px;color:var(--ht)">Time: '+(D.settings.digest_time||"09:00")+' · Sections & order</div></div><span style="color:var(--ht);font-size:18px">›</span></div>';
 var nExp=D.categories.filter(function(c){return c.type==="expense"}).length;
@@ -1809,7 +1871,7 @@ if(_pwaPrompt){
   h+='<div class="c" style="cursor:default"><span style="font-size:20px">📱</span><div class="bd"><div class="tt">Install on iOS</div><div style="font-size:12px;color:var(--ht)">Tap <b>Share</b> ⬆ → <b>Add to Home Screen</b></div></div></div>';
 }
 h+='<div class="sc">Debug</div><div class="c" style="cursor:pointer" onclick="dbgOn=!dbgOn;document.getElementById(\'dbg\').classList.toggle(\'hidden\',!dbgOn);ren()"><span style="font-size:20px">🐛</span><div class="bd"><div class="tt">Debug Mode '+(dbgOn?"ON":"OFF")+'</div></div></div>';
-h+='<div style="margin-top:8px;text-align:center;font-size:11px;color:var(--ht)">Family HQ v8.4</div>';return h}
+h+='<div style="margin-top:8px;text-align:center;font-size:11px;color:var(--ht)">Family HQ v8.5</div>';return h}
 async function setTh(id){aT(id);hp();await A("PATCH","/api/settings",{theme:id});ren()}
 function openThemePicker(){var h='<div class="tg">';Object.keys(TH).forEach(function(id){var t=TH[id];var sel=cTheme===id;h+='<div class="tc" onclick="setTh(\''+id+'\');cMo()" style="background:'+t.cd+';border:2px solid '+(sel?t.pr:t.bd)+'"><div class="te">'+t.e+'</div><div class="tn" style="color:'+t.tx+'">'+t.n+'</div><div class="td">'+[t.pr,t.ac,t.ok,t.wn].map(function(c){return '<div class="tdd" style="background:'+c+'"></div>'}).join("")+'</div></div>'});h+='</div>';oMC("Choose theme",h)}
 async function setDg(v){await A("PATCH","/api/settings",{digest_time:v});hp()}
