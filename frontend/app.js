@@ -248,11 +248,23 @@ async function onTelegramAuth(user){
 hp("ok");
 var r=await A("POST","/api/auth/telegram-login",user);
 if(!r||!r.token){
-  toast("Login failed — check that this domain is set in BotFather (/setdomain)");
+  alert("Login failed: bot domain not registered in BotFather (/setdomain). Run it and try again.");
   return;
 }
 _setSess(r.token);
-// Reload — init() will now see a session and load normally
+// Verify the token actually persists in localStorage (iOS Safari + private mode can silently reject writes)
+var check=_getSess();
+if(check!==r.token){
+  alert("Cannot store login token — your browser may be in Private/Incognito mode. Disable it and try again.\n\nDetails: localStorage write was rejected.");
+  return;
+}
+// Sanity check token works BEFORE we reload — that way we never enter a reload loop
+var status=await A("GET","/api/family/status");
+if(!status){
+  alert("Token validation failed. Backend says no.\n\nToken saved but rejected on next call. Open Settings → debug for details, or send me the screenshot.\n\nToken: "+r.token.slice(0,30)+"...");
+  return;
+}
+// All good — reload to clear widget state and re-enter normal app
 location.reload();
 }
 function rOnb(){document.getElementById("fab").classList.add("hidden");document.querySelectorAll(".ni").forEach(function(e){e.style.opacity=".3"});document.getElementById("ct").innerHTML='<div class="onb"><div class="onb-e">👨‍👩‍👧‍👦</div><div class="onb-t">Welcome to Family HQ</div><div class="onb-s">Create a family or join with a code.</div><button class="onb-b p" onclick="shCr()">Create Family</button><div style="color:var(--ht);font-size:13px;margin:8px 0 20px">— or —</div><button class="onb-b s2" onclick="shJn()">Join with Code</button></div>'}
