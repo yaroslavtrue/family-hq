@@ -45,7 +45,9 @@ if(sess)h["X-Session-Token"]=sess;
 const o={method:m,headers:h};
 if(b)o.body=JSON.stringify(b);
 try{const r=await fetch(p,o);
-if(r.status===401){_setSess("");if(!iD){location.reload();return null}}
+// On 401: only reload if we HAD a session (it expired). If no session/initData, we should
+// already be on the login screen — reloading would cause an infinite loop.
+if(r.status===401){var hadSess=!!sess;_setSess("");if(!iD&&hadSess){location.reload();return null}}
 const j=await r.json();
 if(dbgOn){dbgLog.push(m+" "+p+" → "+r.status);if(dbgLog.length>50)dbgLog.shift();var el=document.getElementById("dbg");if(el)el.textContent=dbgLog.slice(-10).join("\n")}
 if(!r.ok)return null;return j}catch(e){if(dbgOn){dbgLog.push("ERR "+m+" "+p+": "+e.message)}return null}}
@@ -200,10 +202,11 @@ ren();hp("sel")}
 function toggleMenu(){menuOpen=!menuOpen;document.getElementById("menu-overlay").classList.toggle("open",menuOpen)}
 
 // ─── Onboarding ─────────────────────────────────────────────
+// "Browser mode" = no Telegram initData. We use iD (not tg) because the Telegram script
+// creates window.Telegram.WebApp even outside Telegram — only initData is reliable.
 async function init(){
-// If we're in a browser (no Telegram WebApp) and not logged in, show login screen first.
-if(!tg && !_getSess()){rLogin();return}
-try{var r=await A("GET","/api/family/status");if(!r){if(!tg)rLogin();return}fS=r;
+if(!iD && !_getSess()){rLogin();return}
+try{var r=await A("GET","/api/family/status");if(!r){if(!iD)rLogin();return}fS=r;
 if(r.joined){document.querySelectorAll(".ni").forEach(function(e){e.style.opacity="1"});await load()}else rOnb()}catch(e){document.getElementById("ct").innerHTML='<pre style="color:red">'+e.message+'</pre>'}}
 
 // ─── Telegram Login Widget screen (PWA / browser only) ──────
@@ -1855,7 +1858,7 @@ function rSet(){var h='';
 if(fS&&fS.joined){h+='<div class="sc">Family</div><div class="c"><span style="font-size:28px">👨‍👩‍👧</span><div class="bd"><div class="tt" style="font-weight:600">'+es(fS.name||"My Family")+'</div></div></div><div class="cd2" style="margin-bottom:16px"><div class="ct2">'+(fS.invite_code||"...")+'</div><div class="cl2">Share this code</div></div>';
 h+='<div class="sc">Members</div>';(fS.members||[]).forEach(function(m){h+='<div class="c">'+mAv(m.user_id,40)+'<div class="bd"><div class="tt" style="font-weight:600">'+es(m.user_name)+'</div><div style="width:24px;height:4px;border-radius:2px;background:'+m.color+';margin-top:3px"></div></div><button class="bi" onclick="edMe('+m.user_id+',\''+es(m.user_name)+'\',\''+m.emoji+'\',\''+m.color+'\')">'+I.ed+'</button></div>'});
 h+='<div style="margin-bottom:20px;display:flex;gap:8px"><button class="btn btn-s" style="font-size:13px;flex:1" onclick="if(confirm(\'Leave family?\'))leaveFam()">Leave Family</button>'+
-(!tg&&_getSess()?'<button class="btn btn-s" style="font-size:13px;flex:1;background:transparent;border:1.5px solid var(--bd);color:var(--tx)" onclick="_logoutPwa()">Log out</button>':'')+
+(!iD&&_getSess()?'<button class="btn btn-s" style="font-size:13px;flex:1;background:transparent;border:1.5px solid var(--bd);color:var(--tx)" onclick="_logoutPwa()">Log out</button>':'')+
 '</div>'}
 var curTh=TH[cTheme]||TH.midnight;h+='<div class="sc">Theme</div><div class="c" onclick="openThemePicker()" style="cursor:pointer;margin-bottom:24px"><span style="font-size:20px">'+curTh.e+'</span><div class="bd"><div class="tt">'+curTh.n+'</div><div style="font-size:12px;color:var(--ht)">Tap to change · '+Object.keys(TH).length+' themes</div></div><span style="color:var(--ht);font-size:18px">›</span></div>';
 h+='<div class="sc">Morning Digest</div><div class="c" onclick="openDigestCfg()" style="cursor:pointer"><span style="font-size:20px">📨</span><div class="bd"><div class="tt">Configure Digest</div><div style="font-size:12px;color:var(--ht)">Time: '+(D.settings.digest_time||"09:00")+' · Sections & order</div></div><span style="color:var(--ht);font-size:18px">›</span></div>';
@@ -1867,11 +1870,11 @@ h+='<div class="sc">Integrations</div><div class="c" onclick="syncTrello()" styl
 // On iOS Safari, show manual instructions card always (since beforeinstallprompt isn't fired).
 if(_pwaPrompt){
   h+='<div class="c" onclick="installPWA()" style="cursor:pointer"><span style="font-size:20px">📱</span><div class="bd"><div class="tt">Install App</div><div style="font-size:12px;color:var(--ht)">Add to home screen — works offline</div></div><span style="padding:6px 14px;border-radius:10px;font-size:12px;font-weight:600;background:var(--pg);color:var(--pr);white-space:nowrap">Install</span></div>';
-}else if(!tg && /iPhone|iPad|iPod/.test(navigator.userAgent||"")){
+}else if(!iD && /iPhone|iPad|iPod/.test(navigator.userAgent||"")){
   h+='<div class="c" style="cursor:default"><span style="font-size:20px">📱</span><div class="bd"><div class="tt">Install on iOS</div><div style="font-size:12px;color:var(--ht)">Tap <b>Share</b> ⬆ → <b>Add to Home Screen</b></div></div></div>';
 }
 h+='<div class="sc">Debug</div><div class="c" style="cursor:pointer" onclick="dbgOn=!dbgOn;document.getElementById(\'dbg\').classList.toggle(\'hidden\',!dbgOn);ren()"><span style="font-size:20px">🐛</span><div class="bd"><div class="tt">Debug Mode '+(dbgOn?"ON":"OFF")+'</div></div></div>';
-h+='<div style="margin-top:8px;text-align:center;font-size:11px;color:var(--ht)">Family HQ v8.5</div>';return h}
+h+='<div style="margin-top:8px;text-align:center;font-size:11px;color:var(--ht)">Family HQ v8.5.1</div>';return h}
 async function setTh(id){aT(id);hp();await A("PATCH","/api/settings",{theme:id});ren()}
 function openThemePicker(){var h='<div class="tg">';Object.keys(TH).forEach(function(id){var t=TH[id];var sel=cTheme===id;h+='<div class="tc" onclick="setTh(\''+id+'\');cMo()" style="background:'+t.cd+';border:2px solid '+(sel?t.pr:t.bd)+'"><div class="te">'+t.e+'</div><div class="tn" style="color:'+t.tx+'">'+t.n+'</div><div class="td">'+[t.pr,t.ac,t.ok,t.wn].map(function(c){return '<div class="tdd" style="background:'+c+'"></div>'}).join("")+'</div></div>'});h+='</div>';oMC("Choose theme",h)}
 async function setDg(v){await A("PATCH","/api/settings",{digest_time:v});hp()}
