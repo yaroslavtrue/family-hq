@@ -21,7 +21,7 @@
 body{font-family:'DM Sans',-apple-system,sans-serif;background:var(--bg);color:var(--tx);min-height:100vh;overflow-x:hidden;padding-bottom:120px;-webkit-font-smoothing:antialiased}
 
 /* Header */
-.hd{padding:18px 20px 14px;background:color-mix(in srgb,var(--sf) 88%,transparent);border-bottom:1px solid var(--bd);position:sticky;top:0;z-index:10;display:flex;justify-content:space-between;align-items:flex-start;backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px)}
+.hd{padding:calc(env(safe-area-inset-top, 0px) + 18px) 20px 14px;background:color-mix(in srgb,var(--sf) 88%,transparent);border-bottom:1px solid var(--bd);position:sticky;top:0;z-index:10;display:flex;justify-content:space-between;align-items:flex-start;backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px)}
 .hd h1{font-size:20px;font-weight:700;letter-spacing:-.3px}
 .hd-s{font-size:11px;color:var(--ht);margin-top:3px;font-weight:500;letter-spacing:.2px}
 .hd-r{display:flex;gap:2px;align-items:center}
@@ -281,7 +281,7 @@ input[type="date"],input[type="time"],input[type="number"],select{-webkit-appear
 /* Calendar */
 .cal-mo{position:fixed;inset:0;background:var(--bg);z-index:60;display:none;flex-direction:column}
 .cal-mo.open{display:flex}
-.cal-hd{display:flex;align-items:center;justify-content:space-between;padding:16px 20px;border-bottom:1px solid var(--bd)}
+.cal-hd{display:flex;align-items:center;justify-content:space-between;padding:calc(env(safe-area-inset-top, 0px) + 16px) 20px 16px;border-bottom:1px solid var(--bd)}
 .cal-hd-t{font-size:17px;font-weight:700}
 .cal-nav{display:flex;align-items:center;gap:12px}
 .cal-nav button{background:none;border:none;color:var(--tx);font-size:18px;cursor:pointer;padding:4px 8px;border-radius:8px}
@@ -313,7 +313,7 @@ input[type="date"],input[type="time"],input[type="number"],select{-webkit-appear
 .cal-dy{cursor:pointer}.cal-dy:active .dn{background:var(--sf)}
 .cday-overlay{position:fixed;inset:0;background:var(--bg);z-index:65;display:flex;flex-direction:column;animation:fadeIn .15s}
 .cday-panel{flex:1;overflow-y:auto;display:flex;flex-direction:column}
-.cday-hd{display:flex;align-items:center;gap:12px;padding:16px 20px;border-bottom:1px solid var(--bd)}
+.cday-hd{display:flex;align-items:center;gap:12px;padding:calc(env(safe-area-inset-top, 0px) + 16px) 20px 16px;border-bottom:1px solid var(--bd)}
 .cday-back{background:none;border:none;color:var(--tx);cursor:pointer;padding:4px}
 .cday-title{font-size:17px;font-weight:700}
 .cday-item{display:flex;align-items:flex-start;gap:10px;padding:14px 16px;margin:0 12px;border-radius:12px;background:var(--cd);margin-top:8px;cursor:pointer;transition:background .15s}
@@ -403,6 +403,6 @@ input[type="date"],input[type="time"],input[type="number"],select{-webkit-appear
 <!-- Debug -->
 <div class="dbg hidden" id="dbg"><button class="dbg-cp" onclick="navigator.clipboard.writeText(dbgLog.join('\n'))">Copy</button></div>
 <!-- Load JS -->
-<script src="/static/app.js?v=113"></script>
+<script src="/static/app.js?v=114"></script>
 </body>
 </html>

@@ -2034,6 +2034,14 @@ async function doTx(){var a=parseFloat(document.getElementById("tx-a").value);if
 // ═══════════════════════════════════════════════════════════
 function fixVP(){var nav=document.getElementById("nv");var fab=document.getElementById("fab");if(!nav)return;
 var tgB=0;try{tgB=window.Telegram.WebApp.safeAreaInset.bottom||0}catch(e){}
+// PWA outside Telegram — read env(safe-area-inset-bottom) via a probe element (iPhone home indicator height)
+if(!tgB && !iD){
+  var probe=document.createElement("div");
+  probe.style.cssText="position:fixed;bottom:0;left:0;width:0;height:env(safe-area-inset-bottom);visibility:hidden;pointer-events:none";
+  document.body.appendChild(probe);
+  tgB=probe.offsetHeight||0;
+  probe.remove();
+}
 var total=Math.max(82+tgB,82);document.body.style.paddingBottom=total+"px";
 nav.style.paddingBottom=Math.max(tgB,8)+"px";nav.style.height="auto";nav.style.minHeight="62px";
 if(fab)fab.style.bottom=(total+12)+"px"}
