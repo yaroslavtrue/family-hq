@@ -98,6 +98,9 @@ async def get_user(r: Request, db=Depends(get_db)):
     if tok:
         u = _user_from_session(tok, db)
         if u: return u
+        # Token was present but rejected — log why so we can debug
+        uid = validate_session_token(tok)
+        log.warning(f"Session token rejected: token_uid={uid}, member_exists={bool(uid and db.execute('SELECT 1 FROM family_members WHERE user_id=?', (uid,)).fetchone())}, path={r.url.path}")
     # 2. Telegram Mini App initData
     init = r.headers.get("X-Telegram-Init-Data", "")
     if init:
@@ -106,6 +109,7 @@ async def get_user(r: Request, db=Depends(get_db)):
     # 3. Dev fallback — only when BOT_TOKEN is unconfigured
     if BOT_TOKEN == "YOUR_TOKEN_HERE":
         return {"id": 0, "first_name": "Dev", "photo_url": None}
+    log.warning(f"401 no auth: has_token={bool(tok)}, has_init={bool(init)}, path={r.url.path}")
     raise HTTPException(401, "Authentication required")
 
 async def get_uf(r: Request, db=Depends(get_db)):
@@ -1891,7 +1895,7 @@ def serve_exercise_image(fn: str):
     return r
 
 # ─── Debug & Serve ───────────────────────────────────────────────────────
-APP_VERSION = "v8.5.1"
+APP_VERSION = "v8.5.2"
 
 @app.get("/api/debug/ping")
 def ping(): return {"ok": True, "version": APP_VERSION, "time": datetime.now(ZoneInfo(TIMEZONE)).isoformat()}
