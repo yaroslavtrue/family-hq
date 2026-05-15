@@ -1779,12 +1779,12 @@ def serve_exercise_image(fn: str):
     return r
 
 # ─── Debug & Serve ───────────────────────────────────────────────────────
-APP_VERSION = "v8.3"
+APP_VERSION = "v8.4"
 
 @app.get("/api/debug/ping")
 def ping(): return {"ok": True, "version": APP_VERSION, "time": datetime.now(ZoneInfo(TIMEZONE)).isoformat()}
 
-FRONTEND_DIR = os.path.join(os.path.dirname(__file__), "..", "frontend")
+FRONTEND_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "frontend"))
 
 @app.get("/")
 def serve_index():
@@ -1792,12 +1792,38 @@ def serve_index():
     r.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
     return r
 
-@app.get("/static/{fn}")
-def serve_static(fn: str):
-    import mimetypes
-    fp = os.path.join(FRONTEND_DIR, fn)
+# PWA manifest at /manifest.json (preferred by spec) — also accessible via /static/manifest.json
+@app.get("/manifest.json")
+def serve_manifest():
+    fp = os.path.join(FRONTEND_DIR, "manifest.json")
     if not os.path.isfile(fp): raise HTTPException(404)
-    mt = mimetypes.guess_type(fn)[0] or "application/octet-stream"
-    r = FileResponse(fp, media_type=mt)
+    r = FileResponse(fp, media_type="application/manifest+json")
+    r.headers["Cache-Control"] = "public, max-age=3600"
+    return r
+
+# Service worker MUST be served from origin root for max scope
+@app.get("/sw.js")
+def serve_sw():
+    fp = os.path.join(FRONTEND_DIR, "sw.js")
+    if not os.path.isfile(fp): raise HTTPException(404)
+    r = FileResponse(fp, media_type="application/javascript")
     r.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+    r.headers["Service-Worker-Allowed"] = "/"
+    return r
+
+@app.get("/static/{path:path}")
+def serve_static(path: str):
+    import mimetypes
+    # Path-traversal guard: resolve, ensure under FRONTEND_DIR
+    fp = os.path.abspath(os.path.join(FRONTEND_DIR, path))
+    if not fp.startswith(FRONTEND_DIR + os.sep) and fp != FRONTEND_DIR:
+        raise HTTPException(400)
+    if not os.path.isfile(fp): raise HTTPException(404)
+    mt = mimetypes.guess_type(fp)[0] or "application/octet-stream"
+    r = FileResponse(fp, media_type=mt)
+    # Icons & manifest: cacheable. app.js / index.html: still no-cache (uses ?v= for busting)
+    if path.startswith("icons/") or path.endswith((".png", ".jpg", ".webp", ".svg", ".ico")):
+        r.headers["Cache-Control"] = "public, max-age=86400"
+    else:
+        r.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
     return r

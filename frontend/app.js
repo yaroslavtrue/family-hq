@@ -1801,8 +1801,15 @@ var nExp=D.categories.filter(function(c){return c.type==="expense"}).length;
 var nInc=D.categories.filter(function(c){return c.type==="income"}).length;
 h+='<div class="sc">Categories</div><div class="c" onclick="openCatMgr()" style="cursor:pointer"><span style="font-size:20px">📂</span><div class="bd"><div class="tt">Manage Categories</div><div style="font-size:12px;color:var(--ht)">'+nExp+' expense · '+nInc+' income</div></div><span style="color:var(--ht);font-size:18px">›</span></div>';
 h+='<div class="sc">Integrations</div><div class="c" onclick="syncTrello()" style="cursor:pointer"><span style="font-size:20px">🔵</span><div class="bd"><div class="tt">Trello Sync</div><div style="font-size:12px;color:var(--ht)">Board: Работа</div></div><span id="trello-btn" style="padding:6px 14px;border-radius:10px;font-size:12px;font-weight:600;background:var(--pg);color:var(--pr);white-space:nowrap">Sync Now</span></div>';
+// PWA install — visible only outside Telegram + when browser allows it (Android Chrome).
+// On iOS Safari, show manual instructions card always (since beforeinstallprompt isn't fired).
+if(_pwaPrompt){
+  h+='<div class="c" onclick="installPWA()" style="cursor:pointer"><span style="font-size:20px">📱</span><div class="bd"><div class="tt">Install App</div><div style="font-size:12px;color:var(--ht)">Add to home screen — works offline</div></div><span style="padding:6px 14px;border-radius:10px;font-size:12px;font-weight:600;background:var(--pg);color:var(--pr);white-space:nowrap">Install</span></div>';
+}else if(!tg && /iPhone|iPad|iPod/.test(navigator.userAgent||"")){
+  h+='<div class="c" style="cursor:default"><span style="font-size:20px">📱</span><div class="bd"><div class="tt">Install on iOS</div><div style="font-size:12px;color:var(--ht)">Tap <b>Share</b> ⬆ → <b>Add to Home Screen</b></div></div></div>';
+}
 h+='<div class="sc">Debug</div><div class="c" style="cursor:pointer" onclick="dbgOn=!dbgOn;document.getElementById(\'dbg\').classList.toggle(\'hidden\',!dbgOn);ren()"><span style="font-size:20px">🐛</span><div class="bd"><div class="tt">Debug Mode '+(dbgOn?"ON":"OFF")+'</div></div></div>';
-h+='<div style="margin-top:8px;text-align:center;font-size:11px;color:var(--ht)">Family HQ v8.3</div>';return h}
+h+='<div style="margin-top:8px;text-align:center;font-size:11px;color:var(--ht)">Family HQ v8.4</div>';return h}
 async function setTh(id){aT(id);hp();await A("PATCH","/api/settings",{theme:id});ren()}
 function openThemePicker(){var h='<div class="tg">';Object.keys(TH).forEach(function(id){var t=TH[id];var sel=cTheme===id;h+='<div class="tc" onclick="setTh(\''+id+'\');cMo()" style="background:'+t.cd+';border:2px solid '+(sel?t.pr:t.bd)+'"><div class="te">'+t.e+'</div><div class="tn" style="color:'+t.tx+'">'+t.n+'</div><div class="td">'+[t.pr,t.ac,t.ok,t.wn].map(function(c){return '<div class="tdd" style="background:'+c+'"></div>'}).join("")+'</div></div>'});h+='</div>';oMC("Choose theme",h)}
 async function setDg(v){await A("PATCH","/api/settings",{digest_time:v});hp()}
@@ -1879,6 +1886,33 @@ if(fab)fab.style.bottom=(total+12)+"px"}
 fixVP();window.addEventListener("resize",fixVP);
 if(tg)try{tg.onEvent("viewportChanged",fixVP)}catch(e){}
 setTimeout(fixVP,500);setTimeout(fixVP,1500);
+
+// ─── PWA: register service worker (skip inside Telegram WebView — bot already handles updates) ──
+(function(){
+  if(!('serviceWorker' in navigator))return;
+  // Only register on plain http(s) — Telegram WebView uses its own caching layer.
+  // We still register; SW is no-op for /api/* and harmless inside Telegram.
+  window.addEventListener('load',function(){
+    navigator.serviceWorker.register('/sw.js').catch(function(e){
+      // Silent fail — PWA install just won't work, but app still functions.
+    });
+  });
+})();
+
+// ─── "Install app" button — shows when browser fires beforeinstallprompt (Android Chrome).
+// On iOS Safari there's no programmatic install; user must use Share → Add to Home Screen.
+var _pwaPrompt=null;
+window.addEventListener('beforeinstallprompt',function(e){
+  e.preventDefault();_pwaPrompt=e;
+  // Add a small chip to Settings page when next rendered. ren() picks it up via _pwaPrompt check.
+  if(tab==='settings')ren();
+});
+async function installPWA(){
+  if(!_pwaPrompt)return;
+  _pwaPrompt.prompt();
+  try{await _pwaPrompt.userChoice}catch(e){}
+  _pwaPrompt=null;ren();
+}
 
 // ─── Toggle click: haptic + one-shot spring pop on clicked element ──
 // Uses setTimeout(0) so we run AFTER the synchronous onclick handler

@@ -4,6 +4,15 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
 <title>Family HQ</title>
+<!-- PWA -->
+<link rel="manifest" href="/manifest.json">
+<meta name="theme-color" content="#7c6aef">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Family HQ">
+<link rel="apple-touch-icon" href="/static/icons/apple-touch-icon.png">
+<link rel="icon" type="image/png" sizes="32x32" href="/static/icons/favicon-32.png">
+<link rel="icon" type="image/png" sizes="16x16" href="/static/icons/favicon-16.png">
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
 <style>
@@ -394,6 +403,6 @@ input[type="date"],input[type="time"],input[type="number"],select{-webkit-appear
 <!-- Debug -->
 <div class="dbg hidden" id="dbg"><button class="dbg-cp" onclick="navigator.clipboard.writeText(dbgLog.join('\n'))">Copy</button></div>
 <!-- Load JS -->
-<script src="/static/app.js?v=106"></script>
+<script src="/static/app.js?v=107"></script>
 </body>
 </html>
