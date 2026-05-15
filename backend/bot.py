@@ -679,12 +679,38 @@ async def post_init(app: Application):
 async def cmd_start(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     chat_id = update.effective_chat.id
+    first_name = update.effective_user.first_name or "User"
 
     # Save chat_id for notifications
     con = _db()
     con.execute("UPDATE family_members SET tg_chat_id=? WHERE user_id=?", (chat_id, user_id))
     con.commit()
     con.close()
+
+    # Check for /start login_<code> deep link from the PWA "Login via bot" flow
+    text = update.message.text or ""
+    parts = text.split(" ", 1)
+    if len(parts) > 1 and parts[1].startswith("login_"):
+        code = parts[1][6:]
+        try:
+            r = await _http().post(
+                "http://localhost:8000/api/auth/bot-login-complete",
+                json={"code": code, "user_id": user_id, "first_name": first_name},
+                headers={"X-Internal-Auth": BOT_TOKEN},
+                timeout=5,
+            )
+            if r.status_code == 200:
+                await update.message.reply_text(
+                    f"✅ <b>Login successful!</b>\n\nGo back to your browser — Family HQ should load now as {html.escape(first_name)}.",
+                    parse_mode="HTML")
+            else:
+                await update.message.reply_text(
+                    "❌ Login code expired or invalid. Go back to the browser and tap 'Get new code'.",
+                    parse_mode="HTML")
+        except Exception as e:
+            log.error(f"bot-login-complete failed: {e}")
+            await update.message.reply_text("❌ Login bridge failed. Try again.", parse_mode="HTML")
+        return
 
     kb = InlineKeyboardMarkup([[InlineKeyboardButton("🏠 Open Family HQ", web_app=WebAppInfo(url=WEBAPP_URL))]])
     await update.message.reply_text(

@@ -1,7 +1,7 @@
 """
 🏠 Family HQ v5 — Backend API
 """
-import os, sqlite3, hashlib, hmac, json, logging, random, re, time
+import os, sqlite3, hashlib, hmac, json, logging, random, re, time, secrets
 from datetime import datetime, timedelta, date
 from calendar import monthrange
 from urllib.parse import parse_qs
@@ -280,6 +280,10 @@ class TelegramLoginPayload(BaseModel):
     photo_url: str | None = None
     auth_date: int
     hash: str
+class BotLoginComplete(BaseModel):
+    code: str
+    user_id: int
+    first_name: str | None = None
 class TxItemCreate(BaseModel):
     name: str; quantity: int = 1; amount: float = 0; currency: str = "RSD"
 class TxItemEdit(BaseModel):
@@ -336,6 +340,63 @@ async def bot_info():
     except Exception as e:
         log.error(f"getMe failed: {e}")
     return {"bot_username": None}
+
+# ─── Bot-mediated login (alternative to widget; works with any Telegram account) ──
+_login_codes = {}  # code → {"user_id": int|None, "first_name": str, "expires": int}
+
+def _cleanup_login_codes():
+    now = int(time.time())
+    for k in list(_login_codes.keys()):
+        if _login_codes[k]["expires"] < now: del _login_codes[k]
+
+@app.post("/api/auth/bot-login-init")
+async def bot_login_init():
+    """Generate a one-time code. Frontend shows it + deep link; user opens bot, runs
+    /start login_<code>; bot calls bot-login-complete; frontend polls bot-login-poll."""
+    _cleanup_login_codes()
+    code = secrets.token_urlsafe(6)
+    _login_codes[code] = {"user_id": None, "first_name": "", "expires": int(time.time()) + 300}
+    # Resolve bot username
+    bot = _BOT_USERNAME_CACHE
+    if not bot and BOT_TOKEN != "YOUR_TOKEN_HERE":
+        try:
+            async with httpx.AsyncClient(timeout=5) as c:
+                r = await c.get(f"https://api.telegram.org/bot{BOT_TOKEN}/getMe")
+                data = r.json()
+                if data.get("ok"):
+                    bot = data["result"]["username"]
+                    globals()["_BOT_USERNAME_CACHE"] = bot
+        except Exception as e:
+            log.error(f"getMe in bot-login-init: {e}")
+    return {
+        "code": code,
+        "deep_link": f"https://t.me/{bot}?start=login_{code}" if bot else None,
+        "bot_username": bot,
+    }
+
+@app.get("/api/auth/bot-login-poll")
+def bot_login_poll(code: str):
+    """Frontend polls this; returns 'complete' with session token once the bot confirmed."""
+    _cleanup_login_codes()
+    entry = _login_codes.get(code)
+    if not entry: return {"status": "expired"}
+    if entry["user_id"] is None: return {"status": "pending"}
+    uid = entry["user_id"]
+    del _login_codes[code]  # one-time use
+    return {"status": "complete", "token": make_session_token(uid), "user_id": uid,
+            "first_name": entry.get("first_name", "")}
+
+@app.post("/api/auth/bot-login-complete")
+def bot_login_complete(body: BotLoginComplete, r: Request):
+    """Called by the bot when the user runs /start login_<code>. Internal auth via BOT_TOKEN."""
+    if r.headers.get("X-Internal-Auth") != BOT_TOKEN:
+        raise HTTPException(401)
+    _cleanup_login_codes()
+    entry = _login_codes.get(body.code)
+    if not entry: raise HTTPException(404, "code not found or expired")
+    entry["user_id"] = body.user_id
+    if body.first_name: entry["first_name"] = body.first_name
+    return {"ok": True}
 
 @app.post("/api/auth/telegram-login")
 def telegram_login(body: TelegramLoginPayload, db=Depends(get_db)):
@@ -1900,7 +1961,7 @@ def serve_exercise_image(fn: str):
     return r
 
 # ─── Debug & Serve ───────────────────────────────────────────────────────
-APP_VERSION = "v8.5.4"
+APP_VERSION = "v8.6"
 
 @app.get("/api/debug/ping")
 def ping(): return {"ok": True, "version": APP_VERSION, "time": datetime.now(ZoneInfo(TIMEZONE)).isoformat()}

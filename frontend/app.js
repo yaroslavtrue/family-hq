@@ -224,47 +224,96 @@ if(!iD && !_getSess()){rLogin();return}
 try{var r=await A("GET","/api/family/status");if(!r){if(!iD)rLogin();return}fS=r;
 if(r.joined){document.querySelectorAll(".ni").forEach(function(e){e.style.opacity="1"});await load()}else rOnb()}catch(e){document.getElementById("ct").innerHTML='<pre style="color:red">'+e.message+'</pre>'}}
 
-// ─── Telegram Login Widget screen (PWA / browser only) ──────
+// ─── Login screen with TWO methods: widget (web auth) + bot deep link ──────
+var _loginMode="bot";  // bot is the default — works with any Telegram account
+var _botCode=null,_botPollTimer=null;
+
 async function rLogin(){
 document.getElementById("fab").classList.add("hidden");
 document.querySelectorAll(".ni").forEach(function(e){e.style.opacity=".3"});
-// Fetch bot username for the widget
 var info=null;
 try{var r=await fetch("/api/auth/bot-info");info=await r.json()}catch(e){}
 var bot=info&&info.bot_username;
 var ct=document.getElementById("ct");
 var h='<div class="onb"><div class="onb-e">🔐</div>'+
   '<div class="onb-t">Sign in with Telegram</div>'+
-  '<div class="onb-s">Family HQ uses your Telegram account so all data stays in sync with the mini app and bot.</div>';
+  '<div class="onb-s">Family HQ uses your Telegram account so all data stays in sync.</div>';
 if(!bot){
   h+='<div style="color:var(--ac);font-size:13px;text-align:center;padding:16px">⚠️ Bot not configured. Try opening this app from inside Telegram.</div>';
 }else{
-  h+='<div id="tg-widget-host" style="margin-top:20px;display:flex;justify-content:center"></div>';
-  h+='<div style="font-size:11px;color:var(--ht);margin-top:14px;text-align:center;max-width:280px">After login, your data syncs with whatever you have in the Telegram mini app — same family, same workouts, same everything.</div>';
+  // Tab switch — recommend bot mode as primary (no telegram.org cookie issues)
+  h+='<div style="display:flex;gap:8px;margin:16px 0 10px">';
+  h+='<button class="ob '+(_loginMode==="bot"?"s":"")+'" style="flex:1" onclick="_loginMode=\'bot\';rLogin()">📨 Via Bot (recommended)</button>';
+  h+='<button class="ob '+(_loginMode==="widget"?"s":"")+'" style="flex:1" onclick="_loginMode=\'widget\';rLogin()">🌐 Web</button>';
+  h+='</div>';
+  if(_loginMode==="bot"){
+    h+='<div id="bot-login-host" style="margin-top:10px"></div>';
+    h+='<div style="font-size:11px;color:var(--ht);margin-top:14px;text-align:center;max-width:300px">Works with whichever Telegram account is logged in on your phone — no cookie tricks.</div>';
+  }else{
+    h+='<div id="tg-widget-host" style="margin-top:20px;display:flex;justify-content:center"></div>';
+    h+='<div style="font-size:11px;color:var(--ht);margin-top:14px;text-align:center;max-width:300px">Uses your <b>web.telegram.org</b> session. If you log in with the wrong account, sign out at web.telegram.org first.</div>';
+  }
 }
 h+='</div>';
 ct.innerHTML=h;
 if(bot){
-  // Inject the Telegram Login Widget script
-  var s=document.createElement("script");
-  s.async=true;
-  s.src="https://telegram.org/js/telegram-widget.js?22";
-  s.setAttribute("data-telegram-login",bot);
-  s.setAttribute("data-size","large");
-  s.setAttribute("data-radius","12");
-  s.setAttribute("data-onauth","onTelegramAuth(user)");
-  s.setAttribute("data-request-access","write");
-  document.getElementById("tg-widget-host").appendChild(s);
-  // If there's already a stored session (e.g. user was bouncing here from a stale token),
-  // give them a way to clear it explicitly.
+  if(_loginMode==="bot"){_renderBotLogin(bot)}
+  else{_renderWidget(bot)}
+  // Stale session escape hatch
   if(_getSess()){
     var clear=document.createElement("button");
     clear.className="onb-b s2";
     clear.style.cssText="margin-top:14px;background:transparent;border:1.5px solid var(--ac);color:var(--ac);font-size:12px";
     clear.textContent="Clear stored session";
-    clear.onclick=function(){_setSess("");location.reload()};
+    clear.onclick=function(){_logoutPwa()};
     document.querySelector(".onb").appendChild(clear);
   }
+}
+}
+
+function _renderWidget(bot){
+var s=document.createElement("script");
+s.async=true;
+s.src="https://telegram.org/js/telegram-widget.js?22";
+s.setAttribute("data-telegram-login",bot);
+s.setAttribute("data-size","large");
+s.setAttribute("data-radius","12");
+s.setAttribute("data-onauth","onTelegramAuth(user)");
+s.setAttribute("data-request-access","write");
+document.getElementById("tg-widget-host").appendChild(s);
+// Stop any bot-polling left over
+if(_botPollTimer){clearInterval(_botPollTimer);_botPollTimer=null}
+_botCode=null;
+}
+
+async function _renderBotLogin(bot){
+var host=document.getElementById("bot-login-host");if(!host)return;
+host.innerHTML='<div style="text-align:center;padding:20px;color:var(--ht)">Generating link…</div>';
+var r=await A("POST","/api/auth/bot-login-init");
+if(!r||!r.deep_link){host.innerHTML='<div style="color:var(--ac);text-align:center;padding:16px">Bot not configured</div>';return}
+_botCode=r.code;
+host.innerHTML=
+  '<a href="'+r.deep_link+'" target="_blank" class="btn" style="display:block;text-align:center;text-decoration:none;background:#0088cc;color:#fff;margin-bottom:10px">📨 Open @'+bot+' in Telegram</a>'+
+  '<div style="font-size:12px;color:var(--ht);text-align:center;margin-top:8px">1. Tap the blue button above<br>2. In Telegram, tap <b>Start</b> on the bot<br>3. Come back here — auto-logs in</div>'+
+  '<div id="bot-poll-status" style="text-align:center;margin-top:14px;font-size:12px;color:var(--ht)">Waiting for confirmation…</div>';
+// Start polling
+if(_botPollTimer)clearInterval(_botPollTimer);
+_botPollTimer=setInterval(_pollBotLogin,2000);
+}
+
+async function _pollBotLogin(){
+if(!_botCode)return;
+var r=await A("GET","/api/auth/bot-login-poll?code="+encodeURIComponent(_botCode));
+if(!r)return;
+var st=document.getElementById("bot-poll-status");
+if(r.status==="complete"&&r.token){
+  if(_botPollTimer){clearInterval(_botPollTimer);_botPollTimer=null}
+  if(st)st.innerHTML='<span style="color:var(--ok)">✓ Logged in as '+es(r.first_name||"User")+' — loading…</span>';
+  _setSess(r.token);
+  setTimeout(function(){location.reload()},500);
+}else if(r.status==="expired"){
+  if(_botPollTimer){clearInterval(_botPollTimer);_botPollTimer=null}
+  if(st)st.innerHTML='<span style="color:var(--ac)">Code expired. Tap "Via Bot" again for a new link.</span>';
 }
 }
 
