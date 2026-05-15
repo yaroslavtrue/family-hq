@@ -240,6 +240,16 @@ if(bot){
   s.setAttribute("data-onauth","onTelegramAuth(user)");
   s.setAttribute("data-request-access","write");
   document.getElementById("tg-widget-host").appendChild(s);
+  // If there's already a stored session (e.g. user was bouncing here from a stale token),
+  // give them a way to clear it explicitly.
+  if(_getSess()){
+    var clear=document.createElement("button");
+    clear.className="onb-b s2";
+    clear.style.cssText="margin-top:14px;background:transparent;border:1.5px solid var(--ac);color:var(--ac);font-size:12px";
+    clear.textContent="Clear stored session";
+    clear.onclick=function(){_setSess("");location.reload()};
+    document.querySelector(".onb").appendChild(clear);
+  }
 }
 }
 
@@ -248,26 +258,24 @@ async function onTelegramAuth(user){
 hp("ok");
 var r=await A("POST","/api/auth/telegram-login",user);
 if(!r||!r.token){
-  alert("Login failed: bot domain not registered in BotFather (/setdomain). Run it and try again.");
+  toast("Login failed — domain not set in BotFather, or browser blocked.");
   return;
 }
 _setSess(r.token);
-// Verify the token actually persists in localStorage (iOS Safari + private mode can silently reject writes)
-var check=_getSess();
-if(check!==r.token){
-  alert("Cannot store login token — your browser may be in Private/Incognito mode. Disable it and try again.\n\nDetails: localStorage write was rejected.");
+// Verify localStorage actually persisted (iOS Private/Incognito mode rejects writes silently)
+if(_getSess()!==r.token){
+  toast("Cannot save login — try a non-private browser tab.");
   return;
 }
-// Sanity check token works BEFORE we reload — that way we never enter a reload loop
-var status=await A("GET","/api/family/status");
-if(!status){
-  alert("Token validation failed. Backend says no.\n\nToken saved but rejected on next call. Open Settings → debug for details, or send me the screenshot.\n\nToken: "+r.token.slice(0,30)+"...");
-  return;
-}
-// All good — reload to clear widget state and re-enter normal app
+// Reload — init() will see the session and route correctly (app if in family, onboarding if not)
 location.reload();
 }
-function rOnb(){document.getElementById("fab").classList.add("hidden");document.querySelectorAll(".ni").forEach(function(e){e.style.opacity=".3"});document.getElementById("ct").innerHTML='<div class="onb"><div class="onb-e">👨‍👩‍👧‍👦</div><div class="onb-t">Welcome to Family HQ</div><div class="onb-s">Create a family or join with a code.</div><button class="onb-b p" onclick="shCr()">Create Family</button><div style="color:var(--ht);font-size:13px;margin:8px 0 20px">— or —</div><button class="onb-b s2" onclick="shJn()">Join with Code</button></div>'}
+function rOnb(){
+document.getElementById("fab").classList.add("hidden");
+document.querySelectorAll(".ni").forEach(function(e){e.style.opacity=".3"});
+var pwaLogout=(!iD&&_getSess())?'<div style="margin-top:24px;padding-top:16px;border-top:1px solid var(--bd);text-align:center"><div style="font-size:12px;color:var(--ht);margin-bottom:10px">Wrong Telegram account?</div><button class="onb-b s2" style="background:transparent;border:1.5px solid var(--ac);color:var(--ac)" onclick="_logoutPwa()">Sign out & try different account</button></div>':'';
+document.getElementById("ct").innerHTML='<div class="onb"><div class="onb-e">👨‍👩‍👧‍👦</div><div class="onb-t">Welcome to Family HQ</div><div class="onb-s">Create a family or join with a code.</div><button class="onb-b p" onclick="shCr()">Create Family</button><div style="color:var(--ht);font-size:13px;margin:8px 0 20px">— or —</div><button class="onb-b s2" onclick="shJn()">Join with Code</button>'+pwaLogout+'</div>'
+}
 function shCr(){oMC("Create Family",'<input class="inp" id="fn" placeholder="Family name" value="Our Family"><button class="btn" onclick="doCr()">Create</button>')}
 function shJn(){oMC("Join Family",'<div style="text-align:center;margin-bottom:16px"><div style="font-size:14px;color:var(--ht);margin-bottom:12px">Enter 6-character code</div><input class="ci2" id="fc" placeholder="ABC123" maxlength="6"></div><button class="btn" onclick="doJn()">Join</button>')}
 async function doCr(){var n=document.getElementById("fn").value.trim()||"Our Family";var r=await A("POST","/api/family/create",{name:n});if(!r||r.detail){alert(r?r.detail:"Error");return}cMo();hp();fS={joined:true,invite_code:r.invite_code,name:r.name,members:[]};document.querySelectorAll(".ni").forEach(function(e){e.style.opacity="1"});oMC("Family Created! 🎉",'<div style="text-align:center"><div style="font-size:14px;color:var(--ht);margin-bottom:12px">Share this code:</div><div class="cd2"><div class="ct2">'+r.invite_code+'</div><div class="cl2">Invite Code</div></div><button class="btn" onclick="cMo();load()">Got it!</button></div>')}

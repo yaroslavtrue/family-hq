@@ -86,11 +86,16 @@ def validate_session_token(token: str):
     except: return None
 
 def _user_from_session(token: str, db) -> dict | None:
+    """Return user dict for a valid session token, regardless of family membership.
+    Family-less users land on the onboarding screen where they can join or log out."""
     uid = validate_session_token(token)
     if not uid: return None
     row = db.execute("SELECT user_id, user_name, photo_url FROM family_members WHERE user_id=?", (uid,)).fetchone()
-    if not row: return None
-    return {"id": row["user_id"], "first_name": row["user_name"], "photo_url": row["photo_url"]}
+    if row:
+        return {"id": row["user_id"], "first_name": row["user_name"], "photo_url": row["photo_url"]}
+    # Token is cryptographically valid but user isn't a family member.
+    # Return a stub user — frontend will render onboarding (join/create or log out).
+    return {"id": uid, "first_name": "User", "photo_url": None}
 
 async def get_user(r: Request, db=Depends(get_db)):
     # 1. Session token (PWA / browser auth via Telegram Login Widget)
@@ -1895,7 +1900,7 @@ def serve_exercise_image(fn: str):
     return r
 
 # ─── Debug & Serve ───────────────────────────────────────────────────────
-APP_VERSION = "v8.5.2"
+APP_VERSION = "v8.5.3"
 
 @app.get("/api/debug/ping")
 def ping(): return {"ok": True, "version": APP_VERSION, "time": datetime.now(ZoneInfo(TIMEZONE)).isoformat()}
