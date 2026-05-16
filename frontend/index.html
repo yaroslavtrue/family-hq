@@ -248,9 +248,17 @@ input[type="date"],input[type="time"],input[type="number"],select{-webkit-appear
 
 /* Weather ambient backgrounds (cinematic, multi-layer; all CSS, GPU-only) */
 .wbg{position:relative;overflow:hidden;border-radius:20px;padding:14px 14px;margin:0 -4px 16px;border:1px solid var(--bd);box-shadow:0 8px 28px rgba(0,0,0,.28),inset 0 1px 0 rgba(255,255,255,.06)}
-.wbg>*{position:relative;z-index:2}
-.wbg::before,.wbg::after{content:'';position:absolute;inset:0;pointer-events:none;z-index:0}
-.wbg::after{z-index:1}
+.wbg>*{position:relative;z-index:3}
+.wbg::before,.wbg::after{content:'';position:absolute;inset:0;pointer-events:none;z-index:1}
+.wbg::after{z-index:2}
+/* Optional video background — loaded asynchronously, fades in on canplay.
+   CSS gradient + particle layers remain as the offline/loading fallback.
+   When video is in, particles fade out and a soft scrim is added to .wbg-vd-scrim for text legibility. */
+.wbg-vd{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;z-index:0;opacity:0;transition:opacity .8s ease;pointer-events:none;border-radius:inherit}
+.wbg-vd.loaded{opacity:1}
+.wbg-vd-scrim{position:absolute;inset:0;z-index:1;background:linear-gradient(180deg,rgba(0,0,0,.12) 0%,rgba(0,0,0,.42) 100%);opacity:0;transition:opacity .8s ease;pointer-events:none;border-radius:inherit}
+.wbg.has-video::before,.wbg.has-video::after{opacity:0;transition:opacity .8s ease}
+.wbg.has-video .wbg-vd-scrim{opacity:1}
 /* Clear / Sunny — warm dawn-to-sky gradient with sun glow */
 .wbg-clear{background:radial-gradient(ellipse 140% 90% at 85% 20%,#ffd97a 0%,#f0a33a 18%,#d4783c 35%,#4a6db0 65%,#1e3a5c 100%),linear-gradient(180deg,#2d6aa0 0%,#1a3a5c 100%);background-blend-mode:soft-light,normal}
 .wbg-clear::before{background:radial-gradient(circle 70px at 88% 15%,#fff4c2 0%,rgba(255,200,80,.6) 30%,rgba(255,160,60,.25) 60%,transparent 80%);animation:sunGlow 5s ease-in-out infinite}
@@ -447,6 +455,6 @@ input[type="date"],input[type="time"],input[type="number"],select{-webkit-appear
 <!-- Debug -->
 <div class="dbg hidden" id="dbg"><button class="dbg-cp" onclick="navigator.clipboard.writeText(dbgLog.join('\n'))">Copy</button></div>
 <!-- Load JS -->
-<script src="/static/app.js?v=126"></script>
+<script src="/static/app.js?v=127"></script>
 </body>
 </html>

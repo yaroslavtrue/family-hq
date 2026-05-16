@@ -34,6 +34,23 @@ self.addEventListener('fetch', (event) => {
   // Never intercept API — always live
   if (url.pathname.startsWith('/api/')) return;
 
+  // Weather backgrounds: cache-first (immutable assets, big files, must work offline)
+  if (url.pathname.startsWith('/static/weather/')) {
+    event.respondWith(
+      caches.match(req).then((cached) => {
+        if (cached) return cached;
+        return fetch(req).then((res) => {
+          if (res.ok && url.origin === self.location.origin) {
+            const copy = res.clone();
+            caches.open(CACHE_NAME).then((cache) => cache.put(req, copy)).catch(() => {});
+          }
+          return res;
+        }).catch(() => new Response('', { status: 404 }));
+      })
+    );
+    return;
+  }
+
   // Network-first for shell, fall back to cache offline
   event.respondWith(
     fetch(req)

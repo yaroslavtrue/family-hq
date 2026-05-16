@@ -17,3 +17,6 @@ services:
       - TRELLO_FAMILY_ID=${TRELLO_FAMILY_ID:-1}
     volumes:
       - ./data:/data
+      # Weather video loops — added at runtime (no rebuild needed when files appear).
+      # Hot-add new files: scp file.mp4 root@VPS:/opt/family_hq/frontend/static/weather/
+      - ./frontend/static/weather:/app/frontend/static/weather

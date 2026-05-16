@@ -434,7 +434,9 @@ var h='<p style="color:var(--ht);font-size:14px;margin:0 0 4px;font-weight:500">
 // Weather (wrapped in ambient wbg container — CSS @keyframes handles the animation)
 var w=D.weather;
 if(w&&w.days){var cat=FX.wCat(w.label);
-h+='<div class="wbg wbg-'+cat+'"><div style="display:flex;align-items:center;gap:10px;text-shadow:0 1px 3px rgba(0,0,0,.4)"><div style="filter:drop-shadow(0 2px 4px rgba(0,0,0,.3));flex-shrink:0">'+wIconAnim(w.label,46,true)+'</div><div><span style="font-size:24px;font-weight:800;color:#fff">'+w.now+'°</span><span style="font-size:12px;color:rgba(255,255,255,.65);margin-left:6px">feels '+w.feels+'°</span></div><div style="display:flex;gap:8px;margin-left:auto">';
+// Try a video background loop (in /static/weather/{cat}.mp4). Falls back silently to the CSS gradient + particle layers if file missing / 404 / offline-uncached.
+var _vd='<video class="wbg-vd" autoplay muted loop playsinline preload="metadata" onloadeddata="this.classList.add(\'loaded\');this.parentNode.classList.add(\'has-video\')" onerror="this.remove()"><source src="/static/weather/'+cat+'.mp4" type="video/mp4"></video><div class="wbg-vd-scrim"></div>';
+h+='<div class="wbg wbg-'+cat+'">'+_vd+'<div style="display:flex;align-items:center;gap:10px;text-shadow:0 1px 3px rgba(0,0,0,.5)"><div style="filter:drop-shadow(0 2px 4px rgba(0,0,0,.3));flex-shrink:0">'+wIconAnim(w.label,46,true)+'</div><div><span style="font-size:24px;font-weight:800;color:#fff">'+w.now+'°</span><span style="font-size:12px;color:rgba(255,255,255,.65);margin-left:6px">feels '+w.feels+'°</span></div><div style="display:flex;gap:8px;margin-left:auto">';
 w.days.forEach(function(dy,i){var label=i===0?"Today":wDayName(dy.date);h+='<div style="text-align:center;min-width:44px"><div style="font-size:10px;color:rgba(255,255,255,.6);font-weight:600">'+label+'</div><div style="margin:2px auto;filter:drop-shadow(0 1px 2px rgba(0,0,0,.3));display:flex;justify-content:center">'+wIconAnim(dy.label,26,false)+'</div><div style="font-size:12px;font-weight:700;color:#fff">'+dy.max+'°</div><div style="font-size:10px;color:rgba(255,255,255,.55)">'+dy.min+'°</div></div>'});h+='</div></div></div>'}else h+='<div style="margin-bottom:16px"></div>';
 // Calendar strip
 h+='<div class="sc">Calendar</div>';
@@ -2018,7 +2020,7 @@ if(_pwaPrompt){
   h+='<div class="c" style="cursor:default"><span style="font-size:20px">📱</span><div class="bd"><div class="tt">Install on iOS</div><div style="font-size:12px;color:var(--ht)">Tap <b>Share</b> ⬆ → <b>Add to Home Screen</b></div></div></div>';
 }
 h+='<div class="sc">Debug</div><div class="c" style="cursor:pointer" onclick="dbgOn=!dbgOn;document.getElementById(\'dbg\').classList.toggle(\'hidden\',!dbgOn);ren()"><span style="font-size:20px">🐛</span><div class="bd"><div class="tt">Debug Mode '+(dbgOn?"ON":"OFF")+'</div></div></div>';
-h+='<div style="margin-top:8px;text-align:center;font-size:11px;color:var(--ht)">Family HQ v8.10.4</div>';return h}
+h+='<div style="margin-top:8px;text-align:center;font-size:11px;color:var(--ht)">Family HQ v8.10.5</div>';return h}
 async function setTh(id){aT(id);hp();await A("PATCH","/api/settings",{theme:id});ren()}
 function openThemePicker(){var h='<div class="tg">';Object.keys(TH).forEach(function(id){var t=TH[id];var sel=cTheme===id;h+='<div class="tc" onclick="setTh(\''+id+'\');cMo()" style="background:'+t.cd+';border:2px solid '+(sel?t.pr:t.bd)+'"><div class="te">'+t.e+'</div><div class="tn" style="color:'+t.tx+'">'+t.n+'</div><div class="td">'+[t.pr,t.ac,t.ok,t.wn].map(function(c){return '<div class="tdd" style="background:'+c+'"></div>'}).join("")+'</div></div>'});h+='</div>';oMC("Choose theme",h)}
 async function setDg(v){await A("PATCH","/api/settings",{digest_time:v});hp()}

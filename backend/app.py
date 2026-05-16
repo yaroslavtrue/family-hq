@@ -1969,7 +1969,7 @@ def serve_exercise_image(fn: str):
     return r
 
 # ─── Debug & Serve ───────────────────────────────────────────────────────
-APP_VERSION = "v8.10.4"
+APP_VERSION = "v8.10.5"
 
 @app.get("/api/debug/ping")
 def ping(): return {"ok": True, "version": APP_VERSION, "time": datetime.now(ZoneInfo(TIMEZONE)).isoformat()}
@@ -2014,6 +2014,9 @@ def serve_static(path: str):
     # Icons & manifest: cacheable. app.js / index.html: still no-cache (uses ?v= for busting)
     if path.startswith("icons/") or path.endswith((".png", ".jpg", ".webp", ".svg", ".ico")):
         r.headers["Cache-Control"] = "public, max-age=86400"
+    elif path.startswith("weather/") or path.endswith((".mp4", ".webm")):
+        # Weather video loops: aggressive long-term caching (file names are immutable)
+        r.headers["Cache-Control"] = "public, max-age=2592000, immutable"
     else:
         r.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
     return r
