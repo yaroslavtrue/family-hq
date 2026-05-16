@@ -140,7 +140,7 @@ return m[emoji]||null}
 function wIconAnim(lbl,size,nightAware){var emoji=wIcon(lbl);var name=_wIconName(emoji,nightAware);var s=size||40;
 if(!name)return '<span style="font-size:'+Math.round(s*.75)+'px;line-height:1">'+emoji+'</span>';
 var fb=emoji.replace(/'/g,"&#39;");
-return '<img src="https://cdn.jsdelivr.net/gh/basmilius/weather-icons@dev/production/fill/all/'+name+'.svg" width="'+s+'" height="'+s+'" loading="lazy" style="display:block" onerror="this.outerHTML=\'<span style=&quot;font-size:'+Math.round(s*.75)+'px;line-height:1&quot;>'+fb+'</span>\'">'}
+return '<img src="https://cdn.jsdelivr.net/gh/basmilius/weather-icons/production/fill/svg/'+name+'.svg" width="'+s+'" height="'+s+'" loading="lazy" style="display:block" onerror="this.outerHTML=\'<span style=&quot;font-size:'+Math.round(s*.75)+'px;line-height:1&quot;>'+fb+'</span>\'">'}
 function wDayName(ds){var d=new Date(ds+"T12:00:00");return dN[d.getDay()]}
 function matchQ(text){return !searchQ||(text||"").toLowerCase().indexOf(searchQ)>=0}
 
@@ -1781,11 +1781,13 @@ var vs=_parseD(data.vis_start),ve=_parseD(data.vis_end);
 var todayISO=_isoDate(new Date());
 // Filter chips
 var h='<div class="cal-chips">';
-var types=[{k:"event",l:"Events",c:"var(--pr)"},{k:"task",l:"Tasks",c:"var(--ac)"},{k:"recurring",l:"Recurring",c:"var(--ac)"},{k:"birthday",l:"Birthdays",c:"var(--wn)"},{k:"subscription",l:"Subs",c:"var(--pr)"}];
-types.forEach(function(t){var on=_calFilters[t.k];h+='<span class="cal-chip'+(on?" on":"")+'" style="--cc:'+t.c+'" onclick="calToggleType(\''+t.k+'\')">'+t.l+'</span>'});
+var types=[{k:"event",l:"Events",c:"var(--pr)",i:"📅"},{k:"task",l:"Tasks",c:"var(--ac)",i:"✓"},{k:"recurring",l:"Recurring",c:"var(--ac)",i:"🔁"},{k:"birthday",l:"Birthdays",c:"var(--wn)",i:"🎂"},{k:"subscription",l:"Subs",c:"var(--ok)",i:"💳"}];
+types.forEach(function(t){var on=_calFilters[t.k];h+='<span class="cal-chip'+(on?" on":"")+'" style="--cc:'+t.c+'" onclick="calToggleType(\''+t.k+'\')"><span class="cal-chip-ico">'+t.i+'</span>'+t.l+'</span>'});
 h+='<span class="cal-chip-sep"></span>';
-(D.members||[]).forEach(function(m){var on=_calFilters.member===m.user_id;h+='<span class="cal-chip'+(on?" on":"")+'" style="--cc:'+m.color+';display:inline-flex;align-items:center;gap:5px" onclick="calSetMember('+m.user_id+')">'+mAv(m.user_id,16)+es(m.user_name)+'</span>'});
+(D.members||[]).forEach(function(m){var on=_calFilters.member===m.user_id;h+='<span class="cal-chip'+(on?" on":"")+'" style="--cc:'+m.color+'" onclick="calSetMember('+m.user_id+')">'+mAv(m.user_id,16)+es(m.user_name)+'</span>'});
 h+='</div>';
+// Calendar grid card — weeks wrap in a rounded surface
+h+='<div class="cal-grid-card">';
 // Weekday header
 h+='<div class="cal-dh"><div>Mon</div><div>Tue</div><div>Wed</div><div>Thu</div><div>Fri</div><div style="color:#e74c3c">Sat</div><div style="color:#e74c3c">Sun</div></div>';
 // Filtered items
@@ -1833,7 +1835,8 @@ h+='<div class="cal-bars" style="height:'+Math.max(bars.height,4)+'px">'+bars.ht
 h+='</div>';
 cur=_addD(cur,7)
 }
-h+='<div class="cal-legend"><span class="cal-lg"><span class="cal-ld" style="background:var(--pr)"></span>Events</span><span class="cal-lg"><span class="cal-ld" style="background:var(--ac)"></span>Tasks</span><span class="cal-lg"><span class="cal-ld" style="background:var(--ac);border:1px dashed #fff"></span>Recurring</span><span class="cal-lg"><span class="cal-ld" style="background:color-mix(in srgb,var(--ok),transparent 30%)"></span>Done</span><span class="cal-lg"><span class="cal-ld" style="background:var(--wn)"></span>Birthdays</span><span class="cal-lg"><span class="cal-ld" style="background:var(--pr);border:1px dashed #fff"></span>Subs</span></div>';
+h+='</div>'; // close .cal-grid-card
+h+='<div class="cal-legend"><span class="cal-lg"><span class="cal-ld" style="background:var(--pr)"></span>Events</span><span class="cal-lg"><span class="cal-ld" style="background:var(--ac)"></span>Tasks</span><span class="cal-lg"><span class="cal-ld" style="background:var(--ac);border:1.5px dashed color-mix(in srgb,var(--tx) 70%,transparent)"></span>Recurring</span><span class="cal-lg"><span class="cal-ld" style="background:var(--ok)"></span>Done</span><span class="cal-lg"><span class="cal-ld" style="background:var(--wn)"></span>Birthdays</span><span class="cal-lg"><span class="cal-ld" style="background:var(--ok);border:1.5px dashed color-mix(in srgb,var(--tx) 70%,transparent)"></span>Subs</span></div>';
 body.innerHTML=h
 }
 
@@ -2013,7 +2016,7 @@ if(_pwaPrompt){
   h+='<div class="c" style="cursor:default"><span style="font-size:20px">📱</span><div class="bd"><div class="tt">Install on iOS</div><div style="font-size:12px;color:var(--ht)">Tap <b>Share</b> ⬆ → <b>Add to Home Screen</b></div></div></div>';
 }
 h+='<div class="sc">Debug</div><div class="c" style="cursor:pointer" onclick="dbgOn=!dbgOn;document.getElementById(\'dbg\').classList.toggle(\'hidden\',!dbgOn);ren()"><span style="font-size:20px">🐛</span><div class="bd"><div class="tt">Debug Mode '+(dbgOn?"ON":"OFF")+'</div></div></div>';
-h+='<div style="margin-top:8px;text-align:center;font-size:11px;color:var(--ht)">Family HQ v8.10.1</div>';return h}
+h+='<div style="margin-top:8px;text-align:center;font-size:11px;color:var(--ht)">Family HQ v8.10.2</div>';return h}
 async function setTh(id){aT(id);hp();await A("PATCH","/api/settings",{theme:id});ren()}
 function openThemePicker(){var h='<div class="tg">';Object.keys(TH).forEach(function(id){var t=TH[id];var sel=cTheme===id;h+='<div class="tc" onclick="setTh(\''+id+'\');cMo()" style="background:'+t.cd+';border:2px solid '+(sel?t.pr:t.bd)+'"><div class="te">'+t.e+'</div><div class="tn" style="color:'+t.tx+'">'+t.n+'</div><div class="td">'+[t.pr,t.ac,t.ok,t.wn].map(function(c){return '<div class="tdd" style="background:'+c+'"></div>'}).join("")+'</div></div>'});h+='</div>';oMC("Choose theme",h)}
 async function setDg(v){await A("PATCH","/api/settings",{digest_time:v});hp()}
