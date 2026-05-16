@@ -465,15 +465,21 @@ def _build_digest_sections(con, fid, uid, user_name, now, section_order=None):
     builders["birthdays"] = _birthdays
 
     # ─── Word of the day — bilingual (RU + EN) for daily language learning.
-    # Each language is a single blockquote: flag + word on the first line, definition on the second.
+    # Each language is a single blockquote: flag + word + italic pronunciation
+    # on line 1, definition on line 2. Russian transcription is the stress-marked
+    # Cyrillic form (`ru_ipa`); English is IPA in slashes (`en_ipa`).
     def _word_of_day():
         if not WORD_LIST: return []
         w = WORD_LIST[now.timetuple().tm_yday % len(WORD_LIST)]
+        ru_tr = e(w.get("ru_ipa") or "")
+        en_tr = e(w.get("en_ipa") or "")
+        ru_line = f"🇷🇺 <b>{e(w['ru_word'])}</b>" + (f" <i>{ru_tr}</i>" if ru_tr else "")
+        en_line = f"🇬🇧 <b>{e(w['en_word'])}</b>" + (f" <i>{en_tr}</i>" if en_tr else "")
         return [
             "📚 <b>WORD OF THE DAY</b>",
-            f"<blockquote>🇷🇺 <b>{e(w['ru_word'])}</b>\n{e(w['ru_def'])}</blockquote>",
+            f"<blockquote>{ru_line}\n{e(w['ru_def'])}</blockquote>",
             "",  # blank line between the two quotes for visual spacing
-            f"<blockquote>🇬🇧 <b>{e(w['en_word'])}</b>\n{e(w['en_def'])}</blockquote>",
+            f"<blockquote>{en_line}\n{e(w['en_def'])}</blockquote>",
         ]
     builders["word_of_day"] = _word_of_day
 
