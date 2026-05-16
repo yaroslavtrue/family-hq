@@ -16,7 +16,7 @@
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
 <style>
-:root{--bg:#0f0f1a;--sf:#1a1a2f;--cd:#212140;--bd:rgba(255,255,255,0.10);--tx:#e8e6f0;--ht:#9f9dba;--pr:#7c6aef;--pg:rgba(124,106,239,0.15);--ac:#ef6a7a;--ok:#5cd6a0;--wn:#f0c45a;--gd:linear-gradient(135deg,#5a4cd0,#7c6aef);--gtx:#fff;--r:16px;--nh:64px}
+:root{--bg:#0f0f1a;--sf:#1a1a2f;--cd:#212140;--bd:rgba(255,255,255,0.10);--tx:#e8e6f0;--ht:#9f9dba;--pr:#7c6aef;--pg:rgba(124,106,239,0.15);--ac:#ef6a7a;--ok:#5cd6a0;--wn:#f0c45a;--gd:linear-gradient(135deg,#5a4cd0,#7c6aef);--gtx:#fff;--r:20px;--r-sm:14px;--r-pill:999px;--nh:64px;--shadow-1:0 2px 12px rgba(0,0,0,.18);--shadow-2:0 8px 24px rgba(0,0,0,.22)}
 *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 body{font-family:'DM Sans',-apple-system,sans-serif;background:var(--bg);color:var(--tx);min-height:100vh;overflow-x:hidden;padding-bottom:120px;-webkit-font-smoothing:antialiased}
 
@@ -44,18 +44,44 @@ body{font-family:'DM Sans',-apple-system,sans-serif;background:var(--bg);color:v
 .ni{flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;padding:8px 0 4px;background:none;border:none;color:var(--ht);font-size:9px;font-weight:500;cursor:pointer;transition:all .25s ease;position:relative;font-family:inherit;border-radius:12px}
 .ni.a{color:var(--pr);font-weight:700}.ni svg{width:20px;height:20px;transition:transform .2s ease}
 .ni.a svg{transform:scale(1.1)}
-.nb{position:absolute;top:2px;right:calc(50% - 16px);min-width:16px;height:16px;border-radius:8px;background:var(--ac);color:#fff;font-size:8px;font-weight:700;display:flex;align-items:center;justify-content:center;padding:0 4px}
+.nb{position:absolute;top:2px;right:calc(50% - 18px);min-width:18px;height:18px;border-radius:9px;background:var(--ac);color:#fff;font-size:10px;font-weight:700;display:flex;align-items:center;justify-content:center;padding:0 5px;box-shadow:0 0 0 2px var(--sf),0 2px 6px color-mix(in srgb,var(--ac) 35%,transparent);letter-spacing:.2px}
 
 /* Content */
 .ct{padding:14px 16px 24px}
 
-/* Section headers */
-.sc{font-size:11px;font-weight:600;color:var(--ht);text-transform:uppercase;letter-spacing:1px;margin:14px 0 8px;display:flex;justify-content:space-between;align-items:center}
+/* Section headers — uppercase micro-label with counter pill */
+.sc{font-size:11px;font-weight:700;color:var(--ht);text-transform:uppercase;letter-spacing:1.2px;margin:18px 0 10px;display:flex;justify-content:space-between;align-items:center;gap:8px}
 .sc .at{text-transform:none;letter-spacing:0;font-size:12px;color:var(--pr);background:none;border:none;cursor:pointer;font-weight:600;font-family:inherit}
+.sc-cnt{display:inline-flex;align-items:center;justify-content:center;min-width:18px;height:18px;padding:0 6px;border-radius:9px;background:color-mix(in srgb,var(--ht) 18%,transparent);color:var(--ht);font-size:10px;font-weight:700;letter-spacing:0;margin-left:6px}
+.sc-l{display:inline-flex;align-items:center;gap:6px}
 
 /* Cards */
-.c{background:var(--cd);border-radius:var(--r);padding:14px 16px;margin-bottom:10px;border:1px solid var(--bd);display:flex;align-items:center;gap:12px;transition:all .25s;animation:ci .3s ease-out;box-shadow:0 2px 8px rgba(0,0,0,.12)}
+.c{background:var(--cd);border-radius:var(--r);padding:16px 18px;margin-bottom:12px;border:1px solid var(--bd);display:flex;align-items:center;gap:13px;transition:all .25s;animation:ci .3s ease-out;box-shadow:var(--shadow-1)}
 .c.d{opacity:.35}
+
+/* Premium list card — gradient icon + title + meta + trailing pill (subs/events/birthdays/upcoming) */
+.lc{background:var(--cd);border-radius:var(--r);padding:14px 16px;margin-bottom:10px;border:1px solid var(--bd);display:flex;align-items:center;gap:14px;transition:transform .15s,box-shadow .25s;animation:ci .3s ease-out;box-shadow:var(--shadow-1)}
+.lc:active{transform:scale(.985)}
+.lc-i{width:44px;height:44px;border-radius:13px;display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0;background:var(--gd);color:var(--gtx,#fff);box-shadow:0 4px 14px color-mix(in srgb,var(--pr) 22%,transparent)}
+.lc-i.acc-ac{background:linear-gradient(135deg,color-mix(in srgb,var(--ac) 75%,#000),var(--ac))}
+.lc-i.acc-ok{background:linear-gradient(135deg,color-mix(in srgb,var(--ok) 75%,#000),var(--ok))}
+.lc-i.acc-wn{background:linear-gradient(135deg,color-mix(in srgb,var(--wn) 75%,#000),var(--wn));color:#1a1a2f}
+.lc-bd{flex:1;min-width:0;display:flex;flex-direction:column;gap:3px}
+.lc-tt{font-size:15px;font-weight:600;color:var(--tx);line-height:1.25;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.lc-mt{font-size:12px;color:var(--ht);font-weight:500;line-height:1.3}
+.lc-rt{display:inline-flex;align-items:center;padding:5px 11px;border-radius:var(--r-pill);background:color-mix(in srgb,var(--ht) 14%,transparent);color:var(--ht);font-size:11px;font-weight:600;letter-spacing:.2px;flex-shrink:0;white-space:nowrap}
+.lc-rt.tone-ok{background:color-mix(in srgb,var(--ok) 16%,transparent);color:var(--ok)}
+.lc-rt.tone-ac{background:color-mix(in srgb,var(--ac) 18%,transparent);color:var(--ac)}
+.lc-rt.tone-wn{background:color-mix(in srgb,var(--wn) 18%,transparent);color:var(--wn)}
+
+/* Meta pills (date / priority / reminders) on task cards */
+.pdate{display:inline-flex;align-items:center;gap:5px;padding:3px 9px;border-radius:var(--r-pill);background:color-mix(in srgb,var(--wn) 14%,transparent);color:var(--wn);font-size:11px;font-weight:600;letter-spacing:.1px}
+.pdate.tone-ac{background:color-mix(in srgb,var(--ac) 14%,transparent);color:var(--ac)}
+.pdate.tone-ok{background:color-mix(in srgb,var(--ok) 14%,transparent);color:var(--ok)}
+.ppri{display:inline-flex;align-items:center;gap:4px;padding:3px 10px;border-radius:var(--r-pill);font-size:11px;font-weight:700;letter-spacing:.2px}
+.ppri.lo{background:color-mix(in srgb,var(--pri-lo) 14%,transparent);color:var(--pri-lo)}
+.ppri.md{background:color-mix(in srgb,var(--pri-md) 16%,transparent);color:var(--pri-md)}
+.ppri.hi{background:color-mix(in srgb,var(--pri-hi) 18%,transparent);color:var(--pri-hi)}
 @keyframes ci{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
 
 /* Checkboxes */
@@ -306,10 +332,10 @@ input[type="date"],input[type="time"],input[type="number"],select{-webkit-appear
 .cd-dot{width:4px;height:4px;border-radius:50%;display:block}
 .cal-wk-cur{background:color-mix(in srgb,var(--pr),transparent 93%);border-radius:8px}
 .cal-bars{position:relative;min-height:4px;padding:0 1px}
-.cal-ev{position:absolute;height:18px;border-radius:6px;font-size:9px;font-weight:600;line-height:18px;padding:0 4px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;color:#fff;cursor:pointer;transition:opacity .15s;box-shadow:0 1px 3px rgba(0,0,0,.15)}
+.cal-ev{position:absolute;height:19px;border-radius:7px;font-size:9px;font-weight:600;line-height:17px;padding:0 5px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;cursor:pointer;transition:opacity .15s,background .15s;background:color-mix(in srgb,var(--cc,var(--pr)) 14%,transparent);color:var(--cc,var(--pr));border:1px solid color-mix(in srgb,var(--cc,var(--pr)) 45%,transparent)}
 .cal-ev:active{opacity:.7}
-.ev-ico{font-size:8px;margin-right:2px}
-.cal-ev.ev-done{text-decoration:line-through;opacity:.65}
+.ev-ico{font-size:8px;margin-right:3px;opacity:.95}
+.cal-ev.ev-done{text-decoration:line-through;opacity:.55}
 @keyframes calSlideL{from{transform:translateX(30px);opacity:0}to{transform:translateX(0);opacity:1}}
 @keyframes calSlideR{from{transform:translateX(-30px);opacity:0}to{transform:translateX(0);opacity:1}}
 .cal-slide-l{animation:calSlideL .25s ease-out}
@@ -326,8 +352,12 @@ input[type="date"],input[type="time"],input[type="number"],select{-webkit-appear
 .cday-bd{flex:1;min-width:0}
 .cday-tt{font-size:15px;font-weight:600;color:var(--tx);line-height:1.3}
 .cday-sub{font-size:12px;color:var(--ht);margin-top:3px}
-.cal-ev.ev-pr{background:var(--pr)}.cal-ev.ev-ac{background:var(--ac)}.cal-ev.ev-ok{background:color-mix(in srgb,var(--ok),transparent 30%)}.cal-ev.ev-wn{background:var(--wn);color:#1a1a2f}.cal-ev.ev-sub{border:1.5px dashed rgba(255,255,255,.6);background:color-mix(in srgb,var(--pr),transparent 40%)}
-.cal-ev.ev-rec{border:1.5px dashed rgba(255,255,255,.6);background:color-mix(in srgb,var(--ac),transparent 40%)}
+.cal-ev.ev-pr{--cc:var(--pr)}
+.cal-ev.ev-ac{--cc:var(--ac)}
+.cal-ev.ev-ok{--cc:var(--ok)}
+.cal-ev.ev-wn{--cc:var(--wn)}
+.cal-ev.ev-sub{--cc:var(--ok);border-style:dashed}
+.cal-ev.ev-rec{--cc:var(--ac);border-style:dashed}
 .csh-week{display:grid;grid-template-columns:repeat(7,1fr);gap:3px;margin-bottom:10px}
 .csh-day{display:flex;flex-direction:column;align-items:center;gap:1px;padding:4px 0;border-radius:8px;transition:background .15s}
 .csh-day.csh-wkend{}
@@ -408,6 +438,6 @@ input[type="date"],input[type="time"],input[type="number"],select{-webkit-appear
 <!-- Debug -->
 <div class="dbg hidden" id="dbg"><button class="dbg-cp" onclick="navigator.clipboard.writeText(dbgLog.join('\n'))">Copy</button></div>
 <!-- Load JS -->
-<script src="/static/app.js?v=121"></script>
+<script src="/static/app.js?v=122"></script>
 </body>
 </html>

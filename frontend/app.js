@@ -375,7 +375,7 @@ case"shop":c.innerHTML=rSh();break;case"money":c.innerHTML=rMoney();break;
 case"trainings":c.innerHTML=rTrain();break;
 case"events":c.innerHTML=rEvts();break;case"birthdays":c.innerHTML=rBdays();break;
 case"clean":c.innerHTML=rC();break;case"settings":c.innerHTML=rSet();break;case"subs":c.innerHTML=rSubsList();break;case"profile":c.innerHTML=rProfile();break}}
-function sB(t,n){var e=document.getElementById("b-"+t);if(!e)return;if(n>0&&tab!==t){e.textContent=n;e.classList.remove("hidden")}else e.classList.add("hidden")}
+function sB(t,n){var e=document.getElementById("b-"+t);if(!e)return;if(n>0){e.textContent=n;e.classList.remove("hidden")}else e.classList.add("hidden")}
 
 // Hamburger menu — dynamically rendered with counters
 function rMenuItems(){
@@ -428,10 +428,12 @@ D.events.forEach(function(ev){var eDate=(ev.event_date||"").split(" ")[0];if(!eD
 D.birthdays.forEach(function(b){if(b.days_until>=0&&b.days_until<=7)upcoming.push({type:"birthday",days:b.days_until,icon:b.emoji,title:es(b.name),sub:b.days_until===0?"Today! 🎉":"in "+b.days_until+" days",color:"var(--wn)"})});
 D.subs.forEach(function(s){if(s.days_until>=0&&s.days_until<=7)upcoming.push({type:"sub",days:s.days_until,icon:s.emoji,title:es(s.name),sub:s.amount+" "+s.currency,color:"var(--pr)"})});
 upcoming.sort(function(a,b){return a.days-b.days});
-if(upcoming.length){h+='<div class="sc" style="margin-top:16px">Upcoming 7 Days</div>';upcoming.forEach(function(u){
+if(upcoming.length){h+='<div class="sc"><span class="sc-l">Upcoming 7 Days<span class="sc-cnt">'+upcoming.length+'</span></span></div>';upcoming.forEach(function(u){
 var _ud=new Date(Date.now()+u.days*86400000);var dayLabel=u.days===0?"Today":u.days===1?"Tomorrow":dN[_ud.getDay()]+" "+_ud.getDate()+" "+mN[_ud.getMonth()].slice(0,3);
-var dayBadge=u.days===0?'':'<span style="font-size:11px;color:var(--ht);margin-left:auto;white-space:nowrap">in '+u.days+'d</span>';
-h+='<div class="c"><span style="font-size:24px">'+u.icon+'</span><div class="bd"><div class="tt">'+u.title+'</div><div class="mt"><span class="bg" style="background:color-mix(in srgb,'+u.color+',transparent 85%);color:'+u.color+'">'+dayLabel+'</span> <span style="font-size:11px;color:var(--ht)">'+u.sub+'</span></div></div>'+dayBadge+'</div>'})}
+var tone=u.days===0?"tone-ac":u.days<=2?"tone-wn":"tone-ok";
+var rightPill=u.days===0?'<span class="lc-rt '+tone+'">Today</span>':'<span class="lc-rt '+tone+'">in '+u.days+'d</span>';
+var accClass=u.type==="birthday"?"acc-wn":u.type==="event"?"acc-ok":"";
+h+='<div class="lc"><div class="lc-i '+accClass+'">'+u.icon+'</div><div class="lc-bd"><div class="lc-tt">'+u.title+'</div><div class="lc-mt">'+dayLabel+' · '+u.sub+'</div></div>'+rightPill+'</div>'})}
 return h}
 
 // ═══════════════════════════════════════════════════════════
@@ -449,16 +451,22 @@ if(!all.length)return h+em("📋","No tasks yet","Tap + to add one");
 var todayStr=td();var _7d=new Date();_7d.setDate(_7d.getDate()+7);var weekStr=_7d.getFullYear()+"-"+String(_7d.getMonth()+1).padStart(2,"0")+"-"+String(_7d.getDate()).padStart(2,"0");
 var overdue=[],high=[],week=[],rest=[];
 pend.forEach(function(t){var dd=(t.due_date||"").split(" ")[0];if(dd&&dd<todayStr){overdue.push(t)}else if(t.priority==="high"){high.push(t)}else if(dd&&dd<=weekStr){week.push(t)}else{rest.push(t)}});
-function _tkCard(t){var rmC=t.reminders&&t.reminders.length?'<span class="bg" style="background:color-mix(in srgb,var(--wn),transparent 85%);color:var(--wn)">'+I.bl+" "+t.reminders.length+'</span>':"";
-return '<div style="margin-bottom:10px"><div class="c" style="margin-bottom:0"><div class="cb cb-o" onclick="tgTk('+t.id+',this)"></div><div class="bd"><div class="tt">'+es(t.text)+'</div><div class="mt">'+mChip(t.assigned_to,true)+" "+pri(t.priority)+(t.due_date?' <span style="font-size:11px;color:var(--wn)">📅 '+fD(t.due_date).full+'</span>':"")+" "+rmC+" "+sC("task",t.id)+' <button class="xb" onclick="tX(\'task\','+t.id+')">'+(ex["task_"+t.id]?"▾":"▸")+'</button></div></div><button class="bi" onclick="edTk('+t.id+')">'+I.ed+'</button><button class="bi" onclick="dlTk('+t.id+')">'+I.tr+'</button></div>'+rSu("task",t.id)+'</div>'}
-if(overdue.length){h+='<div class="sc" style="color:var(--ac)">🔴 Overdue · '+overdue.length+'</div>';overdue.forEach(function(t){h+=_tkCard(t)})}
-if(high.length){h+='<div class="sc" style="color:var(--wn)">⚡ High Priority · '+high.length+'</div>';high.forEach(function(t){h+=_tkCard(t)})}
-if(week.length){h+='<div class="sc">📅 This Week · '+week.length+'</div>';week.forEach(function(t){h+=_tkCard(t)})}
-if(rest.length){h+='<div class="sc">📋 Rest · '+rest.length+'</div>';rest.forEach(function(t){h+=_tkCard(t)})}
+function _tkCard(t,overdueDate){var rmC=t.reminders&&t.reminders.length?'<span class="pdate"><span style="font-size:10px">🔔</span>'+t.reminders.length+'</span>':"";
+var priLabel=t.priority==="high"?"High":t.priority==="low"?"Low":"Normal";
+var priCls=t.priority==="high"?"hi":t.priority==="low"?"lo":"md";
+var priPill='<span class="ppri '+priCls+'">🚩 '+priLabel+'</span>';
+var dateTone=overdueDate?"tone-ac":"";
+var datePill=t.due_date?'<span class="pdate '+dateTone+'">📅 '+fD(t.due_date).full+'</span>':"";
+return '<div style="margin-bottom:10px"><div class="c" style="margin-bottom:0"><div class="cb cb-o" onclick="tgTk('+t.id+',this)"></div><div class="bd"><div class="tt">'+es(t.text)+'</div><div class="mt">'+mChip(t.assigned_to,true)+" "+priPill+" "+datePill+" "+rmC+" "+sC("task",t.id)+' <button class="xb" onclick="tX(\'task\','+t.id+')">'+(ex["task_"+t.id]?"▾":"▸")+'</button></div></div><button class="bi" onclick="edTk('+t.id+')">'+I.ed+'</button><button class="bi" onclick="dlTk('+t.id+')">'+I.tr+'</button></div>'+rSu("task",t.id)+'</div>'}
+function _scH(label,cnt,color){return '<div class="sc"'+(color?' style="color:'+color+'"':'')+'><span class="sc-l">'+label+'<span class="sc-cnt"'+(color?' style="background:color-mix(in srgb,'+color+' 16%,transparent);color:'+color+'"':'')+'>'+cnt+'</span></span></div>'}
+if(overdue.length){h+=_scH("🔴 Overdue",overdue.length,"var(--ac)");overdue.forEach(function(t){h+=_tkCard(t,true)})}
+if(high.length){h+=_scH("⚡ High Priority",high.length,"var(--wn)");high.forEach(function(t){h+=_tkCard(t)})}
+if(week.length){h+=_scH("📅 This Week",week.length);week.forEach(function(t){h+=_tkCard(t)})}
+if(rest.length){h+=_scH("📋 Rest",rest.length);rest.forEach(function(t){h+=_tkCard(t)})}
 if(!pend.length)h+='<div style="text-align:center;padding:20px;color:var(--ht);font-size:13px">All caught up! 🎉</div>';
-if(done.length){h+='<div class="sc" style="margin-top:16px">✅ Done · '+done.length+'</div>';done.forEach(function(t){h+='<div class="c d"><div class="cb cb-k" onclick="tgTk('+t.id+',this)">'+I.ck+'</div><div class="bd"><div class="tt sk">'+es(t.text)+'</div></div><button class="bi" onclick="dlTk('+t.id+')">'+I.tr+'</button></div>'})}
+if(done.length){h+=_scH("✅ Done",done.length,"var(--ok)");done.forEach(function(t){h+='<div class="c d"><div class="cb cb-k" onclick="tgTk('+t.id+',this)">'+I.ck+'</div><div class="bd"><div class="tt sk">'+es(t.text)+'</div></div><button class="bi" onclick="dlTk('+t.id+')">'+I.tr+'</button></div>'})}
 return h}
-function rRecur(){if(!D.recurring.length)return em("🔁","No recurring tasks","Tap + to create");var h='';D.recurring.forEach(function(r){if(searchQ&&!matchQ(r.text))return;var rrDesc=r.rrule==="daily"?"Every day":r.rrule.startsWith("weekly:")?"Weekly: "+r.rrule.split(":")[1]:"Monthly: "+r.rrule.split(":")[1]+"th";h+='<div class="c"><div class="bd"><div class="tt">'+es(r.text)+'</div><div class="mt">'+mChip(r.assigned_to,true)+' <span class="bg" style="background:color-mix(in srgb,var(--pr),transparent 85%);color:var(--pr)">🔁 '+rrDesc+'</span>'+(r.active?'':' <span class="bg" style="background:color-mix(in srgb,var(--ac),transparent 85%);color:var(--ac)">Paused</span>')+'</div></div><button class="bi" onclick="edRec('+r.id+')">'+I.ed+'</button><button class="bi" onclick="dlRec('+r.id+')">'+I.tr+'</button></div>'});return h}
+function rRecur(){if(!D.recurring.length)return em("🔁","No recurring tasks","Tap + to create");var h='';D.recurring.forEach(function(r){if(searchQ&&!matchQ(r.text))return;var rrDesc=r.rrule==="daily"?"Every day":r.rrule.startsWith("weekly:")?"Weekly: "+r.rrule.split(":")[1]:"Monthly: "+r.rrule.split(":")[1]+"th";var pausedPill=r.active?'':' <span class="pdate tone-ac">⏸ Paused</span>';h+='<div class="c"><div class="bd"><div class="tt">'+es(r.text)+'</div><div class="mt">'+mChip(r.assigned_to,true)+' <span class="pdate" style="background:color-mix(in srgb,var(--pr) 14%,transparent);color:var(--pr)">🔁 '+rrDesc+'</span>'+pausedPill+'</div></div><button class="bi" onclick="edRec('+r.id+')">'+I.ed+'</button><button class="bi" onclick="dlRec('+r.id+')">'+I.tr+'</button></div>'});return h}
 
 async function tgTk(id,cb){
 var t=D.tasks.find(function(x){return x.id===id});
@@ -733,8 +741,10 @@ var totalEur=0;items.forEach(function(s){totalEur+=(s.amount_eur||0)});
 var h=rSubAddBtn()+'<div class="c" style="border-left:3px solid var(--wn)"><div class="bd"><div class="tt" style="font-weight:700">Monthly total</div><div class="mt" style="font-size:16px;color:var(--wn);font-weight:800">€'+totalEur.toFixed(2)+'</div></div></div>';
 h+='<div class="fb2"><button class="fi '+(filt===null?"a":"")+'" onclick="filt=null;ren()">All</button>';D.members.forEach(function(m){h+='<button class="fi '+(filt===m.user_id?"a":"")+'" style="padding:3px 6px;display:inline-flex;align-items:center" onclick="filt='+m.user_id+';ren()">'+mAv(m.user_id,22)+'</button>'});h+='</div>';
 if(filt)items=items.filter(function(s){return s.assigned_to===filt});
-items.forEach(function(s){var daysTxt=s.days_until===0?"Due today":s.days_until===1?"Tomorrow":"in "+s.days_until+"d";
-h+='<div class="c"><span style="font-size:28px">'+s.emoji+'</span><div class="bd"><div class="tt" style="font-weight:700">'+es(s.name)+'</div><div class="mt">'+s.amount+" "+s.currency+(s.currency!=="EUR"?" (€"+(s.amount_eur||0).toFixed(2)+")":"")+" · Day "+s.billing_day+" · "+daysTxt+" "+mChip(s.assigned_to,true)+'</div></div><button class="bi" onclick="edSub('+s.id+')">'+I.ed+'</button><button class="bi" onclick="dlSub('+s.id+')">'+I.tr+'</button></div>'});return h}
+items.forEach(function(s){var daysTxt=s.days_until===0?"Today":s.days_until===1?"Tomorrow":"in "+s.days_until+"d";
+var tone=s.days_until===0?"tone-ac":s.days_until<=2?"tone-wn":"";
+var amountTxt=s.amount+" "+s.currency+(s.currency!=="EUR"?" · €"+(s.amount_eur||0).toFixed(2):"");
+h+='<div class="lc"><div class="lc-i">'+s.emoji+'</div><div class="lc-bd"><div class="lc-tt">'+es(s.name)+'</div><div class="lc-mt">Day '+s.billing_day+' · '+amountTxt+'</div></div><span class="lc-rt '+tone+'">'+daysTxt+'</span><button class="bi" onclick="edSub('+s.id+')" style="margin-left:4px">'+I.ed+'</button><button class="bi" onclick="dlSub('+s.id+')">'+I.tr+'</button></div>'});return h}
 async function dlSub(id){hp();await A("DELETE","/api/subscriptions/"+id);await load();toast("🗑 Deleted")}
 function edSub(id){var s=D.subs.find(function(x){return x.id===id});if(!s)return;_assign=s.assigned_to||0;_subRems=(s.reminders||[]).map(function(r){return{days_before:r.days_before,time:r.time||"09:00"}});oMC("Edit Subscription",'<input class="inp" id="su-n" value="'+es(s.name)+'"><input class="inp" id="su-e" value="'+s.emoji+'" style="width:80px"><div class="dr"><div><div class="dl">Amount</div><input class="inp" id="su-a" type="number" step="0.01" value="'+s.amount+'"></div><div><div class="dl">Currency</div><select id="su-c" style="width:100%"><option value="EUR"'+(s.currency==="EUR"?" selected":"")+'>€</option><option value="USD"'+(s.currency==="USD"?" selected":"")+'>$</option><option value="GBP"'+(s.currency==="GBP"?" selected":"")+'>£</option><option value="RUB"'+(s.currency==="RUB"?" selected":"")+'>₽</option><option value="RSD"'+(s.currency==="RSD"?" selected":"")+'>din.</option></select></div></div><div class="dr"><div><div class="dl">Billing day</div><input class="inp" id="su-d" type="number" min="1" max="28" value="'+s.billing_day+'"></div></div><div class="lb">Assigned to</div>'+assignPk("sap",s.assigned_to)+'<div class="lb">Reminders</div><div id="srl">'+subRemPk()+'</div><button class="btn" onclick="svSub('+id+')">Save</button>')}
 async function svSub(id){var n=document.getElementById("su-n").value.trim();var e=document.getElementById("su-e").value.trim();var a=parseFloat(document.getElementById("su-a").value);var c=document.getElementById("su-c").value;var d=parseInt(document.getElementById("su-d").value)||1;if(!n||!a)return;await A("PUT","/api/subscriptions/"+id,{name:n,emoji:e,amount:a,currency:c,billing_day:d,assigned_to:_assign||null,reminders:_subRems});cMo();hp();await load()}
@@ -1504,8 +1514,11 @@ async function dEv(id){hp();await A("DELETE","/api/events/"+id);await load();toa
 function rBdays(){
 if(!D.birthdays.length)return em("🎂","No birthdays","Add below")+rBdAddBtn();
 var bdays=D.birthdays;if(searchQ)bdays=bdays.filter(function(b){return matchQ(b.name)});
-var h=rBdAddBtn();bdays.forEach(function(b){var dd=b.days_until===0?'<span style="color:var(--ok);font-weight:700">Today! 🎉</span>':b.days_until===1?'<span style="color:var(--wn)">Tomorrow</span>':"in "+b.days_until+" days";
-h+='<div class="c"><span style="font-size:32px">'+b.emoji+'</span><div class="bd"><div class="tt" style="font-weight:700">'+es(b.name)+'</div><div class="mt">'+b.birth_date.split("-").slice(1).reverse().join(".")+" · "+dd+'</div></div><button class="bi" onclick="edBd('+b.id+')">'+I.ed+'</button><button class="bi" onclick="dlBd('+b.id+')">'+I.tr+'</button></div>'});return h}
+var h=rBdAddBtn();bdays.forEach(function(b){
+var rightTxt=b.days_until===0?"Today! 🎉":b.days_until===1?"Tomorrow":"in "+b.days_until+"d";
+var tone=b.days_until===0?"tone-ok":b.days_until<=7?"tone-wn":"";
+var dateTxt=b.birth_date.split("-").slice(1).reverse().join(".");
+h+='<div class="lc"><div class="lc-i acc-wn">'+b.emoji+'</div><div class="lc-bd"><div class="lc-tt">'+es(b.name)+'</div><div class="lc-mt">🎂 '+dateTxt+'</div></div><span class="lc-rt '+tone+'">'+rightTxt+'</span><button class="bi" onclick="edBd('+b.id+')" style="margin-left:4px">'+I.ed+'</button><button class="bi" onclick="dlBd('+b.id+')">'+I.tr+'</button></div>'});return h}
 function rBdAddBtn(){return '<button class="btn btn-s" style="margin-bottom:16px" onclick="oMoBd()">+ Add Birthday</button>'}
 async function dlBd(id){hp();await A("DELETE","/api/birthdays/"+id);await load();toast("🗑 Deleted")}
 function edBd(id){var b=D.birthdays.find(function(x){return x.id===id});if(!b)return;_bdRems=(b.reminders||[]).map(function(r){return{days_before:r.days_before,time:r.time||"09:00"}});oMC("Edit Birthday",'<input class="inp" id="bd-n" value="'+es(b.name)+'"><input class="inp" id="bd-e" value="'+b.emoji+'" style="width:80px"><div class="lb">Reminders</div><div id="brl">'+bdRemPk()+'</div><button class="btn" onclick="svBd('+id+')">Save</button>')}
@@ -1983,7 +1996,7 @@ if(_pwaPrompt){
   h+='<div class="c" style="cursor:default"><span style="font-size:20px">📱</span><div class="bd"><div class="tt">Install on iOS</div><div style="font-size:12px;color:var(--ht)">Tap <b>Share</b> ⬆ → <b>Add to Home Screen</b></div></div></div>';
 }
 h+='<div class="sc">Debug</div><div class="c" style="cursor:pointer" onclick="dbgOn=!dbgOn;document.getElementById(\'dbg\').classList.toggle(\'hidden\',!dbgOn);ren()"><span style="font-size:20px">🐛</span><div class="bd"><div class="tt">Debug Mode '+(dbgOn?"ON":"OFF")+'</div></div></div>';
-h+='<div style="margin-top:8px;text-align:center;font-size:11px;color:var(--ht)">Family HQ v8.9.3</div>';return h}
+h+='<div style="margin-top:8px;text-align:center;font-size:11px;color:var(--ht)">Family HQ v8.10.0</div>';return h}
 async function setTh(id){aT(id);hp();await A("PATCH","/api/settings",{theme:id});ren()}
 function openThemePicker(){var h='<div class="tg">';Object.keys(TH).forEach(function(id){var t=TH[id];var sel=cTheme===id;h+='<div class="tc" onclick="setTh(\''+id+'\');cMo()" style="background:'+t.cd+';border:2px solid '+(sel?t.pr:t.bd)+'"><div class="te">'+t.e+'</div><div class="tn" style="color:'+t.tx+'">'+t.n+'</div><div class="td">'+[t.pr,t.ac,t.ok,t.wn].map(function(c){return '<div class="tdd" style="background:'+c+'"></div>'}).join("")+'</div></div>'});h+='</div>';oMC("Choose theme",h)}
 async function setDg(v){await A("PATCH","/api/settings",{digest_time:v});hp()}
