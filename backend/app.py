@@ -995,7 +995,9 @@ def get_settings(user=Depends(get_uf), db=Depends(get_db)):
 @app.patch("/api/settings")
 def update_settings(body: SettingsUpdate, user=Depends(get_uf), db=Depends(get_db)):
     db.execute("INSERT OR IGNORE INTO settings (family_id) VALUES (?)", (user["family_id"],))
-    if body.theme: db.execute("UPDATE settings SET theme=? WHERE family_id=?", (body.theme, user["family_id"]))
+    # Theme is per-member (each user picks their own)
+    if body.theme: db.execute("UPDATE family_members SET theme=? WHERE user_id=?", (body.theme, user["id"]))
+    # Digest settings are family-wide
     if body.digest_time: db.execute("UPDATE settings SET digest_time=? WHERE family_id=?", (body.digest_time, user["family_id"]))
     if body.digest_sections is not None: db.execute("UPDATE settings SET digest_sections=? WHERE family_id=?", (body.digest_sections, user["family_id"]))
     db.commit(); return {"ok": True}
@@ -1835,6 +1837,12 @@ async def bundle(user=Depends(get_uf), db=Depends(get_db)):
         settings = {"family_id": f, "theme": "midnight", "digest_time": "09:00"}
     else:
         settings = dict(srow)
+    # Per-member theme override (theme is per-user, not family-shared)
+    m_theme_row = db.execute("SELECT theme FROM family_members WHERE user_id=?", (user["id"],)).fetchone()
+    if m_theme_row and m_theme_row["theme"]:
+        settings["theme"] = m_theme_row["theme"]
+    elif not settings.get("theme"):
+        settings["theme"] = "midnight"
 
     # Family status
     frow = db.execute(
@@ -1961,7 +1969,7 @@ def serve_exercise_image(fn: str):
     return r
 
 # ─── Debug & Serve ───────────────────────────────────────────────────────
-APP_VERSION = "v8.6.2"
+APP_VERSION = "v8.7"
 
 @app.get("/api/debug/ping")
 def ping(): return {"ok": True, "version": APP_VERSION, "time": datetime.now(ZoneInfo(TIMEZONE)).isoformat()}

@@ -111,6 +111,7 @@ def migrate(db_path):
             color TEXT DEFAULT '#7c6aef',
             photo_url TEXT,
             tg_chat_id INTEGER,
+            theme TEXT,
             joined_at TEXT DEFAULT (datetime('now'))
         );
         CREATE TABLE IF NOT EXISTS tasks (
@@ -430,6 +431,8 @@ def migrate(db_path):
         _migrate_v12_trainings,
         # v13: workout templates + workout duration tracking (started_at/finished_at)
         _migrate_v13_templates,
+        # v14: per-member theme preference (was family-level)
+        lambda c: safe_add_col(c, "family_members", "theme", "TEXT"),
     ]
 
     for i, mig in enumerate(migrations):
