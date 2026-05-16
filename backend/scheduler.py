@@ -464,16 +464,16 @@ def _build_digest_sections(con, fid, uid, user_name, now, section_order=None):
         return ["🎂 <b>BIRTHDAYS</b>"] + [l for _, l in upcoming]
     builders["birthdays"] = _birthdays
 
-    # ─── Word of the day — bilingual (RU + EN) for daily language learning
+    # ─── Word of the day — bilingual (RU + EN) for daily language learning.
+    # Each language is a single blockquote: flag + word on the first line, definition on the second.
     def _word_of_day():
         if not WORD_LIST: return []
         w = WORD_LIST[now.timetuple().tm_yday % len(WORD_LIST)]
         return [
             "📚 <b>WORD OF THE DAY</b>",
-            f"🇷🇺 <b>{e(w['ru_word'])}</b>",
-            f"<blockquote>{e(w['ru_def'])}</blockquote>",
-            f"🇬🇧 <b>{e(w['en_word'])}</b>",
-            f"<blockquote>{e(w['en_def'])}</blockquote>",
+            f"<blockquote>🇷🇺 <b>{e(w['ru_word'])}</b>\n{e(w['ru_def'])}</blockquote>",
+            "",  # blank line between the two quotes for visual spacing
+            f"<blockquote>🇬🇧 <b>{e(w['en_word'])}</b>\n{e(w['en_def'])}</blockquote>",
         ]
     builders["word_of_day"] = _word_of_day
 
