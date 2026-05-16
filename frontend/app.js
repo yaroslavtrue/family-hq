@@ -588,30 +588,40 @@ function _getDigestOrder(){
 if(_dgOrder)return _dgOrder;
 var saved=null;
 try{saved=JSON.parse(D.settings.digest_sections||"null")}catch(e){}
-// Drop sections that no longer exist (e.g. "cleaning" removed in v8.3),
-// append any new sections (e.g. "word_of_day" added in v8.8) at the end.
+// Each entry is {id: string, enabled: bool}. Backward compat: legacy format was bare strings.
 var known={};DIGEST_SECS.forEach(function(s){known[s.id]=true});
 if(saved&&Array.isArray(saved)){
-  _dgOrder=saved.filter(function(id){return known[id]});
-  DIGEST_SECS.forEach(function(s){if(_dgOrder.indexOf(s.id)<0)_dgOrder.push(s.id)});
+  _dgOrder=saved
+    .map(function(s){
+      // Normalize: string → enabled by default; dict → preserve enabled
+      if(typeof s==="string")return{id:s,enabled:true};
+      return{id:s.id,enabled:s.enabled!==false};
+    })
+    .filter(function(o){return known[o.id]});
+  // Auto-append any new sections (introduced after user last saved) at the end, enabled
+  var present={};_dgOrder.forEach(function(o){present[o.id]=true});
+  DIGEST_SECS.forEach(function(s){if(!present[s.id])_dgOrder.push({id:s.id,enabled:true})});
 }
-if(!_dgOrder||!_dgOrder.length)_dgOrder=DIGEST_SECS.map(function(s){return s.id});
+if(!_dgOrder||!_dgOrder.length)_dgOrder=DIGEST_SECS.map(function(s){return{id:s.id,enabled:true}});
 return _dgOrder}
 
 function openDigestCfg(){
-_dgOrder=_getDigestOrder().slice();
+// Deep copy so toggling/reordering inside the modal doesn't mutate the cached order before Save
+_dgOrder=_getDigestOrder().map(function(o){return{id:o.id,enabled:o.enabled}});
 oMC("📨 Morning Digest",digestCfgHtml())}
 
 function digestCfgHtml(){
 var h='<div class="lb">Delivery Time</div><input type="time" id="dg-time" value="'+(D.settings.digest_time||"09:00")+'" step="60" style="margin-bottom:16px">';
-h+='<div class="lb">Sections (drag to reorder)</div>';
+h+='<div class="lb">Sections · tap toggle to disable</div>';
 h+='<div id="dg-list" style="display:flex;flex-direction:column;gap:6px;margin-bottom:16px">';
-_dgOrder.forEach(function(secId,idx){
-var sec=DIGEST_SECS.find(function(s){return s.id===secId});
+_dgOrder.forEach(function(entry,idx){
+var sec=DIGEST_SECS.find(function(s){return s.id===entry.id});
 if(!sec)return;
-h+='<div style="display:flex;align-items:center;gap:8px;padding:10px 12px;background:var(--cd);border-radius:10px;border-left:3px solid '+sec.color+'">';
+var en=entry.enabled!==false;
+h+='<div style="display:flex;align-items:center;gap:8px;padding:10px 12px;background:var(--cd);border-radius:10px;border-left:3px solid '+sec.color+';opacity:'+(en?'1':'.45')+';transition:opacity .15s">';
 h+='<span style="font-size:18px">'+sec.emoji+'</span>';
 h+='<span style="flex:1;font-weight:500">'+sec.name+'</span>';
+h+='<div class="tgs'+(en?' on':'')+'" onclick="dgToggle('+idx+')"><span class="tgs-knob"></span></div>';
 if(idx>0)h+='<button class="bi" onclick="dgMove('+idx+',-1)" style="font-size:14px">▲</button>';
 if(idx<_dgOrder.length-1)h+='<button class="bi" onclick="dgMove('+idx+',1)" style="font-size:14px">▼</button>';
 h+='</div>'});
@@ -626,6 +636,11 @@ return h}
 
 function dgMove(idx,dir){
 var tmp=_dgOrder[idx];_dgOrder[idx]=_dgOrder[idx+dir];_dgOrder[idx+dir]=tmp;
+document.getElementById("mb").innerHTML=digestCfgHtml()}
+
+function dgToggle(idx){
+_dgOrder[idx].enabled=!(_dgOrder[idx].enabled!==false);
+hp("light");
 document.getElementById("mb").innerHTML=digestCfgHtml()}
 
 async function dgTest(uid){
@@ -1968,7 +1983,7 @@ if(_pwaPrompt){
   h+='<div class="c" style="cursor:default"><span style="font-size:20px">📱</span><div class="bd"><div class="tt">Install on iOS</div><div style="font-size:12px;color:var(--ht)">Tap <b>Share</b> ⬆ → <b>Add to Home Screen</b></div></div></div>';
 }
 h+='<div class="sc">Debug</div><div class="c" style="cursor:pointer" onclick="dbgOn=!dbgOn;document.getElementById(\'dbg\').classList.toggle(\'hidden\',!dbgOn);ren()"><span style="font-size:20px">🐛</span><div class="bd"><div class="tt">Debug Mode '+(dbgOn?"ON":"OFF")+'</div></div></div>';
-h+='<div style="margin-top:8px;text-align:center;font-size:11px;color:var(--ht)">Family HQ v8.8</div>';return h}
+h+='<div style="margin-top:8px;text-align:center;font-size:11px;color:var(--ht)">Family HQ v8.9</div>';return h}
 async function setTh(id){aT(id);hp();await A("PATCH","/api/settings",{theme:id});ren()}
 function openThemePicker(){var h='<div class="tg">';Object.keys(TH).forEach(function(id){var t=TH[id];var sel=cTheme===id;h+='<div class="tc" onclick="setTh(\''+id+'\');cMo()" style="background:'+t.cd+';border:2px solid '+(sel?t.pr:t.bd)+'"><div class="te">'+t.e+'</div><div class="tn" style="color:'+t.tx+'">'+t.n+'</div><div class="td">'+[t.pr,t.ac,t.ok,t.wn].map(function(c){return '<div class="tdd" style="background:'+c+'"></div>'}).join("")+'</div></div>'});h+='</div>';oMC("Choose theme",h)}
 async function setDg(v){await A("PATCH","/api/settings",{digest_time:v});hp()}

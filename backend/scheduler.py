@@ -495,7 +495,16 @@ async def _render_digest(con, fid, uid, user_name, now, section_order=None):
     builders, order = _build_digest_sections(con, fid, uid, user_name, now, section_order)
     blocks = []  # list of joined-lines per section
     for sec in order:
-        fn = builders.get(sec)
+        # Support two formats:
+        #   - legacy: section_id string
+        #   - new:    {"id": <str>, "enabled": <bool>}  (per-section toggle, v8.9+)
+        if isinstance(sec, dict):
+            if not sec.get("enabled", True): continue
+            sec_id = sec.get("id")
+        else:
+            sec_id = sec
+        if not sec_id: continue
+        fn = builders.get(sec_id)
         if not fn: continue
         import asyncio
         result = fn()
@@ -526,7 +535,13 @@ async def send_digest_to(family_id, user_id, is_test=False):
 
     text = await _render_digest(con, family_id, user_id, member["user_name"], now, section_order)
     if is_test:
+        if not text.strip():
+            text = "💤 Your digest is empty — all sections are disabled.\nEnable some in <b>Settings → Configure Digest</b>."
         text = "🧪 <b>TEST DIGEST</b>\n\n" + text
+    elif not text.strip():
+        # Scheduled digest with all sections disabled — skip silently
+        con.close()
+        return
     await _send(member["tg_chat_id"], text, parse_mode="HTML")
     con.close()
 
@@ -557,5 +572,6 @@ async def morning_digest():
         for member in members:
             if not member["tg_chat_id"]: continue
             text = await _render_digest(con, fid, member["user_id"], member["user_name"], now, section_order)
+            if not text.strip(): continue  # all sections disabled — skip silently
             await _send(member["tg_chat_id"], text, parse_mode="HTML")
     con.close()

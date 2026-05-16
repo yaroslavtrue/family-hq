@@ -198,6 +198,11 @@ input[type="date"],input[type="time"],input[type="number"],select{-webkit-appear
 .menu-i .mi-ico{font-size:20px;width:28px;text-align:center;flex-shrink:0}
 .menu-i .mi-l{flex:1}
 .menu-i .mi-cnt{min-width:22px;height:22px;padding:0 7px;border-radius:11px;background:var(--ac);color:#fff;font-size:11px;font-weight:700;display:inline-flex;align-items:center;justify-content:center}
+/* Toggle switch (iOS-style, used in digest config) */
+.tgs{width:36px;height:20px;background:var(--bd);border-radius:10px;position:relative;cursor:pointer;transition:background .2s;flex-shrink:0;border:none}
+.tgs.on{background:var(--ok)}
+.tgs-knob{position:absolute;top:2px;left:2px;width:16px;height:16px;border-radius:50%;background:#fff;transition:transform .2s;box-shadow:0 1px 3px rgba(0,0,0,.25)}
+.tgs.on .tgs-knob{transform:translateX(16px)}
 
 /* ═══ v6.6 effects pack — keep lightweight, GPU-only ═══ */
 
@@ -403,6 +408,6 @@ input[type="date"],input[type="time"],input[type="number"],select{-webkit-appear
 <!-- Debug -->
 <div class="dbg hidden" id="dbg"><button class="dbg-cp" onclick="navigator.clipboard.writeText(dbgLog.join('\n'))">Copy</button></div>
 <!-- Load JS -->
-<script src="/static/app.js?v=117"></script>
+<script src="/static/app.js?v=118"></script>
 </body>
 </html>
