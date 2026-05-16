@@ -140,7 +140,7 @@ return m[emoji]||null}
 function wIconAnim(lbl,size,nightAware){var emoji=wIcon(lbl);var name=_wIconName(emoji,nightAware);var s=size||40;
 if(!name)return '<span style="font-size:'+Math.round(s*.75)+'px;line-height:1">'+emoji+'</span>';
 var fb=emoji.replace(/'/g,"&#39;");
-return '<img src="https://cdn.jsdelivr.net/gh/basmilius/weather-icons/production/fill/svg/'+name+'.svg" width="'+s+'" height="'+s+'" loading="lazy" style="display:block" onerror="this.outerHTML=\'<span style=&quot;font-size:'+Math.round(s*.75)+'px;line-height:1&quot;>'+fb+'</span>\'">'}
+return '<img src="https://cdn.jsdelivr.net/gh/basmilius/weather-icons/production/fill/all/'+name+'.svg" width="'+s+'" height="'+s+'" loading="lazy" style="display:block" onerror="this.outerHTML=\'<span style=&quot;font-size:'+Math.round(s*.75)+'px;line-height:1&quot;>'+fb+'</span>\'">'}
 function wDayName(ds){var d=new Date(ds+"T12:00:00");return dN[d.getDay()]}
 function matchQ(text){return !searchQ||(text||"").toLowerCase().indexOf(searchQ)>=0}
 
@@ -2016,7 +2016,7 @@ if(_pwaPrompt){
   h+='<div class="c" style="cursor:default"><span style="font-size:20px">📱</span><div class="bd"><div class="tt">Install on iOS</div><div style="font-size:12px;color:var(--ht)">Tap <b>Share</b> ⬆ → <b>Add to Home Screen</b></div></div></div>';
 }
 h+='<div class="sc">Debug</div><div class="c" style="cursor:pointer" onclick="dbgOn=!dbgOn;document.getElementById(\'dbg\').classList.toggle(\'hidden\',!dbgOn);ren()"><span style="font-size:20px">🐛</span><div class="bd"><div class="tt">Debug Mode '+(dbgOn?"ON":"OFF")+'</div></div></div>';
-h+='<div style="margin-top:8px;text-align:center;font-size:11px;color:var(--ht)">Family HQ v8.10.2</div>';return h}
+h+='<div style="margin-top:8px;text-align:center;font-size:11px;color:var(--ht)">Family HQ v8.10.3</div>';return h}
 async function setTh(id){aT(id);hp();await A("PATCH","/api/settings",{theme:id});ren()}
 function openThemePicker(){var h='<div class="tg">';Object.keys(TH).forEach(function(id){var t=TH[id];var sel=cTheme===id;h+='<div class="tc" onclick="setTh(\''+id+'\');cMo()" style="background:'+t.cd+';border:2px solid '+(sel?t.pr:t.bd)+'"><div class="te">'+t.e+'</div><div class="tn" style="color:'+t.tx+'">'+t.n+'</div><div class="td">'+[t.pr,t.ac,t.ok,t.wn].map(function(c){return '<div class="tdd" style="background:'+c+'"></div>'}).join("")+'</div></div>'});h+='</div>';oMC("Choose theme",h)}
 async function setDg(v){await A("PATCH","/api/settings",{digest_time:v});hp()}
