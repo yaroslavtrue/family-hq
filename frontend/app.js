@@ -82,7 +82,8 @@ pl:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5
 function es(s){const d=document.createElement("div");d.textContent=s||"";return d.innerHTML}
 // hp(kind) — haptic feedback via Telegram WebApp API. Free, no visual cost.
 //   light/med/heavy → impactOccurred; ok/warn/err → notificationOccurred; sel → selectionChanged.
-function hp(k){try{var h=tg&&tg.HapticFeedback;if(!h)return;
+function hp(k){try{var h=tg&&tg.HapticFeedback;
+if(!h){if(navigator.vibrate){navigator.vibrate(k==="heavy"?30:k==="med"||k==="warn"||k==="err"?15:k==="ok"?[10,40,10]:8)}return}
 if(k==="ok")h.notificationOccurred("success");
 else if(k==="warn")h.notificationOccurred("warning");
 else if(k==="err")h.notificationOccurred("error");
@@ -1750,8 +1751,8 @@ _calMonth=_calMonth||_curYMCal();
 document.getElementById("cal-mo").classList.add("open");
 loadCalMonth()
 }
-function closeCalModal(){document.getElementById("cal-mo").classList.remove("open")}
-function calShift(delta){
+function closeCalModal(){hp("light");document.getElementById("cal-mo").classList.remove("open")}
+function calShift(delta){hp("sel");
 var y=parseInt(_calMonth.slice(0,4),10),m=parseInt(_calMonth.slice(5,7),10)+delta;
 while(m<=0){m+=12;y--}while(m>12){m-=12;y++}
 _calMonth=y+"-"+String(m).padStart(2,"0");
@@ -1760,8 +1761,8 @@ if(body){var dir=delta>0?"cal-slide-l":"cal-slide-r";body.classList.add(dir);
 setTimeout(function(){body.classList.remove(dir)},250)}
 loadCalMonth()
 }
-function calToggleType(t){_calFilters[t]=!_calFilters[t];loadCalMonth()}
-function calSetMember(uid){_calFilters.member=_calFilters.member===uid?null:uid;loadCalMonth()}
+function calToggleType(t){hp("sel");_calFilters[t]=!_calFilters[t];loadCalMonth()}
+function calSetMember(uid){hp("sel");_calFilters.member=_calFilters.member===uid?null:uid;loadCalMonth()}
 function _calFilterItems(items){
 return items.filter(function(it){
 var t=it.type==="recurring"?"recurring":it.type;
@@ -1779,12 +1780,10 @@ document.getElementById("cal-title").textContent=new Date(y,m-1,1).toLocaleStrin
 var body=document.getElementById("cal-body");
 var vs=_parseD(data.vis_start),ve=_parseD(data.vis_end);
 var todayISO=_isoDate(new Date());
-// Filter chips
+// Filter chips (type filters only — member filters render at the bottom)
 var h='<div class="cal-chips">';
 var types=[{k:"event",l:"Events",c:"var(--pr)",i:"📅"},{k:"task",l:"Tasks",c:"var(--ac)",i:"✓"},{k:"recurring",l:"Recurring",c:"var(--ac)",i:"🔁"},{k:"birthday",l:"Birthdays",c:"var(--wn)",i:"🎂"},{k:"subscription",l:"Subs",c:"var(--ok)",i:"💳"}];
 types.forEach(function(t){var on=_calFilters[t.k];h+='<span class="cal-chip'+(on?" on":"")+'" style="--cc:'+t.c+'" onclick="calToggleType(\''+t.k+'\')"><span class="cal-chip-ico">'+t.i+'</span>'+t.l+'</span>'});
-h+='<span class="cal-chip-sep"></span>';
-(D.members||[]).forEach(function(m){var on=_calFilters.member===m.user_id;h+='<span class="cal-chip'+(on?" on":"")+'" style="--cc:'+m.color+'" onclick="calSetMember('+m.user_id+')">'+mAv(m.user_id,16)+es(m.user_name)+'</span>'});
 h+='</div>';
 // Calendar grid card — weeks wrap in a rounded surface
 h+='<div class="cal-grid-card">';
@@ -1836,7 +1835,10 @@ h+='</div>';
 cur=_addD(cur,7)
 }
 h+='</div>'; // close .cal-grid-card
-h+='<div class="cal-legend"><span class="cal-lg"><span class="cal-ld" style="background:var(--pr)"></span>Events</span><span class="cal-lg"><span class="cal-ld" style="background:var(--ac)"></span>Tasks</span><span class="cal-lg"><span class="cal-ld" style="background:var(--ac);border:1.5px dashed color-mix(in srgb,var(--tx) 70%,transparent)"></span>Recurring</span><span class="cal-lg"><span class="cal-ld" style="background:var(--ok)"></span>Done</span><span class="cal-lg"><span class="cal-ld" style="background:var(--wn)"></span>Birthdays</span><span class="cal-lg"><span class="cal-ld" style="background:var(--ok);border:1.5px dashed color-mix(in srgb,var(--tx) 70%,transparent)"></span>Subs</span></div>';
+// Member filter row (bottom) — separate, full-width pill row
+if((D.members||[]).length){h+='<div class="cal-members">';
+(D.members||[]).forEach(function(m){var on=_calFilters.member===m.user_id;h+='<span class="cal-chip cal-chip-m'+(on?" on":"")+'" style="--cc:'+m.color+'" onclick="calSetMember('+m.user_id+')">'+mAv(m.user_id,20)+es(m.user_name)+'</span>'});
+h+='</div>'}
 body.innerHTML=h
 }
 
@@ -2016,7 +2018,7 @@ if(_pwaPrompt){
   h+='<div class="c" style="cursor:default"><span style="font-size:20px">📱</span><div class="bd"><div class="tt">Install on iOS</div><div style="font-size:12px;color:var(--ht)">Tap <b>Share</b> ⬆ → <b>Add to Home Screen</b></div></div></div>';
 }
 h+='<div class="sc">Debug</div><div class="c" style="cursor:pointer" onclick="dbgOn=!dbgOn;document.getElementById(\'dbg\').classList.toggle(\'hidden\',!dbgOn);ren()"><span style="font-size:20px">🐛</span><div class="bd"><div class="tt">Debug Mode '+(dbgOn?"ON":"OFF")+'</div></div></div>';
-h+='<div style="margin-top:8px;text-align:center;font-size:11px;color:var(--ht)">Family HQ v8.10.3</div>';return h}
+h+='<div style="margin-top:8px;text-align:center;font-size:11px;color:var(--ht)">Family HQ v8.10.4</div>';return h}
 async function setTh(id){aT(id);hp();await A("PATCH","/api/settings",{theme:id});ren()}
 function openThemePicker(){var h='<div class="tg">';Object.keys(TH).forEach(function(id){var t=TH[id];var sel=cTheme===id;h+='<div class="tc" onclick="setTh(\''+id+'\');cMo()" style="background:'+t.cd+';border:2px solid '+(sel?t.pr:t.bd)+'"><div class="te">'+t.e+'</div><div class="tn" style="color:'+t.tx+'">'+t.n+'</div><div class="td">'+[t.pr,t.ac,t.ok,t.wn].map(function(c){return '<div class="tdd" style="background:'+c+'"></div>'}).join("")+'</div></div>'});h+='</div>';oMC("Choose theme",h)}
 async function setDg(v){await A("PATCH","/api/settings",{digest_time:v});hp()}

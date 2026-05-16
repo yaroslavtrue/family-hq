@@ -246,41 +246,42 @@ input[type="date"],input[type="time"],input[type="number"],select{-webkit-appear
 .sk-sc{height:12px;width:30%;border-radius:6px;margin:14px 0 10px}
 .sk-c{height:60px;margin-bottom:10px}
 
-/* Weather ambient backgrounds (all CSS, no JS animation loops) */
-.wbg{position:relative;overflow:hidden;border-radius:18px;padding:14px 14px;margin:0 -4px 16px;border:1px solid var(--bd);box-shadow:0 4px 16px rgba(0,0,0,.2)}
+/* Weather ambient backgrounds (cinematic, multi-layer; all CSS, GPU-only) */
+.wbg{position:relative;overflow:hidden;border-radius:20px;padding:14px 14px;margin:0 -4px 16px;border:1px solid var(--bd);box-shadow:0 8px 28px rgba(0,0,0,.28),inset 0 1px 0 rgba(255,255,255,.06)}
 .wbg>*{position:relative;z-index:2}
 .wbg::before,.wbg::after{content:'';position:absolute;inset:0;pointer-events:none;z-index:0}
 .wbg::after{z-index:1}
-/* Clear / Sunny */
-.wbg-clear{background:linear-gradient(135deg,#1a3a5c 0%,#2d6aa0 40%,#f0a33a 100%)}
-.wbg-clear::before{background:radial-gradient(circle 60px at 88% 15%,#ffe066 0%,rgba(255,180,40,.5) 40%,transparent 70%);animation:sunGlow 4s ease-in-out infinite}
-.wbg-clear::after{background:radial-gradient(circle 90px at 88% 15%,rgba(255,220,100,.15) 0%,transparent 60%);animation:sunRay 6s ease-in-out infinite}
-@keyframes sunGlow{0%,100%{opacity:.8;transform:scale(1)}50%{opacity:1;transform:scale(1.15)}}
-@keyframes sunRay{0%,100%{opacity:.3;transform:scale(1) rotate(0deg)}50%{opacity:.6;transform:scale(1.2) rotate(5deg)}}
-/* Cloudy */
-.wbg-cloud{background:linear-gradient(135deg,#2a3444 0%,#3d4f63 50%,#4a5d73 100%)}
-.wbg-cloud::before{background:radial-gradient(ellipse 100px 40px at 20% 25%,rgba(180,195,210,.2),transparent),radial-gradient(ellipse 120px 35px at 65% 35%,rgba(160,180,200,.18),transparent),radial-gradient(ellipse 80px 30px at 85% 55%,rgba(170,190,210,.12),transparent);animation:cloudDrift 12s ease-in-out infinite}
-@keyframes cloudDrift{0%,100%{transform:translateX(0)}50%{transform:translateX(8px)}}
-/* Rain */
-.wbg-rain{background:linear-gradient(180deg,#1c2a3a 0%,#2a3d54 60%,#1a2838 100%)}
-.wbg-rain::before{background:repeating-linear-gradient(100deg,transparent 0,transparent 4px,rgba(120,170,255,.3) 4px,rgba(120,170,255,.01) 6px);background-size:20px 30px;animation:rainFall .5s linear infinite}
-.wbg-rain::after{background:repeating-linear-gradient(98deg,transparent 0,transparent 8px,rgba(100,150,230,.15) 8px,rgba(100,150,230,.01) 10px);background-size:30px 40px;animation:rainFall2 .7s linear infinite}
+/* Clear / Sunny — warm dawn-to-sky gradient with sun glow */
+.wbg-clear{background:radial-gradient(ellipse 140% 90% at 85% 20%,#ffd97a 0%,#f0a33a 18%,#d4783c 35%,#4a6db0 65%,#1e3a5c 100%),linear-gradient(180deg,#2d6aa0 0%,#1a3a5c 100%);background-blend-mode:soft-light,normal}
+.wbg-clear::before{background:radial-gradient(circle 70px at 88% 15%,#fff4c2 0%,rgba(255,200,80,.6) 30%,rgba(255,160,60,.25) 60%,transparent 80%);animation:sunGlow 5s ease-in-out infinite}
+.wbg-clear::after{background:radial-gradient(circle 110px at 88% 15%,rgba(255,230,140,.18) 0%,transparent 65%),radial-gradient(ellipse 200% 50% at 50% 100%,rgba(255,140,60,.12),transparent 60%);animation:sunRay 7s ease-in-out infinite}
+@keyframes sunGlow{0%,100%{opacity:.85;transform:scale(1)}50%{opacity:1;transform:scale(1.18)}}
+@keyframes sunRay{0%,100%{opacity:.4;transform:scale(1) rotate(0deg)}50%{opacity:.7;transform:scale(1.25) rotate(6deg)}}
+/* Cloudy — atmospheric overcast with drifting cloud puffs and depth fog */
+.wbg-cloud{background:radial-gradient(ellipse 130% 70% at 50% 0%,#5a6e85 0%,#3d4f63 40%,#2a3444 80%,#1e2530 100%),linear-gradient(180deg,#3d4f63,#212a3a)}
+.wbg-cloud::before{background:radial-gradient(ellipse 140px 50px at 18% 22%,rgba(210,222,234,.32),rgba(180,195,210,.05) 60%,transparent),radial-gradient(ellipse 160px 45px at 62% 32%,rgba(190,205,220,.28),rgba(170,185,200,.03) 65%,transparent),radial-gradient(ellipse 110px 40px at 88% 58%,rgba(200,215,230,.18),transparent 70%);animation:cloudDrift 14s ease-in-out infinite}
+.wbg-cloud::after{background:linear-gradient(180deg,transparent 0%,transparent 60%,rgba(20,28,40,.35) 100%)}
+@keyframes cloudDrift{0%,100%{transform:translateX(0)}50%{transform:translateX(10px)}}
+/* Rain — moody rain with diagonal streaks, deep blue tones, ambient glow */
+.wbg-rain{background:radial-gradient(ellipse 130% 80% at 50% 0%,#3a5478 0%,#27384f 45%,#172333 100%),linear-gradient(180deg,#1c2a3a,#0e1620)}
+.wbg-rain::before{background:repeating-linear-gradient(100deg,transparent 0,transparent 4px,rgba(140,190,255,.42) 4px,rgba(140,190,255,.02) 6px);background-size:20px 30px;animation:rainFall .5s linear infinite}
+.wbg-rain::after{background:repeating-linear-gradient(98deg,transparent 0,transparent 8px,rgba(120,170,240,.22) 8px,rgba(120,170,240,.02) 10px);background-size:30px 40px;animation:rainFall2 .7s linear infinite;mix-blend-mode:screen}
 @keyframes rainFall{from{background-position:0 -30px}to{background-position:-20px 30px}}
 @keyframes rainFall2{from{background-position:0 -40px}to{background-position:-15px 40px}}
-/* Snow */
-.wbg-snow{background:linear-gradient(180deg,#2d3a4a 0%,#4a5a6e 50%,#3d4d5f 100%)}
+/* Snow — soft cold gradient with drifting snowflakes */
+.wbg-snow{background:radial-gradient(ellipse 130% 80% at 50% 0%,#7a8ea4 0%,#516780 35%,#34465c 75%,#1f2d3e 100%),linear-gradient(180deg,#4a5a6e,#2d3a4a)}
 .wbg-snow::before{background:radial-gradient(circle 2px at 10% 15%,#fff,transparent),radial-gradient(circle 1.5px at 25% 8%,#e8f0ff,transparent),radial-gradient(circle 2px at 42% 22%,#fff,transparent),radial-gradient(circle 1px at 58% 12%,#e8f0ff,transparent),radial-gradient(circle 2px at 75% 18%,#fff,transparent),radial-gradient(circle 1.5px at 90% 10%,#e8f0ff,transparent),radial-gradient(circle 1px at 18% 50%,#fff,transparent),radial-gradient(circle 2px at 35% 58%,#e8f0ff,transparent),radial-gradient(circle 1.5px at 52% 45%,#fff,transparent),radial-gradient(circle 1px at 68% 55%,#fff,transparent),radial-gradient(circle 2px at 82% 48%,#e8f0ff,transparent),radial-gradient(circle 1.5px at 15% 82%,#fff,transparent),radial-gradient(circle 1px at 48% 90%,#e8f0ff,transparent),radial-gradient(circle 2px at 70% 85%,#fff,transparent);animation:snowDrift 6s linear infinite;opacity:.9}
 .wbg-snow::after{background:radial-gradient(circle 1.5px at 5% 35%,#fff,transparent),radial-gradient(circle 2px at 30% 40%,#e8f0ff,transparent),radial-gradient(circle 1px at 55% 32%,#fff,transparent),radial-gradient(circle 1.5px at 80% 38%,#e8f0ff,transparent),radial-gradient(circle 1px at 22% 70%,#fff,transparent),radial-gradient(circle 2px at 60% 75%,#e8f0ff,transparent),radial-gradient(circle 1.5px at 88% 72%,#fff,transparent);animation:snowDrift2 8s linear infinite;opacity:.6}
 @keyframes snowDrift{0%{transform:translate(0,-10px)}100%{transform:translate(-6px,10px)}}
 @keyframes snowDrift2{0%{transform:translate(0,-8px)}100%{transform:translate(4px,8px)}}
-/* Night — starry sky with twinkling */
-.wbg-night{background:linear-gradient(180deg,#0a0e1a 0%,#111833 40%,#1a2444 100%)}
+/* Night — deep starry sky with subtle aurora glow */
+.wbg-night{background:radial-gradient(ellipse 100% 60% at 75% 20%,#1f2a5a 0%,#162244 25%,#0a1228 60%,#050911 100%),linear-gradient(180deg,#111833,#070b1a)}
 .wbg-night::before{background:radial-gradient(circle 1.5px at 8% 18%,#fff,transparent),radial-gradient(circle 1px at 15% 65%,#aaccff,transparent),radial-gradient(circle 2px at 22% 10%,#fff,transparent),radial-gradient(circle 1px at 30% 42%,#ddeeff,transparent),radial-gradient(circle 1.5px at 38% 78%,#fff,transparent),radial-gradient(circle 1px at 45% 25%,#aaccff,transparent),radial-gradient(circle 2px at 52% 55%,#fff,transparent),radial-gradient(circle 1px at 60% 15%,#ddeeff,transparent),radial-gradient(circle 1.5px at 68% 72%,#fff,transparent),radial-gradient(circle 1px at 75% 35%,#aaccff,transparent),radial-gradient(circle 2px at 82% 8%,#fff,transparent),radial-gradient(circle 1px at 88% 58%,#ddeeff,transparent),radial-gradient(circle 1.5px at 92% 82%,#fff,transparent),radial-gradient(circle 1px at 35% 90%,#aaccff,transparent);animation:starTwinkle 4s ease-in-out infinite alternate}
 .wbg-night::after{background:radial-gradient(circle 1px at 5% 40%,#fff,transparent),radial-gradient(circle 1.5px at 18% 85%,#ddeeff,transparent),radial-gradient(circle 1px at 42% 48%,#fff,transparent),radial-gradient(circle 1.5px at 57% 88%,#aaccff,transparent),radial-gradient(circle 1px at 72% 52%,#fff,transparent),radial-gradient(circle 1.5px at 95% 30%,#ddeeff,transparent),radial-gradient(ellipse 18px 14px at 80% 20%,rgba(230,230,180,.08),transparent);animation:starTwinkle2 5s ease-in-out infinite alternate}
 @keyframes starTwinkle{0%{opacity:.4}100%{opacity:.9}}
 @keyframes starTwinkle2{0%{opacity:.7}100%{opacity:.35}}
-/* Storm */
-.wbg-storm{background:linear-gradient(180deg,#0f1520 0%,#1a2535 50%,#0d1520 100%)}
+/* Storm — dark turbulent sky with rain and lightning flashes */
+.wbg-storm{background:radial-gradient(ellipse 130% 70% at 50% 30%,#2a3a52 0%,#172132 50%,#0a0f1a 100%),linear-gradient(180deg,#1a2535,#0a0f1a)}
 .wbg-storm::before{background:repeating-linear-gradient(102deg,transparent 0,transparent 3px,rgba(140,180,255,.25) 3px,rgba(140,180,255,.01) 5px);background-size:18px 24px;animation:rainFall .4s linear infinite}
 .wbg-storm::after{background:none;animation:lightning 7s ease-in-out infinite}
 @keyframes lightning{0%,89%,93%,95%,100%{background:transparent}90%{background:rgba(200,220,255,.15)}92%{background:transparent}94%{background:rgba(180,200,255,.25)}}
@@ -321,7 +322,7 @@ input[type="date"],input[type="time"],input[type="number"],select{-webkit-appear
 .cal-btn{background:var(--cd);border:1px solid var(--bd);color:var(--tx);cursor:pointer;width:38px;height:38px;border-radius:12px;display:inline-flex;align-items:center;justify-content:center;transition:transform .12s,background .15s;flex-shrink:0;box-shadow:var(--shadow-1)}
 .cal-btn:active{transform:scale(.92);background:var(--sf)}
 .cal-btn svg{width:16px;height:16px;stroke-width:2.5}
-.cal-body{flex:1;overflow-y:auto;padding:4px 14px 40px}
+.cal-body{flex:1;overflow-y:auto;padding:4px 14px 24px;overscroll-behavior:contain}
 .cal-grid-card{background:var(--cd);border:1px solid var(--bd);border-radius:22px;padding:8px 10px 12px;box-shadow:var(--shadow-1);margin-top:8px}
 .cal-dh{display:grid;grid-template-columns:repeat(7,1fr);text-align:center;font-size:10px;font-weight:700;color:var(--ht);padding:10px 0 6px;text-transform:uppercase;letter-spacing:.8px}
 .cal-wk{margin-bottom:2px;border-bottom:1px solid color-mix(in srgb,var(--bd) 60%,transparent)}.cal-wk:last-child{border-bottom:none}
@@ -392,9 +393,12 @@ input[type="date"],input[type="time"],input[type="number"],select{-webkit-appear
 .ced-lbl{font-size:12px;color:var(--ht);font-weight:500}
 .ced-val{font-size:13px;font-weight:600;color:var(--tx);display:flex;align-items:center;gap:6px}
 .ced-val.pr-high{color:var(--wn)}.ced-val.pr-low{color:var(--ht)}
-.cal-legend{display:flex;justify-content:center;gap:16px 18px;padding:14px 16px;flex-wrap:wrap;background:var(--cd);border:1px solid var(--bd);border-radius:18px;margin:16px 0 8px;box-shadow:var(--shadow-1)}
-.cal-lg{display:flex;align-items:center;gap:6px;font-size:11px;font-weight:600;color:var(--ht);letter-spacing:.2px}
-.cal-ld{width:10px;height:10px;border-radius:999px;flex-shrink:0;box-shadow:0 0 0 2px color-mix(in srgb,var(--cd) 80%,transparent)}
+/* Member filter row (bottom of calendar — replaces legend) */
+.cal-members{display:flex;justify-content:center;gap:10px;padding:18px 8px 8px;flex-wrap:wrap}
+.cal-chip-m{font-size:12px;font-weight:600;padding:6px 14px 6px 6px;gap:8px}
+.cal-chip-m img,.cal-chip-m .av,.cal-chip-m .av-em{width:24px;height:24px;border-radius:999px;box-shadow:0 0 0 2px var(--bg)}
+/* Legend kept for backward compat but unused */
+.cal-legend{display:none}
 .cal-strip{cursor:pointer;border-radius:var(--r);background:var(--cd);border:1px solid var(--bd);padding:14px;margin-top:8px;transition:background .15s;box-shadow:0 2px 8px rgba(0,0,0,.1)}
 .cal-strip:active{background:var(--sf)}
 .cal-strip .cal-days{font-size:11px}
@@ -443,6 +447,6 @@ input[type="date"],input[type="time"],input[type="number"],select{-webkit-appear
 <!-- Debug -->
 <div class="dbg hidden" id="dbg"><button class="dbg-cp" onclick="navigator.clipboard.writeText(dbgLog.join('\n'))">Copy</button></div>
 <!-- Load JS -->
-<script src="/static/app.js?v=125"></script>
+<script src="/static/app.js?v=126"></script>
 </body>
 </html>
