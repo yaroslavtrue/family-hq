@@ -8,6 +8,7 @@ from zoneinfo import ZoneInfo
 import httpx, logging
 
 from backend import weather as wx
+from backend.words_of_day import WORDS as WORD_LIST
 
 log = logging.getLogger("uvicorn.error")
 
@@ -335,7 +336,7 @@ async def sync_trello():
     con.close()
     log.info(f"Trello sync done: {len(relevant)} cards processed")
 
-DEFAULT_SECTIONS = ["greeting","weather","tasks_today","tasks_tomorrow","events","subs","birthdays","tip"]
+DEFAULT_SECTIONS = ["greeting","weather","tasks_today","tasks_tomorrow","events","subs","birthdays","word_of_day","tip"]
 
 def _build_digest_sections(con, fid, uid, user_name, now, section_order=None):
     """Build digest sections (HTML parse_mode). Each builder returns list of HTML lines."""
@@ -462,6 +463,19 @@ def _build_digest_sections(con, fid, uid, user_name, now, section_order=None):
         if not upcoming: return []
         return ["🎂 <b>BIRTHDAYS</b>"] + [l for _, l in upcoming]
     builders["birthdays"] = _birthdays
+
+    # ─── Word of the day — bilingual (RU + EN) for daily language learning
+    def _word_of_day():
+        if not WORD_LIST: return []
+        w = WORD_LIST[now.timetuple().tm_yday % len(WORD_LIST)]
+        return [
+            "📚 <b>WORD OF THE DAY</b>",
+            f"🇷🇺 <b>{e(w['ru_word'])}</b>",
+            f"<blockquote>{e(w['ru_def'])}</blockquote>",
+            f"🇬🇧 <b>{e(w['en_word'])}</b>",
+            f"<blockquote>{e(w['en_def'])}</blockquote>",
+        ]
+    builders["word_of_day"] = _word_of_day
 
     # ─── Tip of the day — blockquote (Telegram renders with vertical accent line)
     def _tip():

@@ -579,6 +579,7 @@ var DIGEST_SECS=[
 {id:"events",emoji:"📅",name:"Upcoming Events",color:"var(--ok)"},
 {id:"subs",emoji:"💳",name:"Subscriptions",color:"var(--pr)"},
 {id:"birthdays",emoji:"🎂",name:"Birthdays",color:"var(--wn)"},
+{id:"word_of_day",emoji:"📚",name:"Word of the Day (RU/EN)",color:"#a78bfa"},
 {id:"tip",emoji:"💡",name:"Tip of the Day",color:"var(--ht)"}
 ];
 var _dgOrder=null;
@@ -587,9 +588,13 @@ function _getDigestOrder(){
 if(_dgOrder)return _dgOrder;
 var saved=null;
 try{saved=JSON.parse(D.settings.digest_sections||"null")}catch(e){}
-// Drop any sections that no longer exist (e.g. "cleaning" removed in v8.3)
+// Drop sections that no longer exist (e.g. "cleaning" removed in v8.3),
+// append any new sections (e.g. "word_of_day" added in v8.8) at the end.
 var known={};DIGEST_SECS.forEach(function(s){known[s.id]=true});
-if(saved&&Array.isArray(saved))_dgOrder=saved.filter(function(id){return known[id]});
+if(saved&&Array.isArray(saved)){
+  _dgOrder=saved.filter(function(id){return known[id]});
+  DIGEST_SECS.forEach(function(s){if(_dgOrder.indexOf(s.id)<0)_dgOrder.push(s.id)});
+}
 if(!_dgOrder||!_dgOrder.length)_dgOrder=DIGEST_SECS.map(function(s){return s.id});
 return _dgOrder}
 
@@ -1963,7 +1968,7 @@ if(_pwaPrompt){
   h+='<div class="c" style="cursor:default"><span style="font-size:20px">📱</span><div class="bd"><div class="tt">Install on iOS</div><div style="font-size:12px;color:var(--ht)">Tap <b>Share</b> ⬆ → <b>Add to Home Screen</b></div></div></div>';
 }
 h+='<div class="sc">Debug</div><div class="c" style="cursor:pointer" onclick="dbgOn=!dbgOn;document.getElementById(\'dbg\').classList.toggle(\'hidden\',!dbgOn);ren()"><span style="font-size:20px">🐛</span><div class="bd"><div class="tt">Debug Mode '+(dbgOn?"ON":"OFF")+'</div></div></div>';
-h+='<div style="margin-top:8px;text-align:center;font-size:11px;color:var(--ht)">Family HQ v8.7</div>';return h}
+h+='<div style="margin-top:8px;text-align:center;font-size:11px;color:var(--ht)">Family HQ v8.8</div>';return h}
 async function setTh(id){aT(id);hp();await A("PATCH","/api/settings",{theme:id});ren()}
 function openThemePicker(){var h='<div class="tg">';Object.keys(TH).forEach(function(id){var t=TH[id];var sel=cTheme===id;h+='<div class="tc" onclick="setTh(\''+id+'\');cMo()" style="background:'+t.cd+';border:2px solid '+(sel?t.pr:t.bd)+'"><div class="te">'+t.e+'</div><div class="tn" style="color:'+t.tx+'">'+t.n+'</div><div class="td">'+[t.pr,t.ac,t.ok,t.wn].map(function(c){return '<div class="tdd" style="background:'+c+'"></div>'}).join("")+'</div></div>'});h+='</div>';oMC("Choose theme",h)}
 async function setDg(v){await A("PATCH","/api/settings",{digest_time:v});hp()}
