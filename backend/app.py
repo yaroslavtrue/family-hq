@@ -1693,7 +1693,7 @@ def calendar_items(month: str | None = None, user=Depends(get_uf), db=Depends(ge
             continue
         this_year = f"{y}-{bd[5:]}"
         if this_year >= vs and this_year <= ve:
-            items.append({"id": r["id"], "type": "birthday", "title": f"{r['emoji']} {r['name']}", "start": this_year, "end": this_year, "color": "wn"})
+            items.append({"id": r["id"], "type": "birthday", "title": r["name"], "start": this_year, "end": this_year, "color": "wn"})
 
     # Recurring tasks — expand rrule into occurrences within visible range
     day_map = {"mon": 0, "tue": 1, "wed": 2, "thu": 3, "fri": 4, "sat": 5, "sun": 6}
@@ -1969,7 +1969,7 @@ def serve_exercise_image(fn: str):
     return r
 
 # ─── Debug & Serve ───────────────────────────────────────────────────────
-APP_VERSION = "v8.10.0"
+APP_VERSION = "v8.10.1"
 
 @app.get("/api/debug/ping")
 def ping(): return {"ok": True, "version": APP_VERSION, "time": datetime.now(ZoneInfo(TIMEZONE)).isoformat()}

@@ -20,11 +20,14 @@
 *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 body{font-family:'DM Sans',-apple-system,sans-serif;background:var(--bg);color:var(--tx);min-height:100vh;overflow-x:hidden;padding-bottom:120px;-webkit-font-smoothing:antialiased}
 
-/* Header */
-.hd{padding:18px 20px 14px;padding-top:max(18px, calc(env(safe-area-inset-top, 0px) + 6px));background:color-mix(in srgb,var(--sf) 88%,transparent);border-bottom:1px solid var(--bd);position:sticky;top:0;z-index:10;display:flex;justify-content:space-between;align-items:flex-start;backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px)}
-.hd h1{font-size:20px;font-weight:700;letter-spacing:-.3px}
-.hd-s{font-size:11px;color:var(--ht);margin-top:3px;font-weight:500;letter-spacing:.2px}
-.hd-r{display:flex;gap:2px;align-items:center}
+/* Header — gradient icon square + title + subtitle */
+.hd{padding:14px 20px 12px;padding-top:max(14px, calc(env(safe-area-inset-top, 0px) + 6px));background:color-mix(in srgb,var(--sf) 88%,transparent);border-bottom:1px solid var(--bd);position:sticky;top:0;z-index:10;display:flex;justify-content:space-between;align-items:center;gap:10px;backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px)}
+.hd-l{display:flex;align-items:center;gap:12px;flex:1;min-width:0}
+.hd-ico{width:42px;height:42px;border-radius:13px;display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0;background:var(--gd);color:var(--gtx,#fff);box-shadow:0 4px 14px color-mix(in srgb,var(--pr) 28%,transparent),inset 0 1px 0 rgba(255,255,255,.1)}
+.hd-tx{min-width:0;flex:1}
+.hd h1{font-size:20px;font-weight:700;letter-spacing:-.3px;line-height:1.15;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.hd-s{font-size:11px;color:var(--ht);margin-top:2px;font-weight:500;letter-spacing:.2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.hd-r{display:flex;gap:2px;align-items:center;flex-shrink:0}
 .hd-g{background:none;border:none;color:var(--ht);cursor:pointer;padding:6px;display:flex}.hd-g svg{width:22px;height:22px}
 
 /* Search bar */
@@ -332,7 +335,7 @@ input[type="date"],input[type="time"],input[type="number"],select{-webkit-appear
 .cd-dot{width:4px;height:4px;border-radius:50%;display:block}
 .cal-wk-cur{background:color-mix(in srgb,var(--pr),transparent 93%);border-radius:8px}
 .cal-bars{position:relative;min-height:4px;padding:0 1px}
-.cal-ev{position:absolute;height:19px;border-radius:7px;font-size:9px;font-weight:600;line-height:17px;padding:0 5px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;cursor:pointer;transition:opacity .15s,background .15s;background:color-mix(in srgb,var(--cc,var(--pr)) 14%,transparent);color:var(--cc,var(--pr));border:1px solid color-mix(in srgb,var(--cc,var(--pr)) 45%,transparent)}
+.cal-ev{position:absolute;height:19px;border-radius:7px;font-size:9px;font-weight:700;line-height:17px;padding:0 5px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;cursor:pointer;transition:opacity .15s,background .15s;background:color-mix(in srgb,var(--cc,var(--pr)) 22%,transparent);color:color-mix(in srgb,var(--cc,var(--pr)) 88%,var(--tx));border:1px solid color-mix(in srgb,var(--cc,var(--pr)) 55%,transparent)}
 .cal-ev:active{opacity:.7}
 .ev-ico{font-size:8px;margin-right:3px;opacity:.95}
 .cal-ev.ev-done{text-decoration:line-through;opacity:.55}
@@ -403,7 +406,7 @@ input[type="date"],input[type="time"],input[type="number"],select{-webkit-appear
 <body>
 <!-- Header -->
 <div class="hd">
-    <div><h1 id="ht">🏠 Family HQ</h1><div class="hd-s" id="hs">Everything at a glance</div></div>
+    <div class="hd-l"><div class="hd-ico" id="hi">🏠</div><div class="hd-tx"><h1 id="ht">Family HQ</h1><div class="hd-s" id="hs">Everything at a glance</div></div></div>
     <div class="hd-r">
         <button class="hd-g" id="sb-btn" onclick="toggleSearch()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></button>
         <button class="hd-g" onclick="toggleMenu()" style="position:relative"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg><span id="hm-dot" class="hidden" style="position:absolute;top:4px;right:4px;width:8px;height:8px;border-radius:50%;background:var(--ac);box-shadow:0 0 6px var(--ac)"></span></button>
@@ -438,6 +441,6 @@ input[type="date"],input[type="time"],input[type="number"],select{-webkit-appear
 <!-- Debug -->
 <div class="dbg hidden" id="dbg"><button class="dbg-cp" onclick="navigator.clipboard.writeText(dbgLog.join('\n'))">Copy</button></div>
 <!-- Load JS -->
-<script src="/static/app.js?v=122"></script>
+<script src="/static/app.js?v=123"></script>
 </body>
 </html>

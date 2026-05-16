@@ -126,6 +126,21 @@ const dN=["Sun","Mon","Tue","Wed","Thu","Fri","Sat"],dF=["Sunday","Monday","Tues
 const mN=["January","February","March","April","May","June","July","August","September","October","November","December"];
 function fD(ds){const p=(ds||"").split(" ")[0].split("-").map(Number);if(!p[0]||!p[1]||!p[2])return{day:"?",date:"?",full:"?"};const dt=new Date(p[0],p[1]-1,p[2]);return{day:dN[dt.getDay()],date:p[2]+" "+mN[p[1]-1].slice(0,3),full:dN[dt.getDay()]+" "+p[2]+" "+mN[p[1]-1].slice(0,3)}}
 function wIcon(lbl){return (lbl||"🌤").split(" ")[0]}
+// Map a weather emoji to an animated SVG name from basmilius/weather-icons (MIT).
+// Returns <img> tag; if CDN fails (offline / 404), inline onerror swaps to the emoji.
+function _wIconName(emoji,nightAware){var hr=new Date().getHours();var night=nightAware&&(hr<6||hr>=20);
+var m={"☀️":night?"clear-night":"clear-day","☀":night?"clear-night":"clear-day",
+"🌤":night?"partly-cloudy-night":"partly-cloudy-day","🌤️":night?"partly-cloudy-night":"partly-cloudy-day",
+"⛅":night?"partly-cloudy-night":"partly-cloudy-day","☁":"cloudy","☁️":"cloudy",
+"🌥":night?"overcast-night":"overcast-day","🌥️":night?"overcast-night":"overcast-day",
+"🌦":"partly-cloudy-day-rain","🌦️":"partly-cloudy-day-rain","🌧":"rain","🌧️":"rain",
+"⛈":"thunderstorms-rain","⛈️":"thunderstorms-rain",
+"🌨":"snow","🌨️":"snow","❄":"snow","❄️":"snow","🌫":"fog","🌫️":"fog","🌙":"clear-night"};
+return m[emoji]||null}
+function wIconAnim(lbl,size,nightAware){var emoji=wIcon(lbl);var name=_wIconName(emoji,nightAware);var s=size||40;
+if(!name)return '<span style="font-size:'+Math.round(s*.75)+'px;line-height:1">'+emoji+'</span>';
+var fb=emoji.replace(/'/g,"&#39;");
+return '<img src="https://cdn.jsdelivr.net/gh/basmilius/weather-icons@dev/production/fill/all/'+name+'.svg" width="'+s+'" height="'+s+'" loading="lazy" style="display:block" onerror="this.outerHTML=\'<span style=&quot;font-size:'+Math.round(s*.75)+'px;line-height:1&quot;>'+fb+'</span>\'">'}
 function wDayName(ds){var d=new Date(ds+"T12:00:00");return dN[d.getDay()]}
 function matchQ(text){return !searchQ||(text||"").toLowerCase().indexOf(searchQ)>=0}
 
@@ -196,7 +211,7 @@ const NV=[
 {id:"money",l:"Money",sv:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg>'},
 {id:"profile",l:"Profile",sv:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>'}
 ];
-const TT={home:["🏠 Family HQ","Everything at a glance"],tasks:["📋 Tasks","Manage & assign"],shop:["🛒 Shopping","Shared list"],trainings:["🏋️ Trainings","Workouts & progress"],money:["💰 Money","Budget & subs"],profile:["👤 Profile","Personal stats"],events:["📅 Events","Schedule"],birthdays:["🎂 Birthdays","Never forget"],clean:["🧹 Cleaning","Apartment zones"],settings:["⚙️ Settings","Customize"],subs:["💳 Subscriptions","Monthly payments"]};
+const TT={home:{i:"🏠",t:"Family HQ",s:"Everything at a glance"},tasks:{i:"📋",t:"Tasks",s:"Manage & assign"},shop:{i:"🛒",t:"Shopping",s:"Shared list"},trainings:{i:"🏋️",t:"Trainings",s:"Workouts & progress"},money:{i:"💰",t:"Money",s:"Budget & subs"},profile:{i:"👤",t:"Profile",s:"Personal stats"},events:{i:"📅",t:"Events",s:"Schedule"},birthdays:{i:"🎂",t:"Birthdays",s:"Never forget"},clean:{i:"🧹",t:"Cleaning",s:"Apartment zones"},settings:{i:"⚙️",t:"Settings",s:"Customize"},subs:{i:"💳",t:"Subscriptions",s:"Monthly payments"}};
 
 (function(){var n=document.getElementById("nv");NV.forEach(function(t){var b=document.createElement("button");b.className="ni"+(t.id==="home"?" a":"");b.dataset.t=t.id;b.innerHTML='<span class="nb hidden" id="b-'+t.id+'"></span>'+t.sv+'<span>'+t.l+'</span>';b.onclick=function(){go(t.id)};n.appendChild(b)})})();
 
@@ -204,8 +219,10 @@ function go(t){tab=t;filt=null;searchQ="";menuOpen=false;
 document.getElementById("menu-overlay").classList.remove("open");
 var si=document.getElementById("si");if(si)si.value="";
 document.querySelectorAll(".ni").forEach(function(e){e.classList.toggle("a",e.dataset.t===t)});
-document.getElementById("ht").textContent=(TT[t]||["",""])[0];
-document.getElementById("hs").textContent=(TT[t]||["",""])[1];
+var _tt=TT[t]||{i:"",t:"",s:""};
+document.getElementById("hi").textContent=_tt.i;
+document.getElementById("ht").textContent=_tt.t;
+document.getElementById("hs").textContent=_tt.s;
 var noFab=["home","settings","clean","events","birthdays","subs","profile","trainings"];
 document.getElementById("fab").classList.toggle("hidden",noFab.indexOf(t)>=0);
 if(t==="home")_firstHomeRender=true;
@@ -416,8 +433,8 @@ var h='<p style="color:var(--ht);font-size:14px;margin:0 0 4px;font-weight:500">
 // Weather (wrapped in ambient wbg container — CSS @keyframes handles the animation)
 var w=D.weather;
 if(w&&w.days){var cat=FX.wCat(w.label);
-h+='<div class="wbg wbg-'+cat+'"><div style="display:flex;align-items:center;gap:10px;text-shadow:0 1px 3px rgba(0,0,0,.4)"><span style="font-size:32px;filter:drop-shadow(0 2px 4px rgba(0,0,0,.3))">'+wIcon(w.label)+'</span><div><span style="font-size:24px;font-weight:800;color:#fff">'+w.now+'°</span><span style="font-size:12px;color:rgba(255,255,255,.65);margin-left:6px">feels '+w.feels+'°</span></div><div style="display:flex;gap:8px;margin-left:auto">';
-w.days.forEach(function(dy,i){var label=i===0?"Today":wDayName(dy.date);h+='<div style="text-align:center;min-width:44px"><div style="font-size:10px;color:rgba(255,255,255,.6);font-weight:600">'+label+'</div><div style="font-size:20px;margin:2px 0;filter:drop-shadow(0 1px 2px rgba(0,0,0,.3))">'+wIcon(dy.label)+'</div><div style="font-size:12px;font-weight:700;color:#fff">'+dy.max+'°</div><div style="font-size:10px;color:rgba(255,255,255,.55)">'+dy.min+'°</div></div>'});h+='</div></div></div>'}else h+='<div style="margin-bottom:16px"></div>';
+h+='<div class="wbg wbg-'+cat+'"><div style="display:flex;align-items:center;gap:10px;text-shadow:0 1px 3px rgba(0,0,0,.4)"><div style="filter:drop-shadow(0 2px 4px rgba(0,0,0,.3));flex-shrink:0">'+wIconAnim(w.label,46,true)+'</div><div><span style="font-size:24px;font-weight:800;color:#fff">'+w.now+'°</span><span style="font-size:12px;color:rgba(255,255,255,.65);margin-left:6px">feels '+w.feels+'°</span></div><div style="display:flex;gap:8px;margin-left:auto">';
+w.days.forEach(function(dy,i){var label=i===0?"Today":wDayName(dy.date);h+='<div style="text-align:center;min-width:44px"><div style="font-size:10px;color:rgba(255,255,255,.6);font-weight:600">'+label+'</div><div style="margin:2px auto;filter:drop-shadow(0 1px 2px rgba(0,0,0,.3));display:flex;justify-content:center">'+wIconAnim(dy.label,26,false)+'</div><div style="font-size:12px;font-weight:700;color:#fff">'+dy.max+'°</div><div style="font-size:10px;color:rgba(255,255,255,.55)">'+dy.min+'°</div></div>'});h+='</div></div></div>'}else h+='<div style="margin-bottom:16px"></div>';
 // Calendar strip
 h+='<div class="sc">Calendar</div>';
 h+='<div class="cal-strip" onclick="openCalModal()" id="cal-strip"></div>';
@@ -1996,7 +2013,7 @@ if(_pwaPrompt){
   h+='<div class="c" style="cursor:default"><span style="font-size:20px">📱</span><div class="bd"><div class="tt">Install on iOS</div><div style="font-size:12px;color:var(--ht)">Tap <b>Share</b> ⬆ → <b>Add to Home Screen</b></div></div></div>';
 }
 h+='<div class="sc">Debug</div><div class="c" style="cursor:pointer" onclick="dbgOn=!dbgOn;document.getElementById(\'dbg\').classList.toggle(\'hidden\',!dbgOn);ren()"><span style="font-size:20px">🐛</span><div class="bd"><div class="tt">Debug Mode '+(dbgOn?"ON":"OFF")+'</div></div></div>';
-h+='<div style="margin-top:8px;text-align:center;font-size:11px;color:var(--ht)">Family HQ v8.10.0</div>';return h}
+h+='<div style="margin-top:8px;text-align:center;font-size:11px;color:var(--ht)">Family HQ v8.10.1</div>';return h}
 async function setTh(id){aT(id);hp();await A("PATCH","/api/settings",{theme:id});ren()}
 function openThemePicker(){var h='<div class="tg">';Object.keys(TH).forEach(function(id){var t=TH[id];var sel=cTheme===id;h+='<div class="tc" onclick="setTh(\''+id+'\');cMo()" style="background:'+t.cd+';border:2px solid '+(sel?t.pr:t.bd)+'"><div class="te">'+t.e+'</div><div class="tn" style="color:'+t.tx+'">'+t.n+'</div><div class="td">'+[t.pr,t.ac,t.ok,t.wn].map(function(c){return '<div class="tdd" style="background:'+c+'"></div>'}).join("")+'</div></div>'});h+='</div>';oMC("Choose theme",h)}
 async function setDg(v){await A("PATCH","/api/settings",{digest_time:v});hp()}
