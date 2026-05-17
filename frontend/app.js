@@ -223,15 +223,17 @@ function renderWeatherPage(){
   lbl.textContent=w.city||"Belgrade";
   var days=(w.days||[]).slice(0,14);
   if(!days.length){body.innerHTML='<div class="emp"><div>No forecast data</div></div>';return}
-  // Hero — today (big, left-top). Same video-background system as the home card.
+  // Hero — today (big, left-top). Uses CURRENT weather (w.label) to stay in sync with the home card.
+  // Today's daily summary (days[0]) covers the whole day's dominant weather and may differ from "now".
+  // Same video-background system as the home card.
   var today=days[0];
-  var cat=FX.wCat(today.label);
+  var cat=FX.wCat(w.label);
   var vdHtml='<video class="wbg-vd" autoplay muted loop playsinline preload="metadata" onloadeddata="this.classList.add(\'loaded\');this.parentNode.classList.add(\'has-video\')" onerror="this.remove()"><source src="/static/weather/'+cat+'.mp4" type="video/mp4"></video><div class="wbg-vd-scrim"></div>';
   var h='<div class="wx-hero wbg wbg-'+cat+'">'+vdHtml;
-  h+='<div class="wx-hero-ico" style="filter:drop-shadow(0 2px 4px rgba(0,0,0,.35))">'+wIconAnim(today.label,72,true)+'</div>';
+  h+='<div class="wx-hero-ico" style="filter:drop-shadow(0 2px 4px rgba(0,0,0,.35))">'+wIconAnim(w.label,72,true)+'</div>';
   h+='<div class="wx-hero-tx" style="text-shadow:0 1px 3px rgba(0,0,0,.5)"><div class="wx-hero-lb" style="color:rgba(255,255,255,.7)">Today</div>';
   h+='<div class="wx-hero-temp" style="color:#fff">'+w.now+'°</div>';
-  h+='<div class="wx-hero-sub" style="color:rgba(255,255,255,.88)">'+es(today.label||"")+' · feels '+w.feels+'°</div>';
+  h+='<div class="wx-hero-sub" style="color:rgba(255,255,255,.88)">'+es(w.label||"")+' · feels '+w.feels+'°</div>';
   h+='<div class="wx-hero-range"><span class="hi" style="color:#fff">↑ '+today.max+'°</span><span style="color:rgba(255,255,255,.75)">↓ '+today.min+'°</span></div></div></div>';
   // 14-day grid (7×2) — actually we have 14 days inc. today; render as 2 rows of 7
   h+='<div class="wx-grid-lb">Next 2 weeks</div>';
@@ -2355,7 +2357,7 @@ if(_pwaPrompt){
 }
 h+='<div class="sc"><span class="sc-l">Developer</span></div>';
 h+=_setRow({ico:"debug",acc:"acc-ac",title:"Debug Mode "+(dbgOn?"ON":"OFF"),onclick:"dbgOn=!dbgOn;document.getElementById(\'dbg\').classList.toggle(\'hidden\',!dbgOn);ren()"});
-h+='<div style="margin-top:18px;text-align:center;font-size:11px;color:var(--ht);letter-spacing:.3px">Family HQ v8.19.1</div>';return h}
+h+='<div style="margin-top:18px;text-align:center;font-size:11px;color:var(--ht);letter-spacing:.3px">Family HQ v8.19.2</div>';return h}
 async function setTh(id){
   if(id==="custom"){
     // Tapping Custom in the picker opens the editor (saves happen there). Also apply right away.
