@@ -18,5 +18,6 @@ services:
     volumes:
       - ./data:/data
       # Weather video loops — added at runtime (no rebuild needed when files appear).
-      # Hot-add new files: scp file.mp4 root@VPS:/opt/family_hq/frontend/static/weather/
-      - ./frontend/static/weather:/app/frontend/static/weather
+      # URL /static/weather/X.mp4 resolves to /app/frontend/weather/X.mp4 (the /static/
+      # URL prefix is stripped by the serve_static route). Files live at frontend/weather/ on host.
+      - ./frontend/weather:/app/frontend/weather
