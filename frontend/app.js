@@ -403,7 +403,7 @@ if(!iD&&_getSess()){
   try{var parts=_getSess().split(".");if(parts.length>=2)currentUid='<div style="font-size:11px;color:var(--ht);margin-top:8px;font-family:monospace">Logged in as Telegram user '+parts[0]+'</div>'}catch(e){}
 }
 var pwaLogout=(!iD&&_getSess())?'<div style="margin-top:24px;padding-top:16px;border-top:1px solid var(--bd);text-align:center"><div style="font-size:12px;color:var(--ht);margin-bottom:10px">Wrong Telegram account?</div><button class="onb-b s2" style="background:transparent;border:1.5px solid var(--ac);color:var(--ac)" onclick="_logoutPwa()">Sign out & try different account</button></div>':'';
-document.getElementById("ct").innerHTML='<div class="onb"><div class="onb-e">👨‍👩‍👧‍👦</div><div class="onb-t">Welcome to Family HQ</div><div class="onb-s">Create a family or join with a code.</div>'+currentUid+'<div style="height:16px"></div><button class="onb-b p" onclick="shCr()">Create Family</button><div style="color:var(--ht);font-size:13px;margin:8px 0 20px">— or —</div><button class="onb-b s2" onclick="shJn()">Join with Code</button>'+pwaLogout+'</div>'
+document.getElementById("ct").innerHTML='<div class="onb"><div class="onb-ico">'+icon("user",44,2)+'</div><div class="onb-t">Welcome to Family HQ</div><div class="onb-s">Create a new family or join an existing one with an invite code.</div>'+currentUid+'<div style="height:18px"></div><button class="onb-b p" onclick="shCr()">'+icon("pl",16,2.5)+'<span style="margin-left:6px">Create Family</span></button><div style="color:var(--ht);font-size:13px;margin:10px 0;letter-spacing:.5px;text-transform:uppercase;font-weight:600">or</div><button class="onb-b s2" onclick="shJn()"><span style="margin-right:4px">Join with Code</span></button>'+pwaLogout+'</div>'
 }
 function shCr(){oMC("Create Family",'<input class="inp" id="fn" placeholder="Family name" value="Our Family"><button class="btn" onclick="doCr()">Create</button>')}
 function shJn(){oMC("Join Family",'<div style="text-align:center;margin-bottom:16px"><div style="font-size:14px;color:var(--ht);margin-bottom:12px">Enter 6-character code</div><input class="ci2" id="fc" placeholder="ABC123" maxlength="6"></div><button class="btn" onclick="doJn()">Join</button>')}
@@ -559,21 +559,32 @@ async function svRec(id){var text=document.getElementById("f-t").value.trim();if
 // ═══════════════════════════════════════════════════════════
 // SHOPPING — enhanced add flow
 // ═══════════════════════════════════════════════════════════
-function rSh(){var h='<div class="fb2"><button class="fi '+(shopFold===null?"a":"")+'" onclick="shopFold=null;ren()">All</button><button class="fi '+(shopFold==="stock"?"a":"")+'" onclick="shopFold=\'stock\';ren()">📦 In Stock</button>';
-D.folders.forEach(function(f){h+='<button class="fi '+(shopFold===f.id?"a":"")+'" onclick="shopFold='+f.id+';ren()">'+f.emoji+" "+es(f.name)+'</button><button class="bi" onclick="edFolder('+f.id+')" style="padding:2px;margin-left:-6px">'+I.ed+'</button>'});
-h+='<button class="fi" onclick="shAddFolder()">'+I.pl+' Folder</button></div>';
+function rSh(){
+var h='<div class="fb2"><button class="fi '+(shopFold===null?"a":"")+'" onclick="shopFold=null;ren()">All</button><button class="fi '+(shopFold==="stock"?"a":"")+'" onclick="shopFold=\'stock\';ren()"><span style="display:inline-flex;align-items:center;gap:4px">📦 In Stock</span></button>';
+D.folders.forEach(function(f){h+='<button class="fi '+(shopFold===f.id?"a":"")+'" onclick="shopFold='+f.id+';ren()"><span style="display:inline-flex;align-items:center;gap:4px">'+f.emoji+es(f.name)+'</span></button><button class="bi" onclick="edFolder('+f.id+')" style="padding:2px;margin-left:-6px">'+I.ed+'</button>'});
+h+='<button class="fi" onclick="shAddFolder()"><span style="display:inline-flex;align-items:center;gap:4px">'+I.pl+'Folder</span></button></div>';
+function _scH3(ico,label,cnt,extra,color){var iconHtml=ico?'<span class="sc-ico"'+(color?' style="color:'+color+'"':'')+'>'+icon(ico,12,2.4)+'</span>':'';return '<div class="sc"'+(color?' style="color:'+color+'"':'')+'><span class="sc-l">'+iconHtml+label+(cnt?'<span class="sc-cnt"'+(color?' style="background:color-mix(in srgb,'+color+' 16%,transparent);color:'+color+'"':'')+'>'+cnt+'</span>':"")+'</span>'+(extra||'')+'</div>'}
 var items=D.shopping;
 if(shopFold==="stock")items=items.filter(function(x){return x.bought});
 else if(shopFold!==null)items=items.filter(function(x){return x.folder_id===shopFold&&!x.bought});
 else items=items.filter(function(x){return!x.bought});
 if(searchQ)items=items.filter(function(x){return matchQ(x.item)});
 var folderTotal=0;items.forEach(function(x){if(x.price&&(shopFold==="stock"||!x.bought))folderTotal+=x.price});
-if(folderTotal>0)h+='<div class="c" style="border-left:3px solid var(--wn);padding:10px 16px"><div class="bd"><div class="mt" style="font-size:14px;color:var(--wn);font-weight:700">Total: '+folderTotal.toFixed(0)+' din.</div></div></div>';
-if(shopFold==="stock"){if(!items.length)return h+em("📦","Nothing in stock","Buy items to see them here");h+='<div class="sc" style="margin-top:16px"><span>In Stock · '+items.length+'</span><button class="at" onclick="clSh()">Clear</button></div>';var fMap={};D.folders.forEach(function(f){fMap[f.id]=f});var grps={};items.forEach(function(s){var k=s.folder_id||0;if(!grps[k])grps[k]=[];grps[k].push(s)});var ks=D.folders.map(function(f){return f.id}).filter(function(id){return grps[id]});if(grps[0])ks.push(0);var multi=ks.length>1||(ks.length===1&&ks[0]!==0);ks.forEach(function(k){var g=grps[k];if(multi){if(k&&fMap[k])h+='<div class="sc" style="font-size:13px;margin-top:12px">'+fMap[k].emoji+" "+es(fMap[k].name)+' · '+g.length+'</div>';else h+='<div class="sc" style="font-size:13px;margin-top:12px">Other · '+g.length+'</div>'}g.forEach(function(s){var qtyHtml=s.quantity?'<span class="qty">'+es(s.quantity)+'</span>':"";var prHtml=s.price?'<span style="font-size:11px;color:var(--wn);font-weight:600">'+s.price+' din.</span>':"";h+='<div class="c c-stk"><div class="cb cb-k" onclick="tgSh('+s.id+',this)">'+I.ck+'</div><div class="bd"><div class="tt">'+es(s.item)+" "+qtyHtml+'</div><div class="mt">'+es(s.added_by||"")+" "+prHtml+'</div></div><button class="bi" onclick="edShop('+s.id+')">'+I.ed+'</button><button class="bi" onclick="dSh('+s.id+')">'+I.tr+'</button></div>'})});return h}
+if(folderTotal>0)h+='<div class="cat-row" style="margin-bottom:14px"><div class="cat-row-h"><span class="nm">Total</span><span class="vl" style="color:var(--wn)">'+folderTotal.toFixed(0)+' din.</span></div></div>';
+if(shopFold==="stock"){
+  if(!items.length)return h+em(icon("cart",48,1.8),"Nothing in stock","Buy items to see them here");
+  h+=_scH3("ck","In Stock",items.length,'<button class="at" onclick="clSh()">Clear</button>',"var(--ok)");
+  var fMap={};D.folders.forEach(function(f){fMap[f.id]=f});var grps={};items.forEach(function(s){var k=s.folder_id||0;if(!grps[k])grps[k]=[];grps[k].push(s)});var ks=D.folders.map(function(f){return f.id}).filter(function(id){return grps[id]});if(grps[0])ks.push(0);var multi=ks.length>1||(ks.length===1&&ks[0]!==0);
+  ks.forEach(function(k){var g=grps[k];if(multi){var label=k&&fMap[k]?(fMap[k].emoji+" "+es(fMap[k].name)):"Other";h+='<div class="sc" style="font-size:12px;margin-top:12px"><span class="sc-l">'+label+'<span class="sc-cnt">'+g.length+'</span></span></div>'}
+  g.forEach(function(s){var qtyHtml=s.quantity?'<span class="qty">'+es(s.quantity)+'</span>':"";var prHtml=s.price?'<span style="font-size:11px;color:var(--wn);font-weight:600">'+s.price+' din.</span>':"";h+='<div class="c c-stk"><div class="cb cb-k" onclick="tgSh('+s.id+',this)">'+I.ck+'</div><div class="bd"><div class="tt">'+es(s.item)+" "+qtyHtml+'</div><div class="mt">'+es(s.added_by||"")+" "+prHtml+'</div></div><button class="bi" onclick="edShop('+s.id+')">'+I.ed+'</button><button class="bi" onclick="dSh('+s.id+')">'+I.tr+'</button></div>'})});
+  return h
+}
 var p=items.filter(function(x){return!x.bought}),b=items.filter(function(x){return x.bought});
-if(!items.length)return h+em("🛒","List is empty","Tap + to add");
-if(p.length){h+='<div class="sc">To Buy · '+p.length+'</div>';p.forEach(function(s){var qtyHtml=s.quantity?'<span class="qty">'+es(s.quantity)+'</span>':"";var prHtml=s.price?'<span style="font-size:11px;color:var(--wn);font-weight:600">'+s.price+' din.</span>':"";h+='<div class="c"><div class="cb cb-o" onclick="tgSh('+s.id+',this)"></div><div class="bd"><div class="tt">'+es(s.item)+" "+qtyHtml+'</div><div class="mt">'+es(s.added_by||"")+" "+prHtml+'</div></div><button class="bi" onclick="edShop('+s.id+')">'+I.ed+'</button><button class="bi" onclick="dSh('+s.id+')">'+I.tr+'</button></div>'})}
-if(b.length){h+='<div class="sc" style="margin-top:16px"><span>Bought · '+b.length+'</span><button class="at" onclick="clSh()">Clear</button></div>';b.forEach(function(s){var qtyHtml=s.quantity?'<span class="qty">'+es(s.quantity)+'</span>':"";h+='<div class="c d"><div class="cb cb-k" onclick="tgSh('+s.id+',this)">'+I.ck+'</div><div class="bd"><div class="tt sk">'+es(s.item)+" "+qtyHtml+'</div></div><button class="bi" onclick="edShop('+s.id+')">'+I.ed+'</button></div>'})}
+if(!items.length)return h+em(icon("cart",48,1.8),"List is empty","Tap + to add");
+if(p.length){h+=_scH3("cart","To Buy",p.length);
+  p.forEach(function(s){var qtyHtml=s.quantity?'<span class="qty">'+es(s.quantity)+'</span>':"";var prHtml=s.price?'<span style="font-size:11px;color:var(--wn);font-weight:600">'+s.price+' din.</span>':"";h+='<div class="c"><div class="cb cb-o" onclick="tgSh('+s.id+',this)"></div><div class="bd"><div class="tt">'+es(s.item)+" "+qtyHtml+'</div><div class="mt">'+es(s.added_by||"")+" "+prHtml+'</div></div><button class="bi" onclick="edShop('+s.id+')">'+I.ed+'</button><button class="bi" onclick="dSh('+s.id+')">'+I.tr+'</button></div>'})}
+if(b.length){h+=_scH3("ck","Bought",b.length,'<button class="at" onclick="clSh()">Clear</button>',"var(--ok)");
+  b.forEach(function(s){var qtyHtml=s.quantity?'<span class="qty">'+es(s.quantity)+'</span>':"";h+='<div class="c d"><div class="cb cb-k" onclick="tgSh('+s.id+',this)">'+I.ck+'</div><div class="bd"><div class="tt sk">'+es(s.item)+" "+qtyHtml+'</div></div><button class="bi" onclick="edShop('+s.id+')">'+I.ed+'</button></div>'})}
 return h}
 async function tgSh(id,cb){
 var s=D.shopping.find(function(x){return x.id===id});
@@ -2158,26 +2169,46 @@ function calEdRec(id){closeCalEv();_calEditCb=_calRefresh;edRec(id)}
 // SETTINGS (hamburger page)
 // ═══════════════════════════════════════════════════════════
 function rSet(){var h='';
-if(fS&&fS.joined){h+='<div class="sc">Family</div><div class="c"><span style="font-size:28px">👨‍👩‍👧</span><div class="bd"><div class="tt" style="font-weight:600">'+es(fS.name||"My Family")+'</div></div></div><div class="cd2" style="margin-bottom:16px"><div class="ct2">'+(fS.invite_code||"...")+'</div><div class="cl2">Share this code</div></div>';
-h+='<div class="sc">Members</div>';(fS.members||[]).forEach(function(m){h+='<div class="c">'+mAv(m.user_id,40)+'<div class="bd"><div class="tt" style="font-weight:600">'+es(m.user_name)+'</div><div style="width:24px;height:4px;border-radius:2px;background:'+m.color+';margin-top:3px"></div></div><button class="bi" onclick="edMe('+m.user_id+',\''+es(m.user_name)+'\',\''+m.emoji+'\',\''+m.color+'\')">'+I.ed+'</button></div>'});
-h+='<div style="margin-bottom:20px;display:flex;gap:8px"><button class="btn btn-s" style="font-size:13px;flex:1" onclick="if(confirm(\'Leave family?\'))leaveFam()">Leave Family</button>'+
-(!iD&&_getSess()?'<button class="btn btn-s" style="font-size:13px;flex:1;background:transparent;border:1.5px solid var(--bd);color:var(--tx)" onclick="_logoutPwa()">Log out</button>':'')+
-'</div>'}
-var curTh=TH[cTheme]||TH.midnight;h+='<div class="sc">Theme</div><div class="c" onclick="openThemePicker()" style="cursor:pointer;margin-bottom:24px"><span style="font-size:20px">'+curTh.e+'</span><div class="bd"><div class="tt">'+curTh.n+'</div><div style="font-size:12px;color:var(--ht)">Tap to change · '+Object.keys(TH).length+' themes</div></div><span style="color:var(--ht);font-size:18px">›</span></div>';
-h+='<div class="sc">Morning Digest</div><div class="c" onclick="openDigestCfg()" style="cursor:pointer"><span style="font-size:20px">📨</span><div class="bd"><div class="tt">Configure Digest</div><div style="font-size:12px;color:var(--ht)">Time: '+(D.settings.digest_time||"09:00")+' · Sections & order</div></div><span style="color:var(--ht);font-size:18px">›</span></div>';
+function _setRow(opts){
+  // opts: {ico,acc,title,subtitle,onclick,right,id,style}
+  var iconHtml=opts.ico?'<div class="lc-i '+(opts.acc||"")+'">'+(opts.iconCustom||icon(opts.ico,20,2.2))+'</div>':'';
+  var ocl=opts.onclick?' onclick="'+opts.onclick+'"':"";
+  var cls="lc lc-row"+(opts.onclick?" lc-tap":"");
+  var sub=opts.subtitle?'<div class="lc-mt">'+opts.subtitle+'</div>':"";
+  return '<div class="'+cls+'"'+ocl+(opts.id?' id="'+opts.id+'"':"")+(opts.style?' style="'+opts.style+'"':"")+'>'+iconHtml+'<div class="lc-bd"><div class="lc-tt">'+opts.title+'</div>'+sub+'</div>'+(opts.right||'')+(opts.onclick?'<span class="lc-chev">›</span>':"")+'</div>'
+}
+if(fS&&fS.joined){
+  h+='<div class="sc"><span class="sc-l">Family</span></div>';
+  h+=_setRow({ico:"user",acc:"acc-ok",title:es(fS.name||"My Family"),subtitle:"Family workspace"});
+  h+='<div class="invite-card"><div class="invite-lb">Invite Code</div><div class="invite-cd">'+(fS.invite_code||"...")+'</div><div class="invite-hint">Share this with new members</div></div>';
+  h+='<div class="sc"><span class="sc-l">Members<span class="sc-cnt">'+(fS.members||[]).length+'</span></span></div>';
+  (fS.members||[]).forEach(function(m){
+    var right='<button class="bi" onclick="edMe('+m.user_id+',\''+es(m.user_name)+'\',\''+m.emoji+'\',\''+m.color+'\')">'+I.ed+'</button>';
+    h+='<div class="lc lc-mem">'+mAv(m.user_id,44)+'<div class="lc-bd"><div class="lc-tt">'+es(m.user_name)+'</div><div class="lc-mem-strip" style="background:'+m.color+'"></div></div>'+right+'</div>';
+  });
+  h+='<div style="margin:14px 0 22px;display:flex;gap:8px"><button class="btn btn-s" style="font-size:13px;flex:1" onclick="if(confirm(\'Leave family?\'))leaveFam()">Leave Family</button>'+
+  (!iD&&_getSess()?'<button class="btn btn-s" style="font-size:13px;flex:1;background:transparent;border:1.5px solid var(--bd);color:var(--tx)" onclick="_logoutPwa()">Log out</button>':'')+
+  '</div>';
+}
+var curTh=TH[cTheme]||TH.midnight;
+h+='<div class="sc"><span class="sc-l">Appearance</span></div>';
+h+=_setRow({iconCustom:'<span style="font-size:22px">'+curTh.e+'</span>',acc:"",title:curTh.n,subtitle:"Tap to change · "+Object.keys(TH).length+" themes",onclick:"openThemePicker()"});
+h+='<div class="sc"><span class="sc-l">Notifications</span></div>';
+h+=_setRow({ico:"bl",acc:"acc-wn",title:"Morning Digest",subtitle:"Time: "+(D.settings.digest_time||"09:00")+" · Sections & order",onclick:"openDigestCfg()"});
 var nExp=D.categories.filter(function(c){return c.type==="expense"}).length;
 var nInc=D.categories.filter(function(c){return c.type==="income"}).length;
-h+='<div class="sc">Categories</div><div class="c" onclick="openCatMgr()" style="cursor:pointer"><span style="font-size:20px">📂</span><div class="bd"><div class="tt">Manage Categories</div><div style="font-size:12px;color:var(--ht)">'+nExp+' expense · '+nInc+' income</div></div><span style="color:var(--ht);font-size:18px">›</span></div>';
-h+='<div class="sc">Integrations</div><div class="c" onclick="syncTrello()" style="cursor:pointer"><span style="font-size:20px">🔵</span><div class="bd"><div class="tt">Trello Sync</div><div style="font-size:12px;color:var(--ht)">Board: Работа</div></div><span id="trello-btn" style="padding:6px 14px;border-radius:10px;font-size:12px;font-weight:600;background:var(--pg);color:var(--pr);white-space:nowrap">Sync Now</span></div>';
-// PWA install — visible only outside Telegram + when browser allows it (Android Chrome).
-// On iOS Safari, show manual instructions card always (since beforeinstallprompt isn't fired).
+h+='<div class="sc"><span class="sc-l">Money</span></div>';
+h+=_setRow({ico:"list",acc:"acc-pr",title:"Categories",subtitle:nExp+" expense · "+nInc+" income",onclick:"openCatMgr()"});
+h+='<div class="sc"><span class="sc-l">Integrations</span></div>';
+h+=_setRow({iconCustom:'<span style="font-size:22px">🔵</span>',acc:"",title:"Trello Sync",subtitle:"Board: Работа",onclick:"syncTrello()",right:'<span id="trello-btn" class="lc-rt" style="background:color-mix(in srgb,var(--pr) 16%,transparent);color:var(--pr)">Sync Now</span>'});
 if(_pwaPrompt){
-  h+='<div class="c" onclick="installPWA()" style="cursor:pointer"><span style="font-size:20px">📱</span><div class="bd"><div class="tt">Install App</div><div style="font-size:12px;color:var(--ht)">Add to home screen — works offline</div></div><span style="padding:6px 14px;border-radius:10px;font-size:12px;font-weight:600;background:var(--pg);color:var(--pr);white-space:nowrap">Install</span></div>';
+  h+=_setRow({iconCustom:'<span style="font-size:22px">📱</span>',acc:"",title:"Install App",subtitle:"Add to home screen — works offline",onclick:"installPWA()",right:'<span class="lc-rt" style="background:color-mix(in srgb,var(--pr) 16%,transparent);color:var(--pr)">Install</span>'});
 }else if(!iD && /iPhone|iPad|iPod/.test(navigator.userAgent||"")){
-  h+='<div class="c" style="cursor:default"><span style="font-size:20px">📱</span><div class="bd"><div class="tt">Install on iOS</div><div style="font-size:12px;color:var(--ht)">Tap <b>Share</b> ⬆ → <b>Add to Home Screen</b></div></div></div>';
+  h+='<div class="lc"><div class="lc-i acc-pr"><span style="font-size:22px">📱</span></div><div class="lc-bd"><div class="lc-tt">Install on iOS</div><div class="lc-mt">Tap <b>Share</b> ⬆ → <b>Add to Home Screen</b></div></div></div>';
 }
-h+='<div class="sc">Debug</div><div class="c" style="cursor:pointer" onclick="dbgOn=!dbgOn;document.getElementById(\'dbg\').classList.toggle(\'hidden\',!dbgOn);ren()"><span style="font-size:20px">🐛</span><div class="bd"><div class="tt">Debug Mode '+(dbgOn?"ON":"OFF")+'</div></div></div>';
-h+='<div style="margin-top:8px;text-align:center;font-size:11px;color:var(--ht)">Family HQ v8.14.0</div>';return h}
+h+='<div class="sc"><span class="sc-l">Developer</span></div>';
+h+=_setRow({ico:"debug",acc:"acc-ac",title:"Debug Mode "+(dbgOn?"ON":"OFF"),onclick:"dbgOn=!dbgOn;document.getElementById(\'dbg\').classList.toggle(\'hidden\',!dbgOn);ren()"});
+h+='<div style="margin-top:18px;text-align:center;font-size:11px;color:var(--ht);letter-spacing:.3px">Family HQ v8.15.0</div>';return h}
 async function setTh(id){aT(id);hp();await A("PATCH","/api/settings",{theme:id});ren()}
 function openThemePicker(){var h='<div class="tg">';Object.keys(TH).forEach(function(id){var t=TH[id];var sel=cTheme===id;h+='<div class="tc" onclick="setTh(\''+id+'\');cMo()" style="background:'+t.cd+';border:2px solid '+(sel?t.pr:t.bd)+'"><div class="te">'+t.e+'</div><div class="tn" style="color:'+t.tx+'">'+t.n+'</div><div class="td">'+[t.pr,t.ac,t.ok,t.wn].map(function(c){return '<div class="tdd" style="background:'+c+'"></div>'}).join("")+'</div></div>'});h+='</div>';oMC("Choose theme",h)}
 async function setDg(v){await A("PATCH","/api/settings",{digest_time:v});hp()}
