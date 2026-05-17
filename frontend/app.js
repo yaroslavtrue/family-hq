@@ -102,7 +102,8 @@ chart:'<line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="
 trendUp:'<polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/><polyline points="16 7 22 7 22 13"/>',
 trendDown:'<polyline points="22 17 13.5 8.5 8.5 13.5 2 7"/><polyline points="16 17 22 17 22 11"/>',
 wallet:'<path d="M21 12V7a2 2 0 0 0-2-2H5a2 2 0 0 0 0 4h16v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7"/><path d="M18 12h.01"/>',
-receipt:'<path d="M4 2v20l2-1 2 1 2-1 2 1 2-1 2 1 2-1 2 1V2l-2 1-2-1-2 1-2-1-2 1-2-1-2 1Z"/><path d="M8 7h8"/><path d="M8 11h8"/><path d="M8 15h6"/>'
+receipt:'<path d="M4 2v20l2-1 2 1 2-1 2 1 2-1 2 1 2-1 2 1V2l-2 1-2-1-2 1-2-1-2 1-2-1-2 1Z"/><path d="M8 7h8"/><path d="M8 11h8"/><path d="M8 15h6"/>',
+palette:'<circle cx="13.5" cy="6.5" r="1" fill="currentColor"/><circle cx="17.5" cy="10.5" r="1" fill="currentColor"/><circle cx="8.5" cy="7.5" r="1" fill="currentColor"/><circle cx="6.5" cy="12.5" r="1" fill="currentColor"/><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10c.92 0 1.65-.74 1.65-1.65 0-.43-.16-.83-.43-1.13-.27-.31-.43-.7-.43-1.13a1.65 1.65 0 0 1 1.65-1.65H16c3.31 0 6-2.69 6-6 0-4.96-4.49-9-10-9Z"/>'
 };
 // Wrappers — pre-built default sizes for the most-used icons
 const I={
@@ -2168,8 +2169,11 @@ function calEdRec(id){closeCalEv();_calEditCb=_calRefresh;edRec(id)}
 // ═══════════════════════════════════════════════════════════
 function rSet(){var h='';
 function _setRow(opts){
-  // opts: {ico,acc,title,subtitle,onclick,right,id,style}
-  var iconHtml=opts.ico?'<div class="lc-i '+(opts.acc||"")+'">'+(opts.iconCustom||icon(opts.ico,20,2.2))+'</div>':'';
+  // opts: {ico, iconCustom, iconStyle, acc, title, subtitle, onclick, right, id, style}
+  var hasIcon=opts.ico||opts.iconCustom;
+  var iconInner=opts.iconCustom||(opts.ico?icon(opts.ico,20,2.2):'');
+  var iconStyleAttr=opts.iconStyle?' style="'+opts.iconStyle+'"':'';
+  var iconHtml=hasIcon?'<div class="lc-i '+(opts.acc||"")+'"'+iconStyleAttr+'>'+iconInner+'</div>':'';
   var ocl=opts.onclick?' onclick="'+opts.onclick+'"':"";
   var cls="lc lc-row"+(opts.onclick?" lc-tap":"");
   var sub=opts.subtitle?'<div class="lc-mt">'+opts.subtitle+'</div>':"";
@@ -2190,7 +2194,9 @@ if(fS&&fS.joined){
 }
 var curTh=TH[cTheme]||TH.midnight;
 h+='<div class="sc"><span class="sc-l">Appearance</span></div>';
-h+=_setRow({iconCustom:'<span style="font-size:22px">'+curTh.e+'</span>',acc:"",title:curTh.n,subtitle:"Tap to change · "+Object.keys(TH).length+" themes",onclick:"openThemePicker()"});
+var thAcc=curTh.pr;
+var thStyle='background:linear-gradient(135deg,color-mix(in srgb,'+thAcc+' 38%,transparent),color-mix(in srgb,'+thAcc+' 10%,transparent));border-color:color-mix(in srgb,'+thAcc+' 48%,transparent);color:'+thAcc+';box-shadow:inset 0 1px 0 color-mix(in srgb,'+thAcc+' 20%,transparent),0 2px 12px color-mix(in srgb,'+thAcc+' 22%,transparent)';
+h+=_setRow({ico:"palette",iconStyle:thStyle,title:curTh.n,subtitle:"Tap to change · "+Object.keys(TH).length+" themes · "+curTh.e,onclick:"openThemePicker()"});
 h+='<div class="sc"><span class="sc-l">Notifications</span></div>';
 h+=_setRow({ico:"bl",acc:"acc-wn",title:"Morning Digest",subtitle:"Time: "+(D.settings.digest_time||"09:00")+" · Sections & order",onclick:"openDigestCfg()"});
 var nExp=D.categories.filter(function(c){return c.type==="expense"}).length;
@@ -2206,7 +2212,7 @@ if(_pwaPrompt){
 }
 h+='<div class="sc"><span class="sc-l">Developer</span></div>';
 h+=_setRow({ico:"debug",acc:"acc-ac",title:"Debug Mode "+(dbgOn?"ON":"OFF"),onclick:"dbgOn=!dbgOn;document.getElementById(\'dbg\').classList.toggle(\'hidden\',!dbgOn);ren()"});
-h+='<div style="margin-top:18px;text-align:center;font-size:11px;color:var(--ht);letter-spacing:.3px">Family HQ v8.17.0</div>';return h}
+h+='<div style="margin-top:18px;text-align:center;font-size:11px;color:var(--ht);letter-spacing:.3px">Family HQ v8.17.1</div>';return h}
 async function setTh(id){aT(id);hp();await A("PATCH","/api/settings",{theme:id});ren()}
 function openThemePicker(){var h='<div class="tg">';Object.keys(TH).forEach(function(id){var t=TH[id];var sel=cTheme===id;h+='<div class="tc" onclick="setTh(\''+id+'\');cMo()" style="background:'+t.cd+';border:2px solid '+(sel?t.pr:t.bd)+'"><div class="te">'+t.e+'</div><div class="tn" style="color:'+t.tx+'">'+t.n+'</div><div class="td">'+[t.pr,t.ac,t.ok,t.wn].map(function(c){return '<div class="tdd" style="background:'+c+'"></div>'}).join("")+'</div></div>'});h+='</div>';oMC("Choose theme",h)}
 async function setDg(v){await A("PATCH","/api/settings",{digest_time:v});hp()}
