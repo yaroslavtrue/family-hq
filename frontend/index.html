@@ -172,23 +172,25 @@ body{font-family:'DM Sans',-apple-system,sans-serif;background:var(--bg);color:v
 /* Modal */
 .mo{position:fixed;inset:0;background:rgba(0,0,0,.5);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);display:flex;align-items:flex-end;justify-content:center;z-index:80;opacity:0;transition:opacity .25s;pointer-events:none}
 .mo.op{opacity:1;pointer-events:auto}
-.mx{background:var(--sf);border-radius:24px 24px 0 0;padding:22px 22px 36px;width:100%;max-width:480px;transform:translateY(100%);transition:transform .35s cubic-bezier(.2,.9,.3,1);max-height:85vh;overflow-y:auto;box-shadow:0 -8px 40px rgba(0,0,0,.3)}
-.mx::before{content:'';display:block;width:36px;height:4px;border-radius:2px;background:color-mix(in srgb,var(--ht) 50%,transparent);margin:0 auto 16px}
+.mx{background:var(--sf);border-radius:28px 28px 0 0;padding:24px 24px 38px;width:100%;max-width:480px;transform:translateY(100%);transition:transform .35s cubic-bezier(.2,.9,.3,1);max-height:88vh;overflow-y:auto;box-shadow:0 -12px 48px rgba(0,0,0,.38);padding-bottom:max(38px,calc(env(safe-area-inset-bottom,0px) + 24px))}
+.mx::before{content:'';display:block;width:44px;height:5px;border-radius:3px;background:color-mix(in srgb,var(--ht) 40%,transparent);margin:0 auto 18px}
 .mo.op .mx{transform:translateY(0)}
-.mh{display:flex;justify-content:space-between;align-items:center;margin-bottom:18px}
-.mt2{font-size:18px;font-weight:700}
+.mh{display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;gap:12px}
+.mt2{font-size:20px;font-weight:800;letter-spacing:-.3px;display:inline-flex;align-items:center;gap:10px;line-height:1.15}
+.mt2-ico{width:34px;height:34px;border-radius:11px;display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;background:linear-gradient(135deg,color-mix(in srgb,var(--pr) 38%,transparent),color-mix(in srgb,var(--pr) 10%,transparent));border:1px solid color-mix(in srgb,var(--pr) 45%,transparent);color:var(--pr)}
 
 /* Form elements */
-.inp{width:100%;padding:13px 16px;border-radius:12px;border:1.5px solid var(--bd);background:var(--cd);color:var(--tx);font-size:15px;outline:none;margin-bottom:12px;box-sizing:border-box;font-family:inherit;transition:border-color .2s,box-shadow .2s}
-.inp:focus{border-color:var(--pr);box-shadow:0 0 0 3px color-mix(in srgb,var(--pr) 18%,transparent)}.inp::placeholder{color:var(--ht)}
-input[type="date"],input[type="time"],input[type="number"],select{-webkit-appearance:none;appearance:none;width:100%;padding:13px 16px;border-radius:12px;border:1.5px solid var(--bd);background:var(--cd);color:var(--tx);font-size:15px;font-family:inherit;outline:none;box-sizing:border-box;color-scheme:dark}
+.inp{width:100%;padding:14px 16px;border-radius:14px;border:1.5px solid var(--bd);background:var(--cd);color:var(--tx);font-size:15px;outline:none;margin-bottom:12px;box-sizing:border-box;font-family:inherit;transition:border-color .2s,box-shadow .2s,background .2s}
+.inp:focus{border-color:var(--pr);background:var(--sf);box-shadow:0 0 0 3px color-mix(in srgb,var(--pr) 20%,transparent)}.inp::placeholder{color:var(--ht)}
+input[type="date"],input[type="time"],input[type="number"],select{-webkit-appearance:none;appearance:none;width:100%;padding:14px 16px;border-radius:14px;border:1.5px solid var(--bd);background:var(--cd);color:var(--tx);font-size:15px;font-family:inherit;outline:none;box-sizing:border-box;color-scheme:dark;transition:border-color .2s,box-shadow .2s,background .2s}
+input[type="date"]:focus,input[type="time"]:focus,input[type="number"]:focus,select:focus{border-color:var(--pr);background:var(--sf);box-shadow:0 0 0 3px color-mix(in srgb,var(--pr) 20%,transparent)}
 .ls input[type="date"],.ls input[type="time"],.ls select{color-scheme:light}
 .dr{display:flex;gap:10px;margin-bottom:12px}.dr>div{flex:1}
-.dl{font-size:12px;color:var(--ht);margin-bottom:6px;font-weight:500}
-.lb{font-size:12px;font-weight:600;color:var(--ht);margin-bottom:8px;text-transform:uppercase;letter-spacing:.8px}
+.dl{font-size:11px;color:var(--ht);margin-bottom:6px;font-weight:700;text-transform:uppercase;letter-spacing:.6px}
+.lb{font-size:11px;font-weight:700;color:var(--ht);margin-bottom:8px;text-transform:uppercase;letter-spacing:.9px}
 .or{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:16px}
-.ob{padding:6px 14px;border-radius:10px;font-size:13px;font-weight:600;cursor:pointer;background:transparent;color:var(--ht);border:1.5px solid transparent;font-family:inherit}
-.ob.s{color:var(--pr);background:color-mix(in srgb,var(--pr),transparent 85%);border-color:color-mix(in srgb,var(--pr),transparent 60%)}
+.ob{padding:7px 14px;border-radius:999px;font-size:13px;font-weight:600;cursor:pointer;background:transparent;color:var(--ht);border:1.5px solid var(--bd);font-family:inherit;transition:all .15s}
+.ob.s{color:var(--pr);background:linear-gradient(135deg,color-mix(in srgb,var(--pr) 24%,transparent),color-mix(in srgb,var(--pr) 8%,transparent));border-color:color-mix(in srgb,var(--pr) 55%,transparent);box-shadow:0 2px 8px color-mix(in srgb,var(--pr) 16%,transparent)}
 
 /* Tabs */
 .tabs{display:flex;gap:0;margin-bottom:16px;background:var(--cd);border-radius:14px;padding:3px;border:1px solid var(--bd)}
@@ -541,6 +543,6 @@ input[type="date"],input[type="time"],input[type="number"],select{-webkit-appear
 <!-- Debug -->
 <div class="dbg hidden" id="dbg"><button class="dbg-cp" onclick="navigator.clipboard.writeText(dbgLog.join('\n'))">Copy</button></div>
 <!-- Load JS -->
-<script src="/static/app.js?v=143"></script>
+<script src="/static/app.js?v=144"></script>
 </body>
 </html>
