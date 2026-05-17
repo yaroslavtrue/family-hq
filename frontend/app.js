@@ -143,7 +143,9 @@ trendDown:'<polyline points="22 17 13.5 8.5 8.5 13.5 2 7"/><polyline points="16 
 wallet:'<path d="M21 12V7a2 2 0 0 0-2-2H5a2 2 0 0 0 0 4h16v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7"/><path d="M18 12h.01"/>',
 receipt:'<path d="M4 2v20l2-1 2 1 2-1 2 1 2-1 2 1 2-1 2 1V2l-2 1-2-1-2 1-2-1-2 1-2-1-2 1Z"/><path d="M8 7h8"/><path d="M8 11h8"/><path d="M8 15h6"/>',
 palette:'<circle cx="13.5" cy="6.5" r="1" fill="currentColor"/><circle cx="17.5" cy="10.5" r="1" fill="currentColor"/><circle cx="8.5" cy="7.5" r="1" fill="currentColor"/><circle cx="6.5" cy="12.5" r="1" fill="currentColor"/><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10c.92 0 1.65-.74 1.65-1.65 0-.43-.16-.83-.43-1.13-.27-.31-.43-.7-.43-1.13a1.65 1.65 0 0 1 1.65-1.65H16c3.31 0 6-2.69 6-6 0-4.96-4.49-9-10-9Z"/>',
-pin:'<path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/>'
+pin:'<path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/>',
+book:'<path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/>',
+speaker:'<polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"/>'
 };
 // Wrappers — pre-built default sizes for the most-used icons
 const I={
@@ -286,6 +288,149 @@ async function _doCitySearch(q){
   el.innerHTML=h;
 }
 function _selectCityEvt(el){_selectCity(el.dataset.name,parseFloat(el.dataset.lat),parseFloat(el.dataset.lon))}
+
+// ─── Words / Vocabulary learning ────────────────────────────────
+var _wordsState={mode:"en",queue:[],cursor:0,sessionCorrect:0,loading:false,stats:{total:0,new:0,learning:0,learned:0}};
+var _wordsFirstLoad=true;
+function _myMember(){var uid=fS&&fS.my_id;return uid&&(D.members||[]).find(function(m){return m.user_id===uid})}
+function _wordsInitMode(){var me=_myMember();if(me&&me.learn_mode)_wordsState.mode=me.learn_mode;else _wordsState.mode="en"}
+async function loadWordsSession(){
+  if(_wordsState.loading)return;
+  _wordsState.loading=true;
+  var d=await A("GET","/api/words/study?mode="+_wordsState.mode+"&limit=10");
+  _wordsState.loading=false;
+  if(!d||!d.words){_wordsState.queue=[];_wordsState.stats={total:0,new:0,learning:0,learned:0};if(tab==="words")ren();return}
+  _wordsState.queue=d.words;_wordsState.cursor=0;_wordsState.sessionCorrect=0;_wordsState.stats=d.totals;
+  if(tab==="words")ren();
+}
+function rWords(){
+  if(_wordsFirstLoad){_wordsFirstLoad=false;_wordsInitMode();loadWordsSession()}
+  var stats=_wordsState.stats||{learned:0,total:0};
+  var modeLabel=_wordsState.mode==="en"?"Learning English":"Learning Russian";
+  // Custom header: ✕ left, learned counter center (tap → stats), ⚙ right
+  var h='<div class="wd-hd">';
+  h+='<button class="wd-iconbtn" onclick="go(\'home\')" aria-label="Close">'+icon("x",20,2.5)+'</button>';
+  h+='<button class="wd-counter" onclick="openWordsStats()"><span class="wd-counter-n">'+(stats.learned||0)+'</span><span class="wd-counter-lb">of '+(stats.total||0)+' learned · '+modeLabel+'</span></button>';
+  h+='<button class="wd-iconbtn" onclick="openWordsSettings()" aria-label="Settings">'+icon("cog",20,2)+'</button>';
+  h+='</div>';
+  // Loading
+  if(_wordsState.loading||(_wordsState.queue.length===0&&_wordsFirstLoad===false&&stats.total===0)){h+='<div class="emp" style="padding-top:40px"><div class="emp-i" style="font-size:32px">⏳</div><div>Loading…</div></div>';return h}
+  if(_wordsState.queue.length===0){h+='<div class="emp" style="padding-top:40px">'+icon("book",48,1.8)+'<div class="emp-t">No words available</div><div>Catalog is empty</div></div>';return h}
+  // Session complete
+  if(_wordsState.cursor>=_wordsState.queue.length){
+    h+='<div class="wd-done"><div class="wd-done-emoji">🎉</div><div class="wd-done-t">Session complete!</div><div class="wd-done-s">'+_wordsState.sessionCorrect+' of '+_wordsState.queue.length+' correct</div><button class="btn" style="max-width:240px;margin-top:18px" onclick="loadWordsSession()">Next session</button></div>';
+    return h;
+  }
+  // Current card
+  var w=_wordsState.queue[_wordsState.cursor];
+  var progress=_wordsState.cursor+1+' / '+_wordsState.queue.length;
+  h+='<div class="wd-progress">Card '+progress+'</div>';
+  h+='<div class="wd-card" id="wd-card">';
+  // Visual placeholder (MVP — generic book icon in tinted square; Phase 2: Unsplash image)
+  h+='<div class="wd-visual">'+icon("book",60,1.6)+'</div>';
+  // Source word + pronunciation button
+  h+='<div class="wd-src-row"><div class="wd-src-word">'+es(w.source_word)+'</div><button class="wd-speak" onclick="_speakWord()" aria-label="Pronounce">'+icon("speaker",16,2)+'</button></div>';
+  if(w.source_ipa)h+='<div class="wd-src-ipa">'+es(w.source_ipa)+'</div>';
+  h+='<div class="wd-divider"></div>';
+  // Definition (in TARGET language — what user is learning)
+  h+='<div class="wd-def-lb">Type the '+(_wordsState.mode==="en"?"English":"Russian")+' word</div>';
+  h+='<div class="wd-def">'+es(w.target_def)+'</div>';
+  // Input
+  h+='<form onsubmit="_wdSubmit(event);return false" style="margin-top:18px"><input type="text" class="wd-input" id="wd-input" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" placeholder="Type the word..."></form>';
+  // Actions
+  h+='<div class="wd-actions"><button class="btn btn-s wd-btn-skip" onclick="_wdDontKnow()">← Don\'t know</button><button class="btn wd-btn-submit" onclick="_wdSubmit()">Check</button></div>';
+  h+='</div>';
+  // After render: focus input + attach swipe
+  setTimeout(function(){var i=document.getElementById("wd-input");if(i&&!_wordsState.skipFocus)i.focus();_wdAttachSwipe()},80);
+  return h;
+}
+function _normWord(s){return (s||"").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g,"").replace(/[ё]/g,"е").trim()}
+async function _wdSubmit(e){
+  if(e&&e.preventDefault)e.preventDefault();
+  var input=document.getElementById("wd-input");if(!input)return;
+  var val=(input.value||"").trim();if(!val)return;
+  var w=_wordsState.queue[_wordsState.cursor];if(!w)return;
+  var correct=_normWord(val)===_normWord(w.target_word);
+  input.classList.add(correct?"wd-correct":"wd-wrong");
+  if(!correct){var card=document.getElementById("wd-card");if(card)card.classList.add("wd-shake")}
+  hp(correct?"ok":"err");
+  // Show the correct word for 1.5s on wrong answer
+  if(!correct){
+    var hint=document.createElement("div");hint.className="wd-hint";hint.textContent="Answer: "+w.target_word;
+    input.parentNode.appendChild(hint);
+  }
+  // Update server + advance
+  A("POST","/api/words/answer",{idx:w.idx,mode:_wordsState.mode,correct:correct,answer:val});
+  if(correct){_wordsState.sessionCorrect++;_wordsState.stats.learned=(_wordsState.stats.learned||0)+1}
+  setTimeout(function(){_wordsState.cursor++;if(tab==="words")ren()},correct?700:1700);
+}
+function _wdDontKnow(){
+  var w=_wordsState.queue[_wordsState.cursor];if(!w)return;
+  hp("warn");
+  A("POST","/api/words/answer",{idx:w.idx,mode:_wordsState.mode,correct:false});
+  _wordsState.cursor++;if(tab==="words")ren();
+}
+function _speakWord(){
+  if(!('speechSynthesis' in window)){hp("warn");return}
+  var w=_wordsState.queue[_wordsState.cursor];if(!w)return;
+  var txt=(w.source_word||"").normalize("NFD").replace(/[̀-ͯ]/g,"");
+  try{speechSynthesis.cancel();var u=new SpeechSynthesisUtterance(txt);
+  u.lang=_wordsState.mode==="en"?"ru-RU":"en-US";u.rate=0.9;speechSynthesis.speak(u);hp("light")}catch(e){hp("warn")}
+}
+// Swipe gesture — left = don't know
+function _wdAttachSwipe(){
+  var card=document.getElementById("wd-card");if(!card||card._swipe)return;card._swipe=true;
+  var start=null;
+  card.addEventListener("touchstart",function(e){if(e.target&&e.target.tagName==="INPUT")return;start={x:e.touches[0].clientX,y:e.touches[0].clientY}},{passive:true});
+  card.addEventListener("touchmove",function(e){if(!start)return;
+    var dx=e.touches[0].clientX-start.x;var dy=e.touches[0].clientY-start.y;
+    if(Math.abs(dx)>Math.abs(dy)&&Math.abs(dx)>10){card.style.transform="translateX("+Math.min(0,dx)+"px) rotate("+(dx/50)+"deg)";card.style.opacity=1-Math.min(0.5,Math.abs(dx)/400)}
+  },{passive:true});
+  card.addEventListener("touchend",function(e){if(!start)return;var dx=e.changedTouches[0].clientX-start.x;start=null;
+    if(dx<-80){card.style.transition="transform .3s,opacity .3s";card.style.transform="translateX(-120%) rotate(-15deg)";card.style.opacity=0;setTimeout(_wdDontKnow,260)}
+    else{card.style.transition="transform .25s,opacity .25s";card.style.transform="";card.style.opacity="";setTimeout(function(){card.style.transition=""},250)}
+  },{passive:true});
+}
+async function openWordsSettings(){
+  hp("light");
+  var curEn=_wordsState.mode==="en";
+  var h='<div class="lb">Learning language</div>';
+  h+='<div class="or" style="margin-bottom:18px">';
+  h+='<button class="ob '+(curEn?"s":"")+'" onclick="_setLearnMode(\'en\')">Learn English</button>';
+  h+='<button class="ob '+(!curEn?"s":"")+'" onclick="_setLearnMode(\'ru\')">Learn Russian</button>';
+  h+='</div>';
+  h+='<div class="lb">Session</div>';
+  h+='<button class="btn btn-s" style="color:var(--ac);width:100%" onclick="_resetWordsProgress()">Reset progress (this language)</button>';
+  oMC("Words Settings",h,{ic:"book"});
+}
+async function _setLearnMode(m){
+  _wordsState.mode=m;hp("ok");
+  await A("PATCH","/api/words/learn-mode",{mode:m});
+  var me=_myMember();if(me)me.learn_mode=m;
+  cMo();
+  _wordsState.cursor=0;_wordsState.queue=[];
+  loadWordsSession();
+}
+async function _resetWordsProgress(){
+  if(!confirm("Reset all progress for "+(_wordsState.mode==="en"?"English":"Russian")+"?"))return;
+  await A("POST","/api/words/reset?mode="+_wordsState.mode);
+  cMo();hp("ok");
+  loadWordsSession();
+}
+async function openWordsStats(){
+  hp("light");
+  var d=await A("GET","/api/words/stats?mode="+_wordsState.mode);
+  if(!d){oMC("Stats","<div>Failed to load.</div>",{ic:"chart"});return}
+  var modeLabel=_wordsState.mode==="en"?"Learning English":"Learning Russian";
+  var h='<div class="lb">'+modeLabel+'</div>';
+  d.members.forEach(function(m){
+    var c=m.counts||{};
+    var pct=d.total?Math.round((c.learned||0)/d.total*100):0;
+    var isMe=m.user_id===d.my_id;
+    h+='<div class="cat-row"'+(isMe?' style="border:1.5px solid color-mix(in srgb,var(--pr) 45%,transparent);background:color-mix(in srgb,var(--pr) 8%,var(--cd))"':'')+'><div class="cat-row-h"><span class="nm">'+mAv(m.user_id,22)+es(m.user_name)+(isMe?" (you)":"")+'</span><span class="vl">'+(c.learned||0)+' / '+d.total+'</span></div><div class="progress"><div class="progress-fill tone-ok" style="width:'+pct+'%"></div></div><div style="font-size:11px;color:var(--ht);margin-top:6px">'+(c.learning||0)+' learning · '+m.attempts+' attempts · '+m.accuracy+'% accuracy</div></div>';
+  });
+  oMC("Stats",h,{ic:"chart"});
+}
 async function _selectCity(name,lat,lon){
   hp("ok");
   await A("PATCH","/api/settings",{weather_city:name,weather_lat:lat,weather_lon:lon});
@@ -376,11 +521,11 @@ async function aSu(t,pid){var i=document.getElementById("si-"+t+"-"+pid);if(!i||
 const NV=[
 {id:"home",l:"Home",sv:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>'},
 {id:"tasks",l:"Tasks",sv:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></svg>'},
-{id:"trainings",l:"Train",sv:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6.5 6.5l11 11"/><path d="M21 21l-1-1"/><path d="M3 3l1 1"/><path d="M18 22l4-4"/><path d="M2 6l4-4"/><path d="M3 10l7-7"/><path d="M14 21l7-7"/></svg>'},
+{id:"words",l:"Words",sv:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>'},
 {id:"money",l:"Money",sv:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg>'},
 {id:"profile",l:"Profile",sv:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>'}
 ];
-const TT={home:{i:"home",t:"Family HQ",s:"Everything at a glance"},tasks:{i:"clipboard",t:"Tasks",s:"Manage & assign"},shop:{i:"cart",t:"Shopping",s:"Shared list"},trainings:{i:"dumbbell",t:"Trainings",s:"Workouts & progress"},money:{i:"dollar",t:"Money",s:"Budget & subs"},profile:{i:"user",t:"Profile",s:"Personal stats"},events:{i:"clock",t:"Events",s:"Schedule"},birthdays:{i:"cake",t:"Birthdays",s:"Never forget"},clean:{i:"broom",t:"Cleaning",s:"Apartment zones"},settings:{i:"cog",t:"Settings",s:"Customize"},subs:{i:"card",t:"Subscriptions",s:"Monthly payments"}};
+const TT={home:{i:"home",t:"Family HQ",s:"Everything at a glance"},tasks:{i:"clipboard",t:"Tasks",s:"Manage & assign"},shop:{i:"cart",t:"Shopping",s:"Shared list"},trainings:{i:"dumbbell",t:"Trainings",s:"Workouts & progress"},words:{i:"book",t:"Words",s:"Vocabulary learning"},money:{i:"dollar",t:"Money",s:"Budget & subs"},profile:{i:"user",t:"Profile",s:"Personal stats"},events:{i:"clock",t:"Events",s:"Schedule"},birthdays:{i:"cake",t:"Birthdays",s:"Never forget"},clean:{i:"broom",t:"Cleaning",s:"Apartment zones"},settings:{i:"cog",t:"Settings",s:"Customize"},subs:{i:"card",t:"Subscriptions",s:"Monthly payments"}};
 
 (function(){var n=document.getElementById("nv");NV.forEach(function(t){var b=document.createElement("button");b.className="ni"+(t.id==="home"?" a":"");b.dataset.t=t.id;b.innerHTML='<span class="nb hidden" id="b-'+t.id+'"></span>'+t.sv+'<span>'+t.l+'</span>';b.onclick=function(){go(t.id)};n.appendChild(b)})})();
 
@@ -398,12 +543,15 @@ if(t==="tasks"&&taskTab&&taskTab!=="active"){
   if(taskTab==="events"){_hi.innerHTML=icon("clock",22,2.2);document.getElementById("ht").textContent="Events";document.getElementById("hs").textContent="Schedule";_evtsFirstRender=true}
   else if(taskTab==="recurring"){_hi.innerHTML=icon("refresh",22,2.2);document.getElementById("ht").textContent="Recurring";document.getElementById("hs").textContent="Repeating tasks"}
 }
-var noFab=["home","settings","clean","events","birthdays","subs","profile","trainings"];
+var noFab=["home","settings","clean","events","birthdays","subs","profile","trainings","words"];
 var hideFab=noFab.indexOf(t)>=0||(t==="tasks"&&taskTab==="events");
 document.getElementById("fab").classList.toggle("hidden",hideFab);
+// Words mode renders its own header — hide the global one
+document.body.classList.toggle("words-mode",t==="words");
 if(t==="home")_firstHomeRender=true;
 if(t==="events")_evtsFirstRender=true;
 if(t==="profile")_profStats=null;
+if(t==="words")_wordsFirstLoad=true;
 if(t==="trainings")_trainStats=null;
 ren();hp("sel")}
 
@@ -568,7 +716,7 @@ case"home":c.innerHTML=rH();if(_firstHomeRender){_firstHomeRender=false;FX.count
 case"shop":c.innerHTML=rSh();break;case"money":c.innerHTML=rMoney();break;
 case"trainings":c.innerHTML=rTrain();break;
 case"events":c.innerHTML=rEvts();break;case"birthdays":c.innerHTML=rBdays();break;
-case"clean":c.innerHTML=rC();break;case"settings":c.innerHTML=rSet();break;case"subs":c.innerHTML=rSubsList();break;case"profile":c.innerHTML=rProfile();break}}
+case"clean":c.innerHTML=rC();break;case"settings":c.innerHTML=rSet();break;case"subs":c.innerHTML=rSubsList();break;case"profile":c.innerHTML=rProfile();break;case"words":c.innerHTML=rWords();break}}
 function sB(t,n){var e=document.getElementById("b-"+t);if(!e)return;if(n>0){e.textContent=n;e.classList.remove("hidden")}else e.classList.add("hidden")}
 
 // Hamburger menu — dynamically rendered with counters
@@ -584,6 +732,7 @@ subs: (D.subs||[]).filter(function(s){return s.days_until!=null&&s.days_until>=0
 };
 var items=[
 {id:"shop",ic:"cart",label:"Shopping",cnt:cnt.shop},
+{id:"trainings",ic:"dumbbell",label:"Trainings",cnt:0},
 {id:"birthdays",ic:"cake",label:"Birthdays",cnt:cnt.birthdays},
 {id:"clean",ic:"broom",label:"Cleaning",cnt:cnt.clean},
 {id:"subs",ic:"card",label:"Subscriptions",cnt:cnt.subs},
@@ -2357,7 +2506,7 @@ if(_pwaPrompt){
 }
 h+='<div class="sc"><span class="sc-l">Developer</span></div>';
 h+=_setRow({ico:"debug",acc:"acc-ac",title:"Debug Mode "+(dbgOn?"ON":"OFF"),onclick:"dbgOn=!dbgOn;document.getElementById(\'dbg\').classList.toggle(\'hidden\',!dbgOn);ren()"});
-h+='<div style="margin-top:18px;text-align:center;font-size:11px;color:var(--ht);letter-spacing:.3px">Family HQ v8.20.0</div>';return h}
+h+='<div style="margin-top:18px;text-align:center;font-size:11px;color:var(--ht);letter-spacing:.3px">Family HQ v8.21.0</div>';return h}
 async function setTh(id){
   if(id==="custom"){
     // Tapping Custom in the picker opens the editor (saves happen there). Also apply right away.

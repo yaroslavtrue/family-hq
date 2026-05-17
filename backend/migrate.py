@@ -441,6 +441,28 @@ def migrate(db_path):
             safe_add_col(c, "settings", "weather_lon", "REAL"),
             safe_add_col(c, "settings", "weather_city", "TEXT"),
         ],
+        # v17: vocabulary learning — per-member word progress
+        lambda c: [
+            c.executescript("""
+                CREATE TABLE IF NOT EXISTS word_progress (
+                    user_id INTEGER NOT NULL,
+                    word_idx INTEGER NOT NULL,
+                    mode TEXT NOT NULL,
+                    status TEXT NOT NULL DEFAULT 'new',
+                    attempts INTEGER DEFAULT 0,
+                    correct_count INTEGER DEFAULT 0,
+                    last_seen TEXT,
+                    PRIMARY KEY (user_id, word_idx, mode)
+                );
+                CREATE INDEX IF NOT EXISTS idx_word_progress_user ON word_progress(user_id, mode);
+                CREATE TABLE IF NOT EXISTS word_image_cache (
+                    word_key TEXT PRIMARY KEY,
+                    image_url TEXT NOT NULL,
+                    fetched_at TEXT DEFAULT (datetime('now'))
+                );
+            """),
+            safe_add_col(c, "family_members", "learn_mode", "TEXT DEFAULT 'en'"),
+        ],
     ]
 
     for i, mig in enumerate(migrations):

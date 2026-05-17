@@ -500,7 +500,7 @@ def leave_family(user=Depends(get_user), db=Depends(get_db)):
 # ═════════════════════════════════════════════════════════════════════════
 @app.get("/api/members")
 def list_members(user=Depends(get_uf), db=Depends(get_db)):
-    return [dict(r) for r in db.execute("SELECT user_id, user_name, emoji, color, photo_url, theme, custom_theme FROM family_members WHERE family_id=?", (user["family_id"],)).fetchall()]
+    return [dict(r) for r in db.execute("SELECT user_id, user_name, emoji, color, photo_url, theme, custom_theme, learn_mode FROM family_members WHERE family_id=?", (user["family_id"],)).fetchall()]
 
 @app.patch("/api/members/{uid}")
 def update_member(uid: int, body: MemberUpdate, user=Depends(get_uf), db=Depends(get_db)):
@@ -1845,9 +1845,9 @@ async def bundle(user=Depends(get_uf), db=Depends(get_db)):
             s["days_until"] = 99
     subs.sort(key=lambda x: x["days_until"])
 
-    # Members (include theme + custom_theme so frontend can apply per-member appearance)
+    # Members (include theme + custom_theme + learn_mode so frontend can apply per-member appearance)
     members = [dict(m) for m in db.execute(
-        "SELECT user_id, user_name, emoji, color, photo_url, theme, custom_theme FROM family_members WHERE family_id=?",
+        "SELECT user_id, user_name, emoji, color, photo_url, theme, custom_theme, learn_mode FROM family_members WHERE family_id=?",
         (f,)).fetchall()]
 
     # Settings
@@ -1999,6 +1999,157 @@ async def weather_geocode(q: str = "", user=Depends(get_uf)):
     results = await wx.geocode(q)
     return {"results": results}
 
+# ═════════════════════════════════════════════════════════════════════════
+# VOCABULARY — word learning (study sessions, per-member progress)
+# ═════════════════════════════════════════════════════════════════════════
+from backend.words_of_day import WORDS as _VOCAB
+import unicodedata as _ucd
+
+def _strip_accent(s):
+    """Strip combining marks (e.g. U+0301 acute) so user input can match stress-marked word."""
+    return "".join(c for c in _ucd.normalize("NFD", s or "") if not _ucd.combining(c))
+
+def _word_view(idx, mode, prog=None):
+    """Build the card payload for a single word in a given learning mode.
+    mode='en' → user is learning English: card shows Russian source, user types English.
+    mode='ru' → user is learning Russian: card shows English source, user types Russian."""
+    w = _VOCAB[idx]
+    if mode == "en":
+        return {
+            "idx": idx,
+            "source_word": w["ru_word"], "source_ipa": w.get("ru_ipa", ""),
+            "source_def": w["ru_def"],
+            "target_word": w["en_word"], "target_ipa": w.get("en_ipa", ""), "target_def": w["en_def"],
+            "status": (prog or {}).get("status", "new"),
+            "attempts": (prog or {}).get("attempts", 0),
+        }
+    return {
+        "idx": idx,
+        "source_word": w["en_word"], "source_ipa": w.get("en_ipa", ""),
+        "source_def": w["en_def"],
+        "target_word": w["ru_word"], "target_ipa": w.get("ru_ipa", ""), "target_def": w["ru_def"],
+        "status": (prog or {}).get("status", "new"),
+        "attempts": (prog or {}).get("attempts", 0),
+    }
+
+@app.get("/api/words/study")
+def words_study(mode: str = "en", limit: int = 10, user=Depends(get_uf), db=Depends(get_db)):
+    """Returns a batch for the current learning session.
+    Strategy: prioritise 'learning' (failed-before) words, fill with 'new' (never-seen), then 'learned' for review."""
+    uid = user["id"]
+    rows = {r["word_idx"]: dict(r) for r in db.execute(
+        "SELECT word_idx, status, attempts, correct_count, last_seen FROM word_progress WHERE user_id=? AND mode=?",
+        (uid, mode)).fetchall()}
+    # Bucket all word indices
+    total = len(_VOCAB)
+    learning, new, learned = [], [], []
+    for i in range(total):
+        st = rows.get(i, {}).get("status", "new")
+        if st == "learning": learning.append(i)
+        elif st == "learned": learned.append(i)
+        else: new.append(i)
+    # Pick ~60% learning, fill with new, fill with learned (random)
+    import random
+    random.shuffle(learning); random.shuffle(new); random.shuffle(learned)
+    take_l = min(len(learning), max(1, int(limit * 0.6)))
+    pick = learning[:take_l]
+    while len(pick) < limit and new:
+        pick.append(new.pop())
+    while len(pick) < limit and learned:
+        pick.append(learned.pop())
+    # Build response
+    words = [_word_view(i, mode, rows.get(i)) for i in pick[:limit]]
+    return {
+        "mode": mode,
+        "words": words,
+        "totals": {
+            "total": total,
+            "new": sum(1 for i in range(total) if rows.get(i, {}).get("status", "new") == "new"),
+            "learning": len([i for i in rows if rows[i]["status"] == "learning"]),
+            "learned": len([i for i in rows if rows[i]["status"] == "learned"]),
+        }
+    }
+
+class WordAnswer(BaseModel):
+    idx: int
+    mode: str = "en"
+    correct: bool
+    answer: str | None = None  # the actual text the user typed (for stats, optional)
+
+@app.post("/api/words/answer")
+def words_answer(body: WordAnswer, user=Depends(get_uf), db=Depends(get_db)):
+    """Record an answer. correct=True → status 'learned' (if first try) or 'learning'+counted.
+    correct=False → status 'learning'."""
+    if body.idx < 0 or body.idx >= len(_VOCAB):
+        raise HTTPException(400, "invalid word idx")
+    if body.mode not in ("en", "ru"):
+        raise HTTPException(400, "invalid mode")
+    uid = user["id"]
+    row = db.execute("SELECT * FROM word_progress WHERE user_id=? AND word_idx=? AND mode=?",
+                     (uid, body.idx, body.mode)).fetchone()
+    now = datetime.now(ZoneInfo(TIMEZONE)).isoformat()
+    if row:
+        attempts = row["attempts"] + 1
+        correct_count = row["correct_count"] + (1 if body.correct else 0)
+        # Learned: ≥1 correct AND no failures in last attempt sequence (simple heuristic: correct on this try)
+        new_status = "learned" if body.correct and correct_count >= 1 else "learning"
+        # If was already learned and missed it — drop to learning
+        if row["status"] == "learned" and not body.correct:
+            new_status = "learning"
+        db.execute(
+            "UPDATE word_progress SET status=?, attempts=?, correct_count=?, last_seen=? WHERE user_id=? AND word_idx=? AND mode=?",
+            (new_status, attempts, correct_count, now, uid, body.idx, body.mode))
+    else:
+        new_status = "learned" if body.correct else "learning"
+        db.execute(
+            "INSERT INTO word_progress (user_id, word_idx, mode, status, attempts, correct_count, last_seen) VALUES (?,?,?,?,?,?,?)",
+            (uid, body.idx, body.mode, new_status, 1, 1 if body.correct else 0, now))
+    db.commit()
+    return {"ok": True, "status": new_status}
+
+@app.get("/api/words/stats")
+def words_stats(mode: str = "en", user=Depends(get_uf), db=Depends(get_db)):
+    """Returns per-member stats for the given mode + family comparison."""
+    total = len(_VOCAB)
+    members = [dict(r) for r in db.execute(
+        "SELECT user_id, user_name FROM family_members WHERE family_id=?", (user["family_id"],)).fetchall()]
+    per_member = []
+    for m in members:
+        rows = db.execute(
+            "SELECT status, COUNT(*) AS n FROM word_progress WHERE user_id=? AND mode=? GROUP BY status",
+            (m["user_id"], mode)).fetchall()
+        counts = {"new": total, "learning": 0, "learned": 0}
+        seen = 0
+        for r in rows:
+            counts[r["status"]] = r["n"]; seen += r["n"]
+        counts["new"] = total - seen
+        attempts_row = db.execute(
+            "SELECT COALESCE(SUM(attempts),0) AS a, COALESCE(SUM(correct_count),0) AS c FROM word_progress WHERE user_id=? AND mode=?",
+            (m["user_id"], mode)).fetchone()
+        per_member.append({
+            "user_id": m["user_id"],
+            "user_name": m["user_name"],
+            "counts": counts,
+            "attempts": attempts_row["a"],
+            "correct": attempts_row["c"],
+            "accuracy": round(attempts_row["c"] / attempts_row["a"] * 100) if attempts_row["a"] else 0,
+        })
+    return {"mode": mode, "total": total, "members": per_member, "my_id": user["id"]}
+
+@app.post("/api/words/reset")
+def words_reset(mode: str = "en", user=Depends(get_uf), db=Depends(get_db)):
+    db.execute("DELETE FROM word_progress WHERE user_id=? AND mode=?", (user["id"], mode)); db.commit()
+    return {"ok": True}
+
+class LearnMode(BaseModel):
+    mode: str  # "en" | "ru"
+
+@app.patch("/api/words/learn-mode")
+def set_learn_mode(body: LearnMode, user=Depends(get_uf), db=Depends(get_db)):
+    if body.mode not in ("en", "ru"): raise HTTPException(400)
+    db.execute("UPDATE family_members SET learn_mode=? WHERE user_id=?", (body.mode, user["id"])); db.commit()
+    return {"ok": True}
+
 # ─── Exercise images (uploaded via Telegram bot, served from Docker volume) ──
 EXERCISE_IMG_DIR = os.environ.get("EXERCISE_IMG_DIR", "/data/exercise_images")
 
@@ -2014,7 +2165,7 @@ def serve_exercise_image(fn: str):
     return r
 
 # ─── Debug & Serve ───────────────────────────────────────────────────────
-APP_VERSION = "v8.20.0"
+APP_VERSION = "v8.21.0"
 
 @app.get("/api/debug/ping")
 def ping(): return {"ok": True, "version": APP_VERSION, "time": datetime.now(ZoneInfo(TIMEZONE)).isoformat()}
