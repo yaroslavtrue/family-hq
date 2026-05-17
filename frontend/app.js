@@ -265,7 +265,7 @@ if(t==="tasks"&&taskTab&&taskTab!=="active"){
   else if(taskTab==="recurring"){_hi.innerHTML=icon("refresh",22,2.2);document.getElementById("ht").textContent="Recurring";document.getElementById("hs").textContent="Repeating tasks"}
 }
 var noFab=["home","settings","clean","events","birthdays","subs","profile","trainings"];
-var hideFab=noFab.indexOf(t)>=0||(t==="tasks"&&taskTab&&taskTab!=="active");
+var hideFab=noFab.indexOf(t)>=0||(t==="tasks"&&taskTab==="events");
 document.getElementById("fab").classList.toggle("hidden",hideFab);
 if(t==="home")_firstHomeRender=true;
 if(t==="events")_evtsFirstRender=true;
@@ -1593,7 +1593,8 @@ var _evtsFirstRender=true;
 // Switch between Tasks sub-tabs (Active/Recurring/Events). Manages FAB visibility and page header label.
 function taskTabSet(t){
   taskTab=t;hp("sel");
-  document.getElementById("fab").classList.toggle("hidden",t!=="active");
+  // Hide FAB only on Events (it has its own inline "+ Add Event" button). Active + Recurring both use FAB.
+  document.getElementById("fab").classList.toggle("hidden",t==="events");
   var hi=document.getElementById("hi"),ht=document.getElementById("ht"),hs=document.getElementById("hs");
   if(t==="events"){hi.innerHTML=icon("clock",22,2.2);ht.textContent="Events";hs.textContent="Schedule";_evtsFirstRender=true}
   else if(t==="recurring"){hi.innerHTML=icon("refresh",22,2.2);ht.textContent="Recurring";hs.textContent="Repeating tasks"}
@@ -2160,7 +2161,7 @@ if(_pwaPrompt){
   h+='<div class="c" style="cursor:default"><span style="font-size:20px">📱</span><div class="bd"><div class="tt">Install on iOS</div><div style="font-size:12px;color:var(--ht)">Tap <b>Share</b> ⬆ → <b>Add to Home Screen</b></div></div></div>';
 }
 h+='<div class="sc">Debug</div><div class="c" style="cursor:pointer" onclick="dbgOn=!dbgOn;document.getElementById(\'dbg\').classList.toggle(\'hidden\',!dbgOn);ren()"><span style="font-size:20px">🐛</span><div class="bd"><div class="tt">Debug Mode '+(dbgOn?"ON":"OFF")+'</div></div></div>';
-h+='<div style="margin-top:8px;text-align:center;font-size:11px;color:var(--ht)">Family HQ v8.13.1</div>';return h}
+h+='<div style="margin-top:8px;text-align:center;font-size:11px;color:var(--ht)">Family HQ v8.13.2</div>';return h}
 async function setTh(id){aT(id);hp();await A("PATCH","/api/settings",{theme:id});ren()}
 function openThemePicker(){var h='<div class="tg">';Object.keys(TH).forEach(function(id){var t=TH[id];var sel=cTheme===id;h+='<div class="tc" onclick="setTh(\''+id+'\');cMo()" style="background:'+t.cd+';border:2px solid '+(sel?t.pr:t.bd)+'"><div class="te">'+t.e+'</div><div class="tn" style="color:'+t.tx+'">'+t.n+'</div><div class="td">'+[t.pr,t.ac,t.ok,t.wn].map(function(c){return '<div class="tdd" style="background:'+c+'"></div>'}).join("")+'</div></div>'});h+='</div>';oMC("Choose theme",h)}
 async function setDg(v){await A("PATCH","/api/settings",{digest_time:v});hp()}
