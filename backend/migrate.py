@@ -435,6 +435,12 @@ def migrate(db_path):
         lambda c: safe_add_col(c, "family_members", "theme", "TEXT"),
         # v15: per-member custom theme colors (JSON: {bg, sf, pr, ac, ok})
         lambda c: safe_add_col(c, "family_members", "custom_theme", "TEXT"),
+        # v16: family weather location (overrides env-default Belgrade)
+        lambda c: [
+            safe_add_col(c, "settings", "weather_lat", "REAL"),
+            safe_add_col(c, "settings", "weather_lon", "REAL"),
+            safe_add_col(c, "settings", "weather_city", "TEXT"),
+        ],
     ]
 
     for i, mig in enumerate(migrations):

@@ -32,10 +32,24 @@ WEATHER_LAT = float(os.environ.get("WEATHER_LAT", "44.8"))
 WEATHER_LON = float(os.environ.get("WEATHER_LON", "20.46"))
 log = logging.getLogger("uvicorn.error")
 
-async def get_weather():
+def _family_weather_coords(db, family_id):
+    """Resolve (lat, lon, city) for a family: settings override → env default → Belgrade."""
+    row = db.execute(
+        "SELECT weather_lat, weather_lon, weather_city FROM settings WHERE family_id=?",
+        (family_id,)).fetchone()
+    if row and row["weather_lat"] is not None and row["weather_lon"] is not None:
+        return float(row["weather_lat"]), float(row["weather_lon"]), (row["weather_city"] or "")
+    return WEATHER_LAT, WEATHER_LON, "Belgrade"
+
+async def get_weather(db=None, family_id=None, days=4, force=False):
     """Returns the shaped weather forecast for the frontend.
+    Reads the family's saved city if db+family_id are provided, else falls back to env defaults.
     Implementation lives in backend/weather.py (shared with scheduler)."""
-    return await wx.fetch_shaped(WEATHER_LAT, WEATHER_LON, TIMEZONE)
+    if db is not None and family_id is not None:
+        lat, lon, _city = _family_weather_coords(db, family_id)
+    else:
+        lat, lon = WEATHER_LAT, WEATHER_LON
+    return await wx.fetch_shaped(lat, lon, TIMEZONE, days=days, force=force)
 
 # Currency conversion rates to EUR (approximate, editable)
 FX = {"EUR": 1.0, "USD": 0.92, "GBP": 1.16, "RUB": 0.0095, "RSD": 0.0085}
@@ -259,6 +273,7 @@ class ZoneTaskEdit(BaseModel):
     text: str | None = None; icon: str | None = None; assigned_to: int | None = None; reset_days: int | None = None
 class SettingsUpdate(BaseModel):
     theme: str | None = None; digest_time: str | None = None; digest_sections: str | None = None
+    weather_lat: float | None = None; weather_lon: float | None = None; weather_city: str | None = None
 class TransactionCreate(BaseModel):
     type: str = "expense"; amount: float; currency: str = "RSD"
     category_id: int | None = None; description: str = ""; date: str | None = None
@@ -1002,6 +1017,10 @@ def update_settings(body: SettingsUpdate, user=Depends(get_uf), db=Depends(get_d
     # Digest settings are family-wide
     if body.digest_time: db.execute("UPDATE settings SET digest_time=? WHERE family_id=?", (body.digest_time, user["family_id"]))
     if body.digest_sections is not None: db.execute("UPDATE settings SET digest_sections=? WHERE family_id=?", (body.digest_sections, user["family_id"]))
+    # Weather location (lat+lon+display name). Setting any one updates that field.
+    if body.weather_lat is not None: db.execute("UPDATE settings SET weather_lat=? WHERE family_id=?", (body.weather_lat, user["family_id"]))
+    if body.weather_lon is not None: db.execute("UPDATE settings SET weather_lon=? WHERE family_id=?", (body.weather_lon, user["family_id"]))
+    if body.weather_city is not None: db.execute("UPDATE settings SET weather_city=? WHERE family_id=?", (body.weather_city, user["family_id"]))
     db.commit(); return {"ok": True}
 
 @app.post("/api/digest/test")
@@ -1903,8 +1922,12 @@ async def bundle(user=Depends(get_uf), db=Depends(get_db)):
         "SELECT * FROM transaction_items WHERE family_id=? ORDER BY transaction_id, id", (f,)).fetchall(),
         "transaction_id")
 
-    # Weather (cached + retried inside weather.py)
-    weather = await get_weather()
+    # Weather (cached + retried inside weather.py). Uses family's saved city if set.
+    weather = await get_weather(db=db, family_id=f, days=4)
+    # Attach city name so frontend can show it under the temperature
+    if weather:
+        _, _, _city = _family_weather_coords(db, f)
+        weather["city"] = _city or "Belgrade"
 
     # Trainings — exercise catalog + recent workouts (last 14 days, summary only) + templates
     exercises = [dict(r) for r in db.execute(
@@ -1951,10 +1974,30 @@ async def bundle(user=Depends(get_uf), db=Depends(get_db)):
 # WEATHER
 # ═════════════════════════════════════════════════════════════════════════
 @app.get("/api/weather")
-async def weather_endpoint():
-    w = await get_weather()
+async def weather_endpoint(refresh: int = 0, user=Depends(get_uf), db=Depends(get_db)):
+    """Current + short forecast (4 days). Pass ?refresh=1 to bypass cache."""
+    w = await get_weather(db=db, family_id=user["family_id"], days=4, force=bool(refresh))
     if not w: return {"error": "unavailable"}
+    _, _, _city = _family_weather_coords(db, user["family_id"])
+    w["city"] = _city or "Belgrade"
     return w
+
+@app.get("/api/weather/forecast")
+async def weather_forecast(days: int = 14, refresh: int = 0, user=Depends(get_uf), db=Depends(get_db)):
+    """Extended daily forecast (up to 16 days). Used by the full forecast page."""
+    days = max(1, min(int(days), 16))
+    w = await get_weather(db=db, family_id=user["family_id"], days=days, force=bool(refresh))
+    if not w: return {"error": "unavailable"}
+    lat, lon, _city = _family_weather_coords(db, user["family_id"])
+    w["city"] = _city or "Belgrade"
+    w["lat"] = lat; w["lon"] = lon
+    return w
+
+@app.get("/api/weather/geocode")
+async def weather_geocode(q: str = "", user=Depends(get_uf)):
+    """Search city by name. Returns list of {name, country, admin1, lat, lon}."""
+    results = await wx.geocode(q)
+    return {"results": results}
 
 # ─── Exercise images (uploaded via Telegram bot, served from Docker volume) ──
 EXERCISE_IMG_DIR = os.environ.get("EXERCISE_IMG_DIR", "/data/exercise_images")
@@ -1971,7 +2014,7 @@ def serve_exercise_image(fn: str):
     return r
 
 # ─── Debug & Serve ───────────────────────────────────────────────────────
-APP_VERSION = "v8.18.0"
+APP_VERSION = "v8.19.0"
 
 @app.get("/api/debug/ping")
 def ping(): return {"ok": True, "version": APP_VERSION, "time": datetime.now(ZoneInfo(TIMEZONE)).isoformat()}

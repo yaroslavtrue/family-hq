@@ -142,7 +142,8 @@ trendUp:'<polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/><polyline points="16 7
 trendDown:'<polyline points="22 17 13.5 8.5 8.5 13.5 2 7"/><polyline points="16 17 22 17 22 11"/>',
 wallet:'<path d="M21 12V7a2 2 0 0 0-2-2H5a2 2 0 0 0 0 4h16v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7"/><path d="M18 12h.01"/>',
 receipt:'<path d="M4 2v20l2-1 2 1 2-1 2 1 2-1 2 1 2-1 2 1V2l-2 1-2-1-2 1-2-1-2 1-2-1-2 1Z"/><path d="M8 7h8"/><path d="M8 11h8"/><path d="M8 15h6"/>',
-palette:'<circle cx="13.5" cy="6.5" r="1" fill="currentColor"/><circle cx="17.5" cy="10.5" r="1" fill="currentColor"/><circle cx="8.5" cy="7.5" r="1" fill="currentColor"/><circle cx="6.5" cy="12.5" r="1" fill="currentColor"/><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10c.92 0 1.65-.74 1.65-1.65 0-.43-.16-.83-.43-1.13-.27-.31-.43-.7-.43-1.13a1.65 1.65 0 0 1 1.65-1.65H16c3.31 0 6-2.69 6-6 0-4.96-4.49-9-10-9Z"/>'
+palette:'<circle cx="13.5" cy="6.5" r="1" fill="currentColor"/><circle cx="17.5" cy="10.5" r="1" fill="currentColor"/><circle cx="8.5" cy="7.5" r="1" fill="currentColor"/><circle cx="6.5" cy="12.5" r="1" fill="currentColor"/><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10c.92 0 1.65-.74 1.65-1.65 0-.43-.16-.83-.43-1.13-.27-.31-.43-.7-.43-1.13a1.65 1.65 0 0 1 1.65-1.65H16c3.31 0 6-2.69 6-6 0-4.96-4.49-9-10-9Z"/>',
+pin:'<path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/>'
 };
 // Wrappers — pre-built default sizes for the most-used icons
 const I={
@@ -201,6 +202,95 @@ const dN=["Sun","Mon","Tue","Wed","Thu","Fri","Sat"],dF=["Sunday","Monday","Tues
 const mN=["January","February","March","April","May","June","July","August","September","October","November","December"];
 function fD(ds){const p=(ds||"").split(" ")[0].split("-").map(Number);if(!p[0]||!p[1]||!p[2])return{day:"?",date:"?",full:"?"};const dt=new Date(p[0],p[1]-1,p[2]);return{day:dN[dt.getDay()],date:p[2]+" "+mN[p[1]-1].slice(0,3),full:dN[dt.getDay()]+" "+p[2]+" "+mN[p[1]-1].slice(0,3)}}
 function wIcon(lbl){return (lbl||"🌤").split(" ")[0]}
+// ─── Weather forecast page (full overlay) ────────────────────────
+var _wxForecast=null,_wxLoading=false;
+function openWeatherPage(){hp("light");document.getElementById("wx-mo").classList.add("open");if(!_wxForecast)loadWeatherForecast();else renderWeatherPage()}
+function closeWeatherPage(){hp("light");document.getElementById("wx-mo").classList.remove("open")}
+async function loadWeatherForecast(force){
+  if(_wxLoading)return;_wxLoading=true;
+  var url="/api/weather/forecast?days=14"+(force?"&refresh=1":"");
+  var d=await A("GET",url);
+  _wxLoading=false;
+  if(!d||d.error){_wxForecast={error:true};renderWeatherPage();return}
+  _wxForecast=d;renderWeatherPage()
+}
+function renderWeatherPage(){
+  var lbl=document.getElementById("wx-city-label");
+  var body=document.getElementById("wx-body");
+  var w=_wxForecast;
+  if(!w){body.innerHTML='<div class="emp"><div class="emp-i" style="font-size:32px">⏳</div><div>Loading…</div></div>';return}
+  if(w.error){lbl.textContent="No location";body.innerHTML='<div class="emp"><div class="emp-i" style="font-size:32px">🌍</div><div>Set your city to see the forecast</div><div style="margin-top:14px"><button class="btn" style="max-width:240px" onclick="openCitySearch()">Choose city</button></div></div>';return}
+  lbl.textContent=w.city||"Belgrade";
+  var days=(w.days||[]).slice(0,14);
+  if(!days.length){body.innerHTML='<div class="emp"><div>No forecast data</div></div>';return}
+  // Hero — today (big, left-top)
+  var today=days[0];
+  var h='<div class="wx-hero">';
+  h+='<div class="wx-hero-ico">'+wIconAnim(today.label,72,true)+'</div>';
+  h+='<div class="wx-hero-tx"><div class="wx-hero-lb">Today</div>';
+  h+='<div class="wx-hero-temp">'+w.now+'°</div>';
+  h+='<div class="wx-hero-sub">'+es(today.label||"")+' · feels '+w.feels+'°</div>';
+  h+='<div class="wx-hero-range"><span class="hi">↑ '+today.max+'°</span><span>↓ '+today.min+'°</span></div></div></div>';
+  // 14-day grid (7×2) — actually we have 14 days inc. today; render as 2 rows of 7
+  h+='<div class="wx-grid-lb">Next 2 weeks</div>';
+  h+='<div class="wx-grid">';
+  days.forEach(function(d,i){
+    var dt=new Date(d.date+"T12:00:00");
+    var dow=dN[dt.getDay()];
+    var dom=dt.getDate();
+    var isToday=i===0;
+    h+='<div class="wx-day'+(isToday?' wx-today':'')+'">';
+    h+='<div class="wx-dow">'+dow+'</div>';
+    h+='<div class="wx-dom">'+dom+'</div>';
+    h+='<div class="wx-ico">'+wIconAnim(d.label,26,false)+'</div>';
+    h+='<div class="wx-max">'+d.max+'°</div>';
+    h+='<div class="wx-min">'+d.min+'°</div>';
+    h+='</div>';
+  });
+  h+='</div>';
+  body.innerHTML=h;
+}
+async function refreshWeather(){
+  hp("light");
+  var btn=document.getElementById("wx-refresh-btn");
+  if(btn)btn.classList.add("spinning");
+  await loadWeatherForecast(true);
+  // Also refresh bundle so the home card updates
+  await load();
+  setTimeout(function(){if(btn)btn.classList.remove("spinning")},700);
+}
+// City search modal — debounced geocode lookup, tap a result to save it as the family's city
+var _citySearchT=null;
+function openCitySearch(){
+  oMC("Choose city",'<input class="inp" id="wx-q" placeholder="Type city name..." oninput="_searchCityDebounced(this.value)" autocomplete="off"><div id="wx-results" style="margin-top:10px"></div>',{ic:"pin"})
+}
+function _searchCityDebounced(q){if(_citySearchT)clearTimeout(_citySearchT);_citySearchT=setTimeout(function(){_doCitySearch(q)},280)}
+async function _doCitySearch(q){
+  q=(q||"").trim();
+  var el=document.getElementById("wx-results");
+  if(!el)return;
+  if(q.length<2){el.innerHTML='<div style="font-size:12px;color:var(--ht);text-align:center;padding:14px 8px">Type at least 2 characters</div>';return}
+  el.innerHTML='<div style="font-size:12px;color:var(--ht);text-align:center;padding:14px 8px">Searching…</div>';
+  var d=await A("GET","/api/weather/geocode?q="+encodeURIComponent(q));
+  var results=(d&&d.results)||[];
+  if(!results.length){el.innerHTML='<div style="font-size:12px;color:var(--ht);text-align:center;padding:14px 8px">No matches</div>';return}
+  var h='';
+  results.forEach(function(r){
+    var sub=[r.admin1,r.country].filter(Boolean).join(" · ");
+    h+='<div class="wx-cs-row" data-name="'+es(r.name||"")+'" data-lat="'+r.lat+'" data-lon="'+r.lon+'" onclick="_selectCityEvt(this)"><div class="wx-cs-pin">'+icon("pin",18,2)+'</div><div class="wx-cs-bd"><div class="wx-cs-nm">'+es(r.name||"")+'</div><div class="wx-cs-mt">'+es(sub)+'</div></div></div>';
+  });
+  el.innerHTML=h;
+}
+function _selectCityEvt(el){_selectCity(el.dataset.name,parseFloat(el.dataset.lat),parseFloat(el.dataset.lon))}
+async function _selectCity(name,lat,lon){
+  hp("ok");
+  await A("PATCH","/api/settings",{weather_city:name,weather_lat:lat,weather_lon:lon});
+  cMo();
+  // Drop cached forecast so next load fetches the new city
+  _wxForecast=null;
+  await load(); // refresh main bundle (so home card updates with new city)
+  await loadWeatherForecast(true); // force-refresh server-side cache for new coords
+}
 // Map a weather emoji to an animated SVG name from basmilius/weather-icons (MIT).
 // Returns <img> tag; if CDN fails (offline / 404), inline onerror swaps to the emoji.
 function _wIconName(emoji,nightAware){var hr=new Date().getHours();var night=nightAware&&(hr<6||hr>=20);
@@ -517,8 +607,20 @@ var w=D.weather;
 if(w&&w.days){var cat=FX.wCat(w.label);
 // Try a video background loop (in /static/weather/{cat}.mp4). Falls back silently to the CSS gradient + particle layers if file missing / 404 / offline-uncached.
 var _vd='<video class="wbg-vd" autoplay muted loop playsinline preload="metadata" onloadeddata="this.classList.add(\'loaded\');this.parentNode.classList.add(\'has-video\')" onerror="this.remove()"><source src="/static/weather/'+cat+'.mp4" type="video/mp4"></video><div class="wbg-vd-scrim"></div>';
-h+='<div class="wbg wbg-'+cat+'">'+_vd+'<div style="display:flex;align-items:center;gap:10px;text-shadow:0 1px 3px rgba(0,0,0,.5)"><div style="filter:drop-shadow(0 2px 4px rgba(0,0,0,.3));flex-shrink:0">'+wIconAnim(w.label,46,true)+'</div><div><span style="font-size:24px;font-weight:800;color:#fff">'+w.now+'°</span><span style="font-size:12px;color:rgba(255,255,255,.65);margin-left:6px">feels '+w.feels+'°</span></div><div style="display:flex;gap:8px;margin-left:auto">';
-w.days.forEach(function(dy,i){var label=i===0?"Today":wDayName(dy.date);h+='<div style="text-align:center;min-width:44px"><div style="font-size:10px;color:rgba(255,255,255,.6);font-weight:600">'+label+'</div><div style="margin:2px auto;filter:drop-shadow(0 1px 2px rgba(0,0,0,.3));display:flex;justify-content:center">'+wIconAnim(dy.label,26,false)+'</div><div style="font-size:12px;font-weight:700;color:#fff">'+dy.max+'°</div><div style="font-size:10px;color:rgba(255,255,255,.55)">'+dy.min+'°</div></div>'});h+='</div></div></div>'}else h+='<div style="margin-bottom:16px"></div>';
+// Skip today in the right-side mini-forecast (today is the big temperature on the left)
+var _next=(w.days||[]).slice(1,4);
+var _city=w.city||"Belgrade";
+h+='<div class="wbg wbg-'+cat+'" onclick="openWeatherPage()" style="cursor:pointer">'+_vd+
+  '<div style="display:flex;align-items:flex-start;gap:12px;text-shadow:0 1px 3px rgba(0,0,0,.5)">'+
+    '<div style="filter:drop-shadow(0 2px 4px rgba(0,0,0,.3));flex-shrink:0">'+wIconAnim(w.label,52,true)+'</div>'+
+    '<div style="flex:1;min-width:0">'+
+      '<div style="font-size:30px;font-weight:800;color:#fff;line-height:1.05">'+w.now+'°</div>'+
+      '<div style="font-size:13px;color:rgba(255,255,255,.88);font-weight:600;margin-top:3px;letter-spacing:.2px;display:flex;align-items:center;gap:4px">'+icon("pin",11,2)+es(_city)+'</div>'+
+      '<div style="font-size:11px;color:rgba(255,255,255,.55);margin-top:1px">feels '+w.feels+'°</div>'+
+    '</div>'+
+    '<div style="display:flex;gap:8px;align-self:flex-start">';
+_next.forEach(function(dy,i){var lbl=i===0?"Tomorrow":wDayName(dy.date);h+='<div style="text-align:center;min-width:40px"><div style="font-size:9px;color:rgba(255,255,255,.65);font-weight:600">'+lbl+'</div><div style="margin:2px auto;filter:drop-shadow(0 1px 2px rgba(0,0,0,.3));display:flex;justify-content:center">'+wIconAnim(dy.label,24,false)+'</div><div style="font-size:11px;font-weight:700;color:#fff">'+dy.max+'°</div><div style="font-size:9px;color:rgba(255,255,255,.55)">'+dy.min+'°</div></div>'});
+h+='</div></div></div>'}else h+='<div style="margin-bottom:16px"></div>';
 // Calendar strip
 h+='<div class="sc">Calendar</div>';
 h+='<div class="cal-strip" onclick="openCalModal()" id="cal-strip"></div>';
@@ -2251,7 +2353,7 @@ if(_pwaPrompt){
 }
 h+='<div class="sc"><span class="sc-l">Developer</span></div>';
 h+=_setRow({ico:"debug",acc:"acc-ac",title:"Debug Mode "+(dbgOn?"ON":"OFF"),onclick:"dbgOn=!dbgOn;document.getElementById(\'dbg\').classList.toggle(\'hidden\',!dbgOn);ren()"});
-h+='<div style="margin-top:18px;text-align:center;font-size:11px;color:var(--ht);letter-spacing:.3px">Family HQ v8.18.0</div>';return h}
+h+='<div style="margin-top:18px;text-align:center;font-size:11px;color:var(--ht);letter-spacing:.3px">Family HQ v8.19.0</div>';return h}
 async function setTh(id){
   if(id==="custom"){
     // Tapping Custom in the picker opens the editor (saves happen there). Also apply right away.

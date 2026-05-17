@@ -246,6 +246,51 @@ input[type="date"]:focus,input[type="time"]:focus,input[type="number"]:focus,sel
 .prof-hero-sub{font-size:12px;color:var(--ht);margin-top:2px;font-weight:500}
 .prof-hero-strip{width:36px;height:4px;border-radius:2px;margin-top:8px}
 
+/* Weather forecast overlay (full-screen modal, similar to .cal-mo) */
+.wx-mo{position:fixed;inset:0;background:var(--bg);z-index:62;display:none;flex-direction:column}
+.wx-mo.open{display:flex;animation:fadeIn .2s ease-out}
+.wx-hd{display:flex;align-items:center;justify-content:space-between;padding:10px 14px;padding-top:max(10px, calc(env(safe-area-inset-top, 0px) + 4px));border-bottom:1px solid var(--bd);gap:8px}
+.wx-iconbtn{background:none;border:none;color:var(--tx);cursor:pointer;padding:6px;border-radius:10px;display:inline-flex;align-items:center;justify-content:center;transition:background .15s,transform .25s}
+.wx-iconbtn:active{background:var(--cd)}
+.wx-iconbtn.spinning svg{animation:spin .8s linear infinite}
+@keyframes spin{from{transform:rotate(0)}to{transform:rotate(360deg)}}
+.wx-city{flex:1;background:none;border:none;color:var(--tx);font-size:16px;font-weight:700;letter-spacing:-.2px;cursor:pointer;font-family:inherit;padding:8px 12px;border-radius:12px;display:inline-flex;align-items:center;justify-content:center;gap:6px;transition:background .15s}
+.wx-city:active{background:var(--cd)}
+.wx-body{flex:1;overflow-y:auto;padding:16px 14px 24px;overscroll-behavior:contain}
+/* Today hero block (left-top, big text) */
+.wx-hero{display:flex;align-items:flex-start;gap:14px;padding:18px 16px;background:var(--cd);border:1px solid var(--bd);border-radius:22px;margin-bottom:16px;box-shadow:var(--shadow-1)}
+.wx-hero-ico{flex-shrink:0;display:flex;align-items:center;justify-content:center;width:80px;height:80px}
+.wx-hero-tx{flex:1;min-width:0}
+.wx-hero-lb{font-size:11px;font-weight:700;letter-spacing:1.2px;text-transform:uppercase;color:var(--ht);margin-bottom:4px}
+.wx-hero-temp{font-size:48px;font-weight:800;line-height:1;letter-spacing:-1.5px;color:var(--tx)}
+.wx-hero-sub{font-size:13px;color:var(--ht);margin-top:4px;font-weight:600}
+.wx-hero-range{font-size:12px;color:var(--ht);margin-top:8px;font-weight:600;display:inline-flex;gap:10px}
+.wx-hero-range .hi{color:var(--tx)}
+/* 14-day grid: 7 columns × 2 rows */
+.wx-grid-lb{font-size:11px;font-weight:700;letter-spacing:1.2px;text-transform:uppercase;color:var(--ht);margin:6px 0 8px;padding-left:4px}
+.wx-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:6px;background:var(--cd);border:1px solid var(--bd);border-radius:18px;padding:10px;box-shadow:var(--shadow-1)}
+.wx-day{display:flex;flex-direction:column;align-items:center;gap:2px;padding:8px 4px;border-radius:12px;transition:background .15s}
+.wx-day:active{background:color-mix(in srgb,var(--tx) 5%,transparent)}
+.wx-day.wx-today{background:color-mix(in srgb,var(--pr) 14%,transparent);border:1px solid color-mix(in srgb,var(--pr) 35%,transparent);padding:7px 3px}
+.wx-dow{font-size:9px;font-weight:700;color:var(--ht);text-transform:uppercase;letter-spacing:.4px}
+.wx-day.wx-today .wx-dow{color:var(--pr)}
+.wx-dom{font-size:14px;font-weight:800;color:var(--tx);letter-spacing:-.3px}
+.wx-day.wx-today .wx-dom{color:var(--pr)}
+.wx-ico{margin:1px 0;display:flex;align-items:center;justify-content:center;height:28px}
+.wx-max{font-size:11px;font-weight:700;color:var(--tx);letter-spacing:-.2px}
+.wx-min{font-size:10px;color:var(--ht);font-weight:600}
+/* Wraps each week as its own row for visual separation */
+.wx-week{margin-bottom:10px}
+.wx-week+.wx-week{margin-bottom:0}
+
+/* City search results */
+.wx-cs-row{display:flex;align-items:center;gap:12px;padding:11px 12px;border-radius:14px;cursor:pointer;background:var(--cd);border:1px solid var(--bd);margin-bottom:6px;transition:transform .12s,background .15s}
+.wx-cs-row:active{transform:scale(.985);background:color-mix(in srgb,var(--pr) 10%,var(--cd))}
+.wx-cs-pin{width:36px;height:36px;border-radius:11px;flex-shrink:0;display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,color-mix(in srgb,var(--pr) 38%,transparent),color-mix(in srgb,var(--pr) 10%,transparent));border:1px solid color-mix(in srgb,var(--pr) 45%,transparent);color:var(--pr)}
+.wx-cs-bd{flex:1;min-width:0}
+.wx-cs-nm{font-size:14px;font-weight:600;color:var(--tx);line-height:1.2}
+.wx-cs-mt{font-size:11px;color:var(--ht);font-weight:500;margin-top:1px}
+
 /* Onboarding */
 .onb{display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:72vh;text-align:center;padding:30px 20px}
 .onb-ico{width:96px;height:96px;border-radius:28px;display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;background:linear-gradient(135deg,color-mix(in srgb,var(--pr) 40%,transparent),color-mix(in srgb,var(--pr) 8%,transparent));border:1.5px solid color-mix(in srgb,var(--pr) 50%,transparent);color:var(--pr);box-shadow:inset 0 1px 0 color-mix(in srgb,var(--pr) 22%,transparent),0 8px 28px color-mix(in srgb,var(--pr) 24%,transparent);margin-bottom:20px}
@@ -552,6 +597,15 @@ input[type="date"]:focus,input[type="time"]:focus,input[type="number"]:focus,sel
 <div class="cal-hd"><button class="cal-btn" onclick="closeCalModal()" aria-label="Close"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button><div class="cal-nav"><button class="cal-btn" onclick="calShift(-1)" aria-label="Previous month"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg></button><span class="cal-hd-t" id="cal-title">April 2026</span><button class="cal-btn" onclick="calShift(1)" aria-label="Next month"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></button></div><div style="width:38px;height:38px"></div></div>
 <div class="cal-body" id="cal-body"></div>
 </div>
+<!-- Weather forecast overlay -->
+<div class="wx-mo" id="wx-mo">
+<div class="wx-hd">
+    <button class="wx-iconbtn" onclick="closeWeatherPage()" aria-label="Close"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" width="20" height="20"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+    <button class="wx-city" onclick="openCitySearch()"><span id="wx-city-label">…</span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" width="14" height="14" style="opacity:.6"><polyline points="6 9 12 15 18 9"/></svg></button>
+    <button class="wx-iconbtn" id="wx-refresh-btn" onclick="refreshWeather()" aria-label="Refresh"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="20" height="20"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/></svg></button>
+</div>
+<div class="wx-body" id="wx-body"><div class="emp"><div class="emp-i" style="font-size:32px">⏳</div><div>Loading…</div></div></div>
+</div>
 <!-- Hamburger Menu Overlay -->
 <div class="menu-ov" id="menu-overlay" onclick="toggleMenu()">
 <div class="menu-p" onclick="event.stopPropagation()">
@@ -566,6 +620,6 @@ input[type="date"]:focus,input[type="time"]:focus,input[type="number"]:focus,sel
 <!-- Debug -->
 <div class="dbg hidden" id="dbg"><button class="dbg-cp" onclick="navigator.clipboard.writeText(dbgLog.join('\n'))">Copy</button></div>
 <!-- Load JS -->
-<script src="/static/app.js?v=146"></script>
+<script src="/static/app.js?v=147"></script>
 </body>
 </html>
