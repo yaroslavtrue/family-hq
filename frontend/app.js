@@ -1676,7 +1676,9 @@ return{segs:result,maxLanes:lanes.length}
 
 // Render bars HTML for a week
 function _renderBars(items,wsISO,weISO,barH,maxLn){
-var bh=barH||18;var ml=maxLn||5;
+// bh is the bar height. For the main month view we use a 2-line chip (~32px); strip uses single-line (18px).
+var bh=barH||32;var ml=maxLn||5;
+var twoLine=bh>=28;
 var res=_assignLanes(items,wsISO,weISO);
 if(!res.segs.length)return{html:'',height:0};
 var h='',overflow=[0,0,0,0,0,0,0];
@@ -1688,11 +1690,14 @@ var width=(seg.span/7*100).toFixed(2);
 var top=seg.lane*((bh)+2);
 var mClr="";
 if(seg.type==="task"&&!seg.done&&seg.assigned_to){var _m=D.members.find(function(x){return x.user_id===seg.assigned_to});if(_m)mClr=_m.color}
-var cls="cal-ev ev-"+seg.color+(seg.done?" ev-done":"")+(seg.type==="recurring"?" ev-rec":"")+(seg.type==="subscription"?" ev-sub":"");
+var cls="cal-ev ev-"+seg.color+(seg.done?" ev-done":"")+(seg.type==="recurring"?" ev-rec":"")+(seg.type==="subscription"?" ev-sub":"")+(twoLine?" ev-2l":"");
 var inl=mClr?"background:"+mClr+";":"";
 var icoMap={event:"calendar",task:seg.done?"ck":"clipboard",recurring:"refresh",birthday:"cake",subscription:"card"};
-var icoH=bh>=16?'<span class="ev-ico">'+icon(icoMap[seg.type]||"dot",11,2.2)+'</span>':"";
-h+='<div class="'+cls+'" onclick="showCalEv(\''+seg.type+'\','+seg.id+')" style="left:'+left+'%;width:calc('+width+'% - 2px);top:'+top+'px;height:'+bh+'px;line-height:'+bh+'px;cursor:pointer;'+inl+'">'+icoH+es(seg.title)+'</div>'
+var icoH='<span class="ev-ico">'+icon(icoMap[seg.type]||"dot",11,2.2)+'</span>';
+// 2-line chip: text wraps via line-clamp; max 15 chars-ish. Single-line: tight nowrap.
+var inner=icoH+'<span class="ev-tx">'+es(seg.title)+'</span>';
+var posStyle='left:'+left+'%;width:calc('+width+'% - 2px);top:'+top+'px;height:'+bh+'px;'+(twoLine?'':'line-height:'+bh+'px;')+inl;
+h+='<div class="'+cls+'" onclick="showCalEv(\''+seg.type+'\','+seg.id+')" style="'+posStyle+'cursor:pointer">'+inner+'</div>'
 });
 // +N overflow badges
 var oT=visLanes*(bh+2);
@@ -1843,7 +1848,7 @@ var weD=_addD(cur,6);
 var weISO=_isoDate(weD);
 var isCurWk=(wsISO<=_twEnd&&weISO>=_twStart);
 var wkItems=filtered.filter(function(it){return it.end>=wsISO&&it.start<=weISO});
-var bars=_renderBars(wkItems,wsISO,weISO,18);
+var bars=_renderBars(wkItems,wsISO,weISO,34);
 h+='<div class="cal-wk'+(isCurWk?" cal-wk-cur":"")+'">';
 h+='<div class="cal-days">';
 for(var i=0;i<7;i++){
@@ -2050,7 +2055,7 @@ if(_pwaPrompt){
   h+='<div class="c" style="cursor:default"><span style="font-size:20px">📱</span><div class="bd"><div class="tt">Install on iOS</div><div style="font-size:12px;color:var(--ht)">Tap <b>Share</b> ⬆ → <b>Add to Home Screen</b></div></div></div>';
 }
 h+='<div class="sc">Debug</div><div class="c" style="cursor:pointer" onclick="dbgOn=!dbgOn;document.getElementById(\'dbg\').classList.toggle(\'hidden\',!dbgOn);ren()"><span style="font-size:20px">🐛</span><div class="bd"><div class="tt">Debug Mode '+(dbgOn?"ON":"OFF")+'</div></div></div>';
-h+='<div style="margin-top:8px;text-align:center;font-size:11px;color:var(--ht)">Family HQ v8.11.2</div>';return h}
+h+='<div style="margin-top:8px;text-align:center;font-size:11px;color:var(--ht)">Family HQ v8.11.3</div>';return h}
 async function setTh(id){aT(id);hp();await A("PATCH","/api/settings",{theme:id});ren()}
 function openThemePicker(){var h='<div class="tg">';Object.keys(TH).forEach(function(id){var t=TH[id];var sel=cTheme===id;h+='<div class="tc" onclick="setTh(\''+id+'\');cMo()" style="background:'+t.cd+';border:2px solid '+(sel?t.pr:t.bd)+'"><div class="te">'+t.e+'</div><div class="tn" style="color:'+t.tx+'">'+t.n+'</div><div class="td">'+[t.pr,t.ac,t.ok,t.wn].map(function(c){return '<div class="tdd" style="background:'+c+'"></div>'}).join("")+'</div></div>'});h+='</div>';oMC("Choose theme",h)}
 async function setDg(v){await A("PATCH","/api/settings",{digest_time:v});hp()}

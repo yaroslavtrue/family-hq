@@ -348,8 +348,12 @@ input[type="date"],input[type="time"],input[type="number"],select{-webkit-appear
 .cal-bars{position:relative;min-height:4px;padding:0 1px}
 .cal-ev{position:absolute;height:20px;border-radius:999px;font-size:9px;font-weight:700;line-height:18px;padding:0 8px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;cursor:pointer;transition:opacity .15s,background .15s;background:color-mix(in srgb,var(--cc,var(--pr)) 30%,var(--bg));color:var(--tx);border:1px solid color-mix(in srgb,var(--cc,var(--pr)) 65%,transparent)}
 .cal-ev:active{opacity:.7}
-.ev-ico{font-size:8px;margin-right:3px;opacity:.95}
+.ev-ico{display:inline-flex;align-items:center;margin-right:3px;opacity:.95;vertical-align:middle}
 .cal-ev.ev-done{text-decoration:line-through;opacity:.55}
+/* 2-line wrapped variant — fits ~15 chars (2×~7) before ellipsis; used in the full month view */
+.cal-ev.ev-2l{display:flex;align-items:flex-start;gap:4px;padding:4px 7px;white-space:normal;text-overflow:clip;line-height:13px;border-radius:10px}
+.cal-ev.ev-2l .ev-ico{margin-right:0;flex-shrink:0;height:13px}
+.cal-ev.ev-2l .ev-tx{flex:1;min-width:0;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;line-clamp:2;overflow:hidden;text-overflow:ellipsis;word-break:break-word}
 @keyframes calSlideL{from{transform:translateX(30px);opacity:0}to{transform:translateX(0);opacity:1}}
 @keyframes calSlideR{from{transform:translateX(-30px);opacity:0}to{transform:translateX(0);opacity:1}}
 .cal-slide-l{animation:calSlideL .25s ease-out}
@@ -457,6 +461,6 @@ input[type="date"],input[type="time"],input[type="number"],select{-webkit-appear
 <!-- Debug -->
 <div class="dbg hidden" id="dbg"><button class="dbg-cp" onclick="navigator.clipboard.writeText(dbgLog.join('\n'))">Copy</button></div>
 <!-- Load JS -->
-<script src="/static/app.js?v=130"></script>
+<script src="/static/app.js?v=131"></script>
 </body>
 </html>
