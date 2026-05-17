@@ -252,8 +252,15 @@ var _tt=TT[t]||{i:"",t:"",s:""};
 document.getElementById("hi").innerHTML=_tt.i?icon(_tt.i,22,2.2):"";
 document.getElementById("ht").textContent=_tt.t;
 document.getElementById("hs").textContent=_tt.s;
+// When entering Tasks tab and the last-selected sub-tab isn't Active, override header to match the sub-tab
+if(t==="tasks"&&taskTab&&taskTab!=="active"){
+  var _hi=document.getElementById("hi");
+  if(taskTab==="events"){_hi.innerHTML=icon("clock",22,2.2);document.getElementById("ht").textContent="Events";document.getElementById("hs").textContent="Schedule";_evtsFirstRender=true}
+  else if(taskTab==="recurring"){_hi.innerHTML=icon("refresh",22,2.2);document.getElementById("ht").textContent="Recurring";document.getElementById("hs").textContent="Repeating tasks"}
+}
 var noFab=["home","settings","clean","events","birthdays","subs","profile","trainings"];
-document.getElementById("fab").classList.toggle("hidden",noFab.indexOf(t)>=0);
+var hideFab=noFab.indexOf(t)>=0||(t==="tasks"&&taskTab&&taskTab!=="active");
+document.getElementById("fab").classList.toggle("hidden",hideFab);
 if(t==="home")_firstHomeRender=true;
 if(t==="events")_evtsFirstRender=true;
 if(t==="profile")_profStats=null;
@@ -437,7 +444,6 @@ subs: (D.subs||[]).filter(function(s){return s.days_until!=null&&s.days_until>=0
 };
 var items=[
 {id:"shop",ic:"cart",label:"Shopping",cnt:cnt.shop},
-{id:"events",ic:"clock",label:"Events",cnt:cnt.events},
 {id:"birthdays",ic:"cake",label:"Birthdays",cnt:cnt.birthdays},
 {id:"clean",ic:"broom",label:"Cleaning",cnt:cnt.clean},
 {id:"subs",ic:"card",label:"Subscriptions",cnt:cnt.subs},
@@ -488,8 +494,9 @@ return h}
 // ═══════════════════════════════════════════════════════════
 // TASKS
 // ═══════════════════════════════════════════════════════════
-function rT(){var h='<div class="tabs"><button class="tab '+(taskTab==="active"?"a":"")+'" onclick="taskTab=\'active\';ren()"><span style="display:inline-flex;align-items:center;gap:6px">'+icon("clipboard",13,2.2)+'Active</span></button><button class="tab '+(taskTab==="recurring"?"a":"")+'" onclick="taskTab=\'recurring\';ren()"><span style="display:inline-flex;align-items:center;gap:6px">'+icon("refresh",13,2.2)+'Recurring</span></button></div>';
+function rT(){var h='<div class="tabs"><button class="tab '+(taskTab==="active"?"a":"")+'" onclick="taskTabSet(\'active\')"><span style="display:inline-flex;align-items:center;gap:6px">'+icon("clipboard",13,2.2)+'Active</span></button><button class="tab '+(taskTab==="recurring"?"a":"")+'" onclick="taskTabSet(\'recurring\')"><span style="display:inline-flex;align-items:center;gap:6px">'+icon("refresh",13,2.2)+'Recurring</span></button><button class="tab '+(taskTab==="events"?"a":"")+'" onclick="taskTabSet(\'events\')"><span style="display:inline-flex;align-items:center;gap:6px">'+icon("clock",13,2.2)+'Events</span></button></div>';
 if(taskTab==="recurring")return h+rRecur();
+if(taskTab==="events")return h+rEvts();
 h+='<div class="fb2"><button class="fi '+(!filt?"a":"")+'" onclick="filt=null;ren()">All</button>';
 D.members.forEach(function(m){h+='<button class="fi '+(filt===m.user_id?"a":"")+'" style="padding:3px 6px;display:inline-flex;align-items:center" onclick="filt='+m.user_id+';ren()">'+mAv(m.user_id,22)+'</button>'});h+='</div>';
 var all=D.tasks;if(filt)all=all.filter(function(x){return x.assigned_to===filt});
@@ -1546,6 +1553,16 @@ async function openExerciseProgression(eid){
 // EVENTS (hamburger page)
 // ═══════════════════════════════════════════════════════════
 var _evtsFirstRender=true;
+// Switch between Tasks sub-tabs (Active/Recurring/Events). Manages FAB visibility and page header label.
+function taskTabSet(t){
+  taskTab=t;hp("sel");
+  document.getElementById("fab").classList.toggle("hidden",t!=="active");
+  var hi=document.getElementById("hi"),ht=document.getElementById("ht"),hs=document.getElementById("hs");
+  if(t==="events"){hi.innerHTML=icon("clock",22,2.2);ht.textContent="Events";hs.textContent="Schedule";_evtsFirstRender=true}
+  else if(t==="recurring"){hi.innerHTML=icon("refresh",22,2.2);ht.textContent="Recurring";hs.textContent="Repeating tasks"}
+  else{hi.innerHTML=icon("clipboard",22,2.2);ht.textContent="Tasks";hs.textContent="Manage & assign"}
+  ren()
+}
 function rEvts(){
 if(!D.events.length)return em(icon("clock",48,1.8),"No events","Tap + Add Event to start")+rEvtAddBtn();
 var evts=D.events;if(searchQ)evts=evts.filter(function(e){return matchQ(e.text)});
@@ -2100,7 +2117,7 @@ if(_pwaPrompt){
   h+='<div class="c" style="cursor:default"><span style="font-size:20px">📱</span><div class="bd"><div class="tt">Install on iOS</div><div style="font-size:12px;color:var(--ht)">Tap <b>Share</b> ⬆ → <b>Add to Home Screen</b></div></div></div>';
 }
 h+='<div class="sc">Debug</div><div class="c" style="cursor:pointer" onclick="dbgOn=!dbgOn;document.getElementById(\'dbg\').classList.toggle(\'hidden\',!dbgOn);ren()"><span style="font-size:20px">🐛</span><div class="bd"><div class="tt">Debug Mode '+(dbgOn?"ON":"OFF")+'</div></div></div>';
-h+='<div style="margin-top:8px;text-align:center;font-size:11px;color:var(--ht)">Family HQ v8.12.0</div>';return h}
+h+='<div style="margin-top:8px;text-align:center;font-size:11px;color:var(--ht)">Family HQ v8.12.1</div>';return h}
 async function setTh(id){aT(id);hp();await A("PATCH","/api/settings",{theme:id});ren()}
 function openThemePicker(){var h='<div class="tg">';Object.keys(TH).forEach(function(id){var t=TH[id];var sel=cTheme===id;h+='<div class="tc" onclick="setTh(\''+id+'\');cMo()" style="background:'+t.cd+';border:2px solid '+(sel?t.pr:t.bd)+'"><div class="te">'+t.e+'</div><div class="tn" style="color:'+t.tx+'">'+t.n+'</div><div class="td">'+[t.pr,t.ac,t.ok,t.wn].map(function(c){return '<div class="tdd" style="background:'+c+'"></div>'}).join("")+'</div></div>'});h+='</div>';oMC("Choose theme",h)}
 async function setDg(v){await A("PATCH","/api/settings",{digest_time:v});hp()}

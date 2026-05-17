@@ -189,8 +189,9 @@ input[type="date"],input[type="time"],input[type="number"],select{-webkit-appear
 .ct2{font-size:32px;font-weight:800;letter-spacing:6px;color:var(--pr)}.cl2{font-size:12px;color:var(--ht);margin-top:8px}
 .ci2{width:200px;padding:16px;border-radius:14px;border:2px solid var(--bd);background:var(--cd);color:var(--tx);font-size:24px;font-weight:700;text-align:center;letter-spacing:4px;outline:none;font-family:inherit;text-transform:uppercase}
 
-/* Events timeline view — chronological with viewport-vignette fade + highlighted current/next */
-.evts-scroll{position:relative;max-height:calc(100vh - 220px);min-height:300px;overflow-y:auto;overscroll-behavior:contain;padding:18px 4px 26px;-webkit-mask-image:linear-gradient(to bottom,transparent 0%,#000 10%,#000 90%,transparent 100%);mask-image:linear-gradient(to bottom,transparent 0%,#000 10%,#000 90%,transparent 100%)}
+/* Events timeline view — chronological with viewport-vignette fade + highlighted current/next.
+   Explicit height makes ONLY the events list scroll; the "+ Add Event" button + segmented tabs stay fixed above. */
+.evts-scroll{position:relative;height:calc(100vh - 320px);height:calc(100dvh - 320px);min-height:240px;overflow-y:auto;overscroll-behavior:contain;padding:18px 4px 26px;-webkit-mask-image:linear-gradient(to bottom,transparent 0%,#000 12%,#000 88%,transparent 100%);mask-image:linear-gradient(to bottom,transparent 0%,#000 12%,#000 88%,transparent 100%)}
 .evts-timeline{position:relative;padding-left:22px;border-left:2px solid var(--bd);margin-left:10px}
 .evt-row{position:relative;margin:0 0 12px 10px}
 .evt-dot{position:absolute;left:-39px;top:16px;width:14px;height:14px;border-radius:50%;border:2.5px solid var(--bg);transition:box-shadow .25s,transform .25s}
@@ -470,6 +471,6 @@ input[type="date"],input[type="time"],input[type="number"],select{-webkit-appear
 <!-- Debug -->
 <div class="dbg hidden" id="dbg"><button class="dbg-cp" onclick="navigator.clipboard.writeText(dbgLog.join('\n'))">Copy</button></div>
 <!-- Load JS -->
-<script src="/static/app.js?v=132"></script>
+<script src="/static/app.js?v=133"></script>
 </body>
 </html>
