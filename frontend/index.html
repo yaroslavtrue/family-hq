@@ -279,8 +279,31 @@ input[type="date"]:focus,input[type="time"]:focus,input[type="number"]:focus,sel
 
 /* Theme grid */
 .tg{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:24px}
-.tc{border-radius:14px;padding:14px 10px;cursor:pointer;text-align:center}.te{font-size:24px;margin-bottom:4px}.tn{font-size:12px;font-weight:600}
+.tc{border-radius:14px;padding:14px 10px;cursor:pointer;text-align:center}.te{font-size:24px;margin-bottom:4px;display:inline-flex;align-items:center;justify-content:center;line-height:1}.tn{font-size:12px;font-weight:600}
 .td{display:flex;gap:3px;justify-content:center;margin-top:8px}.tdd{width:12px;height:12px;border-radius:50%}
+
+/* Custom theme editor */
+.ct-prev{padding:16px;border-radius:18px;border:1px solid var(--bd);margin-bottom:14px;transition:background .2s,color .2s}
+.ct-prev-h{font-size:18px;font-weight:800;letter-spacing:-.3px;line-height:1.15}
+.ct-prev-s{font-size:12px;margin-top:3px;font-weight:500}
+.ct-prev-card{margin-top:14px;border-radius:14px;padding:12px}
+.ct-prev-row{display:flex;align-items:center;gap:10px}
+.ct-prev-ico{width:34px;height:34px;border-radius:10px;display:inline-flex;align-items:center;justify-content:center;flex-shrink:0}
+.ct-prev-tt{flex:1;font-size:14px;font-weight:600}
+.ct-prev-pill{padding:3px 10px;border-radius:999px;font-size:11px;font-weight:700}
+.ct-prev-chips{display:flex;gap:6px;margin-top:12px;flex-wrap:wrap}
+.ct-prev-chip{padding:5px 11px;border-radius:999px;font-size:11px;font-weight:700;letter-spacing:.1px}
+.ct-prev-btn{width:100%;padding:11px;border-radius:14px;border:none;font-size:14px;font-weight:700;margin-top:12px;cursor:default;font-family:inherit}
+.ct-warn{background:color-mix(in srgb,var(--wn) 14%,transparent);border:1px solid color-mix(in srgb,var(--wn) 40%,transparent);border-radius:12px;padding:8px 12px;margin-bottom:4px}
+.ct-warn-row{font-size:11px;font-weight:600;color:var(--wn);line-height:1.5}
+.ct-row{display:flex;align-items:center;justify-content:space-between;padding:9px 0;gap:12px}
+.ct-row+.ct-row{border-top:1px solid var(--bd)}
+.ct-row-lb{font-size:14px;font-weight:600;color:var(--tx)}
+.ct-row-val{display:inline-flex;align-items:center;gap:10px}
+.ct-row-val input[type="color"]{width:42px;height:42px;border-radius:11px;border:1.5px solid var(--bd);background:transparent;cursor:pointer;padding:2px;-webkit-appearance:none}
+.ct-row-val input[type="color"]::-webkit-color-swatch{border:none;border-radius:8px}
+.ct-row-val input[type="color"]::-moz-color-swatch{border:none;border-radius:8px}
+.ct-row-hex{font-family:ui-monospace,Menlo,monospace;font-size:12px;font-weight:600;color:var(--ht);min-width:74px;text-align:right}
 
 /* Reminders list */
 .ri{display:flex;align-items:center;gap:6px;padding:4px 0;font-size:12px;color:var(--ht);margin-bottom:4px}
@@ -543,6 +566,6 @@ input[type="date"]:focus,input[type="time"]:focus,input[type="number"]:focus,sel
 <!-- Debug -->
 <div class="dbg hidden" id="dbg"><button class="dbg-cp" onclick="navigator.clipboard.writeText(dbgLog.join('\n'))">Copy</button></div>
 <!-- Load JS -->
-<script src="/static/app.js?v=145"></script>
+<script src="/static/app.js?v=146"></script>
 </body>
 </html>

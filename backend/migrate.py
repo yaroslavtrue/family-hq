@@ -433,6 +433,8 @@ def migrate(db_path):
         _migrate_v13_templates,
         # v14: per-member theme preference (was family-level)
         lambda c: safe_add_col(c, "family_members", "theme", "TEXT"),
+        # v15: per-member custom theme colors (JSON: {bg, sf, pr, ac, ok})
+        lambda c: safe_add_col(c, "family_members", "custom_theme", "TEXT"),
     ]
 
     for i, mig in enumerate(migrations):

@@ -215,6 +215,7 @@ class FamilyJoin(BaseModel):
     code: str
 class MemberUpdate(BaseModel):
     user_name: str | None = None; emoji: str | None = None; color: str | None = None
+    theme: str | None = None; custom_theme: str | None = None
 class TaskCreate(BaseModel):
     text: str; assigned_to: int | None = None; priority: str = "normal"
     due_date: str | None = None; reminders: list[str] = []
@@ -484,13 +485,14 @@ def leave_family(user=Depends(get_user), db=Depends(get_db)):
 # ═════════════════════════════════════════════════════════════════════════
 @app.get("/api/members")
 def list_members(user=Depends(get_uf), db=Depends(get_db)):
-    return [dict(r) for r in db.execute("SELECT user_id, user_name, emoji, color, photo_url FROM family_members WHERE family_id=?", (user["family_id"],)).fetchall()]
+    return [dict(r) for r in db.execute("SELECT user_id, user_name, emoji, color, photo_url, theme, custom_theme FROM family_members WHERE family_id=?", (user["family_id"],)).fetchall()]
 
 @app.patch("/api/members/{uid}")
 def update_member(uid: int, body: MemberUpdate, user=Depends(get_uf), db=Depends(get_db)):
     if uid != user["id"]: raise HTTPException(403)
     if _update_fields(db, "family_members", "user_id=?", (uid,), body,
-                      {"user_name": "user_name", "emoji": "emoji", "color": "color"}):
+                      {"user_name": "user_name", "emoji": "emoji", "color": "color",
+                       "theme": "theme", "custom_theme": "custom_theme"}):
         db.commit()
     return {"ok": True}
 
@@ -1824,9 +1826,9 @@ async def bundle(user=Depends(get_uf), db=Depends(get_db)):
             s["days_until"] = 99
     subs.sort(key=lambda x: x["days_until"])
 
-    # Members
+    # Members (include theme + custom_theme so frontend can apply per-member appearance)
     members = [dict(m) for m in db.execute(
-        "SELECT user_id, user_name, emoji, color, photo_url FROM family_members WHERE family_id=?",
+        "SELECT user_id, user_name, emoji, color, photo_url, theme, custom_theme FROM family_members WHERE family_id=?",
         (f,)).fetchall()]
 
     # Settings
@@ -1969,7 +1971,7 @@ def serve_exercise_image(fn: str):
     return r
 
 # ─── Debug & Serve ───────────────────────────────────────────────────────
-APP_VERSION = "v8.17.1"
+APP_VERSION = "v8.18.0"
 
 @app.get("/api/debug/ping")
 def ping(): return {"ok": True, "version": APP_VERSION, "time": datetime.now(ZoneInfo(TIMEZONE)).isoformat()}

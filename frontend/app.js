@@ -35,12 +35,51 @@ rose:{n:"Rosé",e:"🌸",bg:"#1a0f15",sf:"#261822",cd:"#351f2e",bd:"rgba(255,255
 chalk:{n:"Chalk",e:"🤍",bg:"#f5f3ef",sf:"#edeae4",cd:"#ffffff",bd:"rgba(0,0,0,0.12)",tx:"#1a1816",ht:"#706b62",pr:"#444038",pg:"rgba(68,64,56,0.08)",ac:"#b8442a",ok:"#3a8a5a",wn:"#a8882a",gd:"linear-gradient(135deg,#2a2620,#444038)",gtx:"#fff",l:1},
 onyx:{n:"Onyx",e:"🖤",bg:"#000000",sf:"#0a0a0a",cd:"#141414",bd:"rgba(212,175,55,0.18)",tx:"#f5f0e0",ht:"#b8a878",pr:"#d4af37",pg:"rgba(212,175,55,0.12)",ac:"#e85d75",ok:"#5cd6a0",wn:"#f0c45a",gd:"linear-gradient(135deg,#d4af37,#f4cd5a)",gtx:"#000000",l:0},
 lavender:{n:"Lavender",e:"💜",bg:"#f8f5fb",sf:"#f1ecf6",cd:"#ffffff",bd:"rgba(60,30,90,0.12)",tx:"#2a1f3a",ht:"#6b5d80",pr:"#7c3aed",pg:"rgba(124,58,237,0.10)",ac:"#db2777",ok:"#059669",wn:"#d97706",gd:"linear-gradient(135deg,#5b1fc7,#7c3aed)",gtx:"#fff",l:1},
-sunset:{n:"Sunset",e:"🌇",bg:"#1a0d0a",sf:"#251510",cd:"#2f1c16",bd:"rgba(255,180,120,0.14)",tx:"#f5dccd",ht:"#d4a890",pr:"#ff6b35",pg:"rgba(255,107,53,0.15)",ac:"#ffd166",ok:"#6dc36b",wn:"#ffd166",gd:"linear-gradient(135deg,#d04515,#ff6b35)",gtx:"#fff",l:0}
+sunset:{n:"Sunset",e:"🌇",bg:"#1a0d0a",sf:"#251510",cd:"#2f1c16",bd:"rgba(255,180,120,0.14)",tx:"#f5dccd",ht:"#d4a890",pr:"#ff6b35",pg:"rgba(255,107,53,0.15)",ac:"#ffd166",ok:"#6dc36b",wn:"#ffd166",gd:"linear-gradient(135deg,#d04515,#ff6b35)",gtx:"#fff",l:0},
+custom:{n:"Custom",e:"🎨",bg:"#0f0f1a",sf:"#1a1a2f",pr:"#7c6aef",ac:"#ef6a7a",ok:"#5cd6a0",__editable:true}
 };
-function aT(id){const t=TH[id];if(!t)return;const r=document.documentElement.style;
-["bg","sf","cd","bd","tx","ht","pr","pg","ac","ok","wn","gd"].forEach(k=>r.setProperty("--"+k,t[k]));
-r.setProperty("--gtx",t.gtx||"#fff");
-document.body.classList.toggle("ls",!!t.l);cTheme=id;}
+// ─── Color math helpers (for custom theme derivation) ────────────
+function _hexToRgb(h){h=(h||"").replace('#','');if(h.length===3)h=h[0]+h[0]+h[1]+h[1]+h[2]+h[2];return [parseInt(h.substr(0,2),16)||0,parseInt(h.substr(2,2),16)||0,parseInt(h.substr(4,2),16)||0]}
+function _rgbToHex(r,g,b){return '#'+[r,g,b].map(function(v){return Math.round(Math.max(0,Math.min(255,v))).toString(16).padStart(2,'0')}).join('')}
+function _mixHex(a,b,t){var A=_hexToRgb(a),B=_hexToRgb(b);return _rgbToHex(A[0]*(1-t)+B[0]*t,A[1]*(1-t)+B[1]*t,A[2]*(1-t)+B[2]*t)}
+function _lum(h){var r=_hexToRgb(h);return (0.299*r[0]+0.587*r[1]+0.114*r[2])/255}
+function _toRgba(h,a){var r=_hexToRgb(h);return 'rgba('+r[0]+','+r[1]+','+r[2]+','+a+')'}
+function _wcagL(h){var r=_hexToRgb(h).map(function(v){v=v/255;return v<=0.03928?v/12.92:Math.pow((v+0.055)/1.055,2.4)});return 0.2126*r[0]+0.7152*r[1]+0.0722*r[2]}
+function _contrast(a,b){var la=_wcagL(a),lb=_wcagL(b);var hi=Math.max(la,lb),lo=Math.min(la,lb);return (hi+0.05)/(lo+0.05)}
+// Derive full theme object from user's 5 editable colors
+function _deriveCustomTheme(c){
+  c=c||{};
+  var bg=c.bg||"#0f0f1a",sf=c.sf||"#1a1a2f",pr=c.pr||"#7c6aef",ac=c.ac||"#ef6a7a",ok=c.ok||"#5cd6a0";
+  var isLight=_lum(bg)>0.55;
+  var tx=isLight?"#1a1816":"#e8e6f0";
+  var ht=_mixHex(tx,bg,0.45);
+  var cd=_mixHex(bg,sf,0.55);
+  var gtx=_lum(pr)>0.65?"#1a1a2f":"#fff";
+  var darker=_mixHex(pr,"#000000",0.18);
+  return {n:"Custom",e:"🎨",bg:bg,sf:sf,cd:cd,tx:tx,ht:ht,pr:pr,ac:ac,ok:ok,wn:"#f0c45a",
+    bd:_toRgba(tx,isLight?0.12:0.10),pg:_toRgba(pr,0.15),
+    gd:"linear-gradient(135deg,"+darker+","+pr+")",gtx:gtx,l:isLight?1:0}
+}
+// Read my custom palette from member data (or seed from current non-custom theme)
+function _getMyCustomPalette(){
+  var myId=fS&&fS.my_id;
+  var me=myId&&(D.members||[]).find(function(m){return m.user_id===myId});
+  if(me&&me.custom_theme){try{var p=JSON.parse(me.custom_theme);if(p&&p.bg)return p}catch(e){}}
+  return null
+}
+function _seedCustomFromTheme(themeId){
+  var t=TH[themeId]||TH.midnight;
+  return {bg:t.bg,sf:t.sf,pr:t.pr,ac:t.ac,ok:t.ok}
+}
+function aT(id){
+  var t;
+  if(id==="custom"){t=_deriveCustomTheme(_getMyCustomPalette()||_seedCustomFromTheme(cTheme==="custom"?"midnight":cTheme))}
+  else{t=TH[id];if(!t)return}
+  const r=document.documentElement.style;
+  ["bg","sf","cd","bd","tx","ht","pr","pg","ac","ok","wn","gd"].forEach(k=>r.setProperty("--"+k,t[k]));
+  r.setProperty("--gtx",t.gtx||"#fff");
+  document.body.classList.toggle("ls",!!t.l);cTheme=id;
+}
 
 // ─── State ──────────────────────────────────────────────────
 let tab="home",cTheme="midnight",filt=null,fS=null,ex={},dbgOn=false,dbgLog=[];
@@ -2212,9 +2251,114 @@ if(_pwaPrompt){
 }
 h+='<div class="sc"><span class="sc-l">Developer</span></div>';
 h+=_setRow({ico:"debug",acc:"acc-ac",title:"Debug Mode "+(dbgOn?"ON":"OFF"),onclick:"dbgOn=!dbgOn;document.getElementById(\'dbg\').classList.toggle(\'hidden\',!dbgOn);ren()"});
-h+='<div style="margin-top:18px;text-align:center;font-size:11px;color:var(--ht);letter-spacing:.3px">Family HQ v8.17.1</div>';return h}
-async function setTh(id){aT(id);hp();await A("PATCH","/api/settings",{theme:id});ren()}
-function openThemePicker(){var h='<div class="tg">';Object.keys(TH).forEach(function(id){var t=TH[id];var sel=cTheme===id;h+='<div class="tc" onclick="setTh(\''+id+'\');cMo()" style="background:'+t.cd+';border:2px solid '+(sel?t.pr:t.bd)+'"><div class="te">'+t.e+'</div><div class="tn" style="color:'+t.tx+'">'+t.n+'</div><div class="td">'+[t.pr,t.ac,t.ok,t.wn].map(function(c){return '<div class="tdd" style="background:'+c+'"></div>'}).join("")+'</div></div>'});h+='</div>';oMC("Choose theme",h)}
+h+='<div style="margin-top:18px;text-align:center;font-size:11px;color:var(--ht);letter-spacing:.3px">Family HQ v8.18.0</div>';return h}
+async function setTh(id){
+  if(id==="custom"){
+    // Tapping Custom in the picker opens the editor (saves happen there). Also apply right away.
+    aT("custom");
+    await A("PATCH","/api/settings",{theme:"custom"});
+    cMo();openCustomThemeEditor();return
+  }
+  aT(id);hp();await A("PATCH","/api/settings",{theme:id});ren()
+}
+function openThemePicker(){
+  var h='<div class="tg">';
+  // Custom always first — its preview shows the user's saved palette (or seeded from current theme)
+  var p=_getMyCustomPalette()||_seedCustomFromTheme(cTheme==="custom"?"midnight":cTheme);
+  var dt=_deriveCustomTheme(p);
+  var sel=cTheme==="custom";
+  h+='<div class="tc" onclick="setTh(\'custom\')" style="background:'+dt.cd+';border:2px solid '+(sel?dt.pr:dt.bd)+'"><div class="te" style="color:'+dt.pr+'">'+icon("palette",24,2.2)+'</div><div class="tn" style="color:'+dt.tx+'">Custom</div><div class="td">'+[dt.pr,dt.ac,dt.ok,dt.wn].map(function(c){return '<div class="tdd" style="background:'+c+'"></div>'}).join("")+'</div></div>';
+  Object.keys(TH).forEach(function(id){
+    if(id==="custom")return; // already rendered above
+    var t=TH[id];var sl=cTheme===id;
+    h+='<div class="tc" onclick="setTh(\''+id+'\');cMo()" style="background:'+t.cd+';border:2px solid '+(sl?t.pr:t.bd)+'"><div class="te">'+t.e+'</div><div class="tn" style="color:'+t.tx+'">'+t.n+'</div><div class="td">'+[t.pr,t.ac,t.ok,t.wn].map(function(c){return '<div class="tdd" style="background:'+c+'"></div>'}).join("")+'</div></div>'
+  });
+  h+='</div>';
+  oMC("Choose theme",h,{ic:"palette"})
+}
+
+// ─── Custom theme editor ─────────────────────────────────────────
+var _customSnapshot=null,_customDraft=null;
+function openCustomThemeEditor(){
+  // Snapshot current applied theme (so Cancel reverts cleanly)
+  _customSnapshot={theme:cTheme,palette:_getMyCustomPalette()};
+  // Draft starts from saved palette OR a seed from the previous non-custom theme
+  var seedFrom=_customSnapshot.theme==="custom"?"midnight":_customSnapshot.theme;
+  _customDraft=_getMyCustomPalette()||_seedCustomFromTheme(seedFrom);
+  // Apply draft immediately so user sees live preview
+  aT("custom");
+  oMC("Custom Theme",_customEditorHtml(),{ic:"palette"})
+}
+function _customEditorHtml(){
+  var p=_customDraft;
+  var dt=_deriveCustomTheme(p);
+  // Contrast checks (WCAG)
+  var warns=[];
+  var c1=_contrast(dt.tx,p.bg);if(c1<3.5)warns.push("Text on background contrast is low ("+c1.toFixed(1)+":1)");
+  var c2=_contrast(p.pr,p.bg);if(c2<2.8)warns.push("Primary accent vs background contrast is low ("+c2.toFixed(1)+":1)");
+  var c3=_contrast(p.bg,p.sf);if(c3<1.06)warns.push("Background and Surface are too similar — cards won't stand out");
+  var c4=_contrast(p.ac,p.bg);if(c4<2.5)warns.push("Alert accent vs background contrast is low");
+  var c5=_contrast(p.ok,p.bg);if(c5<2.5)warns.push("Success accent vs background contrast is low");
+  var warnHtml=warns.length?'<div class="ct-warn">'+warns.map(function(w){return '<div class="ct-warn-row">⚠ '+w+'</div>'}).join('')+'</div>':'';
+  // Preview tile
+  var prev='<div class="ct-prev" style="background:'+p.bg+';color:'+dt.tx+';border-color:'+dt.bd+'">'+
+    '<div class="ct-prev-h">Family HQ</div>'+
+    '<div class="ct-prev-s" style="color:'+dt.ht+'">Live preview of your palette</div>'+
+    '<div class="ct-prev-card" style="background:'+dt.cd+'"><div class="ct-prev-row"><span class="ct-prev-ico" style="background:linear-gradient(135deg,'+_toRgba(p.pr,0.38)+','+_toRgba(p.pr,0.10)+');border:1px solid '+_toRgba(p.pr,0.45)+';color:'+p.pr+'">'+icon("clipboard",16,2.2)+'</span><span class="ct-prev-tt">Task title</span><span class="ct-prev-pill" style="background:'+_toRgba(p.pr,0.18)+';color:'+p.pr+'">High</span></div></div>'+
+    '<div class="ct-prev-chips"><span class="ct-prev-chip" style="background:'+_toRgba(p.pr,0.16)+';color:'+p.pr+';border:1px solid '+_toRgba(p.pr,0.5)+'">Primary</span><span class="ct-prev-chip" style="background:'+_toRgba(p.ac,0.16)+';color:'+p.ac+';border:1px solid '+_toRgba(p.ac,0.5)+'">Alert</span><span class="ct-prev-chip" style="background:'+_toRgba(p.ok,0.16)+';color:'+p.ok+';border:1px solid '+_toRgba(p.ok,0.5)+'">Success</span></div>'+
+    '<button class="ct-prev-btn" style="background:'+dt.gd+';color:'+dt.gtx+'">Primary Button</button>'+
+    '</div>';
+  // Color rows
+  function row(key,label,val){
+    return '<div class="ct-row"><div class="ct-row-lb">'+label+'</div><div class="ct-row-val"><input type="color" value="'+val+'" oninput="_customColorChange(\''+key+'\',this.value)"><span class="ct-row-hex">'+val.toUpperCase()+'</span></div></div>'
+  }
+  var h='';
+  h+=prev;
+  h+=warnHtml;
+  h+='<div class="lb" style="margin-top:18px">Surfaces</div>';
+  h+=row("bg","Background",p.bg);
+  h+=row("sf","Surface",p.sf);
+  h+='<div class="lb" style="margin-top:14px">Accents</div>';
+  h+=row("pr","Primary",p.pr);
+  h+=row("ac","Alert",p.ac);
+  h+=row("ok","Success",p.ok);
+  h+='<div style="display:flex;gap:8px;margin-top:18px"><button class="btn btn-s" style="flex:1" onclick="_resetCustomTheme()">Reset</button><button class="btn btn-s" style="flex:1" onclick="_cancelCustomTheme()">Cancel</button><button class="btn" style="flex:2" onclick="_saveCustomTheme()">Save</button></div>';
+  return h
+}
+function _customColorChange(key,val){
+  _customDraft[key]=val;
+  aT("custom"); // re-derive and apply — but aT reads _getMyCustomPalette which doesn't know about the draft
+  // Workaround: temporarily stuff the draft into member data so _getMyCustomPalette sees it
+  var myId=fS&&fS.my_id;
+  var me=myId&&(D.members||[]).find(function(m){return m.user_id===myId});
+  if(me){me.custom_theme=JSON.stringify(_customDraft);aT("custom")}
+  // Re-render the editor (preview tile + hex labels + warnings update)
+  document.getElementById("mb").innerHTML=_customEditorHtml()
+}
+function _resetCustomTheme(){
+  var seed=_customSnapshot&&_customSnapshot.theme&&_customSnapshot.theme!=="custom"?_customSnapshot.theme:"midnight";
+  _customDraft=_seedCustomFromTheme(seed);
+  _customColorChange("__reset",null); // force re-render
+}
+function _cancelCustomTheme(){
+  // Restore: original palette in member, original theme applied
+  var myId=fS&&fS.my_id;
+  var me=myId&&(D.members||[]).find(function(m){return m.user_id===myId});
+  if(me)me.custom_theme=_customSnapshot.palette?JSON.stringify(_customSnapshot.palette):null;
+  if(_customSnapshot.theme)aT(_customSnapshot.theme);
+  // Also revert family theme setting since setTh("custom") already patched it
+  A("PATCH","/api/settings",{theme:_customSnapshot.theme});
+  cMo();hp();ren()
+}
+async function _saveCustomTheme(){
+  var myId=fS&&fS.my_id;if(!myId)return;
+  var json=JSON.stringify(_customDraft);
+  // Persist locally + on server
+  var me=(D.members||[]).find(function(m){return m.user_id===myId});if(me)me.custom_theme=json;
+  await A("PATCH","/api/members/"+myId,{custom_theme:json});
+  // Family theme is already "custom" from setTh — no extra save needed
+  aT("custom");hp("ok");cMo();ren()
+}
 async function setDg(v){await A("PATCH","/api/settings",{digest_time:v});hp()}
 var _catTab="expense";
 function openCatMgr(){_catTab="expense";oMC("Categories",catMgrHtml())}
