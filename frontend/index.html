@@ -113,10 +113,41 @@ body{font-family:'DM Sans',-apple-system,sans-serif;background:var(--bg);color:v
 
 /* Stats grid */
 .sts{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:18px}
-.st{background:var(--cd);border-radius:16px;padding:16px 14px;border:1px solid var(--bd);cursor:pointer;transition:transform .15s}
+.sts-3{grid-template-columns:1fr 1fr 1fr;gap:8px}
+.st{background:var(--cd);border-radius:18px;padding:14px 12px;border:1px solid var(--bd);cursor:pointer;transition:transform .15s;box-shadow:var(--shadow-1)}
 .st:active{transform:scale(.97)}
 .sn{font-size:26px;font-weight:800;line-height:1}
 .sl{font-size:12px;color:var(--ht);margin-top:5px;font-weight:500}
+/* Money stats tile — icon + uppercase label + big number */
+.st-mn{text-align:left;padding:13px 12px}
+.st-mn .st-ico{width:30px;height:30px;border-radius:9px;display:inline-flex;align-items:center;justify-content:center;margin-bottom:8px}
+.st-mn .st-ico.tone-ok{background:color-mix(in srgb,var(--ok) 18%,transparent);color:var(--ok)}
+.st-mn .st-ico.tone-ac{background:color-mix(in srgb,var(--ac) 18%,transparent);color:var(--ac)}
+.st-mn .st-ico.tone-pr{background:color-mix(in srgb,var(--pr) 18%,transparent);color:var(--pr)}
+.st-mn .st-lb{font-size:10px;text-transform:uppercase;letter-spacing:.8px;color:var(--ht);font-weight:700}
+.st-mn .st-vl{font-size:16px;font-weight:800;letter-spacing:-.3px;margin-top:3px;line-height:1.15}
+.st-mn .st-vl.pos{color:var(--ok)}
+.st-mn .st-vl.neg{color:var(--ac)}
+/* Polished chart bars (Last 6 Months) */
+.chart-bars{display:flex;gap:6px;align-items:flex-end;height:108px;padding:8px 4px 0;margin-bottom:10px;background:var(--cd);border:1px solid var(--bd);border-radius:18px;box-shadow:var(--shadow-1)}
+.chart-bars .cbar{flex:1;text-align:center;display:flex;flex-direction:column;align-items:center}
+.chart-bars .cbar-pair{display:flex;gap:3px;align-items:flex-end;justify-content:center;height:74px}
+.chart-bars .cbar-b{width:9px;border-radius:3px 3px 0 0;min-height:3px;background:linear-gradient(180deg,var(--c1),var(--c2))}
+.chart-bars .cbar-b.b-in{--c1:color-mix(in srgb,var(--ok),white 18%);--c2:var(--ok)}
+.chart-bars .cbar-b.b-ex{--c1:color-mix(in srgb,var(--ac),white 18%);--c2:var(--ac)}
+.chart-bars .cbar-lb{font-size:9px;color:var(--ht);margin-top:6px;font-weight:600;letter-spacing:.2px}
+.chart-legend{display:flex;gap:14px;font-size:11px;color:var(--ht);margin-bottom:16px;padding:0 4px}
+.chart-legend .dotk{display:inline-block;width:9px;height:9px;border-radius:3px;margin-right:5px;vertical-align:-1px}
+/* Category / Limit rows polished */
+.cat-row{margin-bottom:10px;background:var(--cd);border:1px solid var(--bd);border-radius:14px;padding:10px 12px;box-shadow:var(--shadow-1)}
+.cat-row-h{display:flex;justify-content:space-between;align-items:center;font-size:13px;margin-bottom:6px}
+.cat-row-h .nm{font-weight:600;display:inline-flex;align-items:center;gap:6px}
+.cat-row-h .nm .em{font-size:16px}
+.cat-row-h .vl{font-weight:800;letter-spacing:-.2px;font-size:13px}
+.cat-row .progress{height:6px;background:color-mix(in srgb,var(--bd) 60%,transparent);border-radius:3px;overflow:hidden}
+.cat-row .progress-fill{height:100%;border-radius:3px;background:linear-gradient(90deg,color-mix(in srgb,var(--pr),white 18%),var(--pr));transition:width .5s ease}
+.cat-row .progress-fill.tone-ok{background:linear-gradient(90deg,color-mix(in srgb,var(--ok),white 18%),var(--ok))}
+.cat-row .progress-fill.tone-ac{background:linear-gradient(90deg,color-mix(in srgb,var(--ac),white 18%),var(--ac))}
 
 /* FAB */
 .fab{position:fixed;bottom:calc(var(--nh)+24px);right:18px;width:52px;height:52px;border-radius:16px;background:var(--gd);color:var(--gtx,#fff);border:none;display:flex;align-items:center;justify-content:center;cursor:pointer;box-shadow:0 6px 24px color-mix(in srgb,var(--pr) 35%,transparent);z-index:15;transition:transform .2s,box-shadow .2s}
@@ -471,6 +502,6 @@ input[type="date"],input[type="time"],input[type="number"],select{-webkit-appear
 <!-- Debug -->
 <div class="dbg hidden" id="dbg"><button class="dbg-cp" onclick="navigator.clipboard.writeText(dbgLog.join('\n'))">Copy</button></div>
 <!-- Load JS -->
-<script src="/static/app.js?v=137"></script>
+<script src="/static/app.js?v=138"></script>
 </body>
 </html>

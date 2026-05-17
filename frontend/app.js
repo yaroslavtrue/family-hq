@@ -96,7 +96,13 @@ card:'<rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="
 bolt:'<polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>',
 list:'<line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/>',
 dot:'<circle cx="12" cy="12" r="4" fill="currentColor" stroke="none"/>',
-debug:'<rect x="8" y="6" width="8" height="14" rx="4"/><path d="M19 7l-3 2"/><path d="M5 7l3 2"/><path d="M19 21l-3-2"/><path d="M5 21l3-2"/><path d="M19 14h-3"/><path d="M8 14H5"/><path d="m8 3 1 3"/><path d="m16 3-1 3"/>'
+debug:'<rect x="8" y="6" width="8" height="14" rx="4"/><path d="M19 7l-3 2"/><path d="M5 7l3 2"/><path d="M19 21l-3-2"/><path d="M5 21l3-2"/><path d="M19 14h-3"/><path d="M8 14H5"/><path d="m8 3 1 3"/><path d="m16 3-1 3"/>',
+arrowUpDown:'<path d="m21 16-4 4-4-4"/><path d="M17 20V4"/><path d="m3 8 4-4 4 4"/><path d="M7 4v16"/>',
+chart:'<line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/><line x1="3" y1="20" x2="21" y2="20"/>',
+trendUp:'<polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/><polyline points="16 7 22 7 22 13"/>',
+trendDown:'<polyline points="22 17 13.5 8.5 8.5 13.5 2 7"/><polyline points="16 17 22 17 22 11"/>',
+wallet:'<path d="M21 12V7a2 2 0 0 0-2-2H5a2 2 0 0 0 0 4h16v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7"/><path d="M18 12h.01"/>',
+receipt:'<path d="M4 2v20l2-1 2 1 2-1 2 1 2-1 2 1 2-1 2 1V2l-2 1-2-1-2 1-2-1-2 1-2-1-2 1Z"/><path d="M8 7h8"/><path d="M8 11h8"/><path d="M8 15h6"/>'
 };
 // Wrappers — pre-built default sizes for the most-used icons
 const I={
@@ -601,7 +607,7 @@ async function dlFolder(fid){await A("DELETE","/api/shopping/folders/"+fid);cMo(
 // MONEY — Transactions | Subs | Analytics
 // ═══════════════════════════════════════════════════════════
 function rMoney(){
-var h='<div class="tabs"><button class="tab '+(moneyTab==="transactions"?"a":"")+'" onclick="moneyTab=\'transactions\';ren()">💸 Transactions</button><button class="tab '+(moneyTab==="analytics"?"a":"")+'" onclick="moneyTab=\'analytics\';ren()">📊 Analytics</button></div>';
+var h='<div class="tabs"><button class="tab '+(moneyTab==="transactions"?"a":"")+'" onclick="moneyTab=\'transactions\';ren()"><span style="display:inline-flex;align-items:center;gap:6px">'+icon("arrowUpDown",13,2.2)+'Transactions</span></button><button class="tab '+(moneyTab==="analytics"?"a":"")+'" onclick="moneyTab=\'analytics\';ren()"><span style="display:inline-flex;align-items:center;gap:6px">'+icon("chart",13,2.2)+'Analytics</span></button></div>';
 if(moneyTab==="analytics")return h+rAnalytics();
 return h+rTransactions()}
 
@@ -609,22 +615,41 @@ function rTransactions(){
 var txs=D.transactions;if(searchQ)txs=txs.filter(function(x){return matchQ(x.description)});
 if(filt)txs=txs.filter(function(x){return x.member_id===filt});
 var cats={};D.categories.forEach(function(c){cats[c.id]=c});
-// Balance card — all transactions
+// Top: 3 stat tiles (Income / Expense / Balance)
 var tInc=0,tExp=0;
 D.transactions.forEach(function(tx){if(tx.type==="income")tInc+=(tx.amount_eur||0);else tExp+=(tx.amount_eur||0)});
-var bal=tInc-tExp;var balC=bal>=0?"var(--ok)":"var(--ac)";
-var h='<div class="c" style="border-left:3px solid '+balC+'"><div class="bd"><div style="display:flex;justify-content:space-between;align-items:baseline"><div style="font-size:12px;color:var(--ht)">Balance</div><div style="font-size:20px;font-weight:800;color:'+balC+'">'+(bal>=0?"+":"")+'€'+bal.toFixed(2)+'</div></div><div class="mt" style="gap:16px;margin-top:4px"><span style="color:var(--ok)">+€'+tInc.toFixed(2)+'</span><span style="color:var(--ac)">−€'+tExp.toFixed(2)+'</span></div></div></div>';
-if(!txs.length)return h+em("💸","No transactions","Tap + to add");
+var bal=tInc-tExp;
+var h='<div class="sts sts-3">';
+h+='<div class="st st-mn"><div class="st-ico tone-ok">'+icon("trendUp",16,2.2)+'</div><div class="st-lb">Income</div><div class="st-vl pos">€'+tInc.toFixed(0)+'</div></div>';
+h+='<div class="st st-mn"><div class="st-ico tone-ac">'+icon("trendDown",16,2.2)+'</div><div class="st-lb">Expense</div><div class="st-vl neg">€'+tExp.toFixed(0)+'</div></div>';
+h+='<div class="st st-mn"><div class="st-ico tone-pr">'+icon("wallet",16,2.2)+'</div><div class="st-lb">Balance</div><div class="st-vl '+(bal>=0?"pos":"neg")+'">'+(bal>=0?"+":"−")+'€'+Math.abs(bal).toFixed(0)+'</div></div>';
+h+='</div>';
+if(!txs.length)return h+em(icon("wallet",48,1.8),"No transactions","Tap + to add");
+// Member filter row
 h+='<div class="fb2"><button class="fi '+(!filt?"a":"")+'" onclick="filt=null;ren()">All</button>';
 D.members.forEach(function(m){h+='<button class="fi '+(filt===m.user_id?"a":"")+'" style="padding:3px 6px;display:inline-flex;align-items:center" onclick="filt='+m.user_id+';ren()">'+mAv(m.user_id,22)+'</button>'});h+='</div>';
+// Transaction rows as .lc cards: category emoji on tinted gradient (green for income, coral for expense), description as title, date + member as meta, signed amount pill on the right
 txs.forEach(function(tx){
-var cat=cats[tx.category_id];var catLabel=cat?(cat.emoji+" "+cat.name):"";
-var isInc=tx.type==="income";
-var amtColor=isInc?"var(--ok)":"var(--ac)";
-var sign=isInc?"+":"−";
-var riCnt=(D.txItems||{})[tx.id]?D.txItems[tx.id].length:0;
-var riBadge=riCnt?'<span style="font-size:10px;background:var(--pg);color:var(--pr);border-radius:8px;padding:1px 5px;font-weight:700;margin-left:2px">'+riCnt+'</span>':"";
-h+='<div class="c"><div class="bd"><div class="tt" style="font-weight:600"><span style="color:'+amtColor+'">'+sign+tx.amount+' '+tx.currency+'</span>'+(tx.description?' <span style="font-weight:400;color:var(--ht)">'+es(tx.description)+'</span>':"")+'</div><div class="mt">'+catLabel+' · '+fD(tx.date).full+" "+mChip(tx.member_id,true)+'</div></div><button class="bi" onclick="openReceipt('+tx.id+')" title="Split receipt" style="font-size:12px;opacity:.7">📋'+riBadge+'</button><button class="bi" onclick="edTx('+tx.id+')">'+I.ed+'</button><button class="bi" onclick="dlTx('+tx.id+')">'+I.tr+'</button></div>'});
+  var cat=cats[tx.category_id];
+  var isInc=tx.type==="income";
+  var sign=isInc?"+":"−";
+  var amtPillCls=isInc?"tone-ok":"tone-ac";
+  var icoCls=isInc?"acc-ok":"acc-ac";
+  var emoji=cat?cat.emoji:(isInc?"💰":"💸");
+  var catName=cat?cat.name:(isInc?"Income":"Expense");
+  var title=tx.description?es(tx.description):catName;
+  var meta=fD(tx.date).full;
+  var riCnt=(D.txItems||{})[tx.id]?D.txItems[tx.id].length:0;
+  var riBadge=riCnt?' <span class="pdate" style="background:color-mix(in srgb,var(--pr) 14%,transparent);color:var(--pr)">'+icon("receipt",10,2)+riCnt+'</span>':"";
+  h+='<div class="lc">';
+  h+='<div class="lc-i '+icoCls+'">'+emoji+'</div>';
+  h+='<div class="lc-bd"><div class="lc-tt">'+title+'</div><div class="lc-mt">'+(tx.description?catName+' · ':'')+meta+' '+mChip(tx.member_id,true)+riBadge+'</div></div>';
+  h+='<span class="lc-rt '+amtPillCls+'">'+sign+tx.amount+' '+tx.currency+'</span>';
+  h+='<button class="bi" onclick="openReceipt('+tx.id+')" title="Split receipt" style="margin-left:4px">'+icon("receipt",15,2)+'</button>';
+  h+='<button class="bi" onclick="edTx('+tx.id+')">'+I.ed+'</button>';
+  h+='<button class="bi" onclick="dlTx('+tx.id+')">'+I.tr+'</button>';
+  h+='</div>';
+});
 return h}
 
 async function dlTx(id){hp();await A("DELETE","/api/transactions/"+id);_moneySummary=null;_anaCache={};await load();toast("🗑 Deleted")}
@@ -827,27 +852,39 @@ async function loadMoneySummary(){
   ren()
 }
 function rAnalytics(){
-if(!_moneySummary){loadMoneySummary();return '<div class="emp"><div class="emp-i">⏳</div><div>Loading...</div></div>'}
+if(!_moneySummary){loadMoneySummary();return '<div class="emp"><div class="emp-i" style="font-size:32px">⏳</div><div>Loading...</div></div>'}
 var s=_moneySummary;
 var monthLabel=s.month?new Date(s.month+"-01T00:00:00").toLocaleString("en-US",{month:"long",year:"numeric"}):"";
 var fwdDis=s.is_current?' style="opacity:.3;pointer-events:none"':"";
-var nav='<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:2px"><button class="bi" onclick="_anaShift(-1)" style="padding:4px 10px;font-size:16px">◀</button><div style="font-weight:700;font-size:15px">'+monthLabel+'</div><button class="bi" onclick="_anaShift(1)"'+fwdDis+' style="padding:4px 10px;font-size:16px">▶</button></div>';
-var h='<div class="c" style="border-left:3px solid var(--ok)"><div class="bd">'+nav+'<div class="mt" style="gap:16px"><span style="color:var(--ok);font-weight:700">Income €'+s.income.toFixed(0)+'</span><span style="color:var(--ac);font-weight:700">Expenses €'+s.expense.toFixed(0)+'</span><span style="color:var(--pr);font-weight:700">Subs €'+s.subs_eur.toFixed(0)+'</span></div><div style="font-size:18px;font-weight:800;margin-top:8px;color:'+(s.balance>=0?"var(--ok)":"var(--ac)")+'">'+(s.balance>=0?"+":"")+"€"+s.balance.toFixed(0)+'</div></div></div>';
+// Month nav (←  Month YYYY  →)
+var h='<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:12px;padding:0 4px"><button class="bi" onclick="_anaShift(-1)" style="padding:6px 10px;font-size:16px">◀</button><div style="font-weight:700;font-size:16px;letter-spacing:-.2px">'+monthLabel+'</div><button class="bi" onclick="_anaShift(1)"'+fwdDis+' style="padding:6px 10px;font-size:16px">▶</button></div>';
+// 3 stat tiles for the selected month
+h+='<div class="sts sts-3">';
+h+='<div class="st st-mn"><div class="st-ico tone-ok">'+icon("trendUp",16,2.2)+'</div><div class="st-lb">Income</div><div class="st-vl pos">€'+s.income.toFixed(0)+'</div></div>';
+h+='<div class="st st-mn"><div class="st-ico tone-ac">'+icon("trendDown",16,2.2)+'</div><div class="st-lb">Expense</div><div class="st-vl neg">€'+s.expense.toFixed(0)+'</div></div>';
+h+='<div class="st st-mn"><div class="st-ico tone-pr">'+icon("wallet",16,2.2)+'</div><div class="st-lb">Balance</div><div class="st-vl '+(s.balance>=0?"pos":"neg")+'">'+(s.balance>=0?"+":"−")+'€'+Math.abs(s.balance).toFixed(0)+'</div></div>';
+h+='</div>';
+// Optional Subs row as a single full-width tile
+if(s.subs_eur)h+='<div class="cat-row" style="margin-bottom:14px"><div class="cat-row-h"><span class="nm">'+icon("card",14,2.2)+' Subscriptions this month</span><span class="vl" style="color:var(--pr)">€'+s.subs_eur.toFixed(0)+'</span></div></div>';
 // Monthly chart (bars)
 if(s.months&&s.months.length){
 var maxM=1;s.months.forEach(function(m){maxM=Math.max(maxM,m.income,m.expense)});
-h+='<div class="sc">Last 6 Months</div><div style="display:flex;gap:6px;align-items:flex-end;height:100px;margin-bottom:16px">';
-s.months.forEach(function(m){var ih=Math.max(2,m.income/maxM*80);var eh=Math.max(2,m.expense/maxM*80);
-h+='<div style="flex:1;text-align:center"><div style="display:flex;gap:2px;align-items:flex-end;justify-content:center;height:80px"><div style="width:8px;height:'+ih+'px;background:var(--ok);border-radius:3px 3px 0 0"></div><div style="width:8px;height:'+eh+'px;background:var(--ac);border-radius:3px 3px 0 0"></div></div><div style="font-size:9px;color:var(--ht);margin-top:4px">'+m.month.split("-")[1]+'</div></div>'});
-h+='</div><div style="display:flex;gap:12px;font-size:11px;color:var(--ht);margin-bottom:16px"><span><span style="display:inline-block;width:8px;height:8px;border-radius:2px;background:var(--ok)"></span> Income</span><span><span style="display:inline-block;width:8px;height:8px;border-radius:2px;background:var(--ac)"></span> Expense</span></div>'}
-// By category (pie-like bars)
+h+='<div class="sc"><span class="sc-l"><span class="sc-ico">'+icon("chart",12,2.4)+'</span>Last 6 Months</span></div>';
+h+='<div class="chart-bars">';
+s.months.forEach(function(m){var ih=Math.max(3,m.income/maxM*74);var eh=Math.max(3,m.expense/maxM*74);
+h+='<div class="cbar"><div class="cbar-pair"><div class="cbar-b b-in" style="height:'+ih+'px"></div><div class="cbar-b b-ex" style="height:'+eh+'px"></div></div><div class="cbar-lb">'+m.month.split("-")[1]+'</div></div>'});
+h+='</div>';
+h+='<div class="chart-legend"><span><span class="dotk" style="background:var(--ok)"></span>Income</span><span><span class="dotk" style="background:var(--ac)"></span>Expense</span></div>'}
+// By category — polished progress rows
 if(s.by_category&&s.by_category.length){var maxC=s.by_category[0]?s.by_category[0].total:1;
-h+='<div class="sc">By Category</div>';s.by_category.forEach(function(c){if(!c.total)return;var pct=Math.max(2,c.total/maxC*100);
-h+='<div style="margin-bottom:8px"><div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:3px"><span>'+c.emoji+" "+c.name+'</span><span style="font-weight:700">€'+c.total.toFixed(0)+'</span></div><div style="height:6px;background:var(--bd);border-radius:3px"><div style="height:100%;width:'+pct+'%;background:var(--pr);border-radius:3px"></div></div></div>'})}
+h+='<div class="sc"><span class="sc-l">By Category</span></div>';
+s.by_category.forEach(function(c){if(!c.total)return;var pct=Math.max(2,c.total/maxC*100);
+h+='<div class="cat-row"><div class="cat-row-h"><span class="nm"><span class="em">'+c.emoji+'</span>'+es(c.name)+'</span><span class="vl">€'+c.total.toFixed(0)+'</span></div><div class="progress"><div class="progress-fill" style="width:'+pct+'%"></div></div></div>'})}
 // Limits
-if(s.limits&&s.limits.length){h+='<div class="sc" style="margin-top:12px">Limits</div>';s.limits.forEach(function(l){var pct=Math.min(100,l.spent/l.monthly_limit*100);var over=l.spent>l.monthly_limit;
-h+='<div style="margin-bottom:8px"><div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:3px"><span>'+l.emoji+" "+l.name+'</span><span style="font-weight:700;color:'+(over?"var(--ac)":"var(--tx)")+'">€'+l.spent.toFixed(0)+' / €'+l.monthly_limit.toFixed(0)+'</span></div><div style="height:6px;background:var(--bd);border-radius:3px"><div style="height:100%;width:'+pct+'%;background:'+(over?"var(--ac)":"var(--ok)")+';border-radius:3px"></div></div></div>'})}
-h+='<button class="btn btn-s" style="margin-top:12px" onclick="_anaCache={};_moneySummary=null;loadMoneySummary()">↻ Refresh Analytics</button>';
+if(s.limits&&s.limits.length){h+='<div class="sc" style="margin-top:12px"><span class="sc-l">Limits</span></div>';
+s.limits.forEach(function(l){var pct=Math.min(100,l.spent/l.monthly_limit*100);var over=l.spent>l.monthly_limit;
+h+='<div class="cat-row"><div class="cat-row-h"><span class="nm"><span class="em">'+l.emoji+'</span>'+es(l.name)+'</span><span class="vl" style="color:'+(over?"var(--ac)":"var(--tx)")+'">€'+l.spent.toFixed(0)+' / €'+l.monthly_limit.toFixed(0)+'</span></div><div class="progress"><div class="progress-fill '+(over?"tone-ac":"tone-ok")+'" style="width:'+pct+'%"></div></div></div>'})}
+h+='<button class="btn btn-s" style="margin-top:14px" onclick="_anaCache={};_moneySummary=null;loadMoneySummary()">'+icon("refresh",13,2.2)+' Refresh Analytics</button>';
 return h}
 
 // ═══════════════════════════════════════════════════════════
@@ -2123,7 +2160,7 @@ if(_pwaPrompt){
   h+='<div class="c" style="cursor:default"><span style="font-size:20px">📱</span><div class="bd"><div class="tt">Install on iOS</div><div style="font-size:12px;color:var(--ht)">Tap <b>Share</b> ⬆ → <b>Add to Home Screen</b></div></div></div>';
 }
 h+='<div class="sc">Debug</div><div class="c" style="cursor:pointer" onclick="dbgOn=!dbgOn;document.getElementById(\'dbg\').classList.toggle(\'hidden\',!dbgOn);ren()"><span style="font-size:20px">🐛</span><div class="bd"><div class="tt">Debug Mode '+(dbgOn?"ON":"OFF")+'</div></div></div>';
-h+='<div style="margin-top:8px;text-align:center;font-size:11px;color:var(--ht)">Family HQ v8.12.5</div>';return h}
+h+='<div style="margin-top:8px;text-align:center;font-size:11px;color:var(--ht)">Family HQ v8.13.0</div>';return h}
 async function setTh(id){aT(id);hp();await A("PATCH","/api/settings",{theme:id});ren()}
 function openThemePicker(){var h='<div class="tg">';Object.keys(TH).forEach(function(id){var t=TH[id];var sel=cTheme===id;h+='<div class="tc" onclick="setTh(\''+id+'\');cMo()" style="background:'+t.cd+';border:2px solid '+(sel?t.pr:t.bd)+'"><div class="te">'+t.e+'</div><div class="tn" style="color:'+t.tx+'">'+t.n+'</div><div class="td">'+[t.pr,t.ac,t.ok,t.wn].map(function(c){return '<div class="tdd" style="background:'+c+'"></div>'}).join("")+'</div></div>'});h+='</div>';oMC("Choose theme",h)}
 async function setDg(v){await A("PATCH","/api/settings",{digest_time:v});hp()}
