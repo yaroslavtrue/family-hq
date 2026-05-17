@@ -914,13 +914,12 @@ h+='<div class="fb2">';
 D.members.forEach(function(m){
   h+='<button class="fi '+(_trainMember===m.user_id?"a":"")+'" style="display:inline-flex;align-items:center;gap:5px" onclick="setTrainMember('+m.user_id+')">'+mAv(m.user_id,18)+es(m.user_name)+'</button>';
 });
-h+='<button class="fi '+(_trainMember===null?"a":"")+'" onclick="setTrainMember(null)">👨‍👩‍👧 Family</button>';
+h+='<button class="fi '+(_trainMember===null?"a":"")+'" onclick="setTrainMember(null)" style="display:inline-flex;align-items:center;gap:5px">'+icon("user",14,2.2)+'Family</button>';
 h+='</div>';
 
 // Family compare view: 2 columns showing each member's week
 if(_trainMember===null){
   h+=rTrainFamily();
-  // Trigger stats fetch for both members
   setTimeout(function(){loadTrainStatsAll()},0);
   return h;
 }
@@ -934,37 +933,38 @@ memberWorkouts.forEach(function(w){
   if(w.date>=weekStart){wkT+=w.tonnage||0;wkSets+=w.sets||0;wkCount++}
 });
 
-// Header summary cards
-h+='<div class="dr" style="margin-bottom:14px">';
-h+='<div class="c" style="margin-bottom:0;border-left:3px solid var(--pr)"><div class="bd"><div style="font-size:11px;color:var(--ht);text-transform:uppercase;letter-spacing:.5px">Today</div><div style="font-size:20px;font-weight:800;color:var(--pr)">'+_fmtTon(tdayT)+'</div><div style="font-size:11px;color:var(--ht)">'+tdaySets+' sets</div></div></div>';
-h+='<div class="c" style="margin-bottom:0;border-left:3px solid var(--ok)"><div class="bd"><div style="font-size:11px;color:var(--ht);text-transform:uppercase;letter-spacing:.5px">This Week</div><div style="font-size:20px;font-weight:800;color:var(--ok)">'+_fmtTon(wkT)+'</div><div style="font-size:11px;color:var(--ht)">'+wkCount+' workouts · '+wkSets+' sets</div></div></div>';
+// Stats tiles (2 col)
+h+='<div class="sts" style="margin-bottom:14px">';
+h+='<div class="st st-mn"><div class="st-ico tone-pr">'+icon("dumbbell",16,2.2)+'</div><div class="st-lb">Today</div><div class="st-vl" style="color:var(--pr)">'+_fmtTon(tdayT)+'</div><div style="font-size:11px;color:var(--ht);margin-top:2px">'+tdaySets+' sets</div></div>';
+h+='<div class="st st-mn"><div class="st-ico tone-ok">'+icon("chart",16,2.2)+'</div><div class="st-lb">This Week</div><div class="st-vl pos">'+_fmtTon(wkT)+'</div><div style="font-size:11px;color:var(--ht);margin-top:2px">'+wkCount+' workouts · '+wkSets+' sets</div></div>';
 h+='</div>';
 
-// Progress button
-h+='<button class="btn btn-s" style="margin-bottom:14px;width:100%" onclick="openTrainStats()">📊 Progress & PRs</button>';
+// Progress button (outlined gradient)
+h+='<button class="btn btn-s" style="margin-bottom:16px;width:100%;display:inline-flex;align-items:center;justify-content:center;gap:7px" onclick="openTrainStats()">'+icon("chart",15,2.2)+'<span>Progress & PRs</span></button>';
 
 // Today's workout (or Start CTA)
 var todayW=memberWorkouts.find(function(w){return w.date===today});
 if(todayW){
-  h+='<div class="sc">📅 Today'+(todayW.started_at&&!todayW.finished_at?' · <span style="color:var(--ok)">in progress</span>':'')+'</div>';
+  var inProg=todayW.started_at&&!todayW.finished_at;
+  h+='<div class="sc"><span class="sc-l"><span class="sc-ico">'+icon("calendar",12,2.4)+'</span>Today'+(inProg?'<span class="sc-cnt" style="background:color-mix(in srgb,var(--ok) 16%,transparent);color:var(--ok);text-transform:uppercase;font-size:9px;letter-spacing:.3px;padding:0 7px">in progress</span>':'')+'</span></div>';
   h+=_workoutCard(todayW,true);
 }else if(_trainMember===myId){
   // Start Workout button (uses template picker if templates exist)
   if((D.workoutTemplates||[]).length>0){
-    h+='<button class="btn" style="margin-bottom:8px" onclick="openStartWorkoutPicker()">▶ Start Workout</button>';
-    h+='<button class="btn btn-s" style="margin-bottom:16px;background:transparent;border:1.5px solid var(--bd);color:var(--tx)" onclick="startBlankWorkout()">+ Empty workout</button>';
+    h+='<button class="btn" style="margin-bottom:8px;display:inline-flex;align-items:center;justify-content:center;gap:7px;width:100%" onclick="openStartWorkoutPicker()"><span style="font-size:16px;line-height:1">▶</span><span>Start Workout</span></button>';
+    h+='<button class="btn btn-s" style="margin-bottom:18px;width:100%;display:inline-flex;align-items:center;justify-content:center;gap:7px" onclick="startBlankWorkout()">'+icon("pl",14,2.5)+'<span>Empty workout</span></button>';
   }else{
-    h+='<button class="btn" style="margin-bottom:8px" onclick="startBlankWorkout()">▶ Start Empty Workout</button>';
-    h+='<div style="font-size:12px;color:var(--ht);margin-bottom:14px;text-align:center">Or create a template below to reuse a program</div>';
+    h+='<button class="btn" style="margin-bottom:8px;display:inline-flex;align-items:center;justify-content:center;gap:7px;width:100%" onclick="startBlankWorkout()"><span style="font-size:16px;line-height:1">▶</span><span>Start Empty Workout</span></button>';
+    h+='<div style="font-size:12px;color:var(--ht);margin-bottom:16px;text-align:center">Or create a template below to reuse a program</div>';
   }
 }
 
 // Templates section
 if(_trainMember===myId){
-  h+='<div class="sc" style="display:flex;justify-content:space-between;align-items:center"><span>📋 My Templates · '+(D.workoutTemplates||[]).filter(function(t){return!t.member_id||t.member_id===myId}).length+'</span><button class="bi" style="padding:4px 10px;color:var(--pr);font-size:12px;font-weight:600" onclick="openNewTemplate()">+ New</button></div>';
   var myTpls=(D.workoutTemplates||[]).filter(function(t){return!t.member_id||t.member_id===myId});
+  h+='<div class="sc" style="display:flex;justify-content:space-between;align-items:center"><span class="sc-l"><span class="sc-ico">'+icon("list",12,2.4)+'</span>My Templates<span class="sc-cnt">'+myTpls.length+'</span></span><button class="at" onclick="openNewTemplate()">+ New</button></div>';
   if(myTpls.length===0){
-    h+='<div style="font-size:12px;color:var(--ht);padding:8px 12px;border:1.5px dashed var(--bd);border-radius:10px;margin-bottom:14px;text-align:center">No templates yet · tap + New to create your first program</div>';
+    h+='<div style="font-size:12px;color:var(--ht);padding:12px 14px;border:1.5px dashed var(--bd);border-radius:14px;margin-bottom:14px;text-align:center">No templates yet · tap + New to create your first program</div>';
   }else{
     myTpls.forEach(function(t){h+=_templateCard(t)});
   }
@@ -973,7 +973,7 @@ if(_trainMember===myId){
 // Recent workouts (excluding today)
 var others=memberWorkouts.filter(function(w){return w.date!==today});
 if(others.length){
-  h+='<div class="sc" style="margin-top:14px">Recent</div>';
+  h+='<div class="sc" style="margin-top:14px"><span class="sc-l"><span class="sc-ico">'+icon("clock",12,2.4)+'</span>Recent<span class="sc-cnt">'+others.length+'</span></span></div>';
   others.forEach(function(w){h+=_workoutCard(w,false)});
 }
 return h
@@ -981,15 +981,15 @@ return h
 
 function _templateCard(t){
   var exs=t.exercises_list||[];
-  var preview=exs.slice(0,3).map(function(e){return (e.emoji||"💪")+" "+es(e.name)}).join(" · ");
+  var preview=exs.slice(0,3).map(function(e){return (e.emoji||"")+" "+es(e.name)}).join(" · ");
   if(exs.length>3)preview+=" · +"+(exs.length-3);
-  return '<div class="c" style="display:block;padding:12px 14px;cursor:pointer" onclick="startFromTemplate('+t.id+')">'+
-    '<div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">'+
-    '<div style="flex:1;font-weight:700">📋 '+es(t.name)+'</div>'+
-    '<button class="bi" onclick="event.stopPropagation();editTemplate('+t.id+')" style="padding:4px;color:var(--ht)">'+I.ed+'</button>'+
-    '<span class="btn btn-s" style="padding:4px 12px;width:auto">▶ Start</span>'+
+  return '<div class="lc" style="cursor:pointer" onclick="startFromTemplate('+t.id+')">'+
+    '<div class="lc-i acc-pr">'+icon("list",20,2.2)+'</div>'+
+    '<div class="lc-bd"><div class="lc-tt">'+es(t.name)+'</div>'+
+    (preview?'<div class="lc-mt">'+preview+'</div>':'<div class="lc-mt" style="font-style:italic">No exercises yet</div>')+
     '</div>'+
-    (preview?'<div style="font-size:11px;color:var(--ht)">'+preview+'</div>':'<div style="font-size:11px;color:var(--ht);font-style:italic">No exercises yet — tap '+I.ed+' to add</div>')+
+    '<span class="lc-rt" style="background:color-mix(in srgb,var(--ok) 18%,transparent);color:var(--ok);font-weight:700"><span style="font-size:11px;margin-right:3px">▶</span>Start</span>'+
+    '<button class="bi" onclick="event.stopPropagation();editTemplate('+t.id+')" style="margin-left:4px">'+I.ed+'</button>'+
     '</div>';
 }
 
@@ -1003,16 +1003,14 @@ function setTrainMember(uid){_trainMember=uid;_trainStats=null;hp("sel");ren()}
 
 function _workoutCard(w,emphasized){
   var dateLbl=w.date===td()?"Today":fD(w.date).full;
-  var nameTxt=w.name?es(w.name):"<i>Workout</i>";
-  var border=emphasized?"border-left:3px solid var(--pr);":"";
-  return '<div class="c" style="cursor:pointer;'+border+'" onclick="openWorkout('+w.id+')">'+
-    '<div class="bd">'+
-    '<div class="tt" style="font-weight:700">💪 '+nameTxt+'</div>'+
-    '<div class="mt"><span style="color:var(--ht)">'+dateLbl+'</span> · '+
-    '<span style="font-weight:600;color:var(--ok)">'+_fmtTon(w.tonnage)+'</span> · '+
-    (w.exercises||0)+' ex · '+(w.sets||0)+' sets</div>'+
-    '</div>'+
-    '<span style="color:var(--ht);font-size:18px">›</span>'+
+  var nameTxt=w.name?es(w.name):"Workout";
+  var acc=emphasized?"acc-pr":"";
+  var extraStyle=emphasized?'style="border-color:color-mix(in srgb,var(--pr) 40%,var(--bd));box-shadow:0 4px 18px color-mix(in srgb,var(--pr) 16%,transparent),var(--shadow-1)"':"";
+  return '<div class="lc lc-tap" '+extraStyle+' onclick="openWorkout('+w.id+')">'+
+    '<div class="lc-i '+(acc||"acc-pr")+'">'+icon("dumbbell",20,2.2)+'</div>'+
+    '<div class="lc-bd"><div class="lc-tt">'+nameTxt+'</div>'+
+    '<div class="lc-mt">'+dateLbl+' · <span style="color:var(--ok);font-weight:700">'+_fmtTon(w.tonnage)+'</span> · '+(w.exercises||0)+' ex · '+(w.sets||0)+' sets</div></div>'+
+    '<span class="lc-chev">›</span>'+
     '</div>';
 }
 
@@ -2208,7 +2206,7 @@ if(_pwaPrompt){
 }
 h+='<div class="sc"><span class="sc-l">Developer</span></div>';
 h+=_setRow({ico:"debug",acc:"acc-ac",title:"Debug Mode "+(dbgOn?"ON":"OFF"),onclick:"dbgOn=!dbgOn;document.getElementById(\'dbg\').classList.toggle(\'hidden\',!dbgOn);ren()"});
-h+='<div style="margin-top:18px;text-align:center;font-size:11px;color:var(--ht);letter-spacing:.3px">Family HQ v8.15.0</div>';return h}
+h+='<div style="margin-top:18px;text-align:center;font-size:11px;color:var(--ht);letter-spacing:.3px">Family HQ v8.16.0</div>';return h}
 async function setTh(id){aT(id);hp();await A("PATCH","/api/settings",{theme:id});ren()}
 function openThemePicker(){var h='<div class="tg">';Object.keys(TH).forEach(function(id){var t=TH[id];var sel=cTheme===id;h+='<div class="tc" onclick="setTh(\''+id+'\');cMo()" style="background:'+t.cd+';border:2px solid '+(sel?t.pr:t.bd)+'"><div class="te">'+t.e+'</div><div class="tn" style="color:'+t.tx+'">'+t.n+'</div><div class="td">'+[t.pr,t.ac,t.ok,t.wn].map(function(c){return '<div class="tdd" style="background:'+c+'"></div>'}).join("")+'</div></div>'});h+='</div>';oMC("Choose theme",h)}
 async function setDg(v){await A("PATCH","/api/settings",{digest_time:v});hp()}
