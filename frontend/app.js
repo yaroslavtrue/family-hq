@@ -255,6 +255,7 @@ document.getElementById("hs").textContent=_tt.s;
 var noFab=["home","settings","clean","events","birthdays","subs","profile","trainings"];
 document.getElementById("fab").classList.toggle("hidden",noFab.indexOf(t)>=0);
 if(t==="home")_firstHomeRender=true;
+if(t==="events")_evtsFirstRender=true;
 if(t==="profile")_profStats=null;
 if(t==="trainings")_trainStats=null;
 ren();hp("sel")}
@@ -1544,15 +1545,59 @@ async function openExerciseProgression(eid){
 // ═══════════════════════════════════════════════════════════
 // EVENTS (hamburger page)
 // ═══════════════════════════════════════════════════════════
+var _evtsFirstRender=true;
 function rEvts(){
-if(!D.events.length)return em("📅","No events","Use + on Tasks tab")+rEvtAddBtn();
+if(!D.events.length)return em(icon("clock",48,1.8),"No events","Tap + Add Event to start")+rEvtAddBtn();
 var evts=D.events;if(searchQ)evts=evts.filter(function(e){return matchQ(e.text)});
+if(!evts.length)return rEvtAddBtn()+em(icon("clock",48,1.8),"No matches","Try a different search");
+// Categorize: ongoing (today between start and end), upcoming (start > today), past (end < today)
+var todayStr=td();
+var current=[],future=[],past=[];
+evts.forEach(function(ev){
+  var s=(ev.event_date||"").split(" ")[0];
+  var e=(ev.end_date||s).split(" ")[0];
+  if(s&&s<=todayStr&&todayStr<=e)current.push(ev);
+  else if(s&&s>todayStr)future.push(ev);
+  else past.push(ev);
+});
+// Sort: future ASC (nearest at end of future block), past DESC (recent at top of past block)
+function _cmpAsc(a,b){return(a.event_date||"").localeCompare(b.event_date||"")}
+function _cmpDesc(a,b){return(b.event_date||"").localeCompare(a.event_date||"")}
+future.sort(_cmpAsc);current.sort(_cmpAsc);past.sort(_cmpDesc);
+// DOM order top→bottom: furthest future first, then nearer future, then current(s), then recent past, then older past
+var ordered=future.slice().reverse().concat(current).concat(past);
+// Highlight: current[0] || nearest future || most-recent past
+var highId=current.length?current[0].id:future.length?future[0].id:past.length?past[0].id:null;
+var pastSet={};past.forEach(function(p){pastSet[p.id]=true});
 var colors=["var(--ok)","var(--pr)","var(--ac)","var(--wn)"];
-var h=rEvtAddBtn()+'<div style="padding-left:22px;border-left:2px solid var(--bd);margin-left:10px">';
-evts.forEach(function(ev,i){var c=colors[i%colors.length];var fd=fD(ev.event_date);var st=(ev.event_date||"").split(" ")[1]||"";
-var ep=ev.end_date?(" → "+fD(ev.end_date).date+" "+(ev.end_date.split(" ")[1]||"")):"";
-h+='<div style="margin-bottom:12px;position:relative;margin-left:10px"><div class="c" style="margin-bottom:0"><div style="position:absolute;left:-39px;top:16px;width:14px;height:14px;border-radius:50%;background:'+c+';border:2.5px solid var(--bg)"></div><div class="bd"><div class="tt" style="font-weight:600">'+es(ev.text)+'</div><div class="mt" style="margin-top:6px"><span class="bg" style="background:color-mix(in srgb,'+c+',transparent 85%);color:'+c+'">'+fd.day+" "+fd.date+'</span><span>'+st+ep+'</span> '+sC("event",ev.id)+' <button class="xb" onclick="tX(\'event\','+ev.id+')">'+(ex["event_"+ev.id]?"▾":"▸")+'</button></div></div><button class="bi" onclick="dEv('+ev.id+')">'+I.tr+'</button></div>'+rSu("event",ev.id)+'</div>'});
-return h+'</div>'}
+var h=rEvtAddBtn();
+h+='<div class="evts-scroll" id="evts-scroll"><div class="evts-timeline">';
+ordered.forEach(function(ev){
+  var c=colors[ev.id%colors.length];
+  var isHigh=ev.id===highId;
+  var isPast=!!pastSet[ev.id];
+  var fd=fD(ev.event_date);
+  var st=(ev.event_date||"").split(" ")[1]||"";
+  var ep=ev.end_date?(" → "+fD(ev.end_date).date+" "+(ev.end_date.split(" ")[1]||"")):"";
+  var rowCls="evt-row"+(isHigh?" evt-high":"")+(isPast?" evt-past":"");
+  h+='<div class="'+rowCls+'" data-evt-id="'+ev.id+'">';
+  h+='<div class="evt-dot" style="background:'+c+'"></div>';
+  h+='<div class="c evt-card">';
+  h+='<div class="bd"><div class="tt" style="font-weight:600">'+es(ev.text)+'</div>';
+  h+='<div class="mt" style="margin-top:6px"><span class="bg" style="background:color-mix(in srgb,'+c+',transparent 85%);color:'+c+'">'+fd.day+" "+fd.date+'</span><span>'+st+ep+'</span> '+sC("event",ev.id)+' <button class="xb" onclick="tX(\'event\','+ev.id+')">'+(ex["event_"+ev.id]?"▾":"▸")+'</button></div></div>';
+  h+='<button class="bi" onclick="dEv('+ev.id+')">'+I.tr+'</button>';
+  h+='</div>'+rSu("event",ev.id)+'</div>';
+});
+h+='</div></div>';
+// Auto-scroll highlighted into viewport center on first open (only if no active search)
+if(_evtsFirstRender&&highId&&!searchQ){
+  _evtsFirstRender=false;
+  requestAnimationFrame(function(){
+    var el=document.querySelector('[data-evt-id="'+highId+'"]');
+    if(el&&el.scrollIntoView)el.scrollIntoView({block:"center",behavior:"instant"});
+  });
+}
+return h}
 function rEvtAddBtn(){return '<button class="btn btn-s" style="margin-bottom:16px" onclick="oMoEvt()">+ Add Event</button>'}
 async function dEv(id){hp();await A("DELETE","/api/events/"+id);await load();toast("🗑 Deleted")}
 
@@ -2055,7 +2100,7 @@ if(_pwaPrompt){
   h+='<div class="c" style="cursor:default"><span style="font-size:20px">📱</span><div class="bd"><div class="tt">Install on iOS</div><div style="font-size:12px;color:var(--ht)">Tap <b>Share</b> ⬆ → <b>Add to Home Screen</b></div></div></div>';
 }
 h+='<div class="sc">Debug</div><div class="c" style="cursor:pointer" onclick="dbgOn=!dbgOn;document.getElementById(\'dbg\').classList.toggle(\'hidden\',!dbgOn);ren()"><span style="font-size:20px">🐛</span><div class="bd"><div class="tt">Debug Mode '+(dbgOn?"ON":"OFF")+'</div></div></div>';
-h+='<div style="margin-top:8px;text-align:center;font-size:11px;color:var(--ht)">Family HQ v8.11.3</div>';return h}
+h+='<div style="margin-top:8px;text-align:center;font-size:11px;color:var(--ht)">Family HQ v8.12.0</div>';return h}
 async function setTh(id){aT(id);hp();await A("PATCH","/api/settings",{theme:id});ren()}
 function openThemePicker(){var h='<div class="tg">';Object.keys(TH).forEach(function(id){var t=TH[id];var sel=cTheme===id;h+='<div class="tc" onclick="setTh(\''+id+'\');cMo()" style="background:'+t.cd+';border:2px solid '+(sel?t.pr:t.bd)+'"><div class="te">'+t.e+'</div><div class="tn" style="color:'+t.tx+'">'+t.n+'</div><div class="td">'+[t.pr,t.ac,t.ok,t.wn].map(function(c){return '<div class="tdd" style="background:'+c+'"></div>'}).join("")+'</div></div>'});h+='</div>';oMC("Choose theme",h)}
 async function setDg(v){await A("PATCH","/api/settings",{digest_time:v});hp()}
