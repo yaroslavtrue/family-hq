@@ -57,6 +57,7 @@ body{font-family:'DM Sans',-apple-system,sans-serif;background:var(--bg);color:v
 .sc .at{text-transform:none;letter-spacing:0;font-size:12px;color:var(--pr);background:none;border:none;cursor:pointer;font-weight:600;font-family:inherit}
 .sc-cnt{display:inline-flex;align-items:center;justify-content:center;min-width:18px;height:18px;padding:0 6px;border-radius:9px;background:color-mix(in srgb,var(--ht) 18%,transparent);color:var(--ht);font-size:10px;font-weight:700;letter-spacing:0;margin-left:6px}
 .sc-l{display:inline-flex;align-items:center;gap:6px}
+.sc-ico{display:inline-flex;align-items:center;line-height:1;opacity:.95}
 
 /* Cards */
 .c{background:var(--cd);border-radius:var(--r);padding:16px 18px;margin-bottom:12px;border:1px solid var(--bd);display:flex;align-items:center;gap:13px;transition:all .25s;animation:ci .3s ease-out;box-shadow:var(--shadow-1)}
@@ -382,16 +383,17 @@ input[type="date"],input[type="time"],input[type="number"],select{-webkit-appear
 .csh-sec{margin-top:6px}
 .csh-label{font-size:11px;font-weight:700;color:var(--ht);text-transform:uppercase;letter-spacing:.3px}
 .csh-item{display:flex;align-items:center;gap:6px;padding:6px 10px;margin-top:4px;border-radius:10px;background:color-mix(in srgb,var(--tx) 5%,transparent)}
-.csh-ico{font-size:12px;flex-shrink:0}
+.csh-ico{flex-shrink:0;display:inline-flex;align-items:center;line-height:1}
 .csh-txt{font-size:12px;font-weight:600;color:var(--tx);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .csh-more{font-size:11px;color:var(--ht);text-align:center;padding:4px 0}
 .csh-empty{text-align:center;font-size:12px;color:var(--ht);padding:8px 0}
 .csh-sum{text-align:center;font-size:11px;font-weight:600;color:var(--ht);padding:6px 0 0;letter-spacing:.2px;border-top:1px solid var(--bd);margin-top:6px}
 .cal-chips{display:flex;gap:7px;padding:8px 2px 12px;flex-wrap:wrap;justify-content:center}
-.cal-chip{font-size:11px;font-weight:700;padding:7px 14px;border-radius:999px;cursor:pointer;border:1.5px solid color-mix(in srgb,var(--cc) 70%,transparent);color:var(--cc);background:color-mix(in srgb,var(--cc) 14%,var(--bg));transition:all .15s;white-space:nowrap;display:inline-flex;align-items:center;gap:5px;letter-spacing:.2px;box-shadow:0 1px 3px rgba(0,0,0,.15)}
+.cal-chips{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;padding:4px 4px 12px}
+.cal-chip{font-size:12px;font-weight:700;padding:8px 14px;border-radius:999px;cursor:pointer;border:1.5px solid color-mix(in srgb,var(--cc) 70%,transparent);color:var(--cc);background:color-mix(in srgb,var(--cc) 14%,var(--bg));transition:all .15s;white-space:nowrap;display:inline-flex;align-items:center;justify-content:center;gap:6px;letter-spacing:.2px;box-shadow:0 1px 3px rgba(0,0,0,.15);min-width:96px}
 .cal-chip.on{background:var(--cc);color:#fff;border-color:var(--cc);box-shadow:0 3px 10px color-mix(in srgb,var(--cc) 35%,transparent)}
 .cal-chip:active{transform:scale(.94)}
-.cal-chip-ico{font-size:12px;line-height:1}
+.cal-chip-ico{display:inline-flex;align-items:center;line-height:1}
 .cal-chip-sep{width:1px;background:var(--bd);margin:0 4px;align-self:stretch}
 .ced-overlay{position:fixed;inset:0;background:rgba(0,0,0,.45);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);z-index:70;display:flex;align-items:center;justify-content:center;padding:24px;animation:fadeIn .15s}
 .ced-card{background:var(--sf);border:1px solid var(--bd);border-radius:20px;padding:22px;max-width:320px;width:100%;box-shadow:0 12px 40px rgba(0,0,0,.35)}
@@ -455,6 +457,6 @@ input[type="date"],input[type="time"],input[type="number"],select{-webkit-appear
 <!-- Debug -->
 <div class="dbg hidden" id="dbg"><button class="dbg-cp" onclick="navigator.clipboard.writeText(dbgLog.join('\n'))">Copy</button></div>
 <!-- Load JS -->
-<script src="/static/app.js?v=127"></script>
+<script src="/static/app.js?v=128"></script>
 </body>
 </html>

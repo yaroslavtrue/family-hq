@@ -67,16 +67,44 @@ const j=await r.json();
 if(dbgOn){dbgLog.push(m+" "+p+" → "+r.status);if(dbgLog.length>50)dbgLog.shift();var el=document.getElementById("dbg");if(el)el.textContent=dbgLog.slice(-10).join("\n")}
 if(!r.ok)return null;return j}catch(e){if(dbgOn){dbgLog.push("ERR "+m+" "+p+": "+e.message)}return null}}
 
-// ─── Icons ──────────────────────────────────────────────────
-const I={
-ck:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" width="14" height="14"><polyline points="20 6 9 17 4 12"/></svg>',
-tr:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" width="15" height="15"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/></svg>',
-ed:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" width="15" height="15"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>',
-fl:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" width="12" height="12"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" y1="22" x2="4" y2="15"/></svg>',
-bl:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" width="16" height="16"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></svg>',
-x:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" width="12" height="12"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>',
-pl:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" width="14" height="14"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>'
+// ─── Icons (lucide-style line-art SVG, currentColor-tinted) ─────
+// Glyph builder so we can request any size without rewriting markup.
+function _svg(d,sz,sw){var s=sz||16,w=sw||2;return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="'+w+'" stroke-linecap="round" stroke-linejoin="round" width="'+s+'" height="'+s+'" style="vertical-align:-2px">'+d+'</svg>'}
+// Glyph paths (raw inner SVG)
+const G={
+ck:'<polyline points="20 6 9 17 4 12"/>',
+tr:'<polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/>',
+ed:'<path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/>',
+fl:'<path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" y1="22" x2="4" y2="15"/>',
+bl:'<path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/>',
+x:'<line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>',
+pl:'<line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>',
+// Tab / page-header glyphs
+home:'<path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/>',
+clipboard:'<rect x="8" y="3" width="8" height="4" rx="1"/><path d="M16 5h2a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h2"/><path d="m9 14 2 2 4-4"/>',
+dumbbell:'<path d="M6.5 6.5l11 11"/><path d="M21 21l-1-1"/><path d="M3 3l1 1"/><path d="M18 22l4-4"/><path d="M2 6l4-4"/><path d="M3 10l7-7"/><path d="M14 21l7-7"/>',
+dollar:'<line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/>',
+user:'<path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/>',
+cart:'<circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 002 1.61h9.72a2 2 0 002-1.61L23 6H6"/>',
+cog:'<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 11-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 11-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 11-2.83-2.83l.06-.06a1.65 1.65 0 00.33-1.82 1.65 1.65 0 00-1.51-1H3a2 2 0 110-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 112.83-2.83l.06.06a1.65 1.65 0 001.82.33H9a1.65 1.65 0 001-1.51V3a2 2 0 114 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 112.83 2.83l-.06.06a1.65 1.65 0 00-.33 1.82V9a1.65 1.65 0 001.51 1H21a2 2 0 110 4h-.09a1.65 1.65 0 00-1.51 1z"/>',
+broom:'<path d="M19.36 2.72 21 4.36l-2.05 2.05a3 3 0 0 1-4.24 0l-1.06-1.06a3 3 0 0 1 0-4.24L15.7.06"/><path d="m14.5 5.5-3 3"/><path d="M12 22a8 8 0 0 1-8-8c0-1.5.5-3 1.5-4.5l5-3"/><path d="M10 17.5 5 22"/><path d="M16 17.5 21 22"/>',
+clock:'<circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>',
+calendar:'<rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>',
+refresh:'<polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/>',
+cake:'<path d="M20 21v-8a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8"/><path d="M4 16s.5-1 2-1 2.5 2 4 2 2.5-2 4-2 2.5 2 4 2 2-1 2-1"/><path d="M2 21h20"/><path d="M7 8v3"/><path d="M12 8v3"/><path d="M17 8v3"/><path d="M7 4h.01"/><path d="M12 4h.01"/><path d="M17 4h.01"/>',
+card:'<rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/>',
+bolt:'<polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>',
+list:'<line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/>',
+dot:'<circle cx="12" cy="12" r="4" fill="currentColor" stroke="none"/>',
+debug:'<rect x="8" y="6" width="8" height="14" rx="4"/><path d="M19 7l-3 2"/><path d="M5 7l3 2"/><path d="M19 21l-3-2"/><path d="M5 21l3-2"/><path d="M19 14h-3"/><path d="M8 14H5"/><path d="m8 3 1 3"/><path d="m16 3-1 3"/>'
 };
+// Wrappers — pre-built default sizes for the most-used icons
+const I={
+ck:_svg(G.ck,14,3),tr:_svg(G.tr,15,2),ed:_svg(G.ed,15,2),
+fl:_svg(G.fl,12,2.5),bl:_svg(G.bl,16,2),x:_svg(G.x,12,2.5),pl:_svg(G.pl,14,2.5)
+};
+// Returns an icon at any size: icon('home',22)
+function icon(name,size,strokeW){return G[name]?_svg(G[name],size||16,strokeW||2):''}
 
 // ─── Helpers ────────────────────────────────────────────────
 function es(s){const d=document.createElement("div");d.textContent=s||"";return d.innerHTML}
@@ -212,7 +240,7 @@ const NV=[
 {id:"money",l:"Money",sv:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg>'},
 {id:"profile",l:"Profile",sv:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>'}
 ];
-const TT={home:{i:"🏠",t:"Family HQ",s:"Everything at a glance"},tasks:{i:"📋",t:"Tasks",s:"Manage & assign"},shop:{i:"🛒",t:"Shopping",s:"Shared list"},trainings:{i:"🏋️",t:"Trainings",s:"Workouts & progress"},money:{i:"💰",t:"Money",s:"Budget & subs"},profile:{i:"👤",t:"Profile",s:"Personal stats"},events:{i:"📅",t:"Events",s:"Schedule"},birthdays:{i:"🎂",t:"Birthdays",s:"Never forget"},clean:{i:"🧹",t:"Cleaning",s:"Apartment zones"},settings:{i:"⚙️",t:"Settings",s:"Customize"},subs:{i:"💳",t:"Subscriptions",s:"Monthly payments"}};
+const TT={home:{i:"home",t:"Family HQ",s:"Everything at a glance"},tasks:{i:"clipboard",t:"Tasks",s:"Manage & assign"},shop:{i:"cart",t:"Shopping",s:"Shared list"},trainings:{i:"dumbbell",t:"Trainings",s:"Workouts & progress"},money:{i:"dollar",t:"Money",s:"Budget & subs"},profile:{i:"user",t:"Profile",s:"Personal stats"},events:{i:"clock",t:"Events",s:"Schedule"},birthdays:{i:"cake",t:"Birthdays",s:"Never forget"},clean:{i:"broom",t:"Cleaning",s:"Apartment zones"},settings:{i:"cog",t:"Settings",s:"Customize"},subs:{i:"card",t:"Subscriptions",s:"Monthly payments"}};
 
 (function(){var n=document.getElementById("nv");NV.forEach(function(t){var b=document.createElement("button");b.className="ni"+(t.id==="home"?" a":"");b.dataset.t=t.id;b.innerHTML='<span class="nb hidden" id="b-'+t.id+'"></span>'+t.sv+'<span>'+t.l+'</span>';b.onclick=function(){go(t.id)};n.appendChild(b)})})();
 
@@ -221,7 +249,7 @@ document.getElementById("menu-overlay").classList.remove("open");
 var si=document.getElementById("si");if(si)si.value="";
 document.querySelectorAll(".ni").forEach(function(e){e.classList.toggle("a",e.dataset.t===t)});
 var _tt=TT[t]||{i:"",t:"",s:""};
-document.getElementById("hi").textContent=_tt.i;
+document.getElementById("hi").innerHTML=_tt.i?icon(_tt.i,22,2.2):"";
 document.getElementById("ht").textContent=_tt.t;
 document.getElementById("hs").textContent=_tt.s;
 var noFab=["home","settings","clean","events","birthdays","subs","profile","trainings"];
@@ -407,19 +435,19 @@ clean: (D.zones||[]).filter(function(z){return z.dirty}).length,
 subs: (D.subs||[]).filter(function(s){return s.days_until!=null&&s.days_until>=0&&s.days_until<=5}).length,
 };
 var items=[
-{id:"shop",emoji:"🛒",label:"Shopping",cnt:cnt.shop},
-{id:"events",emoji:"📅",label:"Events",cnt:cnt.events},
-{id:"birthdays",emoji:"🎂",label:"Birthdays",cnt:cnt.birthdays},
-{id:"clean",emoji:"🧹",label:"Cleaning",cnt:cnt.clean},
-{id:"subs",emoji:"💳",label:"Subscriptions",cnt:cnt.subs},
+{id:"shop",ic:"cart",label:"Shopping",cnt:cnt.shop},
+{id:"events",ic:"clock",label:"Events",cnt:cnt.events},
+{id:"birthdays",ic:"cake",label:"Birthdays",cnt:cnt.birthdays},
+{id:"clean",ic:"broom",label:"Cleaning",cnt:cnt.clean},
+{id:"subs",ic:"card",label:"Subscriptions",cnt:cnt.subs},
 ];
 var h='';
 items.forEach(function(it){
 var b=it.cnt>0?'<span class="mi-cnt">'+it.cnt+'</span>':'';
-h+='<button class="menu-i" onclick="go(\''+it.id+'\')"><span class="mi-ico">'+it.emoji+'</span><span class="mi-l">'+it.label+'</span>'+b+'</button>';
+h+='<button class="menu-i" onclick="go(\''+it.id+'\')"><span class="mi-ico">'+icon(it.ic,20,2)+'</span><span class="mi-l">'+it.label+'</span>'+b+'</button>';
 });
 h+='<div style="height:1px;background:var(--bd);margin:8px 0"></div>';
-h+='<button class="menu-i" onclick="go(\'settings\')"><span class="mi-ico">⚙️</span><span class="mi-l">Settings</span></button>';
+h+='<button class="menu-i" onclick="go(\'settings\')"><span class="mi-ico">'+icon("cog",20,2)+'</span><span class="mi-l">Settings</span></button>';
 el.innerHTML=h;
 // Show dot on hamburger icon if any section has active items
 var totalActive=Object.values(cnt).reduce(function(a,b){return a+b},0);
@@ -459,7 +487,7 @@ return h}
 // ═══════════════════════════════════════════════════════════
 // TASKS
 // ═══════════════════════════════════════════════════════════
-function rT(){var h='<div class="tabs"><button class="tab '+(taskTab==="active"?"a":"")+'" onclick="taskTab=\'active\';ren()">📋 Active</button><button class="tab '+(taskTab==="recurring"?"a":"")+'" onclick="taskTab=\'recurring\';ren()">🔁 Recurring</button></div>';
+function rT(){var h='<div class="tabs"><button class="tab '+(taskTab==="active"?"a":"")+'" onclick="taskTab=\'active\';ren()"><span style="display:inline-flex;align-items:center;gap:6px">'+icon("clipboard",13,2.2)+'Active</span></button><button class="tab '+(taskTab==="recurring"?"a":"")+'" onclick="taskTab=\'recurring\';ren()"><span style="display:inline-flex;align-items:center;gap:6px">'+icon("refresh",13,2.2)+'Recurring</span></button></div>';
 if(taskTab==="recurring")return h+rRecur();
 h+='<div class="fb2"><button class="fi '+(!filt?"a":"")+'" onclick="filt=null;ren()">All</button>';
 D.members.forEach(function(m){h+='<button class="fi '+(filt===m.user_id?"a":"")+'" style="padding:3px 6px;display:inline-flex;align-items:center" onclick="filt='+m.user_id+';ren()">'+mAv(m.user_id,22)+'</button>'});h+='</div>';
@@ -471,22 +499,22 @@ if(!all.length)return h+em("📋","No tasks yet","Tap + to add one");
 var todayStr=td();var _7d=new Date();_7d.setDate(_7d.getDate()+7);var weekStr=_7d.getFullYear()+"-"+String(_7d.getMonth()+1).padStart(2,"0")+"-"+String(_7d.getDate()).padStart(2,"0");
 var overdue=[],high=[],week=[],rest=[];
 pend.forEach(function(t){var dd=(t.due_date||"").split(" ")[0];if(dd&&dd<todayStr){overdue.push(t)}else if(t.priority==="high"){high.push(t)}else if(dd&&dd<=weekStr){week.push(t)}else{rest.push(t)}});
-function _tkCard(t,overdueDate){var rmC=t.reminders&&t.reminders.length?'<span class="pdate"><span style="font-size:10px">🔔</span>'+t.reminders.length+'</span>':"";
+function _tkCard(t,overdueDate){var rmC=t.reminders&&t.reminders.length?'<span class="pdate">'+icon("bl",10,2)+t.reminders.length+'</span>':"";
 var priLabel=t.priority==="high"?"High":t.priority==="low"?"Low":"Normal";
 var priCls=t.priority==="high"?"hi":t.priority==="low"?"lo":"md";
-var priPill='<span class="ppri '+priCls+'">🚩 '+priLabel+'</span>';
+var priPill='<span class="ppri '+priCls+'">'+icon("fl",10,2.4)+priLabel+'</span>';
 var dateTone=overdueDate?"tone-ac":"";
-var datePill=t.due_date?'<span class="pdate '+dateTone+'">📅 '+fD(t.due_date).full+'</span>':"";
+var datePill=t.due_date?'<span class="pdate '+dateTone+'">'+icon("calendar",10,2.2)+fD(t.due_date).full+'</span>':"";
 return '<div style="margin-bottom:10px"><div class="c" style="margin-bottom:0"><div class="cb cb-o" onclick="tgTk('+t.id+',this)"></div><div class="bd"><div class="tt">'+es(t.text)+'</div><div class="mt">'+mChip(t.assigned_to,true)+" "+priPill+" "+datePill+" "+rmC+" "+sC("task",t.id)+' <button class="xb" onclick="tX(\'task\','+t.id+')">'+(ex["task_"+t.id]?"▾":"▸")+'</button></div></div><button class="bi" onclick="edTk('+t.id+')">'+I.ed+'</button><button class="bi" onclick="dlTk('+t.id+')">'+I.tr+'</button></div>'+rSu("task",t.id)+'</div>'}
-function _scH(label,cnt,color){return '<div class="sc"'+(color?' style="color:'+color+'"':'')+'><span class="sc-l">'+label+'<span class="sc-cnt"'+(color?' style="background:color-mix(in srgb,'+color+' 16%,transparent);color:'+color+'"':'')+'>'+cnt+'</span></span></div>'}
-if(overdue.length){h+=_scH("🔴 Overdue",overdue.length,"var(--ac)");overdue.forEach(function(t){h+=_tkCard(t,true)})}
-if(high.length){h+=_scH("⚡ High Priority",high.length,"var(--wn)");high.forEach(function(t){h+=_tkCard(t)})}
-if(week.length){h+=_scH("📅 This Week",week.length);week.forEach(function(t){h+=_tkCard(t)})}
-if(rest.length){h+=_scH("📋 Rest",rest.length);rest.forEach(function(t){h+=_tkCard(t)})}
+function _scH(ico,label,cnt,color){var iconHtml=ico?'<span class="sc-ico"'+(color?' style="color:'+color+'"':'')+'>'+icon(ico,12,2.4)+'</span>':'';return '<div class="sc"'+(color?' style="color:'+color+'"':'')+'><span class="sc-l">'+iconHtml+label+'<span class="sc-cnt"'+(color?' style="background:color-mix(in srgb,'+color+' 16%,transparent);color:'+color+'"':'')+'>'+cnt+'</span></span></div>'}
+if(overdue.length){h+=_scH("dot","Overdue",overdue.length,"var(--ac)");overdue.forEach(function(t){h+=_tkCard(t,true)})}
+if(high.length){h+=_scH("bolt","High Priority",high.length,"var(--wn)");high.forEach(function(t){h+=_tkCard(t)})}
+if(week.length){h+=_scH("calendar","This Week",week.length);week.forEach(function(t){h+=_tkCard(t)})}
+if(rest.length){h+=_scH("list","Rest",rest.length);rest.forEach(function(t){h+=_tkCard(t)})}
 if(!pend.length)h+='<div style="text-align:center;padding:20px;color:var(--ht);font-size:13px">All caught up! 🎉</div>';
-if(done.length){h+=_scH("✅ Done",done.length,"var(--ok)");done.forEach(function(t){h+='<div class="c d"><div class="cb cb-k" onclick="tgTk('+t.id+',this)">'+I.ck+'</div><div class="bd"><div class="tt sk">'+es(t.text)+'</div></div><button class="bi" onclick="dlTk('+t.id+')">'+I.tr+'</button></div>'})}
+if(done.length){h+=_scH("ck","Done",done.length,"var(--ok)");done.forEach(function(t){h+='<div class="c d"><div class="cb cb-k" onclick="tgTk('+t.id+',this)">'+I.ck+'</div><div class="bd"><div class="tt sk">'+es(t.text)+'</div></div><button class="bi" onclick="dlTk('+t.id+')">'+I.tr+'</button></div>'})}
 return h}
-function rRecur(){if(!D.recurring.length)return em("🔁","No recurring tasks","Tap + to create");var h='';D.recurring.forEach(function(r){if(searchQ&&!matchQ(r.text))return;var rrDesc=r.rrule==="daily"?"Every day":r.rrule.startsWith("weekly:")?"Weekly: "+r.rrule.split(":")[1]:"Monthly: "+r.rrule.split(":")[1]+"th";var pausedPill=r.active?'':' <span class="pdate tone-ac">⏸ Paused</span>';h+='<div class="c"><div class="bd"><div class="tt">'+es(r.text)+'</div><div class="mt">'+mChip(r.assigned_to,true)+' <span class="pdate" style="background:color-mix(in srgb,var(--pr) 14%,transparent);color:var(--pr)">🔁 '+rrDesc+'</span>'+pausedPill+'</div></div><button class="bi" onclick="edRec('+r.id+')">'+I.ed+'</button><button class="bi" onclick="dlRec('+r.id+')">'+I.tr+'</button></div>'});return h}
+function rRecur(){if(!D.recurring.length)return em(icon("refresh",48,1.8),"No recurring tasks","Tap + to create");var h='';D.recurring.forEach(function(r){if(searchQ&&!matchQ(r.text))return;var rrDesc=r.rrule==="daily"?"Every day":r.rrule.startsWith("weekly:")?"Weekly: "+r.rrule.split(":")[1]:"Monthly: "+r.rrule.split(":")[1]+"th";var pausedPill=r.active?'':' <span class="pdate tone-ac">Paused</span>';h+='<div class="c"><div class="bd"><div class="tt">'+es(r.text)+'</div><div class="mt">'+mChip(r.assigned_to,true)+' <span class="pdate" style="background:color-mix(in srgb,var(--pr) 14%,transparent);color:var(--pr)">'+icon("refresh",10,2.2)+rrDesc+'</span>'+pausedPill+'</div></div><button class="bi" onclick="edRec('+r.id+')">'+I.ed+'</button><button class="bi" onclick="dlRec('+r.id+')">'+I.tr+'</button></div>'});return h}
 
 async function tgTk(id,cb){
 var t=D.tasks.find(function(x){return x.id===id});
@@ -1662,8 +1690,8 @@ var mClr="";
 if(seg.type==="task"&&!seg.done&&seg.assigned_to){var _m=D.members.find(function(x){return x.user_id===seg.assigned_to});if(_m)mClr=_m.color}
 var cls="cal-ev ev-"+seg.color+(seg.done?" ev-done":"")+(seg.type==="recurring"?" ev-rec":"")+(seg.type==="subscription"?" ev-sub":"");
 var inl=mClr?"background:"+mClr+";":"";
-var ico={event:"📅",task:seg.done?"✓":"📋",recurring:"🔁",birthday:"🎂",subscription:"💳"}[seg.type]||"";
-var icoH=bh>=16?'<span class="ev-ico">'+ico+'</span>':"";
+var icoMap={event:"calendar",task:seg.done?"ck":"clipboard",recurring:"refresh",birthday:"cake",subscription:"card"};
+var icoH=bh>=16?'<span class="ev-ico">'+icon(icoMap[seg.type]||"dot",11,2.2)+'</span>':"";
 h+='<div class="'+cls+'" onclick="showCalEv(\''+seg.type+'\','+seg.id+')" style="left:'+left+'%;width:calc('+width+'% - 2px);top:'+top+'px;height:'+bh+'px;line-height:'+bh+'px;cursor:pointer;'+inl+'">'+icoH+es(seg.title)+'</div>'
 });
 // +N overflow badges
@@ -1732,11 +1760,12 @@ items.forEach(function(it){var k=it.type+"-"+it.id;if(!seen[k]){seen[k]=true;uni
 h+='<div class="csh-sec"><span class="csh-label">'+sec.label+'</span>';
 var show=unique.slice(0,3);
 show.forEach(function(it){
-var ico={event:"📅",task:it.done?"✅":"📋",recurring:"🔁",birthday:"🎂",subscription:"💳"}[it.type]||"📌";
+var icMap={event:"calendar",task:it.done?"ck":"clipboard",recurring:"refresh",birthday:"cake",subscription:"card"};
+var ico=icon(icMap[it.type]||"dot",13,2.2);
 var mClr="";
 if((it.type==="task"||it.type==="recurring")&&!it.done&&it.assigned_to){var _m=D.members.find(function(x){return x.user_id===it.assigned_to});if(_m)mClr=_m.color}
 var bc=mClr||{event:"var(--pr)",task:"var(--ac)",recurring:"var(--ac)",birthday:"var(--wn)",subscription:"var(--pr)"}[it.type]||"var(--bd)";
-h+='<div class="csh-item" style="border-left:2px solid '+bc+'"><span class="csh-ico">'+ico+'</span><span class="csh-txt">'+es(it.title)+'</span></div>'
+h+='<div class="csh-item" style="border-left:2px solid '+bc+'"><span class="csh-ico" style="color:'+bc+'">'+ico+'</span><span class="csh-txt">'+es(it.title)+'</span></div>'
 });
 if(unique.length>3)h+='<div class="csh-more">+'+( unique.length-3)+' more</div>';
 h+='</div>'});
@@ -1784,8 +1813,8 @@ var vs=_parseD(data.vis_start),ve=_parseD(data.vis_end);
 var todayISO=_isoDate(new Date());
 // Filter chips (type filters only — member filters render at the bottom)
 var h='<div class="cal-chips">';
-var types=[{k:"event",l:"Events",c:"var(--pr)",i:"📅"},{k:"task",l:"Tasks",c:"var(--ac)",i:"✓"},{k:"recurring",l:"Recurring",c:"var(--ac)",i:"🔁"},{k:"birthday",l:"Birthdays",c:"var(--wn)",i:"🎂"},{k:"subscription",l:"Subs",c:"var(--ok)",i:"💳"}];
-types.forEach(function(t){var on=_calFilters[t.k];h+='<span class="cal-chip'+(on?" on":"")+'" style="--cc:'+t.c+'" onclick="calToggleType(\''+t.k+'\')"><span class="cal-chip-ico">'+t.i+'</span>'+t.l+'</span>'});
+var types=[{k:"event",l:"Events",c:"var(--pr)",i:"calendar"},{k:"task",l:"Tasks",c:"var(--ac)",i:"ck"},{k:"recurring",l:"Recurring",c:"var(--ac)",i:"refresh"},{k:"birthday",l:"Birthdays",c:"var(--wn)",i:"cake"},{k:"subscription",l:"Subs",c:"var(--ok)",i:"card"}];
+types.forEach(function(t){var on=_calFilters[t.k];h+='<span class="cal-chip'+(on?" on":"")+'" style="--cc:'+t.c+'" onclick="calToggleType(\''+t.k+'\')"><span class="cal-chip-ico">'+icon(t.i,14,2.2)+'</span>'+t.l+'</span>'});
 h+='</div>';
 // Calendar grid card — weeks wrap in a rounded surface
 h+='<div class="cal-grid-card">';
@@ -1846,39 +1875,39 @@ body.innerHTML=h
 
 // Calendar event detail card
 function showCalEv(type,id){
-var item=null,title="",icon="",dateStr="",extra="";
+var item=null,title="",_ico="",dateStr="",extra="";
 if(type==="event"){
 item=(D.events||[]).find(function(x){return x.id===id});
 if(!item)return;
-icon="📅";title=item.text;
+_ico=icon("calendar",14,2.2);title=item.text;
 var s=fD(item.event_date),e=fD(item.end_date);
 dateStr=s.full;if(item.end_date&&item.end_date.split(" ")[0]!==item.event_date.split(" ")[0])dateStr=s.full+" → "+e.full
 }else if(type==="task"){
 item=(D.tasks||[]).find(function(x){return x.id===id});
 if(!item)return;
-icon=item.done?"✅":"📋";title=item.text;
+_ico=icon(item.done?"ck":"clipboard",14,2.2);title=item.text;
 dateStr=fD(item.due_date).full;
 var pr=item.priority||"normal";
 extra='<div class="ced-row"><span class="ced-lbl">Priority</span><span class="ced-val pr-'+pr+'">'+pr+'</span></div>';
 if(item.assigned_to)extra+='<div class="ced-row"><span class="ced-lbl">Assigned</span><span class="ced-val">'+mAv(item.assigned_to,20)+' '+es(mName(item.assigned_to))+'</span></div>';
-if(item.done)extra+='<div class="ced-row"><span class="ced-lbl">Status</span><span class="ced-val" style="color:var(--ok)">Done ✓</span></div>'
+if(item.done)extra+='<div class="ced-row"><span class="ced-lbl">Status</span><span class="ced-val" style="color:var(--ok)">Done '+icon("ck",12,2.5)+'</span></div>'
 }else if(type==="recurring"){
 item=(D.recurring||[]).find(function(x){return x.id===id});
 if(!item){item={id:id,text:"Recurring task"}}
-icon="🔁";title=item.text;
+_ico=icon("refresh",14,2.2);title=item.text;
 dateStr=item.rrule||"";
 if(item.assigned_to)extra='<div class="ced-row"><span class="ced-lbl">Assigned</span><span class="ced-val">'+mAv(item.assigned_to,20)+' '+es(mName(item.assigned_to))+'</span></div>';
 extra+='<div class="ced-row"><span class="ced-lbl">Schedule</span><span class="ced-val">'+es(item.rrule||"")+'</span></div>'
 }else if(type==="birthday"){
 item=(D.birthdays||[]).find(function(x){return x.id===id});
 if(!item)return;
-icon=item.emoji||"🎂";title=item.name;
+_ico=item.emoji||icon("cake",14,2.2);title=item.name;
 dateStr=fD(item.birth_date).full;
 if(item.days_until!=null)extra='<div class="ced-row"><span class="ced-lbl">Next</span><span class="ced-val">'+(item.days_until===0?"Today! 🎉":item.days_until+" days away")+'</span></div>'
 }else if(type==="subscription"){
 item=(D.subs||[]).find(function(x){return x.id===id});
 if(!item)return;
-icon=item.emoji||"💳";title=item.name;
+_ico=item.emoji||icon("card",14,2.2);title=item.name;
 dateStr="Every month on day "+item.billing_day;
 extra='<div class="ced-row"><span class="ced-lbl">Amount</span><span class="ced-val">'+item.amount+' '+item.currency+'</span></div>'
 }
@@ -1887,7 +1916,7 @@ var typeLabel={event:"Event",task:"Task",recurring:"Recurring Task",birthday:"Bi
 var editFn={task:"calEdTk",event:"calEdEv",recurring:"calEdRec"}[type];
 var h='<div class="ced-overlay" onclick="closeCalEv(event)">';
 h+='<div class="ced-card" onclick="event.stopPropagation()">';
-h+='<div class="ced-type" style="display:flex;justify-content:space-between;align-items:center"><span>'+icon+' '+typeLabel+'</span>'+(editFn?'<button class="bi" style="padding:4px;color:var(--ht)" onclick="'+editFn+'('+id+')" title="Edit">'+I.ed+'</button>':'')+'</div>';
+h+='<div class="ced-type" style="display:flex;justify-content:space-between;align-items:center"><span style="display:inline-flex;align-items:center;gap:6px">'+_ico+' '+typeLabel+'</span>'+(editFn?'<button class="bi" style="padding:4px;color:var(--ht)" onclick="'+editFn+'('+id+')" title="Edit">'+I.ed+'</button>':'')+'</div>';
 h+='<div class="ced-title">'+es(title)+'</div>';
 h+='<div class="ced-row"><span class="ced-lbl">Date</span><span class="ced-val">'+dateStr+'</span></div>';
 h+=extra;
@@ -1925,7 +1954,8 @@ h+='<div style="text-align:center;padding:40px 20px;color:var(--ht)"><div style=
 var order={event:0,task:1,recurring:2,birthday:3};
 dayItems.sort(function(a,b){return(order[a.type]||9)-(order[b.type]||9)});
 dayItems.forEach(function(it){
-var icon={event:"📅",task:it.done?"✅":"📋",recurring:"🔁",birthday:"🎂"}[it.type]||"📌";
+var _icoName={event:"calendar",task:it.done?"ck":"clipboard",recurring:"refresh",birthday:"cake"}[it.type]||"dot";
+var _ico=icon(_icoName,18,2.2);
 var mClr="";
 if((it.type==="task"||it.type==="recurring")&&!it.done&&it.assigned_to){var _m=D.members.find(function(x){return x.user_id===it.assigned_to});if(_m)mClr=_m.color}
 var borderC=mClr||{event:"var(--pr)",task:"var(--ac)",recurring:"var(--ac)",birthday:"var(--wn)",subscription:"var(--pr)"}[it.type]||"var(--bd)";
@@ -1953,7 +1983,7 @@ var bd=(D.birthdays||[]).find(function(x){return x.id===it.id});
 if(bd&&bd.days_until!=null)sub=bd.days_until===0?"Today! 🎉":"in "+bd.days_until+" days"
 }
 h+='<div class="cday-item" onclick="showCalEv(\''+it.type+'\','+it.id+')" style="border-left:3px solid '+borderC+'">';
-h+='<span style="font-size:20px">'+icon+'</span>';
+h+='<span style="color:'+borderC+';display:inline-flex;align-items:center">'+_ico+'</span>';
 h+='<div class="cday-bd"><div class="cday-tt">'+es(it.title)+'</div>';
 if(sub)h+='<div class="cday-sub">'+sub+'</div>';
 h+='</div></div>'
@@ -2020,7 +2050,7 @@ if(_pwaPrompt){
   h+='<div class="c" style="cursor:default"><span style="font-size:20px">📱</span><div class="bd"><div class="tt">Install on iOS</div><div style="font-size:12px;color:var(--ht)">Tap <b>Share</b> ⬆ → <b>Add to Home Screen</b></div></div></div>';
 }
 h+='<div class="sc">Debug</div><div class="c" style="cursor:pointer" onclick="dbgOn=!dbgOn;document.getElementById(\'dbg\').classList.toggle(\'hidden\',!dbgOn);ren()"><span style="font-size:20px">🐛</span><div class="bd"><div class="tt">Debug Mode '+(dbgOn?"ON":"OFF")+'</div></div></div>';
-h+='<div style="margin-top:8px;text-align:center;font-size:11px;color:var(--ht)">Family HQ v8.10.5</div>';return h}
+h+='<div style="margin-top:8px;text-align:center;font-size:11px;color:var(--ht)">Family HQ v8.11.0</div>';return h}
 async function setTh(id){aT(id);hp();await A("PATCH","/api/settings",{theme:id});ren()}
 function openThemePicker(){var h='<div class="tg">';Object.keys(TH).forEach(function(id){var t=TH[id];var sel=cTheme===id;h+='<div class="tc" onclick="setTh(\''+id+'\');cMo()" style="background:'+t.cd+';border:2px solid '+(sel?t.pr:t.bd)+'"><div class="te">'+t.e+'</div><div class="tn" style="color:'+t.tx+'">'+t.n+'</div><div class="td">'+[t.pr,t.ac,t.ok,t.wn].map(function(c){return '<div class="tdd" style="background:'+c+'"></div>'}).join("")+'</div></div>'});h+='</div>';oMC("Choose theme",h)}
 async function setDg(v){await A("PATCH","/api/settings",{digest_time:v});hp()}
