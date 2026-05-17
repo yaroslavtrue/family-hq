@@ -1681,21 +1681,35 @@ async function svBd(id){var n=document.getElementById("bd-n").value.trim();var e
 // ═══════════════════════════════════════════════════════════
 // CLEANING (hamburger page)
 // ═══════════════════════════════════════════════════════════
-function rC(){if(!D.zones.length)return em("🧹","No zones yet","Add zones below")+'<button class="btn" onclick="shAZ()">+ Add Zone</button>';
+function rC(){if(!D.zones.length)return em(icon("broom",48,1.8),"No zones yet","Add zones below")+'<button class="btn" onclick="shAZ()">+ Add Zone</button>';
 var dirty=D.zones.filter(function(z){return z.dirty}),clean=D.zones.filter(function(z){return!z.dirty});
 if(searchQ){dirty=dirty.filter(function(z){return matchQ(z.name)});clean=clean.filter(function(z){return matchQ(z.name)})}
 var h="";
-if(dirty.length){h+='<div class="sc" style="color:var(--ac)">Needs Cleaning · '+dirty.length+'</div>';dirty.forEach(function(z){h+=rZn(z)})}
-if(clean.length){h+='<div class="sc" style="color:var(--ok)">Clean · '+clean.length+'</div>';clean.forEach(function(z){h+=rZn(z)})}
+function _scH2(ico,label,cnt,color){return '<div class="sc"'+(color?' style="color:'+color+'"':'')+'><span class="sc-l"><span class="sc-ico"'+(color?' style="color:'+color+'"':'')+'>'+icon(ico,12,2.4)+'</span>'+label+'<span class="sc-cnt"'+(color?' style="background:color-mix(in srgb,'+color+' 16%,transparent);color:'+color+'"':'')+'>'+cnt+'</span></span></div>'}
+if(dirty.length){h+=_scH2("dot","Needs Cleaning",dirty.length,"var(--ac)");dirty.forEach(function(z){h+=rZn(z)})}
+if(clean.length){h+=_scH2("ck","Clean",clean.length,"var(--ok)");clean.forEach(function(z){h+=rZn(z)})}
 h+='<div style="margin-top:16px"><button class="btn btn-s" onclick="shAZ()">+ Add Zone</button></div>';return h}
-function rZn(z){var st=z.dirty?'<span class="zs no">Dirty</span>':'<span class="zs ok">Clean</span>';var isOpen=zOpen[z.id]!==false;var tasksDone=(z.tasks||[]).filter(function(t){return t.done}).length;var tasksTotal=(z.tasks||[]).length;
-var h='<div class="zn"><div class="zh" style="cursor:pointer" onclick="zOpen['+z.id+']='+(!isOpen)+';ren()"><span class="zi">'+z.icon+'</span><span class="zn2">'+es(z.name)+' <span style="font-size:12px;color:var(--ht)">'+tasksDone+"/"+tasksTotal+'</span></span><button class="bi" onclick="event.stopPropagation();edZn('+z.id+')" style="margin-right:4px">'+I.ed+'</button>'+st+'<span style="font-size:14px;color:var(--ht)">'+(isOpen?"▾":"▸")+'</span></div>';
+function rZn(z){var isOpen=zOpen[z.id]!==false;var tasksDone=(z.tasks||[]).filter(function(t){return t.done}).length;var tasksTotal=(z.tasks||[]).length;
+var pct=tasksTotal>0?Math.round(tasksDone/tasksTotal*100):0;
+var stPill=z.dirty?'<span class="lc-rt tone-ac">Dirty</span>':'<span class="lc-rt tone-ok">Clean</span>';
+var icoCls=z.dirty?"acc-ac":"acc-ok";
+// Zone header in .lc style: emoji square + name + progress bar + status pill + chevron
+var h='<div class="zn">';
+h+='<div class="zh" style="cursor:pointer" onclick="zOpen['+z.id+']='+(!isOpen)+';ren()">';
+h+='<div class="lc-i '+icoCls+'" style="font-size:24px">'+z.icon+'</div>';
+h+='<div class="zn-bd"><div class="zn-nm">'+es(z.name)+'</div><div class="zn-mt">'+tasksDone+'/'+tasksTotal+' tasks · '+pct+'%</div><div class="progress" style="margin-top:6px;max-width:220px"><div class="progress-fill '+(z.dirty?"tone-ac":"tone-ok")+'" style="width:'+pct+'%"></div></div></div>';
+h+=stPill;
+h+='<button class="bi" onclick="event.stopPropagation();edZn('+z.id+')">'+I.ed+'</button>';
+h+='<span class="zn-chev" style="font-size:14px;color:var(--ht);margin-left:2px">'+(isOpen?"▾":"▸")+'</span>';
+h+='</div>';
 if(!isOpen)return h+'</div>';
-h+='<div style="border-top:1px solid var(--bd);padding-top:8px">';
+h+='<div class="zn-tasks">';
 (z.tasks||[]).forEach(function(t){var resetInfo=t.reset_days?t.reset_days+"d":"7d";var daysInfo="";if(t.done&&t.last_done)daysInfo=" · "+fD(t.last_done).full;
-h+='<div class="zt"><div class="cb cb-s '+(t.done?"cb-k":"cb-o")+'" onclick="tgZT('+t.id+')">'+(t.done?I.ck:"")+'</div><span class="zt-t'+(t.done?" dn":"")+'">'+es(t.text)+'</span><span style="font-size:10px;color:var(--ht)">'+resetInfo+daysInfo+'</span>'+(t.assigned_to?mAv(t.assigned_to,20):"")+'<button class="bi" onclick="edZT('+t.id+')" style="padding:3px">'+I.ed+'</button><button class="bi" onclick="dZT('+t.id+')">'+I.x+'</button></div>'});
-h+='<div class="za"><input id="zti-'+z.id+'" placeholder="Add task..." onkeydown="if(event.key===\'Enter\')aZT('+z.id+')"><button onclick="aZT('+z.id+')">Add</button></div></div>';
-h+='<button style="margin-top:8px;margin-left:8px;background:none;border:none;color:var(--ac);font-size:12px;cursor:pointer;font-family:inherit" onclick="dlZn('+z.id+')">Delete zone</button></div>';return h}
+h+='<div class="zt"><div class="cb cb-s '+(t.done?"cb-k":"cb-o")+'" onclick="tgZT('+t.id+')">'+(t.done?I.ck:"")+'</div><span class="zt-t'+(t.done?" dn":"")+'">'+es(t.text)+'</span><span class="zt-mt">'+resetInfo+daysInfo+'</span>'+(t.assigned_to?mAv(t.assigned_to,20):"")+'<button class="bi" onclick="edZT('+t.id+')" style="padding:3px">'+I.ed+'</button><button class="bi" onclick="dZT('+t.id+')">'+I.x+'</button></div>'});
+h+='<div class="za"><input id="zti-'+z.id+'" placeholder="Add task..." onkeydown="if(event.key===\'Enter\')aZT('+z.id+')"><button onclick="aZT('+z.id+')">Add</button></div>';
+h+='</div>';
+h+='<button class="zn-del" onclick="dlZn('+z.id+')">Delete zone</button>';
+h+='</div>';return h}
 async function tgZT(id){hp();await A("PATCH","/api/cleaning/tasks/"+id+"/toggle");await load()}
 async function dZT(id){hp();await A("DELETE","/api/cleaning/tasks/"+id);await load()}
 async function aZT(zid){var i=document.getElementById("zti-"+zid);if(!i||!i.value.trim())return;await A("POST","/api/cleaning/zones/"+zid+"/tasks",{text:i.value.trim()});hp();await load()}
@@ -1718,26 +1732,28 @@ _profStats=s;ren()
 }
 function setProfMember(uid){_profMember=uid;_profStats=null;hp("sel");ren()}
 function rProfile(){
-if(!_profStats){loadProfileStats();return '<div class="emp"><div class="emp-i">⏳</div><div>Loading...</div></div>'}
+if(!_profStats){loadProfileStats();return '<div class="emp"><div class="emp-i" style="font-size:32px">⏳</div><div>Loading...</div></div>'}
 var s=_profStats,h='';
 // Member switcher
-h+='<div class="fb2" style="margin-bottom:16px">';
-h+='<button class="fi '+(!_profMember?"a":"")+'" onclick="setProfMember(null)">👨‍👩‍👧 Family</button>';
+h+='<div class="fb2" style="margin-bottom:14px">';
+h+='<button class="fi '+(!_profMember?"a":"")+'" onclick="setProfMember(null)" style="display:inline-flex;align-items:center;gap:5px">'+icon("user",14,2.2)+'Family</button>';
 D.members.forEach(function(m){h+='<button class="fi '+(_profMember===m.user_id?"a":"")+'" style="display:inline-flex;align-items:center;gap:5px" onclick="setProfMember('+m.user_id+')">'+mAv(m.user_id,18)+es(m.user_name)+'</button>'});
 h+='</div>';
-// Header with avatar
-if(_profMember){var m=D.members.find(function(x){return x.user_id===_profMember});if(m)h+='<div style="display:flex;align-items:center;gap:12px;margin-bottom:16px">'+mAv(m.user_id,48)+'<div><div style="font-size:18px;font-weight:700">'+es(m.user_name)+'</div><div style="font-size:12px;color:var(--ht)">Personal stats</div></div></div>'}
-// Tasks
-h+='<div class="sc">Tasks</div><div class="sts">';
-h+='<div class="st" style="border-left:3px solid var(--pr)"><div class="sn" style="color:var(--pr)"><span class="cu" data-count="'+s.tasks_active+'">0</span></div><div class="sl">Active</div></div>';
-h+='<div class="st" style="border-left:3px solid var(--ok)"><div class="sn" style="color:var(--ok)"><span class="cu" data-count="'+s.tasks_done+'">0</span></div><div class="sl">Completed</div></div>';
-h+='<div class="st" style="border-left:3px solid var(--ac)"><div class="sn" style="color:var(--ac)"><span class="cu" data-count="'+s.tasks_overdue+'">0</span></div><div class="sl">Overdue</div></div>';
-h+='<div class="st" style="border-left:3px solid var(--wn)"><div class="sn" style="color:var(--wn)"><span class="cu" data-count="'+s.tasks_high+'">0</span></div><div class="sl">High Priority</div></div>';
+// Selected-member hero block
+if(_profMember){var m=D.members.find(function(x){return x.user_id===_profMember});
+  if(m)h+='<div class="prof-hero">'+mAv(m.user_id,64)+'<div class="prof-hero-bd"><div class="prof-hero-nm">'+es(m.user_name)+'</div><div class="prof-hero-sub">Personal stats</div><div class="prof-hero-strip" style="background:'+m.color+'"></div></div></div>'}
+// Tasks — 4 stat tiles
+h+='<div class="sc"><span class="sc-l">'+icon("clipboard",12,2.4)+'Tasks</span></div>';
+h+='<div class="sts">';
+h+='<div class="st st-mn"><div class="st-ico tone-pr">'+icon("list",16,2.2)+'</div><div class="st-lb">Active</div><div class="st-vl" style="color:var(--pr)"><span class="cu" data-count="'+s.tasks_active+'">0</span></div></div>';
+h+='<div class="st st-mn"><div class="st-ico tone-ok">'+icon("ck",16,2.6)+'</div><div class="st-lb">Completed</div><div class="st-vl pos"><span class="cu" data-count="'+s.tasks_done+'">0</span></div></div>';
+h+='<div class="st st-mn"><div class="st-ico tone-ac">'+icon("dot",14,0)+'</div><div class="st-lb">Overdue</div><div class="st-vl neg"><span class="cu" data-count="'+s.tasks_overdue+'">0</span></div></div>';
+h+='<div class="st st-mn"><div class="st-ico tone-pr" style="color:var(--wn);border-color:color-mix(in srgb,var(--wn) 42%,transparent);background:linear-gradient(135deg,color-mix(in srgb,var(--wn) 38%,transparent),color-mix(in srgb,var(--wn) 8%,transparent))">'+icon("bolt",16,2.2)+'</div><div class="st-lb">High Priority</div><div class="st-vl" style="color:var(--wn)"><span class="cu" data-count="'+s.tasks_high+'">0</span></div></div>';
 h+='</div>';
-// Cleaning
+// Cleaning progress
 var cPct=s.clean_total>0?Math.round(s.clean_done/s.clean_total*100):0;
-h+='<div class="sc">Cleaning</div>';
-h+='<div class="c" style="border-left:3px solid var(--ok)"><div class="bd"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px"><div class="tt" style="font-weight:600">'+s.clean_done+'/'+s.clean_total+' tasks done</div><span style="font-size:13px;font-weight:700;color:var(--ok)">'+cPct+'%</span></div><div style="height:6px;background:var(--bd);border-radius:3px"><div style="height:100%;width:'+cPct+'%;background:var(--ok);border-radius:3px;transition:width .3s"></div></div></div></div>';
+h+='<div class="sc"><span class="sc-l">'+icon("broom",12,2.4)+'Cleaning</span></div>';
+h+='<div class="cat-row"><div class="cat-row-h"><span class="nm">'+s.clean_done+'/'+s.clean_total+' tasks done</span><span class="vl" style="color:var(--ok)">'+cPct+'%</span></div><div class="progress"><div class="progress-fill tone-ok" style="width:'+cPct+'%"></div></div></div>';
 // Count-up animation
 setTimeout(function(){FX.countStats(document.getElementById("ct"))},50);
 return h}
@@ -1872,11 +1888,11 @@ h+='<div class="csh-sec"><span class="csh-label">'+sec.label+'</span>';
 var show=unique.slice(0,3);
 show.forEach(function(it){
 var icMap={event:"calendar",task:it.done?"ck":"clipboard",recurring:"refresh",birthday:"cake",subscription:"card"};
-var ico=icon(icMap[it.type]||"dot",13,2.2);
+var ico=icon(icMap[it.type]||"dot",12,2.2);
 var mClr="";
 if((it.type==="task"||it.type==="recurring")&&!it.done&&it.assigned_to){var _m=D.members.find(function(x){return x.user_id===it.assigned_to});if(_m)mClr=_m.color}
 var bc=mClr||{event:"var(--pr)",task:"var(--ac)",recurring:"var(--ac)",birthday:"var(--wn)",subscription:"var(--pr)"}[it.type]||"var(--bd)";
-h+='<div class="csh-item" style="border-left:2px solid '+bc+'"><span class="csh-ico" style="color:'+bc+'">'+ico+'</span><span class="csh-txt">'+es(it.title)+'</span></div>'
+h+='<div class="csh-item"><span class="csh-ico" style="color:'+bc+';background:linear-gradient(135deg,color-mix(in srgb,'+bc+' 32%,transparent),color-mix(in srgb,'+bc+' 10%,transparent));border:1px solid color-mix(in srgb,'+bc+' 40%,transparent)">'+ico+'</span><span class="csh-txt">'+es(it.title)+'</span></div>'
 });
 if(unique.length>3)h+='<div class="csh-more">+'+( unique.length-3)+' more</div>';
 h+='</div>'});
@@ -2161,7 +2177,7 @@ if(_pwaPrompt){
   h+='<div class="c" style="cursor:default"><span style="font-size:20px">📱</span><div class="bd"><div class="tt">Install on iOS</div><div style="font-size:12px;color:var(--ht)">Tap <b>Share</b> ⬆ → <b>Add to Home Screen</b></div></div></div>';
 }
 h+='<div class="sc">Debug</div><div class="c" style="cursor:pointer" onclick="dbgOn=!dbgOn;document.getElementById(\'dbg\').classList.toggle(\'hidden\',!dbgOn);ren()"><span style="font-size:20px">🐛</span><div class="bd"><div class="tt">Debug Mode '+(dbgOn?"ON":"OFF")+'</div></div></div>';
-h+='<div style="margin-top:8px;text-align:center;font-size:11px;color:var(--ht)">Family HQ v8.13.2</div>';return h}
+h+='<div style="margin-top:8px;text-align:center;font-size:11px;color:var(--ht)">Family HQ v8.14.0</div>';return h}
 async function setTh(id){aT(id);hp();await A("PATCH","/api/settings",{theme:id});ren()}
 function openThemePicker(){var h='<div class="tg">';Object.keys(TH).forEach(function(id){var t=TH[id];var sel=cTheme===id;h+='<div class="tc" onclick="setTh(\''+id+'\');cMo()" style="background:'+t.cd+';border:2px solid '+(sel?t.pr:t.bd)+'"><div class="te">'+t.e+'</div><div class="tn" style="color:'+t.tx+'">'+t.n+'</div><div class="td">'+[t.pr,t.ac,t.ok,t.wn].map(function(c){return '<div class="tdd" style="background:'+c+'"></div>'}).join("")+'</div></div>'});h+='</div>';oMC("Choose theme",h)}
 async function setDg(v){await A("PATCH","/api/settings",{digest_time:v});hp()}
