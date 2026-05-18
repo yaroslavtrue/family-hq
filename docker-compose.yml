@@ -15,6 +15,7 @@ services:
       - TRELLO_TOKEN=${TRELLO_TOKEN}
       - TRELLO_BOARD_ID=${TRELLO_BOARD_ID}
       - TRELLO_FAMILY_ID=${TRELLO_FAMILY_ID:-1}
+      - UNSPLASH_ACCESS_KEY=${UNSPLASH_ACCESS_KEY:-}
     volumes:
       - ./data:/data
       # Weather video loops — added at runtime (no rebuild needed when files appear).

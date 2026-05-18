@@ -2145,6 +2145,53 @@ def words_reset(mode: str = "en", user=Depends(get_uf), db=Depends(get_db)):
     db.execute("DELETE FROM word_progress WHERE user_id=? AND mode=?", (user["id"], mode)); db.commit()
     return {"ok": True}
 
+UNSPLASH_ACCESS_KEY = os.environ.get("UNSPLASH_ACCESS_KEY", "").strip()
+
+@app.get("/api/words/image")
+async def words_image(idx: int, user=Depends(get_uf), db=Depends(get_db)):
+    """Returns a Unsplash image URL for the given word, cached per English-word key.
+    Falls back to {url:null, error:'no_key'} if UNSPLASH_ACCESS_KEY is not set in env."""
+    if idx < 0 or idx >= len(_VOCAB): raise HTTPException(400, "invalid idx")
+    w = _VOCAB[idx]
+    # English word is the universal cache key (image is concept-bound, not language-bound)
+    key = (w.get("en_word") or "").lower().strip()
+    if not key: return {"url": None}
+    # Cache hit
+    row = db.execute("SELECT image_url FROM word_image_cache WHERE word_key=?", (key,)).fetchone()
+    if row:
+        return {"url": row["image_url"], "cached": True}
+    # No API key configured → graceful no-op (frontend stays on emoji)
+    if not UNSPLASH_ACCESS_KEY:
+        return {"url": None, "error": "no_key"}
+    # Fetch from Unsplash. Use Search Photos with squarish orientation for card use.
+    try:
+        async with httpx.AsyncClient(timeout=10) as c:
+            r = await c.get(
+                "https://api.unsplash.com/search/photos",
+                params={"query": w["en_word"], "per_page": 1, "orientation": "squarish", "content_filter": "high"},
+                headers={"Authorization": f"Client-ID {UNSPLASH_ACCESS_KEY}", "Accept-Version": "v1"},
+            )
+            if r.status_code == 401:
+                log.error(f"Unsplash: invalid access key ({r.status_code})")
+                return {"url": None, "error": "invalid_key"}
+            if r.status_code == 403:
+                log.warning(f"Unsplash: rate-limited or forbidden ({r.status_code})")
+                return {"url": None, "error": "rate_limit"}
+            r.raise_for_status()
+            data = r.json()
+            results = data.get("results") or []
+            if not results: return {"url": None}
+            urls = results[0].get("urls") or {}
+            # Use 'small' (~400px) for the card visual — saves bandwidth
+            url = urls.get("small") or urls.get("regular") or urls.get("thumb")
+            if not url: return {"url": None}
+            db.execute("INSERT OR REPLACE INTO word_image_cache (word_key, image_url) VALUES (?, ?)", (key, url))
+            db.commit()
+            return {"url": url, "cached": False}
+    except Exception as e:
+        log.warning(f"Unsplash fetch failed for '{w['en_word']}': {type(e).__name__}: {e}")
+        return {"url": None, "error": "fetch_failed"}
+
 @app.get("/api/words/member-detail")
 def words_member_detail(user_id: int, mode: str = "en", user=Depends(get_uf), db=Depends(get_db)):
     """Detailed word lists for one member — used by the stats drill-down page."""
@@ -2204,7 +2251,7 @@ def serve_exercise_image(fn: str):
     return r
 
 # ─── Debug & Serve ───────────────────────────────────────────────────────
-APP_VERSION = "v8.22.2"
+APP_VERSION = "v8.22.3"
 
 @app.get("/api/debug/ping")
 def ping(): return {"ok": True, "version": APP_VERSION, "time": datetime.now(ZoneInfo(TIMEZONE)).isoformat()}
