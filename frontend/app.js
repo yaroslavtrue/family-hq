@@ -370,24 +370,55 @@ function rWords(){
 }
 // Mask the target word (incl. inflected forms) inside the example with underscores.
 // Strategy: strip common Russian/English endings → stem (min 3 chars) → match stem + any alpha tail.
+// Notes:
+//   • JS \b doesn't fire on Cyrillic boundaries (since \w is ASCII-only).
+//     Instead use a non-letter prefix capture group: (^|[^а-яёa-zA-ZА-ЯЁ])(stem + alpha tail).
+//   • Russian endings list includes -ство and many noun/verb suffixes so the stem is short enough
+//     to catch all inflected forms (любопытство/любопытства/любопытству etc.).
+var _WD_ENDINGS=["ствами","ствам","ством","ствах","ствa","стве","ству","ства","ство",
+                 "остях","остей","остями","ости","остью","ость",
+                 "ениями","ениях","ениям","ениях","ении","ением","ения","ение","ений",
+                 "аниями","аниях","аниям","ании","анием","ания","ание",
+                 "ться","иться","иваться","ываться",
+                 "ивать","ывать","евать","овать",
+                 "ательно","ительно","ательный","ительный","ательная","ательное","ательные",
+                 "ный","ная","ное","ные","ного","ной","ным","ными","ных",
+                 "ий","ия","ие","ого","ому","ыми","ыми","ыми","ого","ому","ому",
+                 "али","али","ала","ало","али","ат","ят","ит","ет","ют",
+                 "ала","ило","ыла","ыло","или","ыли","ил","ыл","ил","ыл",
+                 "ать","ять","еть","ить","оть","уть","ыть",
+                 "ями","ям","ях","ой","ою","ое","ый","ом","ах","ам","ов","ев","ей",
+                 "ии","иях","иям","ии","ии","ии","ие","ия","ых","ых","ого",
+                 "ия","ие","ое","ть","ся","сь","ей","ей","ёт","ёт",
+                 "ing","tions","tion","ities","ity","ness","ments","ment","fully","fulness",
+                 "ful","less","ous","ive","able","ible","ical","ally","ies","ied",
+                 "ed","es","s"];
 function _wdStem(word){
   if(!word)return"";
   var s=word.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g,"");
-  var endings=["ость","ение","ание","ться","иться","ение","ать","ять","еть","ить","ие","ия","ое","ый","ой","ть","ся","ing","tion","ity","ness","ed","es","s"];
-  for(var i=0;i<endings.length;i++){if(s.length-endings[i].length>=3&&s.endsWith(endings[i])){s=s.slice(0,-endings[i].length);break}}
+  for(var i=0;i<_WD_ENDINGS.length;i++){
+    var e=_WD_ENDINGS[i];
+    if(s.length-e.length>=3&&s.endsWith(e)){s=s.slice(0,-e.length);break}
+  }
   return s.length>=3?s:word.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g,"").slice(0,Math.min(4,word.length))
+}
+// Build a regex that matches the word stem at a position not preceded by a letter.
+function _wdMatchRe(stem){
+  var stemEsc=stem.replace(/[.*+?^${}()|[\]\\]/g,"\\$&");
+  // Group 1: boundary (start of string or any non-letter, including punctuation/space).
+  // Group 2: the word itself (stem + alpha tail).
+  return new RegExp("(^|[^а-яёa-zА-ЯЁA-Z])("+stemEsc+"[а-яёa-z']*)","gi");
 }
 function _blankExample(text,word){
   if(!text)return"";
   var stem=_wdStem(word);if(!stem)return es(text);
-  var stemEsc=stem.replace(/[.*+?^${}()|[\]\\]/g,"\\$&");
-  // Find match using accent-stripped text, then locate same range in original text
+  var re=_wdMatchRe(stem);
   var stripText=text.normalize("NFD").replace(/[̀-ͯ]/g,"");
-  var re=new RegExp("\\b"+stemEsc+"[а-яёa-z']*","gi");
   var out="";var lastEnd=0;var m;
   while((m=re.exec(stripText))!==null){
-    out+=es(text.slice(lastEnd,m.index))+'<span class="wd-blank">_____</span>';
-    lastEnd=m.index+m[0].length;
+    var matchStart=m.index+m[1].length;
+    out+=es(text.slice(lastEnd,matchStart))+'<span class="wd-blank">_____</span>';
+    lastEnd=matchStart+m[2].length;
   }
   out+=es(text.slice(lastEnd));
   return out||es(text);
@@ -395,13 +426,14 @@ function _blankExample(text,word){
 function _highlightWord(text,word){
   if(!text)return"";
   var stem=_wdStem(word);if(!stem)return es(text);
-  var stemEsc=stem.replace(/[.*+?^${}()|[\]\\]/g,"\\$&");
+  var re=_wdMatchRe(stem);
   var stripText=text.normalize("NFD").replace(/[̀-ͯ]/g,"");
-  var re=new RegExp("\\b"+stemEsc+"[а-яёa-z']*","gi");
   var out="";var lastEnd=0;var m;
   while((m=re.exec(stripText))!==null){
-    out+=es(text.slice(lastEnd,m.index))+'<span class="wd-hl">'+es(text.slice(m.index,m.index+m[0].length))+'</span>';
-    lastEnd=m.index+m[0].length;
+    var matchStart=m.index+m[1].length;
+    var matchEnd=matchStart+m[2].length;
+    out+=es(text.slice(lastEnd,matchStart))+'<span class="wd-hl">'+es(text.slice(matchStart,matchEnd))+'</span>';
+    lastEnd=matchEnd;
   }
   out+=es(text.slice(lastEnd));
   return out||es(text);
@@ -2613,7 +2645,7 @@ if(_pwaPrompt){
 }
 h+='<div class="sc"><span class="sc-l">Developer</span></div>';
 h+=_setRow({ico:"debug",acc:"acc-ac",title:"Debug Mode "+(dbgOn?"ON":"OFF"),onclick:"dbgOn=!dbgOn;document.getElementById(\'dbg\').classList.toggle(\'hidden\',!dbgOn);ren()"});
-h+='<div style="margin-top:18px;text-align:center;font-size:11px;color:var(--ht);letter-spacing:.3px">Family HQ v8.22.0</div>';return h}
+h+='<div style="margin-top:18px;text-align:center;font-size:11px;color:var(--ht);letter-spacing:.3px">Family HQ v8.22.1</div>';return h}
 async function setTh(id){
   if(id==="custom"){
     // Tapping Custom in the picker opens the editor (saves happen there). Also apply right away.
