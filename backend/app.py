@@ -2033,6 +2033,17 @@ def _strip_accent(s):
     """Strip combining marks (e.g. U+0301 acute) so user input can match stress-marked word."""
     return "".join(c for c in _ucd.normalize("NFD", s or "") if not _ucd.combining(c))
 
+import re as _wre
+def _img_key(en_word: str) -> str:
+    """Normalize en_word to a safe filename key.
+    'Ice Cream' → 'ice_cream', "Don't" → 'dont'. Used as image filename (no extension).
+    Stable: lowercase, alnum+underscore only, hyphens/spaces→underscore."""
+    if not en_word: return ""
+    s = en_word.lower().strip()
+    s = _wre.sub(r"[\s\-]+", "_", s)
+    s = _wre.sub(r"[^a-z0-9_]", "", s)
+    return s
+
 def _word_view(idx, mode, w, prog=None):
     """Build the card payload for a single word in a given learning mode. Caller provides `w`.
     mode='en' → user is learning English: card shows Russian source, user types English.
@@ -2045,6 +2056,7 @@ def _word_view(idx, mode, w, prog=None):
             "target_word": w["en_word"], "target_ipa": w.get("en_ipa", ""),
             "target_def": w["en_def"], "target_example": w.get("en_example", ""),
             "emoji": w.get("emoji", "📖"),
+            "image_key": _img_key(w.get("en_word", "")),
             "status": (prog or {}).get("status", "new"),
             "attempts": (prog or {}).get("attempts", 0),
         }
@@ -2055,6 +2067,7 @@ def _word_view(idx, mode, w, prog=None):
         "target_word": w["ru_word"], "target_ipa": w.get("ru_ipa", ""),
         "target_def": w["ru_def"], "target_example": w.get("ru_example", ""),
         "emoji": w.get("emoji", "📖"),
+        "image_key": _img_key(w.get("en_word", "")),
         "status": (prog or {}).get("status", "new"),
         "attempts": (prog or {}).get("attempts", 0),
     }
@@ -2172,52 +2185,10 @@ def words_reset(mode: str = "en", user=Depends(get_uf), db=Depends(get_db)):
     db.execute("DELETE FROM word_progress WHERE user_id=? AND mode=?", (user["id"], mode)); db.commit()
     return {"ok": True}
 
-UNSPLASH_ACCESS_KEY = os.environ.get("UNSPLASH_ACCESS_KEY", "").strip()
-
-@app.get("/api/words/image")
-async def words_image(idx: int, user=Depends(get_uf), db=Depends(get_db)):
-    """Returns a Unsplash image URL for the given word, cached per English-word key.
-    Falls back to {url:null, error:'no_key'} if UNSPLASH_ACCESS_KEY is not set in env."""
-    w = _word_get(idx, db)
-    if not w: raise HTTPException(400, "invalid idx")
-    # English word is the universal cache key (image is concept-bound, not language-bound)
-    key = (w.get("en_word") or "").lower().strip()
-    if not key: return {"url": None}
-    # Cache hit
-    row = db.execute("SELECT image_url FROM word_image_cache WHERE word_key=?", (key,)).fetchone()
-    if row:
-        return {"url": row["image_url"], "cached": True}
-    # No API key configured → graceful no-op (frontend stays on emoji)
-    if not UNSPLASH_ACCESS_KEY:
-        return {"url": None, "error": "no_key"}
-    # Fetch from Unsplash. Use Search Photos with squarish orientation for card use.
-    try:
-        async with httpx.AsyncClient(timeout=10) as c:
-            r = await c.get(
-                "https://api.unsplash.com/search/photos",
-                params={"query": w["en_word"], "per_page": 1, "orientation": "squarish", "content_filter": "high"},
-                headers={"Authorization": f"Client-ID {UNSPLASH_ACCESS_KEY}", "Accept-Version": "v1"},
-            )
-            if r.status_code == 401:
-                log.error(f"Unsplash: invalid access key ({r.status_code})")
-                return {"url": None, "error": "invalid_key"}
-            if r.status_code == 403:
-                log.warning(f"Unsplash: rate-limited or forbidden ({r.status_code})")
-                return {"url": None, "error": "rate_limit"}
-            r.raise_for_status()
-            data = r.json()
-            results = data.get("results") or []
-            if not results: return {"url": None}
-            urls = results[0].get("urls") or {}
-            # Use 'small' (~400px) for the card visual — saves bandwidth
-            url = urls.get("small") or urls.get("regular") or urls.get("thumb")
-            if not url: return {"url": None}
-            db.execute("INSERT OR REPLACE INTO word_image_cache (word_key, image_url) VALUES (?, ?)", (key, url))
-            db.commit()
-            return {"url": url, "cached": False}
-    except Exception as e:
-        log.warning(f"Unsplash fetch failed for '{w['en_word']}': {type(e).__name__}: {e}")
-        return {"url": None, "error": "fetch_failed"}
+# Word images: served as static files from /static/words/<image_key>.jpg
+# (mounted volume frontend/words/ on host). Files are added manually via bot
+# (photo with caption "Картинка: омлет") or scp. No API endpoint needed — the
+# frontend just tries the URL and silently hides the <img> on 404.
 
 @app.get("/api/words/member-detail")
 def words_member_detail(user_id: int, mode: str = "en", user=Depends(get_uf), db=Depends(get_db)):
@@ -2278,7 +2249,7 @@ def serve_exercise_image(fn: str):
     return r
 
 # ─── Debug & Serve ───────────────────────────────────────────────────────
-APP_VERSION = "v8.23.0"
+APP_VERSION = "v8.23.1"
 
 @app.get("/api/debug/ping")
 def ping(): return {"ok": True, "version": APP_VERSION, "time": datetime.now(ZoneInfo(TIMEZONE)).isoformat()}

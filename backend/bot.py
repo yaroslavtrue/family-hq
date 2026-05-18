@@ -1124,6 +1124,66 @@ async def handle_word_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         await q.edit_message_text("❌ Отменено.")
 
 
+# Caption-based photo upload for word images. Accepts ru and en aliases.
+_WORD_IMG_CAPTION_RE = _re.compile(r"^(?:картинка|слово|word|image|picture)\s*[:\-]?\s*(.+)$", _re.IGNORECASE | _re.UNICODE)
+WORDS_IMG_DIR = "/app/frontend/words"
+
+def _img_key(en_word: str) -> str:
+    """Match _img_key in backend/app.py — keep them in sync."""
+    if not en_word: return ""
+    s = en_word.lower().strip()
+    s = _re.sub(r"[\s\-]+", "_", s)
+    s = _re.sub(r"[^a-z0-9_]", "", s)
+    return s
+
+def _lookup_word_by_either(query: str) -> dict | None:
+    """Look up a word by en_word or ru_word (case-insensitive) in static catalog + custom_words.
+    Returns dict with en_word/ru_word/idx/source, or None if not found."""
+    q = (query or "").lower().strip()
+    if not q: return None
+    # Static catalog first
+    for i, w in enumerate(_STATIC_WORDS):
+        if w.get("en_word", "").lower() == q or w.get("ru_word", "").lower() == q:
+            return {"idx": i, "en_word": w["en_word"], "ru_word": w["ru_word"], "source": "static"}
+    # Custom words DB
+    con = _db()
+    row = con.execute(
+        "SELECT idx, en_word, ru_word FROM custom_words WHERE status='active' AND (LOWER(en_word)=? OR LOWER(ru_word)=?)",
+        (q, q)).fetchone()
+    con.close()
+    if row:
+        return {"idx": row["idx"], "en_word": row["en_word"], "ru_word": row["ru_word"], "source": "custom"}
+    return None
+
+
+async def _save_word_image(update, ctx, fid: int, user_name: str, word_query: str):
+    """Find a word by en/ru form, save uploaded photo as /app/frontend/words/<image_key>.jpg."""
+    e = html.escape
+    w = _lookup_word_by_either(word_query)
+    if not w:
+        await update.message.reply_text(
+            f"❌ Слово <b>{e(word_query)}</b> не найдено. Сначала добавь его: <code>Словарь: {e(word_query)}</code>",
+            parse_mode="HTML")
+        return
+    key = _img_key(w["en_word"])
+    if not key:
+        await update.message.reply_text("❌ Не удалось сгенерировать имя файла.")
+        return
+    photo = update.message.photo[-1]  # highest resolution
+    file = await ctx.bot.get_file(photo.file_id)
+    img_bytes = await file.download_as_bytearray()
+    os.makedirs(WORDS_IMG_DIR, exist_ok=True)
+    fn = f"{key}.jpg"
+    fp = os.path.join(WORDS_IMG_DIR, fn)
+    with open(fp, "wb") as f:
+        f.write(bytes(img_bytes))
+    size_kb = len(img_bytes) // 1024
+    await update.message.reply_text(
+        f"📸 Картинка сохранена для <b>{e(w['en_word'])}</b> ↔ <b>{e(w['ru_word'])}</b>\n"
+        f"<code>/static/words/{e(fn)}</code> ({size_kb} KB)",
+        parse_mode="HTML")
+
+
 async def _try_word_command(update, ctx, text: str, fid: int, uid: int, user_name: str) -> bool:
     """If text matches a vocab command, handle it and return True. Otherwise return False."""
     m = _WORD_CMD_RE.match(text)
@@ -1135,7 +1195,9 @@ async def _try_word_command(update, ctx, text: str, fid: int, uid: int, user_nam
             "📚 <b>Словарь</b> — добавить слово в Words:\n\n"
             "• <code>Словарь: омлет</code> — добавить (AI заполнит карточку)\n"
             "• <code>Словарь: список</code> — показать все пользовательские слова\n"
-            "• <code>Словарь: del omelet</code> — удалить слово",
+            "• <code>Словарь: del omelet</code> — удалить слово\n\n"
+            "📸 <b>Картинка</b> — прикрепи фото с подписью:\n"
+            "• <code>Картинка: омлет</code> или <code>Image: ham</code> — сохранить как обложку карточки",
             parse_mode="HTML")
         return True
     low = arg.lower()
@@ -1176,6 +1238,11 @@ async def handle_photo(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     m = _EXERCISE_CAPTION_RE.match(caption)
     if m:
         await _save_exercise_image(update, ctx, fid, user_name, m.group(1))
+        return
+    # Route: caption "картинка: омлет" / "image: ham" / "word: ham" → save as word card image
+    m2 = _WORD_IMG_CAPTION_RE.match(caption)
+    if m2:
+        await _save_word_image(update, ctx, fid, user_name, m2.group(1))
         return
 
     if not ANTHROPIC_API_KEY:

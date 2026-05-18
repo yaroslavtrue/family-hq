@@ -15,10 +15,13 @@ services:
       - TRELLO_TOKEN=${TRELLO_TOKEN}
       - TRELLO_BOARD_ID=${TRELLO_BOARD_ID}
       - TRELLO_FAMILY_ID=${TRELLO_FAMILY_ID:-1}
-      - UNSPLASH_ACCESS_KEY=${UNSPLASH_ACCESS_KEY:-}
     volumes:
       - ./data:/data
       # Weather video loops — added at runtime (no rebuild needed when files appear).
       # URL /static/weather/X.mp4 resolves to /app/frontend/weather/X.mp4 (the /static/
       # URL prefix is stripped by the serve_static route). Files live at frontend/weather/ on host.
       - ./frontend/weather:/app/frontend/weather
+      # Word card images — same pattern as weather. URL /static/words/<en_word>.jpg
+      # resolves here. Files added manually via Telegram bot (photo + caption "Картинка: X")
+      # or scp. Missing files just stay on the emoji fallback in the UI.
+      - ./frontend/words:/app/frontend/words

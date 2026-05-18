@@ -330,12 +330,12 @@ function rWords(){
   var sourceLang=_wordsState.mode==="en"?"Russian":"English";
   h+='<div class="wd-progress">Card '+progress+'</div>';
   h+='<div class="wd-card" id="wd-card">';
-  // Visual — emoji from catalog (Phase 2) is the base layer.
-  // Unsplash image is lazy-loaded after render and fades in on top (if available).
+  // Visual — emoji is the always-present base layer.
+  // If a hand-uploaded image exists at /static/words/<image_key>.jpg, it fades in on top.
+  // Missing files trigger img.onerror which silently removes the element — emoji stays.
   var emoji=w.emoji||"📖";
-  h+='<div class="wd-visual" data-idx="'+w.idx+'"><span class="wd-emoji">'+emoji+'</span>';
-  var cachedUrl=_wdImgCache[w.idx];
-  if(cachedUrl)h+='<img class="wd-img loaded" src="'+es(cachedUrl)+'" alt="" onerror="this.remove()">';
+  h+='<div class="wd-visual"><span class="wd-emoji">'+emoji+'</span>';
+  if(w.image_key)h+='<img class="wd-img" src="/static/words/'+es(w.image_key)+'.jpg?t='+_wdImgVer+'" alt="" onload="this.classList.add(\'loaded\')" onerror="this.remove()">';
   h+='</div>';
   // Reveal block (only after answer)
   if(ans){
@@ -384,27 +384,12 @@ function rWords(){
     h+='<button class="btn wd-next-btn" onclick="_wdNext()">Next →</button>';
   }
   h+='</div>';
-  setTimeout(function(){if(!ans){var i=document.getElementById("wd-input");if(i)i.focus()}_wdAttachSwipe();_wdLoadImage(w.idx)},80);
+  setTimeout(function(){if(!ans){var i=document.getElementById("wd-input");if(i)i.focus()}_wdAttachSwipe()},80);
   return h;
 }
-// Memoized image cache: idx → url (or null if fetch failed)
-var _wdImgCache={};
-async function _wdLoadImage(idx){
-  if(_wdImgCache.hasOwnProperty(idx))return; // already tried (cached or failed)
-  var d=await A("GET","/api/words/image?idx="+idx);
-  if(!d||!d.url){_wdImgCache[idx]=null;return}
-  _wdImgCache[idx]=d.url;
-  // Only inject if we're still on the same card (user may have advanced)
-  var el=document.querySelector('.wd-visual[data-idx="'+idx+'"]');
-  if(!el)return;
-  // If image is already there (e.g. cache hit on re-render), skip
-  if(el.querySelector(".wd-img"))return;
-  var img=document.createElement("img");img.className="wd-img";img.alt="";
-  img.onload=function(){img.classList.add("loaded")};
-  img.onerror=function(){img.remove()};
-  img.src=d.url;
-  el.appendChild(img);
-}
+// Image cache buster — bumped on session start so newly uploaded images appear
+// without a hard reload. Browser still respects normal Cache-Control.
+var _wdImgVer=Date.now().toString(36).slice(-4);
 // Mask the target word (incl. inflected forms) inside the example with underscores.
 // Strategy: strip common Russian/English endings → stem (min 3 chars) → match stem + any alpha tail.
 // Notes:
@@ -2692,7 +2677,7 @@ if(_pwaPrompt){
 }
 h+='<div class="sc"><span class="sc-l">Developer</span></div>';
 h+=_setRow({ico:"debug",acc:"acc-ac",title:"Debug Mode "+(dbgOn?"ON":"OFF"),onclick:"dbgOn=!dbgOn;document.getElementById(\'dbg\').classList.toggle(\'hidden\',!dbgOn);ren()"});
-h+='<div style="margin-top:18px;text-align:center;font-size:11px;color:var(--ht);letter-spacing:.3px">Family HQ v8.23.0</div>';return h}
+h+='<div style="margin-top:18px;text-align:center;font-size:11px;color:var(--ht);letter-spacing:.3px">Family HQ v8.23.1</div>';return h}
 async function setTh(id){
   if(id==="custom"){
     // Tapping Custom in the picker opens the editor (saves happen there). Also apply right away.
