@@ -484,6 +484,21 @@ def migrate(db_path):
             CREATE INDEX IF NOT EXISTS idx_custom_words_status ON custom_words(status);
             CREATE INDEX IF NOT EXISTS idx_custom_words_en ON custom_words(en_word) WHERE status='active';
         """),
+        # v19: word_overrides — edits to static catalog entries. Sparse table; presence of row
+        # means "use these values instead of words_of_day.py for this idx". Custom words
+        # (idx >= 10000) bypass this and are edited in custom_words directly.
+        lambda c: c.executescript("""
+            CREATE TABLE IF NOT EXISTS word_overrides (
+                idx INTEGER PRIMARY KEY,
+                en_word TEXT, ru_word TEXT,
+                en_ipa TEXT, ru_ipa TEXT,
+                en_def TEXT, ru_def TEXT,
+                en_example TEXT, ru_example TEXT,
+                emoji TEXT,
+                updated_at TEXT DEFAULT (datetime('now')),
+                updated_by INTEGER
+            );
+        """),
     ]
 
     for i, mig in enumerate(migrations):

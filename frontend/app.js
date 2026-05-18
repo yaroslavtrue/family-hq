@@ -602,6 +602,132 @@ function _wdDetailHtml(){
   return h;
 }
 function _wdDetailSet(tab){_wdDetailState.tab=tab;hp("sel");document.getElementById("mb").innerHTML=_wdDetailHtml()}
+
+// ─── Words manager (Settings → Words modal) ──────────────────────────
+var _wmState={all:[],query:""};
+async function openWordsMgr(){
+  hp("light");
+  oMC("Words","<div class=\"emp\" style=\"padding:30px 14px\"><div class=\"emp-i\" style=\"font-size:28px\">⏳</div><div>Loading…</div></div>",{ic:"book"});
+  var d=await A("GET","/api/words/all");
+  if(!d||!d.words){document.getElementById("mb").innerHTML="<div class=\"emp\" style=\"padding:30px\">Failed to load.</div>";return}
+  _wmState.all=d.words;_wmState.query="";
+  document.getElementById("mb").innerHTML=_wmListHtml();
+}
+function _wmListHtml(){
+  var q=(_wmState.query||"").toLowerCase().trim();
+  var list=_wmState.all;
+  if(q){list=list.filter(function(w){return (w.en_word||"").toLowerCase().indexOf(q)>=0||(w.ru_word||"").toLowerCase().indexOf(q)>=0})}
+  var h='<input class="inp" id="wm-q" placeholder="🔍 Search…" oninput="_wmSearch(this.value)" style="margin-bottom:14px" value="'+es(_wmState.query)+'">';
+  h+='<div style="font-size:11px;color:var(--ht);text-align:center;margin-bottom:10px">'+list.length+' / '+_wmState.all.length+' words</div>';
+  if(!list.length){h+='<div class="emp" style="padding:24px">No matches</div>';return h}
+  list.forEach(function(w){
+    var imgHtml=w.image_key?'<img class="wm-thumb" src="/static/words/'+es(w.image_key)+'.jpg?t='+_wdImgVer+'" alt="" onerror="this.remove()">':'';
+    h+='<div class="wm-row" onclick="openWordEdit('+w.idx+')">'+imgHtml+'<div class="wm-pair"><div class="wm-en">'+es(w.en_word||"—")+'</div><div class="wm-ru">'+es(w.ru_word||"—")+'</div></div><button class="bi" aria-label="Edit">'+I.ed+'</button></div>';
+  });
+  return h;
+}
+function _wmSearch(v){_wmState.query=v;var i=document.getElementById("wm-q");var sel=i?i.selectionStart:null;document.getElementById("mb").innerHTML=_wmListHtml();var i2=document.getElementById("wm-q");if(i2){i2.focus();if(sel!==null)i2.setSelectionRange(sel,sel)}}
+
+// Editor modal — full card editing for one word
+var _weState={idx:null,data:null};
+async function openWordEdit(idx){
+  hp("light");
+  oMC("Edit word","<div class=\"emp\" style=\"padding:30px\"><div class=\"emp-i\">⏳</div><div>Loading…</div></div>",{ic:"book"});
+  var d=await A("GET","/api/words/one/"+idx);
+  if(!d){document.getElementById("mb").innerHTML="<div class=\"emp\" style=\"padding:30px\">Failed to load.</div>";return}
+  _weState.idx=idx;_weState.data=d;
+  document.getElementById("mb").innerHTML=_weEditorHtml();
+}
+function _weEditorHtml(){
+  var d=_weState.data;
+  var hasImg=!!d.image_key;
+  var imgSrc=hasImg?'/static/words/'+es(d.image_key)+'.jpg?t='+Date.now().toString(36):'';
+  var h='';
+  // Image block
+  h+='<div class="we-img-wrap">';
+  h+='<div class="we-img" id="we-img-prev">';
+  if(hasImg)h+='<img src="'+imgSrc+'" alt="" onerror="this.parentNode.classList.add(\'we-img-empty\');this.remove()" onload="this.parentNode.classList.remove(\'we-img-empty\')">';
+  else h+='<span class="we-img-ph">'+es(d.emoji||"📖")+'</span>';
+  h+='</div>';
+  h+='<div class="we-img-actions">';
+  h+='<label class="btn btn-s" style="margin:0;cursor:pointer"><input type="file" id="we-file" accept="image/*" style="display:none" onchange="_weUpload(this)">📷 Upload image</label>';
+  h+='<button class="btn btn-s" style="background:transparent;color:var(--ac);border:1px solid color-mix(in srgb,var(--ac) 40%,transparent)" onclick="_weDeleteImg()">🗑 Remove</button>';
+  h+='</div>';
+  h+='</div>';
+  // English block
+  h+='<div class="lb">English</div>';
+  h+='<input class="inp" id="we-en-word" placeholder="Word" value="'+es(d.en_word||"")+'">';
+  h+='<input class="inp" id="we-en-ipa" placeholder="IPA, e.g. /ˈɒmlət/" value="'+es(d.en_ipa||"")+'">';
+  h+='<input class="inp" id="we-en-def" placeholder="Definition" value="'+es(d.en_def||"")+'">';
+  h+='<input class="inp" id="we-en-ex" placeholder="Example sentence" value="'+es(d.en_example||"")+'">';
+  // Russian block
+  h+='<div class="lb" style="margin-top:14px">Русский</div>';
+  h+='<input class="inp" id="we-ru-word" placeholder="Слово" value="'+es(d.ru_word||"")+'">';
+  h+='<input class="inp" id="we-ru-ipa" placeholder="Транскрипция, [ам\'л\'э́т]" value="'+es(d.ru_ipa||"")+'">';
+  h+='<input class="inp" id="we-ru-def" placeholder="Определение" value="'+es(d.ru_def||"")+'">';
+  h+='<input class="inp" id="we-ru-ex" placeholder="Пример предложения" value="'+es(d.ru_example||"")+'">';
+  // Emoji
+  h+='<div class="lb" style="margin-top:14px">Emoji</div>';
+  h+='<input class="inp" id="we-emoji" value="'+es(d.emoji||"📖")+'" style="width:80px;text-align:center;font-size:22px">';
+  h+='<div class="we-actions"><button class="btn btn-s" onclick="openWordsMgr()" style="background:transparent;color:var(--ht);border:1px solid var(--bd)">← Back</button><button class="btn" onclick="_weSave()">Save</button></div>';
+  return h;
+}
+async function _weUpload(input){
+  var f=input.files&&input.files[0];if(!f)return;
+  if(f.size>2*1024*1024){toast("Image > 2 MB");return}
+  hp("light");
+  var fd=new FormData();fd.append("file",f);
+  var headers={};
+  if(iD)headers["X-Telegram-Init-Data"]=iD;
+  var sess=_getSess();if(sess)headers["X-Session-Token"]=sess;
+  try{
+    var r=await fetch("/api/words/one/"+_weState.idx+"/image",{method:"POST",headers:headers,body:fd});
+    if(!r.ok){toast("Upload failed");return}
+    var d=await r.json();
+    _weState.data.image_key=d.image_key;
+    hp("ok");toast("Image saved");
+    // Refresh preview with cache-bust
+    var prev=document.getElementById("we-img-prev");
+    if(prev){prev.classList.remove("we-img-empty");prev.innerHTML='<img src="/static/words/'+es(d.image_key)+'.jpg?t='+Date.now()+'" alt="">'}
+    // Bump global session-bust so card view also refreshes
+    _wdImgVer=Date.now().toString(36).slice(-4);
+  }catch(e){toast("Upload error")}
+}
+async function _weDeleteImg(){
+  if(!confirm("Remove image?"))return;
+  var r=await A("DELETE","/api/words/one/"+_weState.idx+"/image");
+  if(!r){toast("Failed");return}
+  hp("ok");toast("Image removed");
+  var prev=document.getElementById("we-img-prev");
+  if(prev){prev.classList.add("we-img-empty");prev.innerHTML='<span class="we-img-ph">'+es(_weState.data.emoji||"📖")+'</span>'}
+  _wdImgVer=Date.now().toString(36).slice(-4);
+}
+async function _weSave(){
+  var v=function(id){return (document.getElementById(id)||{}).value||""};
+  var payload={
+    en_word:v("we-en-word").trim(),
+    ru_word:v("we-ru-word").trim(),
+    en_ipa:v("we-en-ipa").trim(),
+    ru_ipa:v("we-ru-ipa").trim(),
+    en_def:v("we-en-def").trim(),
+    ru_def:v("we-ru-def").trim(),
+    en_example:v("we-en-ex").trim(),
+    ru_example:v("we-ru-ex").trim(),
+    emoji:v("we-emoji").trim()||"📖"
+  };
+  if(!payload.en_word||!payload.ru_word){toast("Word required on both sides");return}
+  hp("light");
+  var r=await A("PATCH","/api/words/one/"+_weState.idx,payload);
+  if(!r){toast("Save failed");return}
+  hp("ok");toast("Saved");
+  // Refresh the local list so en/ru changes show
+  var found=_wmState.all.find(function(w){return w.idx===_weState.idx});
+  if(found){found.en_word=payload.en_word;found.ru_word=payload.ru_word;if(r.image_key)found.image_key=r.image_key}
+  // Bust image cache for the card view
+  _wdImgVer=Date.now().toString(36).slice(-4);
+  openWordsMgr();
+}
+
 async function _selectCity(name,lat,lon){
   hp("ok");
   await A("PATCH","/api/settings",{weather_city:name,weather_lat:lat,weather_lon:lon});
@@ -2668,6 +2794,8 @@ var nExp=D.categories.filter(function(c){return c.type==="expense"}).length;
 var nInc=D.categories.filter(function(c){return c.type==="income"}).length;
 h+='<div class="sc"><span class="sc-l">Money</span></div>';
 h+=_setRow({ico:"list",acc:"acc-pr",title:"Categories",subtitle:nExp+" expense · "+nInc+" income",onclick:"openCatMgr()"});
+h+='<div class="sc"><span class="sc-l">Learning</span></div>';
+h+=_setRow({ico:"book",acc:"acc-pr",title:"Words",subtitle:"Edit cards · add images",onclick:"openWordsMgr()"});
 h+='<div class="sc"><span class="sc-l">Integrations</span></div>';
 h+=_setRow({iconCustom:'<span style="font-size:22px">🔵</span>',acc:"",title:"Trello Sync",subtitle:"Board: Работа",onclick:"syncTrello()",right:'<span id="trello-btn" class="lc-rt" style="background:color-mix(in srgb,var(--pr) 16%,transparent);color:var(--pr)">Sync Now</span>'});
 if(_pwaPrompt){
@@ -2677,7 +2805,7 @@ if(_pwaPrompt){
 }
 h+='<div class="sc"><span class="sc-l">Developer</span></div>';
 h+=_setRow({ico:"debug",acc:"acc-ac",title:"Debug Mode "+(dbgOn?"ON":"OFF"),onclick:"dbgOn=!dbgOn;document.getElementById(\'dbg\').classList.toggle(\'hidden\',!dbgOn);ren()"});
-h+='<div style="margin-top:18px;text-align:center;font-size:11px;color:var(--ht);letter-spacing:.3px">Family HQ v8.23.1</div>';return h}
+h+='<div style="margin-top:18px;text-align:center;font-size:11px;color:var(--ht);letter-spacing:.3px">Family HQ v8.24.0</div>';return h}
 async function setTh(id){
   if(id==="custom"){
     // Tapping Custom in the picker opens the editor (saves happen there). Also apply right away.

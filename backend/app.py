@@ -2011,8 +2011,17 @@ import unicodedata as _ucd
 _CUSTOM_IDX_BASE = 10000
 
 def _word_get(idx, db):
-    """Return word dict for any idx (static or custom), or None if missing."""
+    """Return word dict for any idx, or None. Static words may be overridden via word_overrides."""
     if 0 <= idx < len(_STATIC_VOCAB):
+        ov = db.execute("SELECT * FROM word_overrides WHERE idx=?", (idx,)).fetchone()
+        if ov:
+            # Override row may have NULL columns — fall back to static for those.
+            base = dict(_STATIC_VOCAB[idx])
+            for k in ("en_word", "ru_word", "en_ipa", "ru_ipa", "en_def", "ru_def", "en_example", "ru_example", "emoji"):
+                v = ov[k] if k in ov.keys() else None
+                if v is not None and v != "":
+                    base[k] = v
+            return base
         return _STATIC_VOCAB[idx]
     if idx >= _CUSTOM_IDX_BASE:
         row = db.execute("SELECT * FROM custom_words WHERE idx=? AND status='active'", (idx,)).fetchone()
@@ -2185,6 +2194,141 @@ def words_reset(mode: str = "en", user=Depends(get_uf), db=Depends(get_db)):
     db.execute("DELETE FROM word_progress WHERE user_id=? AND mode=?", (user["id"], mode)); db.commit()
     return {"ok": True}
 
+# ─── Word editor (Settings → Words modal) ─────────────────────────────────
+# Image dir matches the docker volume mount in docker-compose.yml.
+WORDS_IMG_DIR = os.environ.get("WORDS_IMG_DIR", "/app/frontend/words")
+
+@app.get("/api/words/all")
+def words_all(user=Depends(get_uf), db=Depends(get_db)):
+    """Flat list of every word (static + custom, after overrides), for the editor.
+    Sorted alphabetically by en_word."""
+    out = []
+    # Static + overrides
+    for i in range(len(_STATIC_VOCAB)):
+        w = _word_get(i, db)
+        if not w: continue
+        out.append({
+            "idx": i, "source": "static",
+            "en_word": w.get("en_word", ""), "ru_word": w.get("ru_word", ""),
+            "image_key": _img_key(w.get("en_word", "")),
+        })
+    # Custom (active)
+    for r in db.execute("SELECT idx, en_word, ru_word FROM custom_words WHERE status='active' ORDER BY idx").fetchall():
+        out.append({
+            "idx": r["idx"], "source": "custom",
+            "en_word": r["en_word"], "ru_word": r["ru_word"],
+            "image_key": _img_key(r["en_word"]),
+        })
+    out.sort(key=lambda x: (x.get("en_word") or "").lower())
+    return {"words": out, "total": len(out)}
+
+@app.get("/api/words/one/{idx}")
+def word_one(idx: int, user=Depends(get_uf), db=Depends(get_db)):
+    """Full word payload for the editor (all fields)."""
+    w = _word_get(idx, db)
+    if not w: raise HTTPException(404, "word not found")
+    src = "static" if idx < len(_STATIC_VOCAB) else "custom"
+    return {
+        "idx": idx, "source": src,
+        "en_word": w.get("en_word", ""), "ru_word": w.get("ru_word", ""),
+        "en_ipa": w.get("en_ipa", ""),   "ru_ipa": w.get("ru_ipa", ""),
+        "en_def": w.get("en_def", ""),   "ru_def": w.get("ru_def", ""),
+        "en_example": w.get("en_example", ""), "ru_example": w.get("ru_example", ""),
+        "emoji": w.get("emoji", "📖"),
+        "image_key": _img_key(w.get("en_word", "")),
+    }
+
+class WordEdit(BaseModel):
+    en_word: str | None = None
+    ru_word: str | None = None
+    en_ipa: str | None = None
+    ru_ipa: str | None = None
+    en_def: str | None = None
+    ru_def: str | None = None
+    en_example: str | None = None
+    ru_example: str | None = None
+    emoji: str | None = None
+
+@app.patch("/api/words/one/{idx}")
+def word_update(idx: int, body: WordEdit, user=Depends(get_uf), db=Depends(get_db)):
+    """Update word fields. Static idx → upsert into word_overrides. Custom idx → update custom_words.
+    On en_word rename, also rename the on-disk image so the card keeps its visual."""
+    w = _word_get(idx, db)
+    if not w: raise HTTPException(404, "word not found")
+    old_en = w.get("en_word", "")
+    # Coerce/clean values: only keep fields the client sent (not None)
+    payload = {k: (v.strip() if isinstance(v, str) else v) for k, v in body.dict().items() if v is not None}
+    if not payload: return {"ok": True, "noop": True}
+    # Basic validation: word fields can't be empty if explicitly set
+    for k in ("en_word", "ru_word"):
+        if k in payload and not payload[k]:
+            raise HTTPException(400, f"{k} cannot be empty")
+    if idx < len(_STATIC_VOCAB):
+        # Static word — write to word_overrides
+        cur = db.execute("SELECT * FROM word_overrides WHERE idx=?", (idx,)).fetchone()
+        if cur:
+            sets, params = [], []
+            for k, v in payload.items():
+                sets.append(f"{k}=?"); params.append(v)
+            sets.append("updated_at=datetime('now')"); sets.append("updated_by=?"); params.extend([user["id"], idx])
+            db.execute(f"UPDATE word_overrides SET {','.join(sets)} WHERE idx=?", params)
+        else:
+            cols = ["idx"] + list(payload.keys()) + ["updated_by"]
+            vals = [idx] + list(payload.values()) + [user["id"]]
+            db.execute(f"INSERT INTO word_overrides ({','.join(cols)}) VALUES ({','.join(['?']*len(vals))})", vals)
+    else:
+        # Custom word
+        sets, params = [], []
+        for k, v in payload.items():
+            sets.append(f"{k}=?"); params.append(v)
+        params.append(idx)
+        db.execute(f"UPDATE custom_words SET {','.join(sets)} WHERE idx=?", params)
+    db.commit()
+    # Image rename on en_word change
+    if "en_word" in payload and payload["en_word"] != old_en:
+        old_key = _img_key(old_en); new_key = _img_key(payload["en_word"])
+        if old_key and new_key and old_key != new_key:
+            old_fp = os.path.join(WORDS_IMG_DIR, f"{old_key}.jpg")
+            new_fp = os.path.join(WORDS_IMG_DIR, f"{new_key}.jpg")
+            if os.path.isfile(old_fp) and not os.path.isfile(new_fp):
+                try: os.rename(old_fp, new_fp)
+                except Exception as e: log.warning(f"Image rename failed {old_key}→{new_key}: {e}")
+    return {"ok": True, "image_key": _img_key((payload.get("en_word") or old_en))}
+
+from fastapi import UploadFile, File
+
+@app.post("/api/words/one/{idx}/image")
+async def word_image_upload(idx: int, file: UploadFile = File(...), user=Depends(get_uf), db=Depends(get_db)):
+    """Upload an image for a word. Saved as /app/frontend/words/<image_key>.jpg.
+    Max 2 MB. Accepts JPEG/PNG/WebP — re-encoding not performed (Telegram MA browsers handle all)."""
+    w = _word_get(idx, db)
+    if not w: raise HTTPException(404, "word not found")
+    key = _img_key(w.get("en_word", ""))
+    if not key: raise HTTPException(400, "no image_key for this word")
+    if (file.content_type or "").split("/")[0] != "image":
+        raise HTTPException(400, "not an image")
+    data = await file.read()
+    if not data or len(data) > 2 * 1024 * 1024:
+        raise HTTPException(400, "empty or too large (max 2 MB)")
+    os.makedirs(WORDS_IMG_DIR, exist_ok=True)
+    fp = os.path.join(WORDS_IMG_DIR, f"{key}.jpg")
+    with open(fp, "wb") as f:
+        f.write(data)
+    return {"ok": True, "image_key": key, "size": len(data)}
+
+@app.delete("/api/words/one/{idx}/image")
+def word_image_delete(idx: int, user=Depends(get_uf), db=Depends(get_db)):
+    """Delete the on-disk image for a word (card reverts to emoji)."""
+    w = _word_get(idx, db)
+    if not w: raise HTTPException(404, "word not found")
+    key = _img_key(w.get("en_word", ""))
+    if not key: return {"ok": True, "noop": True}
+    fp = os.path.join(WORDS_IMG_DIR, f"{key}.jpg")
+    if os.path.isfile(fp):
+        try: os.remove(fp); return {"ok": True}
+        except Exception as e: raise HTTPException(500, f"delete failed: {e}")
+    return {"ok": True, "noop": True}
+
 # Word images: served as static files from /static/words/<image_key>.jpg
 # (mounted volume frontend/words/ on host). Files are added manually via bot
 # (photo with caption "Картинка: омлет") or scp. No API endpoint needed — the
@@ -2249,7 +2393,7 @@ def serve_exercise_image(fn: str):
     return r
 
 # ─── Debug & Serve ───────────────────────────────────────────────────────
-APP_VERSION = "v8.23.1"
+APP_VERSION = "v8.24.0"
 
 @app.get("/api/debug/ping")
 def ping(): return {"ok": True, "version": APP_VERSION, "time": datetime.now(ZoneInfo(TIMEZONE)).isoformat()}
