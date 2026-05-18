@@ -304,6 +304,7 @@ body.words-mode .ct{padding-top:max(10px, calc(env(safe-area-inset-top, 0px) + 6
 .wd-progress{font-size:11px;color:var(--ht);font-weight:700;letter-spacing:1.2px;text-transform:uppercase;text-align:center;margin-bottom:14px}
 .wd-card{background:var(--cd);border:1px solid var(--bd);border-radius:22px;padding:22px 20px 18px;box-shadow:var(--shadow-1);position:relative;animation:ci .3s ease-out;touch-action:pan-y}
 .wd-visual{width:120px;height:120px;border-radius:24px;display:flex;align-items:center;justify-content:center;margin:0 auto 18px;background:linear-gradient(135deg,color-mix(in srgb,var(--pr) 38%,transparent),color-mix(in srgb,var(--pr) 10%,transparent));border:1px solid color-mix(in srgb,var(--pr) 45%,transparent);color:var(--pr);box-shadow:inset 0 1px 0 color-mix(in srgb,var(--pr) 20%,transparent),0 4px 18px color-mix(in srgb,var(--pr) 18%,transparent)}
+.wd-emoji{font-size:64px;line-height:1;filter:drop-shadow(0 2px 6px rgba(0,0,0,.18))}
 .wd-src-row{display:flex;align-items:center;justify-content:center;gap:10px;margin-bottom:4px}
 .wd-src-word{font-size:26px;font-weight:800;letter-spacing:-.4px;color:var(--tx);line-height:1.15;text-align:center}
 .wd-speak{background:color-mix(in srgb,var(--pr) 14%,transparent);border:1px solid color-mix(in srgb,var(--pr) 35%,transparent);color:var(--pr);cursor:pointer;width:34px;height:34px;border-radius:11px;display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;transition:transform .12s,background .15s}
@@ -341,6 +342,9 @@ body.words-mode .ct{padding-top:max(10px, calc(env(safe-area-inset-top, 0px) + 6
 .wd-your-ans span{color:var(--ac);font-weight:700}
 .wd-def-sub{color:var(--ht);font-size:14px}
 .wd-next-btn{margin-top:18px;width:100%}
+.wd-example{font-size:14px;font-style:italic;color:var(--tx);line-height:1.45;padding:10px 14px;background:color-mix(in srgb,var(--tx) 4%,transparent);border-left:3px solid color-mix(in srgb,var(--pr) 45%,transparent);border-radius:0 12px 12px 0}
+.wd-blank{display:inline-block;font-style:normal;letter-spacing:.5px;color:var(--ht);font-weight:700;background:color-mix(in srgb,var(--tx) 6%,transparent);padding:0 6px;border-radius:6px;margin:0 1px}
+.wd-hl{color:var(--pr);font-weight:700;font-style:normal;background:color-mix(in srgb,var(--pr) 14%,transparent);padding:0 4px;border-radius:5px}
 
 /* Stats overlay member rows — tappable */
 .wd-stats-row{cursor:pointer;transition:transform .12s,background .15s}
@@ -684,6 +688,6 @@ body.words-mode .ct{padding-top:max(10px, calc(env(safe-area-inset-top, 0px) + 6
 <!-- Debug -->
 <div class="dbg hidden" id="dbg"><button class="dbg-cp" onclick="navigator.clipboard.writeText(dbgLog.join('\n'))">Copy</button></div>
 <!-- Load JS -->
-<script src="/static/app.js?v=154"></script>
+<script src="/static/app.js?v=155"></script>
 </body>
 </html>

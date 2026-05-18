@@ -329,8 +329,9 @@ function rWords(){
   var sourceLang=_wordsState.mode==="en"?"Russian":"English";
   h+='<div class="wd-progress">Card '+progress+'</div>';
   h+='<div class="wd-card" id="wd-card">';
-  // Visual placeholder
-  h+='<div class="wd-visual">'+icon("book",60,1.6)+'</div>';
+  // Visual — emoji from catalog (Phase 2). Falls back to 📖 if missing.
+  var emoji=w.emoji||"📖";
+  h+='<div class="wd-visual"><span class="wd-emoji">'+emoji+'</span></div>';
   // Reveal block (only after answer)
   if(ans){
     var revealCls=ans==="correct"?"wd-reveal wd-reveal-ok":"wd-reveal wd-reveal-wrong";
@@ -342,7 +343,6 @@ function rWords(){
     if(ans==="wrong"&&_wordsState.lastAnswer)h+='<div class="wd-your-ans">You typed: <span>'+es(_wordsState.lastAnswer)+'</span></div>';
     h+='</div>';
   }else{
-    // Prompt
     h+='<div class="wd-prompt">Guess the '+targetLang+' word</div>';
   }
   // Both definitions
@@ -351,7 +351,13 @@ function rWords(){
   h+='<div class="wd-def">'+es(w.target_def)+'</div>';
   h+='<div class="wd-def-lb" style="margin-top:12px">'+sourceLang+' definition</div>';
   h+='<div class="wd-def wd-def-sub">'+es(w.source_def)+'</div>';
-  // Action area: input form OR Next button
+  // Example sentence — target_example. Mask the target word with underscores until revealed.
+  if(w.target_example){
+    var shown=ans?_highlightWord(w.target_example,w.target_word):_blankExample(w.target_example,w.target_word);
+    h+='<div class="wd-def-lb" style="margin-top:14px">Example</div>';
+    h+='<div class="wd-example">'+shown+'</div>';
+  }
+  // Action area
   if(!ans){
     h+='<form onsubmit="_wdSubmit(event);return false" style="margin-top:18px"><input type="text" class="wd-input" id="wd-input" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" placeholder="Type the '+targetLang+' word..."></form>';
     h+='<div class="wd-actions"><button class="btn btn-s wd-btn-skip" onclick="_wdDontKnow()">← Don\'t know</button><button class="btn wd-btn-submit" onclick="_wdSubmit()">Check</button></div>';
@@ -361,6 +367,44 @@ function rWords(){
   h+='</div>';
   setTimeout(function(){if(!ans){var i=document.getElementById("wd-input");if(i)i.focus()}_wdAttachSwipe()},80);
   return h;
+}
+// Mask the target word (incl. inflected forms) inside the example with underscores.
+// Strategy: strip common Russian/English endings → stem (min 3 chars) → match stem + any alpha tail.
+function _wdStem(word){
+  if(!word)return"";
+  var s=word.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g,"");
+  var endings=["ость","ение","ание","ться","иться","ение","ать","ять","еть","ить","ие","ия","ое","ый","ой","ть","ся","ing","tion","ity","ness","ed","es","s"];
+  for(var i=0;i<endings.length;i++){if(s.length-endings[i].length>=3&&s.endsWith(endings[i])){s=s.slice(0,-endings[i].length);break}}
+  return s.length>=3?s:word.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g,"").slice(0,Math.min(4,word.length))
+}
+function _blankExample(text,word){
+  if(!text)return"";
+  var stem=_wdStem(word);if(!stem)return es(text);
+  var stemEsc=stem.replace(/[.*+?^${}()|[\]\\]/g,"\\$&");
+  // Find match using accent-stripped text, then locate same range in original text
+  var stripText=text.normalize("NFD").replace(/[̀-ͯ]/g,"");
+  var re=new RegExp("\\b"+stemEsc+"[а-яёa-z']*","gi");
+  var out="";var lastEnd=0;var m;
+  while((m=re.exec(stripText))!==null){
+    out+=es(text.slice(lastEnd,m.index))+'<span class="wd-blank">_____</span>';
+    lastEnd=m.index+m[0].length;
+  }
+  out+=es(text.slice(lastEnd));
+  return out||es(text);
+}
+function _highlightWord(text,word){
+  if(!text)return"";
+  var stem=_wdStem(word);if(!stem)return es(text);
+  var stemEsc=stem.replace(/[.*+?^${}()|[\]\\]/g,"\\$&");
+  var stripText=text.normalize("NFD").replace(/[̀-ͯ]/g,"");
+  var re=new RegExp("\\b"+stemEsc+"[а-яёa-z']*","gi");
+  var out="";var lastEnd=0;var m;
+  while((m=re.exec(stripText))!==null){
+    out+=es(text.slice(lastEnd,m.index))+'<span class="wd-hl">'+es(text.slice(m.index,m.index+m[0].length))+'</span>';
+    lastEnd=m.index+m[0].length;
+  }
+  out+=es(text.slice(lastEnd));
+  return out||es(text);
 }
 function _normWord(s){return (s||"").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g,"").replace(/[ё]/g,"е").trim()}
 function _wdSubmit(e){
@@ -2569,7 +2613,7 @@ if(_pwaPrompt){
 }
 h+='<div class="sc"><span class="sc-l">Developer</span></div>';
 h+=_setRow({ico:"debug",acc:"acc-ac",title:"Debug Mode "+(dbgOn?"ON":"OFF"),onclick:"dbgOn=!dbgOn;document.getElementById(\'dbg\').classList.toggle(\'hidden\',!dbgOn);ren()"});
-h+='<div style="margin-top:18px;text-align:center;font-size:11px;color:var(--ht);letter-spacing:.3px">Family HQ v8.21.1</div>';return h}
+h+='<div style="margin-top:18px;text-align:center;font-size:11px;color:var(--ht);letter-spacing:.3px">Family HQ v8.22.0</div>';return h}
 async function setTh(id){
   if(id==="custom"){
     // Tapping Custom in the picker opens the editor (saves happen there). Also apply right away.

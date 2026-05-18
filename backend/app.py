@@ -2018,16 +2018,20 @@ def _word_view(idx, mode, prog=None):
         return {
             "idx": idx,
             "source_word": w["ru_word"], "source_ipa": w.get("ru_ipa", ""),
-            "source_def": w["ru_def"],
-            "target_word": w["en_word"], "target_ipa": w.get("en_ipa", ""), "target_def": w["en_def"],
+            "source_def": w["ru_def"], "source_example": w.get("ru_example", ""),
+            "target_word": w["en_word"], "target_ipa": w.get("en_ipa", ""),
+            "target_def": w["en_def"], "target_example": w.get("en_example", ""),
+            "emoji": w.get("emoji", "📖"),
             "status": (prog or {}).get("status", "new"),
             "attempts": (prog or {}).get("attempts", 0),
         }
     return {
         "idx": idx,
         "source_word": w["en_word"], "source_ipa": w.get("en_ipa", ""),
-        "source_def": w["en_def"],
-        "target_word": w["ru_word"], "target_ipa": w.get("ru_ipa", ""), "target_def": w["ru_def"],
+        "source_def": w["en_def"], "source_example": w.get("en_example", ""),
+        "target_word": w["ru_word"], "target_ipa": w.get("ru_ipa", ""),
+        "target_def": w["ru_def"], "target_example": w.get("ru_example", ""),
+        "emoji": w.get("emoji", "📖"),
         "status": (prog or {}).get("status", "new"),
         "attempts": (prog or {}).get("attempts", 0),
     }
@@ -2200,7 +2204,7 @@ def serve_exercise_image(fn: str):
     return r
 
 # ─── Debug & Serve ───────────────────────────────────────────────────────
-APP_VERSION = "v8.21.1"
+APP_VERSION = "v8.22.0"
 
 @app.get("/api/debug/ping")
 def ping(): return {"ok": True, "version": APP_VERSION, "time": datetime.now(ZoneInfo(TIMEZONE)).isoformat()}
