@@ -499,6 +499,10 @@ def migrate(db_path):
                 updated_by INTEGER
             );
         """),
+        # v20: drop the orphan word_image_cache table (left behind from the dropped
+        # Unsplash integration in v8.23.1). Words use hand-uploaded files now —
+        # no cache table needed.
+        lambda c: c.executescript("DROP TABLE IF EXISTS word_image_cache;"),
     ]
 
     for i, mig in enumerate(migrations):

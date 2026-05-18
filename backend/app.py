@@ -217,6 +217,7 @@ async def lifespan(app: FastAPI):
     aps.add_job(sched.morning_digest, "cron", minute=0)
     aps.add_job(sched.refresh_weather, "interval", minutes=60, next_run_time=datetime.now(ZoneInfo(TIMEZONE)))
     aps.add_job(sched.sync_trello, "interval", minutes=30)
+    aps.add_job(sched.cleanup_pending_words, "cron", hour=3, minute=30)
     aps.start(); log.info("✅ Family HQ v5"); yield; aps.shutdown()
 
 app = FastAPI(title="Family HQ v5", lifespan=lifespan)
@@ -2003,12 +2004,8 @@ async def weather_geocode(q: str = "", user=Depends(get_uf)):
 # VOCABULARY — word learning (study sessions, per-member progress)
 # ═════════════════════════════════════════════════════════════════════════
 from backend.words_of_day import WORDS as _STATIC_VOCAB
+from backend.words_common import img_key as _img_key, CUSTOM_IDX_BASE as _CUSTOM_IDX_BASE
 import unicodedata as _ucd
-
-# Custom words (added via bot) live in custom_words table with idx >= 10000.
-# Static catalog occupies idx 0..len(_STATIC_VOCAB)-1. The 10000 gap lets us grow
-# the static list without colliding with progress records that reference custom idx.
-_CUSTOM_IDX_BASE = 10000
 
 def _word_get(idx, db):
     """Return word dict for any idx, or None. Static words may be overridden via word_overrides."""
@@ -2041,17 +2038,6 @@ def _word_count(db):
 def _strip_accent(s):
     """Strip combining marks (e.g. U+0301 acute) so user input can match stress-marked word."""
     return "".join(c for c in _ucd.normalize("NFD", s or "") if not _ucd.combining(c))
-
-import re as _wre
-def _img_key(en_word: str) -> str:
-    """Normalize en_word to a safe filename key.
-    'Ice Cream' → 'ice_cream', "Don't" → 'dont'. Used as image filename (no extension).
-    Stable: lowercase, alnum+underscore only, hyphens/spaces→underscore."""
-    if not en_word: return ""
-    s = en_word.lower().strip()
-    s = _wre.sub(r"[\s\-]+", "_", s)
-    s = _wre.sub(r"[^a-z0-9_]", "", s)
-    return s
 
 def _word_view(idx, mode, w, prog=None):
     """Build the card payload for a single word in a given learning mode. Caller provides `w`.
@@ -2393,7 +2379,7 @@ def serve_exercise_image(fn: str):
     return r
 
 # ─── Debug & Serve ───────────────────────────────────────────────────────
-APP_VERSION = "v8.24.0"
+APP_VERSION = "v8.24.1"
 
 @app.get("/api/debug/ping")
 def ping(): return {"ok": True, "version": APP_VERSION, "time": datetime.now(ZoneInfo(TIMEZONE)).isoformat()}

@@ -581,3 +581,20 @@ async def morning_digest():
             if not text.strip(): continue  # all sections disabled — skip silently
             await _send(member["tg_chat_id"], text, parse_mode="HTML")
     con.close()
+
+
+async def cleanup_pending_words():
+    """Delete custom_words rows stuck in 'pending' status for more than 24h.
+    These are left behind when a user types 'Словарь: X' in the bot but never
+    taps Add or Cancel on the confirmation buttons. Harmless but tidy."""
+    con = _con()
+    try:
+        cur = con.execute(
+            "DELETE FROM custom_words WHERE status='pending' AND added_at < datetime('now', '-1 day')")
+        con.commit()
+        if cur.rowcount:
+            log.info(f"🧹 Cleaned up {cur.rowcount} stale pending word(s)")
+    except Exception as e:
+        log.warning(f"cleanup_pending_words failed: {e}")
+    finally:
+        con.close()

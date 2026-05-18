@@ -8,6 +8,7 @@ from zoneinfo import ZoneInfo
 from telegram import Update, WebAppInfo, MenuButtonWebApp, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Application, CommandHandler, MessageHandler, CallbackQueryHandler, filters, ContextTypes
 from backend.words_of_day import WORDS as _STATIC_WORDS
+from backend.words_common import img_key as _img_key, CUSTOM_IDX_BASE as _CUSTOM_IDX_BASE
 import httpx
 
 BOT_TOKEN = os.environ.get("BOT_TOKEN", "YOUR_TOKEN_HERE")
@@ -860,7 +861,6 @@ async def _save_exercise_image(update, ctx, fid: int, user_name: str, ex_name: s
 
 
 # ─── VOCABULARY BOT — add/list/delete custom words via Claude Haiku ─────────
-_CUSTOM_IDX_BASE = 10000
 # Matches "словарь" / "dictionary" with optional argument after a separator.
 # Supported forms: "Словарь: омлет", "Dictionary ham", "словарь-омлет", "Словарь: список", "Словарь: del omelet".
 _WORD_CMD_RE = _re.compile(r"^(?:словарь|dictionary)(?:[\s:\-—]+(.+))?$", _re.IGNORECASE | _re.UNICODE)
@@ -1126,15 +1126,7 @@ async def handle_word_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
 
 # Caption-based photo upload for word images. Accepts ru and en aliases.
 _WORD_IMG_CAPTION_RE = _re.compile(r"^(?:картинка|слово|word|image|picture)\s*[:\-]?\s*(.+)$", _re.IGNORECASE | _re.UNICODE)
-WORDS_IMG_DIR = "/app/frontend/words"
-
-def _img_key(en_word: str) -> str:
-    """Match _img_key in backend/app.py — keep them in sync."""
-    if not en_word: return ""
-    s = en_word.lower().strip()
-    s = _re.sub(r"[\s\-]+", "_", s)
-    s = _re.sub(r"[^a-z0-9_]", "", s)
-    return s
+WORDS_IMG_DIR = os.environ.get("WORDS_IMG_DIR", "/app/frontend/words")
 
 def _lookup_word_by_either(query: str) -> dict | None:
     """Look up a word by en_word or ru_word (case-insensitive) in static catalog + custom_words.
