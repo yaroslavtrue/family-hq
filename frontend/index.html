@@ -345,6 +345,17 @@ body.words-mode .ct{padding-top:max(10px, calc(env(safe-area-inset-top, 0px) + 6
 .wd-def-sub{color:var(--ht);font-size:14px}
 .wd-next-btn{margin-top:18px;width:100%}
 .wd-example{font-size:14px;font-style:italic;color:var(--tx);line-height:1.45;padding:10px 14px;background:color-mix(in srgb,var(--tx) 4%,transparent);border-left:3px solid color-mix(in srgb,var(--pr) 45%,transparent);border-radius:0 12px 12px 0}
+/* Example header row with translate toggle */
+.wd-ex-hd{display:flex;align-items:center;justify-content:center;gap:8px;margin-top:14px;margin-bottom:6px}
+.wd-ex-lb{font-size:10px;font-weight:700;color:var(--ht);letter-spacing:.8px;text-transform:uppercase}
+.wd-tr-btn{background:transparent;border:1px solid var(--bd);color:var(--ht);cursor:pointer;width:24px;height:24px;border-radius:7px;display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;padding:0;transition:transform .12s,background .15s,color .15s,border-color .15s}
+.wd-tr-btn:active{transform:scale(.88)}
+.wd-tr-btn.wd-tr-active{background:color-mix(in srgb,var(--pr) 16%,transparent);border-color:color-mix(in srgb,var(--pr) 42%,transparent);color:var(--pr)}
+/* Reveal: source word + IPA shown below target */
+.wd-rev-divider{height:1px;background:color-mix(in srgb,var(--bd) 80%,transparent);margin:10px 18% 8px;opacity:.7}
+.wd-reveal .wd-rev-sub .wd-src-word{font-size:18px;font-weight:700;opacity:.88}
+.wd-speak-sm{width:28px;height:28px;border-radius:9px}
+.wd-rev-sub-ipa{font-family:ui-monospace,Menlo,monospace;font-size:12px;color:var(--ht);font-weight:600;text-align:center;letter-spacing:.2px;opacity:.78;margin-top:2px}
 .wd-blank{display:inline-block;font-style:normal;letter-spacing:.5px;color:var(--ht);font-weight:700;background:color-mix(in srgb,var(--tx) 6%,transparent);padding:0 6px;border-radius:6px;margin:0 1px}
 .wd-hl{color:var(--pr);font-weight:700;font-style:normal;background:color-mix(in srgb,var(--pr) 14%,transparent);padding:0 4px;border-radius:5px}
 
@@ -690,6 +701,6 @@ body.words-mode .ct{padding-top:max(10px, calc(env(safe-area-inset-top, 0px) + 6
 <!-- Debug -->
 <div class="dbg hidden" id="dbg"><button class="dbg-cp" onclick="navigator.clipboard.writeText(dbgLog.join('\n'))">Copy</button></div>
 <!-- Load JS -->
-<script src="/static/app.js?v=158"></script>
+<script src="/static/app.js?v=159"></script>
 </body>
 </html>

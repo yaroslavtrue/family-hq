@@ -145,7 +145,8 @@ receipt:'<path d="M4 2v20l2-1 2 1 2-1 2 1 2-1 2 1 2-1 2 1V2l-2 1-2-1-2 1-2-1-2 1
 palette:'<circle cx="13.5" cy="6.5" r="1" fill="currentColor"/><circle cx="17.5" cy="10.5" r="1" fill="currentColor"/><circle cx="8.5" cy="7.5" r="1" fill="currentColor"/><circle cx="6.5" cy="12.5" r="1" fill="currentColor"/><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10c.92 0 1.65-.74 1.65-1.65 0-.43-.16-.83-.43-1.13-.27-.31-.43-.7-.43-1.13a1.65 1.65 0 0 1 1.65-1.65H16c3.31 0 6-2.69 6-6 0-4.96-4.49-9-10-9Z"/>',
 pin:'<path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/>',
 book:'<path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/>',
-speaker:'<polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"/>'
+speaker:'<polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"/>',
+translate:'<path d="m16 3 4 4-4 4"/><path d="M20 7H4"/><path d="m8 21-4-4 4-4"/><path d="M4 17h16"/>'
 };
 // Wrappers — pre-built default sizes for the most-used icons
 const I={
@@ -290,7 +291,7 @@ async function _doCitySearch(q){
 function _selectCityEvt(el){_selectCity(el.dataset.name,parseFloat(el.dataset.lat),parseFloat(el.dataset.lon))}
 
 // ─── Words / Vocabulary learning ────────────────────────────────
-var _wordsState={mode:"en",queue:[],cursor:0,sessionCorrect:0,loading:false,stats:{total:0,new:0,learning:0,learned:0},answered:null,lastAnswer:""};
+var _wordsState={mode:"en",queue:[],cursor:0,sessionCorrect:0,loading:false,stats:{total:0,new:0,learning:0,learned:0},answered:null,lastAnswer:"",showSourceExample:false};
 var _wordsFirstLoad=true;
 function _myMember(){var uid=fS&&fS.my_id;return uid&&(D.members||[]).find(function(m){return m.user_id===uid})}
 function _wordsInitMode(){var me=_myMember();if(me&&me.learn_mode)_wordsState.mode=me.learn_mode;else _wordsState.mode="en"}
@@ -344,6 +345,12 @@ function rWords(){
     h+='<div class="wd-reveal-lb">'+revealLb+'</div>';
     h+='<div class="wd-src-row"><div class="wd-src-word">'+es(w.target_word)+'</div><button class="wd-speak" onclick="_speakWord(true)" aria-label="Pronounce">'+icon("speaker",16,2)+'</button></div>';
     if(w.target_ipa)h+='<div class="wd-src-ipa">'+es(w.target_ipa)+'</div>';
+    // Source word + IPA below — gives full pair confirmation in both languages
+    if(w.source_word){
+      h+='<div class="wd-rev-divider"></div>';
+      h+='<div class="wd-src-row wd-rev-sub"><div class="wd-src-word">'+es(w.source_word)+'</div><button class="wd-speak wd-speak-sm" onclick="_speakWord(false)" aria-label="Pronounce">'+icon("speaker",14,2)+'</button></div>';
+      if(w.source_ipa)h+='<div class="wd-rev-sub-ipa">'+es(w.source_ipa)+'</div>';
+    }
     if(ans==="wrong"&&_wordsState.lastAnswer)h+='<div class="wd-your-ans">You typed: <span>'+es(_wordsState.lastAnswer)+'</span></div>';
     h+='</div>';
   }else{
@@ -355,11 +362,19 @@ function rWords(){
   h+='<div class="wd-def">'+es(w.target_def)+'</div>';
   h+='<div class="wd-def-lb" style="margin-top:12px">'+sourceLang+' definition</div>';
   h+='<div class="wd-def wd-def-sub">'+es(w.source_def)+'</div>';
-  // Example sentence — target_example. Mask the target word with underscores until revealed.
-  if(w.target_example){
-    var shown=ans?_highlightWord(w.target_example,w.target_word):_blankExample(w.target_example,w.target_word);
-    h+='<div class="wd-def-lb" style="margin-top:14px">Example</div>';
-    h+='<div class="wd-example">'+shown+'</div>';
+  // Example sentence — toggle between target/source language via translate button.
+  // Target side is masked (until answered); source side is the translation, always visible.
+  var hasTgtEx=!!w.target_example, hasSrcEx=!!w.source_example;
+  if(hasTgtEx||hasSrcEx){
+    var canTr=hasTgtEx&&hasSrcEx;
+    var useSrcEx=(_wordsState.showSourceExample&&hasSrcEx)||!hasTgtEx;
+    var exText=useSrcEx?w.source_example:w.target_example;
+    var exLang=useSrcEx?sourceLang:targetLang;
+    var exShown=useSrcEx?es(exText):(ans?_highlightWord(exText,w.target_word):_blankExample(exText,w.target_word));
+    h+='<div class="wd-ex-hd"><span class="wd-ex-lb">Example · '+exLang+'</span>';
+    if(canTr)h+='<button class="wd-tr-btn '+(useSrcEx?"wd-tr-active":"")+'" onclick="_wdToggleExampleLang()" aria-label="Translate">'+icon("translate",13,2.2)+'</button>';
+    h+='</div>';
+    h+='<div class="wd-example">'+exShown+'</div>';
   }
   // Action area
   if(!ans){
@@ -493,7 +508,13 @@ function _wdNext(){
   hp("light");
   _wordsState.answered=null;
   _wordsState.lastAnswer="";
+  _wordsState.showSourceExample=false; // reset translation toggle per card
   _wordsState.cursor++;
+  if(tab==="words")ren();
+}
+function _wdToggleExampleLang(){
+  _wordsState.showSourceExample=!_wordsState.showSourceExample;
+  hp("light");
   if(tab==="words")ren();
 }
 // _speakWord(useTarget) — when true, speaks the target word (reveal). Otherwise source.
@@ -2671,7 +2692,7 @@ if(_pwaPrompt){
 }
 h+='<div class="sc"><span class="sc-l">Developer</span></div>';
 h+=_setRow({ico:"debug",acc:"acc-ac",title:"Debug Mode "+(dbgOn?"ON":"OFF"),onclick:"dbgOn=!dbgOn;document.getElementById(\'dbg\').classList.toggle(\'hidden\',!dbgOn);ren()"});
-h+='<div style="margin-top:18px;text-align:center;font-size:11px;color:var(--ht);letter-spacing:.3px">Family HQ v8.22.3</div>';return h}
+h+='<div style="margin-top:18px;text-align:center;font-size:11px;color:var(--ht);letter-spacing:.3px">Family HQ v8.22.4</div>';return h}
 async function setTh(id){
   if(id==="custom"){
     // Tapping Custom in the picker opens the editor (saves happen there). Also apply right away.
