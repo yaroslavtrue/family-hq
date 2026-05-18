@@ -417,8 +417,12 @@ function _blankExample(text,word){
   var out="";var lastEnd=0;var m;
   while((m=re.exec(stripText))!==null){
     var matchStart=m.index+m[1].length;
-    out+=es(text.slice(lastEnd,matchStart))+'<span class="wd-blank">_____</span>';
-    lastEnd=matchStart+m[2].length;
+    // Use the matched word's letter count for the number of underscores so the blank
+    // visually matches the hidden word's length.
+    var wordLen=m[2].length;
+    var blanks=new Array(wordLen+1).join("_");
+    out+=es(text.slice(lastEnd,matchStart))+'<span class="wd-blank">'+blanks+'</span>';
+    lastEnd=matchStart+wordLen;
   }
   out+=es(text.slice(lastEnd));
   return out||es(text);
@@ -2645,7 +2649,7 @@ if(_pwaPrompt){
 }
 h+='<div class="sc"><span class="sc-l">Developer</span></div>';
 h+=_setRow({ico:"debug",acc:"acc-ac",title:"Debug Mode "+(dbgOn?"ON":"OFF"),onclick:"dbgOn=!dbgOn;document.getElementById(\'dbg\').classList.toggle(\'hidden\',!dbgOn);ren()"});
-h+='<div style="margin-top:18px;text-align:center;font-size:11px;color:var(--ht);letter-spacing:.3px">Family HQ v8.22.1</div>';return h}
+h+='<div style="margin-top:18px;text-align:center;font-size:11px;color:var(--ht);letter-spacing:.3px">Family HQ v8.22.2</div>';return h}
 async function setTh(id){
   if(id==="custom"){
     // Tapping Custom in the picker opens the editor (saves happen there). Also apply right away.
