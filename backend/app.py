@@ -2141,6 +2141,41 @@ def words_reset(mode: str = "en", user=Depends(get_uf), db=Depends(get_db)):
     db.execute("DELETE FROM word_progress WHERE user_id=? AND mode=?", (user["id"], mode)); db.commit()
     return {"ok": True}
 
+@app.get("/api/words/member-detail")
+def words_member_detail(user_id: int, mode: str = "en", user=Depends(get_uf), db=Depends(get_db)):
+    """Detailed word lists for one member — used by the stats drill-down page."""
+    if mode not in ("en", "ru"): raise HTTPException(400)
+    target = db.execute("SELECT 1 FROM family_members WHERE user_id=? AND family_id=?",
+                        (user_id, user["family_id"])).fetchone()
+    if not target: raise HTTPException(403, "not in same family")
+    rows = db.execute(
+        "SELECT word_idx, status, attempts, correct_count, last_seen FROM word_progress WHERE user_id=? AND mode=? ORDER BY last_seen DESC NULLS LAST",
+        (user_id, mode)).fetchall()
+    learned, mistakes = [], []
+    for r in rows:
+        idx = r["word_idx"]
+        if idx < 0 or idx >= len(_VOCAB): continue
+        w = _VOCAB[idx]
+        if mode == "en":
+            src_w, tgt_w, tgt_ipa = w["ru_word"], w["en_word"], w.get("en_ipa", "")
+        else:
+            src_w, tgt_w, tgt_ipa = w["en_word"], w["ru_word"], w.get("ru_ipa", "")
+        entry = {
+            "idx": idx,
+            "source_word": src_w,
+            "target_word": tgt_w,
+            "target_ipa": tgt_ipa,
+            "attempts": r["attempts"],
+            "correct_count": r["correct_count"],
+            "accuracy": round(r["correct_count"] / r["attempts"] * 100) if r["attempts"] else 0,
+            "last_seen": r["last_seen"],
+        }
+        if r["status"] == "learned":
+            learned.append(entry)
+        elif r["status"] == "learning":
+            mistakes.append(entry)
+    return {"user_id": user_id, "mode": mode, "learned": learned, "mistakes": mistakes}
+
 class LearnMode(BaseModel):
     mode: str  # "en" | "ru"
 
@@ -2165,7 +2200,7 @@ def serve_exercise_image(fn: str):
     return r
 
 # ─── Debug & Serve ───────────────────────────────────────────────────────
-APP_VERSION = "v8.21.0"
+APP_VERSION = "v8.21.1"
 
 @app.get("/api/debug/ping")
 def ping(): return {"ok": True, "version": APP_VERSION, "time": datetime.now(ZoneInfo(TIMEZONE)).isoformat()}

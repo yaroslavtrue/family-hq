@@ -290,7 +290,7 @@ async function _doCitySearch(q){
 function _selectCityEvt(el){_selectCity(el.dataset.name,parseFloat(el.dataset.lat),parseFloat(el.dataset.lon))}
 
 // ─── Words / Vocabulary learning ────────────────────────────────
-var _wordsState={mode:"en",queue:[],cursor:0,sessionCorrect:0,loading:false,stats:{total:0,new:0,learning:0,learned:0}};
+var _wordsState={mode:"en",queue:[],cursor:0,sessionCorrect:0,loading:false,stats:{total:0,new:0,learning:0,learned:0},answered:null,lastAnswer:""};
 var _wordsFirstLoad=true;
 function _myMember(){var uid=fS&&fS.my_id;return uid&&(D.members||[]).find(function(m){return m.user_id===uid})}
 function _wordsInitMode(){var me=_myMember();if(me&&me.learn_mode)_wordsState.mode=me.learn_mode;else _wordsState.mode="en"}
@@ -324,58 +324,87 @@ function rWords(){
   // Current card
   var w=_wordsState.queue[_wordsState.cursor];
   var progress=_wordsState.cursor+1+' / '+_wordsState.queue.length;
+  var ans=_wordsState.answered; // null | "correct" | "wrong"
+  var targetLang=_wordsState.mode==="en"?"English":"Russian";
+  var sourceLang=_wordsState.mode==="en"?"Russian":"English";
   h+='<div class="wd-progress">Card '+progress+'</div>';
   h+='<div class="wd-card" id="wd-card">';
-  // Visual placeholder (MVP — generic book icon in tinted square; Phase 2: Unsplash image)
+  // Visual placeholder
   h+='<div class="wd-visual">'+icon("book",60,1.6)+'</div>';
-  // Source word + pronunciation button
-  h+='<div class="wd-src-row"><div class="wd-src-word">'+es(w.source_word)+'</div><button class="wd-speak" onclick="_speakWord()" aria-label="Pronounce">'+icon("speaker",16,2)+'</button></div>';
-  if(w.source_ipa)h+='<div class="wd-src-ipa">'+es(w.source_ipa)+'</div>';
+  // Reveal block (only after answer)
+  if(ans){
+    var revealCls=ans==="correct"?"wd-reveal wd-reveal-ok":"wd-reveal wd-reveal-wrong";
+    var revealLb=ans==="correct"?"✓ Correct":"Answer";
+    h+='<div class="'+revealCls+'">';
+    h+='<div class="wd-reveal-lb">'+revealLb+'</div>';
+    h+='<div class="wd-src-row"><div class="wd-src-word">'+es(w.target_word)+'</div><button class="wd-speak" onclick="_speakWord(true)" aria-label="Pronounce">'+icon("speaker",16,2)+'</button></div>';
+    if(w.target_ipa)h+='<div class="wd-src-ipa">'+es(w.target_ipa)+'</div>';
+    if(ans==="wrong"&&_wordsState.lastAnswer)h+='<div class="wd-your-ans">You typed: <span>'+es(_wordsState.lastAnswer)+'</span></div>';
+    h+='</div>';
+  }else{
+    // Prompt
+    h+='<div class="wd-prompt">Guess the '+targetLang+' word</div>';
+  }
+  // Both definitions
   h+='<div class="wd-divider"></div>';
-  // Definition (in TARGET language — what user is learning)
-  h+='<div class="wd-def-lb">Type the '+(_wordsState.mode==="en"?"English":"Russian")+' word</div>';
+  h+='<div class="wd-def-lb">'+targetLang+' definition</div>';
   h+='<div class="wd-def">'+es(w.target_def)+'</div>';
-  // Input
-  h+='<form onsubmit="_wdSubmit(event);return false" style="margin-top:18px"><input type="text" class="wd-input" id="wd-input" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" placeholder="Type the word..."></form>';
-  // Actions
-  h+='<div class="wd-actions"><button class="btn btn-s wd-btn-skip" onclick="_wdDontKnow()">← Don\'t know</button><button class="btn wd-btn-submit" onclick="_wdSubmit()">Check</button></div>';
+  h+='<div class="wd-def-lb" style="margin-top:12px">'+sourceLang+' definition</div>';
+  h+='<div class="wd-def wd-def-sub">'+es(w.source_def)+'</div>';
+  // Action area: input form OR Next button
+  if(!ans){
+    h+='<form onsubmit="_wdSubmit(event);return false" style="margin-top:18px"><input type="text" class="wd-input" id="wd-input" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" placeholder="Type the '+targetLang+' word..."></form>';
+    h+='<div class="wd-actions"><button class="btn btn-s wd-btn-skip" onclick="_wdDontKnow()">← Don\'t know</button><button class="btn wd-btn-submit" onclick="_wdSubmit()">Check</button></div>';
+  }else{
+    h+='<button class="btn wd-next-btn" onclick="_wdNext()">Next →</button>';
+  }
   h+='</div>';
-  // After render: focus input + attach swipe
-  setTimeout(function(){var i=document.getElementById("wd-input");if(i&&!_wordsState.skipFocus)i.focus();_wdAttachSwipe()},80);
+  setTimeout(function(){if(!ans){var i=document.getElementById("wd-input");if(i)i.focus()}_wdAttachSwipe()},80);
   return h;
 }
 function _normWord(s){return (s||"").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g,"").replace(/[ё]/g,"е").trim()}
-async function _wdSubmit(e){
+function _wdSubmit(e){
   if(e&&e.preventDefault)e.preventDefault();
   var input=document.getElementById("wd-input");if(!input)return;
   var val=(input.value||"").trim();if(!val)return;
   var w=_wordsState.queue[_wordsState.cursor];if(!w)return;
   var correct=_normWord(val)===_normWord(w.target_word);
-  input.classList.add(correct?"wd-correct":"wd-wrong");
-  if(!correct){var card=document.getElementById("wd-card");if(card)card.classList.add("wd-shake")}
   hp(correct?"ok":"err");
-  // Show the correct word for 1.5s on wrong answer
-  if(!correct){
-    var hint=document.createElement("div");hint.className="wd-hint";hint.textContent="Answer: "+w.target_word;
-    input.parentNode.appendChild(hint);
-  }
-  // Update server + advance
+  if(!correct){var card=document.getElementById("wd-card");if(card)card.classList.add("wd-shake")}
+  _wordsState.answered=correct?"correct":"wrong";
+  _wordsState.lastAnswer=val;
+  // Update server. Counter increment only for first-time-correct
   A("POST","/api/words/answer",{idx:w.idx,mode:_wordsState.mode,correct:correct,answer:val});
-  if(correct){_wordsState.sessionCorrect++;_wordsState.stats.learned=(_wordsState.stats.learned||0)+1}
-  setTimeout(function(){_wordsState.cursor++;if(tab==="words")ren()},correct?700:1700);
+  if(correct){_wordsState.sessionCorrect++;if(w.status!=="learned")_wordsState.stats.learned=(_wordsState.stats.learned||0)+1}
+  // Re-render to show reveal block + Next button
+  if(tab==="words")ren();
 }
 function _wdDontKnow(){
   var w=_wordsState.queue[_wordsState.cursor];if(!w)return;
   hp("warn");
+  _wordsState.answered="wrong";
+  _wordsState.lastAnswer="";
   A("POST","/api/words/answer",{idx:w.idx,mode:_wordsState.mode,correct:false});
-  _wordsState.cursor++;if(tab==="words")ren();
+  if(tab==="words")ren();
 }
-function _speakWord(){
+function _wdNext(){
+  hp("light");
+  _wordsState.answered=null;
+  _wordsState.lastAnswer="";
+  _wordsState.cursor++;
+  if(tab==="words")ren();
+}
+// _speakWord(useTarget) — when true, speaks the target word (reveal). Otherwise source.
+function _speakWord(useTarget){
   if(!('speechSynthesis' in window)){hp("warn");return}
   var w=_wordsState.queue[_wordsState.cursor];if(!w)return;
-  var txt=(w.source_word||"").normalize("NFD").replace(/[̀-ͯ]/g,"");
-  try{speechSynthesis.cancel();var u=new SpeechSynthesisUtterance(txt);
-  u.lang=_wordsState.mode==="en"?"ru-RU":"en-US";u.rate=0.9;speechSynthesis.speak(u);hp("light")}catch(e){hp("warn")}
+  var raw=useTarget?w.target_word:w.source_word;
+  var txt=(raw||"").normalize("NFD").replace(/[̀-ͯ]/g,"");
+  // Lang: speak in the language of the spoken word
+  var lang;
+  if(_wordsState.mode==="en"){ lang=useTarget?"en-US":"ru-RU" }
+  else                       { lang=useTarget?"ru-RU":"en-US" }
+  try{speechSynthesis.cancel();var u=new SpeechSynthesisUtterance(txt);u.lang=lang;u.rate=0.9;speechSynthesis.speak(u);hp("light")}catch(e){hp("warn")}
 }
 // Swipe gesture — left = don't know
 function _wdAttachSwipe(){
@@ -423,14 +452,48 @@ async function openWordsStats(){
   if(!d){oMC("Stats","<div>Failed to load.</div>",{ic:"chart"});return}
   var modeLabel=_wordsState.mode==="en"?"Learning English":"Learning Russian";
   var h='<div class="lb">'+modeLabel+'</div>';
+  h+='<div style="font-size:11px;color:var(--ht);margin-bottom:10px;text-align:center">Tap a row to see learned words and mistakes</div>';
   d.members.forEach(function(m){
     var c=m.counts||{};
     var pct=d.total?Math.round((c.learned||0)/d.total*100):0;
     var isMe=m.user_id===d.my_id;
-    h+='<div class="cat-row"'+(isMe?' style="border:1.5px solid color-mix(in srgb,var(--pr) 45%,transparent);background:color-mix(in srgb,var(--pr) 8%,var(--cd))"':'')+'><div class="cat-row-h"><span class="nm">'+mAv(m.user_id,22)+es(m.user_name)+(isMe?" (you)":"")+'</span><span class="vl">'+(c.learned||0)+' / '+d.total+'</span></div><div class="progress"><div class="progress-fill tone-ok" style="width:'+pct+'%"></div></div><div style="font-size:11px;color:var(--ht);margin-top:6px">'+(c.learning||0)+' learning · '+m.attempts+' attempts · '+m.accuracy+'% accuracy</div></div>';
+    h+='<div class="cat-row wd-stats-row" onclick="openMemberDetail('+m.user_id+')"'+(isMe?' style="border:1.5px solid color-mix(in srgb,var(--pr) 45%,transparent);background:color-mix(in srgb,var(--pr) 8%,var(--cd))"':'')+'>';
+    h+='<div class="cat-row-h"><span class="nm">'+mAv(m.user_id,22)+es(m.user_name)+(isMe?" (you)":"")+'</span><span class="vl">'+(c.learned||0)+' / '+d.total+'</span></div>';
+    h+='<div class="progress"><div class="progress-fill tone-ok" style="width:'+pct+'%"></div></div>';
+    h+='<div style="font-size:11px;color:var(--ht);margin-top:6px;display:flex;justify-content:space-between;align-items:center"><span>'+(c.learning||0)+' learning · '+m.attempts+' attempts · '+m.accuracy+'% accuracy</span><span style="opacity:.6;font-size:14px">›</span></div>';
+    h+='</div>';
   });
   oMC("Stats",h,{ic:"chart"});
 }
+// Member detail — Learned/Mistakes tabs
+var _wdDetailState={tab:"learned",data:null,name:"",uid:0};
+async function openMemberDetail(uid){
+  hp("light");
+  var d=await A("GET","/api/words/member-detail?user_id="+uid+"&mode="+_wordsState.mode);
+  if(!d)return;
+  var member=(D.members||[]).find(function(m){return m.user_id===uid});
+  _wdDetailState.data=d;_wdDetailState.tab="learned";_wdDetailState.uid=uid;_wdDetailState.name=member?member.user_name:"";
+  oMC(_wdDetailState.name||"Member",_wdDetailHtml(),{ic:"user"});
+}
+function _wdDetailHtml(){
+  var s=_wdDetailState;var d=s.data;
+  var nL=d.learned.length,nM=d.mistakes.length;
+  var h='<div class="tabs"><button class="tab '+(s.tab==="learned"?"a":"")+'" onclick="_wdDetailSet(\'learned\')"><span style="display:inline-flex;align-items:center;gap:6px">'+icon("ck",12,2.4)+'Learned · '+nL+'</span></button><button class="tab '+(s.tab==="mistakes"?"a":"")+'" onclick="_wdDetailSet(\'mistakes\')"><span style="display:inline-flex;align-items:center;gap:6px">'+icon("bolt",12,2.4)+'Mistakes · '+nM+'</span></button></div>';
+  var list=s.tab==="learned"?d.learned:d.mistakes;
+  if(!list.length){
+    h+='<div class="emp" style="padding:24px 14px">'+icon(s.tab==="learned"?"ck":"bolt",36,1.8)+'<div class="emp-t">'+(s.tab==="learned"?"No learned words yet":"No mistakes yet")+'</div><div style="font-size:12px">'+(s.tab==="learned"?"Keep practising":"Nice work!")+'</div></div>';
+    return h;
+  }
+  list.forEach(function(w){
+    h+='<div class="wd-detail-row">';
+    h+='<div class="wd-detail-words"><span class="wd-detail-tgt">'+es(w.target_word)+'</span><span class="wd-detail-sep"> · </span><span class="wd-detail-src">'+es(w.source_word)+'</span></div>';
+    if(w.target_ipa)h+='<div class="wd-detail-ipa">'+es(w.target_ipa)+'</div>';
+    h+='<div class="wd-detail-stat">'+w.correct_count+' / '+w.attempts+' · '+w.accuracy+'% accuracy</div>';
+    h+='</div>';
+  });
+  return h;
+}
+function _wdDetailSet(tab){_wdDetailState.tab=tab;hp("sel");document.getElementById("mb").innerHTML=_wdDetailHtml()}
 async function _selectCity(name,lat,lon){
   hp("ok");
   await A("PATCH","/api/settings",{weather_city:name,weather_lat:lat,weather_lon:lon});
@@ -2506,7 +2569,7 @@ if(_pwaPrompt){
 }
 h+='<div class="sc"><span class="sc-l">Developer</span></div>';
 h+=_setRow({ico:"debug",acc:"acc-ac",title:"Debug Mode "+(dbgOn?"ON":"OFF"),onclick:"dbgOn=!dbgOn;document.getElementById(\'dbg\').classList.toggle(\'hidden\',!dbgOn);ren()"});
-h+='<div style="margin-top:18px;text-align:center;font-size:11px;color:var(--ht);letter-spacing:.3px">Family HQ v8.21.0</div>';return h}
+h+='<div style="margin-top:18px;text-align:center;font-size:11px;color:var(--ht);letter-spacing:.3px">Family HQ v8.21.1</div>';return h}
 async function setTh(id){
   if(id==="custom"){
     // Tapping Custom in the picker opens the editor (saves happen there). Also apply right away.
