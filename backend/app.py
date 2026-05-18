@@ -2002,18 +2002,41 @@ async def weather_geocode(q: str = "", user=Depends(get_uf)):
 # ═════════════════════════════════════════════════════════════════════════
 # VOCABULARY — word learning (study sessions, per-member progress)
 # ═════════════════════════════════════════════════════════════════════════
-from backend.words_of_day import WORDS as _VOCAB
+from backend.words_of_day import WORDS as _STATIC_VOCAB
 import unicodedata as _ucd
+
+# Custom words (added via bot) live in custom_words table with idx >= 10000.
+# Static catalog occupies idx 0..len(_STATIC_VOCAB)-1. The 10000 gap lets us grow
+# the static list without colliding with progress records that reference custom idx.
+_CUSTOM_IDX_BASE = 10000
+
+def _word_get(idx, db):
+    """Return word dict for any idx (static or custom), or None if missing."""
+    if 0 <= idx < len(_STATIC_VOCAB):
+        return _STATIC_VOCAB[idx]
+    if idx >= _CUSTOM_IDX_BASE:
+        row = db.execute("SELECT * FROM custom_words WHERE idx=? AND status='active'", (idx,)).fetchone()
+        return dict(row) if row else None
+    return None
+
+def _word_indices(db):
+    """Return list of all active word indices: static 0..N-1 then sorted custom."""
+    rows = db.execute("SELECT idx FROM custom_words WHERE status='active' ORDER BY idx").fetchall()
+    return list(range(len(_STATIC_VOCAB))) + [r["idx"] for r in rows]
+
+def _word_count(db):
+    """Total active words across static + custom catalogs."""
+    n = db.execute("SELECT COUNT(*) AS n FROM custom_words WHERE status='active'").fetchone()
+    return len(_STATIC_VOCAB) + (n["n"] if n else 0)
 
 def _strip_accent(s):
     """Strip combining marks (e.g. U+0301 acute) so user input can match stress-marked word."""
     return "".join(c for c in _ucd.normalize("NFD", s or "") if not _ucd.combining(c))
 
-def _word_view(idx, mode, prog=None):
-    """Build the card payload for a single word in a given learning mode.
+def _word_view(idx, mode, w, prog=None):
+    """Build the card payload for a single word in a given learning mode. Caller provides `w`.
     mode='en' → user is learning English: card shows Russian source, user types English.
     mode='ru' → user is learning Russian: card shows English source, user types Russian."""
-    w = _VOCAB[idx]
     if mode == "en":
         return {
             "idx": idx,
@@ -2044,10 +2067,11 @@ def words_study(mode: str = "en", limit: int = 10, user=Depends(get_uf), db=Depe
     rows = {r["word_idx"]: dict(r) for r in db.execute(
         "SELECT word_idx, status, attempts, correct_count, last_seen FROM word_progress WHERE user_id=? AND mode=?",
         (uid, mode)).fetchall()}
-    # Bucket all word indices
-    total = len(_VOCAB)
+    # Bucket all word indices (static + custom-active)
+    all_idx = _word_indices(db)
+    total = len(all_idx)
     learning, new, learned = [], [], []
-    for i in range(total):
+    for i in all_idx:
         st = rows.get(i, {}).get("status", "new")
         if st == "learning": learning.append(i)
         elif st == "learned": learned.append(i)
@@ -2061,14 +2085,17 @@ def words_study(mode: str = "en", limit: int = 10, user=Depends(get_uf), db=Depe
         pick.append(new.pop())
     while len(pick) < limit and learned:
         pick.append(learned.pop())
-    # Build response
-    words = [_word_view(i, mode, rows.get(i)) for i in pick[:limit]]
+    # Build response — fetch each word once
+    words = []
+    for i in pick[:limit]:
+        w = _word_get(i, db)
+        if w: words.append(_word_view(i, mode, w, rows.get(i)))
     return {
         "mode": mode,
         "words": words,
         "totals": {
             "total": total,
-            "new": sum(1 for i in range(total) if rows.get(i, {}).get("status", "new") == "new"),
+            "new": sum(1 for i in all_idx if rows.get(i, {}).get("status", "new") == "new"),
             "learning": len([i for i in rows if rows[i]["status"] == "learning"]),
             "learned": len([i for i in rows if rows[i]["status"] == "learned"]),
         }
@@ -2084,7 +2111,7 @@ class WordAnswer(BaseModel):
 def words_answer(body: WordAnswer, user=Depends(get_uf), db=Depends(get_db)):
     """Record an answer. correct=True → status 'learned' (if first try) or 'learning'+counted.
     correct=False → status 'learning'."""
-    if body.idx < 0 or body.idx >= len(_VOCAB):
+    if _word_get(body.idx, db) is None:
         raise HTTPException(400, "invalid word idx")
     if body.mode not in ("en", "ru"):
         raise HTTPException(400, "invalid mode")
@@ -2114,7 +2141,7 @@ def words_answer(body: WordAnswer, user=Depends(get_uf), db=Depends(get_db)):
 @app.get("/api/words/stats")
 def words_stats(mode: str = "en", user=Depends(get_uf), db=Depends(get_db)):
     """Returns per-member stats for the given mode + family comparison."""
-    total = len(_VOCAB)
+    total = _word_count(db)
     members = [dict(r) for r in db.execute(
         "SELECT user_id, user_name FROM family_members WHERE family_id=?", (user["family_id"],)).fetchall()]
     per_member = []
@@ -2151,8 +2178,8 @@ UNSPLASH_ACCESS_KEY = os.environ.get("UNSPLASH_ACCESS_KEY", "").strip()
 async def words_image(idx: int, user=Depends(get_uf), db=Depends(get_db)):
     """Returns a Unsplash image URL for the given word, cached per English-word key.
     Falls back to {url:null, error:'no_key'} if UNSPLASH_ACCESS_KEY is not set in env."""
-    if idx < 0 or idx >= len(_VOCAB): raise HTTPException(400, "invalid idx")
-    w = _VOCAB[idx]
+    w = _word_get(idx, db)
+    if not w: raise HTTPException(400, "invalid idx")
     # English word is the universal cache key (image is concept-bound, not language-bound)
     key = (w.get("en_word") or "").lower().strip()
     if not key: return {"url": None}
@@ -2205,8 +2232,8 @@ def words_member_detail(user_id: int, mode: str = "en", user=Depends(get_uf), db
     learned, mistakes = [], []
     for r in rows:
         idx = r["word_idx"]
-        if idx < 0 or idx >= len(_VOCAB): continue
-        w = _VOCAB[idx]
+        w = _word_get(idx, db)
+        if w is None: continue
         if mode == "en":
             src_w, tgt_w, tgt_ipa = w["ru_word"], w["en_word"], w.get("en_ipa", "")
         else:
@@ -2251,7 +2278,7 @@ def serve_exercise_image(fn: str):
     return r
 
 # ─── Debug & Serve ───────────────────────────────────────────────────────
-APP_VERSION = "v8.22.4"
+APP_VERSION = "v8.23.0"
 
 @app.get("/api/debug/ping")
 def ping(): return {"ok": True, "version": APP_VERSION, "time": datetime.now(ZoneInfo(TIMEZONE)).isoformat()}

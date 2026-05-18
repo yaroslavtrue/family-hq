@@ -463,6 +463,27 @@ def migrate(db_path):
             """),
             safe_add_col(c, "family_members", "learn_mode", "TEXT DEFAULT 'en'"),
         ],
+        # v18: custom words — user-added vocab via bot. Idx starts at 10000 to avoid
+        # clashes with the static catalog (0..N-1) even if it grows later. Status flow:
+        # 'pending' (awaiting user confirmation) → 'active' (visible in Words) → 'deleted' (hidden).
+        lambda c: c.executescript("""
+            CREATE TABLE IF NOT EXISTS custom_words (
+                idx INTEGER PRIMARY KEY,
+                status TEXT NOT NULL DEFAULT 'pending',
+                en_word TEXT NOT NULL,
+                ru_word TEXT NOT NULL,
+                en_ipa TEXT, ru_ipa TEXT,
+                en_def TEXT, ru_def TEXT,
+                en_example TEXT, ru_example TEXT,
+                emoji TEXT DEFAULT '📖',
+                added_by INTEGER,
+                added_by_name TEXT,
+                family_id INTEGER,
+                added_at TEXT DEFAULT (datetime('now'))
+            );
+            CREATE INDEX IF NOT EXISTS idx_custom_words_status ON custom_words(status);
+            CREATE INDEX IF NOT EXISTS idx_custom_words_en ON custom_words(en_word) WHERE status='active';
+        """),
     ]
 
     for i, mig in enumerate(migrations):

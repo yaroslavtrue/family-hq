@@ -6,7 +6,8 @@ import os, json, logging, sqlite3, base64, html
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 from telegram import Update, WebAppInfo, MenuButtonWebApp, InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
+from telegram.ext import Application, CommandHandler, MessageHandler, CallbackQueryHandler, filters, ContextTypes
+from backend.words_of_day import WORDS as _STATIC_WORDS
 import httpx
 
 BOT_TOKEN = os.environ.get("BOT_TOKEN", "YOUR_TOKEN_HERE")
@@ -858,6 +859,298 @@ async def _save_exercise_image(update, ctx, fid: int, user_name: str, ex_name: s
         parse_mode="HTML")
 
 
+# ─── VOCABULARY BOT — add/list/delete custom words via Claude Haiku ─────────
+_CUSTOM_IDX_BASE = 10000
+# Matches "словарь" / "dictionary" with optional argument after a separator.
+# Supported forms: "Словарь: омлет", "Dictionary ham", "словарь-омлет", "Словарь: список", "Словарь: del omelet".
+_WORD_CMD_RE = _re.compile(r"^(?:словарь|dictionary)(?:[\s:\-—]+(.+))?$", _re.IGNORECASE | _re.UNICODE)
+
+_WORD_SYSTEM_PROMPT = """You are filling vocabulary cards for a Russian↔English learning app. The user gives you ONE word — detect its language and complete both sides of the card.
+
+OUTPUT: strict JSON only. No prose. No code fences. No comments.
+
+Required schema:
+{
+  "en_word": string,    // lowercase English form, singular/infinitive
+  "ru_word": string,    // lowercase Russian form, singular/infinitive (nominative case for nouns, infinitive for verbs)
+  "en_ipa": string,     // IPA in slashes, e.g. "/ˈɒmlət/"
+  "ru_ipa": string,     // RUSSIAN PHONETIC TRANSCRIPTION — follow this EXACT style:
+                        //   • enclosed in [square brackets]
+                        //   • Moscow ikanie: unstressed 'о' → 'а', unstressed 'е' → 'и'
+                        //   • palatalization marked with apostrophe: л', с', т', н'
+                        //   • geminate consonants marked with colon: с:, н:, т:
+                        //   • stressed vowel followed by COMBINING ACUTE U+0301 (´)
+                        //   Examples: [л'убапы́ц:тва], [ам'л'э́т], [уч'и́т'эл'], [сабáка]
+  "en_def": string,     // one-sentence English definition (8-15 words)
+  "ru_def": string,     // one-sentence Russian definition (8-15 words)
+  "en_example": string, // natural English sentence that USES en_word (any inflected form OK)
+  "ru_example": string, // natural Russian sentence that USES ru_word (any inflected form OK)
+  "emoji": string,      // single Unicode emoji that visually represents the concept
+  "confidence": number  // 0.0-1.0 — your confidence the word is real and translation is correct
+}
+
+If the input is not a real word, gibberish, profanity, or you can't translate confidently:
+  Return {"confidence": 0, "error": "<one-sentence reason in Russian>"}
+
+Return ONLY the JSON object. Begin response with {."""
+
+
+async def _ai_enrich_word(text: str) -> dict | None:
+    """Call Claude Haiku to translate + enrich a single word.
+    Returns dict with word fields + confidence, or None on API failure."""
+    if not ANTHROPIC_API_KEY:
+        return None
+    try:
+        r = await _http().post("https://api.anthropic.com/v1/messages", headers={
+            "x-api-key": ANTHROPIC_API_KEY,
+            "anthropic-version": "2023-06-01",
+            "content-type": "application/json"
+        }, json={
+            "model": "claude-haiku-4-5-20251001",
+            "max_tokens": 800,
+            "system": _WORD_SYSTEM_PROMPT,
+            "messages": [{"role": "user", "content": text.strip()}]
+        }, timeout=25)
+        data = r.json()
+        out = data.get("content", [{}])[0].get("text", "").strip()
+        if out.startswith("```"):
+            out = out.split("\n", 1)[-1].rsplit("```", 1)[0].strip()
+        return json.loads(out)
+    except Exception as ex:
+        log.error(f"Word enrich failed: {ex}")
+        return None
+
+
+def _next_custom_idx(con) -> int:
+    """Allocate the next idx for a custom word. Starts at _CUSTOM_IDX_BASE, monotonic."""
+    row = con.execute("SELECT COALESCE(MAX(idx), ?) AS m FROM custom_words", (_CUSTOM_IDX_BASE - 1,)).fetchone()
+    return max(_CUSTOM_IDX_BASE, row["m"] + 1)
+
+
+def _word_already_exists(con, en_word: str, ru_word: str) -> dict | None:
+    """Check both static catalog AND custom_words (active) for duplicate by either language form."""
+    enl = (en_word or "").lower().strip()
+    rul = (ru_word or "").lower().strip()
+    if not enl and not rul:
+        return None
+    # Custom DB
+    row = con.execute(
+        "SELECT idx, en_word, ru_word FROM custom_words WHERE status='active' AND (LOWER(en_word)=? OR LOWER(ru_word)=?)",
+        (enl, rul)).fetchone()
+    if row:
+        return {"idx": row["idx"], "en_word": row["en_word"], "ru_word": row["ru_word"], "source": "custom"}
+    # Static catalog (in-process Python list)
+    for i, w in enumerate(_STATIC_WORDS):
+        if (w.get("en_word", "").lower() == enl) or (w.get("ru_word", "").lower() == rul):
+            return {"idx": i, "en_word": w["en_word"], "ru_word": w["ru_word"], "source": "static"}
+    return None
+
+
+def _format_word_preview(w: dict) -> str:
+    """Format a word dict as an HTML preview for Telegram reply."""
+    e = html.escape
+    lines = [f"{w.get('emoji', '📖')} <b>{e(w.get('en_word', ''))}</b> ↔ <b>{e(w.get('ru_word', ''))}</b>"]
+    en_ipa = w.get("en_ipa", "").strip()
+    ru_ipa = w.get("ru_ipa", "").strip()
+    if en_ipa or ru_ipa:
+        lines.append(f"<code>{e(en_ipa or '—')}</code>   <code>{e(ru_ipa or '—')}</code>")
+    lines.append("")
+    if w.get("en_def"): lines.append(f"🇬🇧 <i>{e(w['en_def'])}</i>")
+    if w.get("ru_def"): lines.append(f"🇷🇺 <i>{e(w['ru_def'])}</i>")
+    if w.get("en_example"): lines.append(f"\n📝 {e(w['en_example'])}")
+    if w.get("ru_example"): lines.append(f"📝 {e(w['ru_example'])}")
+    return "\n".join(lines)
+
+
+async def _handle_word_add(update, ctx, text: str, fid: int, uid: int, user_name: str):
+    """User typed 'Словарь: омлет' — enrich via Haiku, store pending, ask for confirmation."""
+    e = html.escape
+    if not ANTHROPIC_API_KEY:
+        await update.message.reply_text("⚠ AI is not configured — can't enrich words.")
+        return
+    # Basic input validation: 2-30 chars, letters only
+    txt = text.strip()
+    if len(txt) < 2 or len(txt) > 30:
+        await update.message.reply_text("❌ Слово должно быть 2–30 символов.")
+        return
+    if not _re.match(r"^[a-zA-Zа-яА-ЯёЁ\s\-']+$", txt):
+        await update.message.reply_text("❌ Только буквы (en/ru), пробелы, дефис.")
+        return
+
+    await update.effective_chat.send_action("typing")
+    pending_msg = await update.message.reply_text(f"⏳ Подбираю карточку для <b>{e(txt)}</b>…", parse_mode="HTML")
+
+    w = await _ai_enrich_word(txt)
+    if not w:
+        await pending_msg.edit_text("❌ AI не ответил. Попробуй ещё раз.")
+        return
+    if w.get("confidence", 0) < 0.3 or w.get("error"):
+        reason = w.get("error", "AI не уверен в слове")
+        await pending_msg.edit_text(f"❌ {e(reason)}", parse_mode="HTML")
+        return
+
+    # Required fields
+    if not (w.get("en_word") and w.get("ru_word") and w.get("en_def") and w.get("ru_def")):
+        await pending_msg.edit_text("❌ AI вернул неполную карточку. Попробуй ещё раз или с другим словом.")
+        return
+
+    con = _db()
+    # Duplicate check
+    dup = _word_already_exists(con, w["en_word"], w["ru_word"])
+    if dup:
+        con.close()
+        src_tag = "статичный каталог" if dup["source"] == "static" else "пользовательский словарь"
+        await pending_msg.edit_text(
+            f"⚠ Уже есть в словаре: <b>{e(dup['en_word'])}</b> ↔ <b>{e(dup['ru_word'])}</b>\n"
+            f"(#{dup['idx']}, {e(src_tag)})",
+            parse_mode="HTML")
+        return
+
+    # Insert as pending
+    new_idx = _next_custom_idx(con)
+    con.execute("""INSERT INTO custom_words
+        (idx, status, en_word, ru_word, en_ipa, ru_ipa, en_def, ru_def, en_example, ru_example, emoji, added_by, added_by_name, family_id)
+        VALUES (?, 'pending', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+        (new_idx,
+         w["en_word"].strip().lower(),
+         w["ru_word"].strip().lower(),
+         (w.get("en_ipa") or "").strip(),
+         (w.get("ru_ipa") or "").strip(),
+         w["en_def"].strip(),
+         w["ru_def"].strip(),
+         (w.get("en_example") or "").strip(),
+         (w.get("ru_example") or "").strip(),
+         (w.get("emoji") or "📖").strip()[:8],
+         uid, user_name, fid))
+    con.commit()
+    con.close()
+
+    preview = _format_word_preview(w)
+    kb = InlineKeyboardMarkup([[
+        InlineKeyboardButton("✅ Добавить", callback_data=f"wadd:{new_idx}"),
+        InlineKeyboardButton("❌ Отмена",   callback_data=f"wcancel:{new_idx}"),
+    ]])
+    await pending_msg.edit_text(preview, parse_mode="HTML", reply_markup=kb)
+
+
+async def _handle_word_list(update, ctx, fid: int):
+    """Reply with the list of active custom words."""
+    e = html.escape
+    con = _db()
+    rows = con.execute(
+        "SELECT idx, en_word, ru_word, emoji, added_by_name FROM custom_words WHERE status='active' ORDER BY idx DESC LIMIT 100"
+    ).fetchall()
+    con.close()
+    if not rows:
+        await update.message.reply_text("📭 Пользовательский словарь пуст. Добавь первое слово: <code>Словарь: омлет</code>", parse_mode="HTML")
+        return
+    head = f"📚 <b>Пользовательских слов: {len(rows)}</b>\n\n"
+    body = "\n".join(f"{r['emoji'] or '📖'} <b>{e(r['en_word'])}</b> ↔ <b>{e(r['ru_word'])}</b>  <i>· {e(r['added_by_name'] or '?')}</i>" for r in rows)
+    await update.message.reply_text(head + body, parse_mode="HTML")
+
+
+async def _handle_word_delete(update, ctx, target: str, fid: int):
+    """Soft-delete a custom word by en_word or ru_word match. Static catalog can't be deleted."""
+    e = html.escape
+    t = target.strip().lower()
+    if not t:
+        await update.message.reply_text("❌ Укажи слово: <code>Словарь: del omelet</code>", parse_mode="HTML")
+        return
+    con = _db()
+    row = con.execute(
+        "SELECT idx, en_word, ru_word FROM custom_words WHERE status='active' AND (LOWER(en_word)=? OR LOWER(ru_word)=?)",
+        (t, t)).fetchone()
+    if not row:
+        con.close()
+        # Check if it's in static catalog
+        for w in _STATIC_WORDS:
+            if w.get("en_word", "").lower() == t or w.get("ru_word", "").lower() == t:
+                await update.message.reply_text(f"⚠ <b>{e(target)}</b> — слово из статичного каталога, удаление недоступно.", parse_mode="HTML")
+                return
+        await update.message.reply_text(f"❌ Слово <b>{e(target)}</b> не найдено в пользовательском словаре.", parse_mode="HTML")
+        return
+    con.execute("UPDATE custom_words SET status='deleted' WHERE idx=?", (row["idx"],))
+    con.commit()
+    con.close()
+    await update.message.reply_text(
+        f"🗑 Удалено: <b>{e(row['en_word'])}</b> ↔ <b>{e(row['ru_word'])}</b> (#{row['idx']})",
+        parse_mode="HTML")
+
+
+async def handle_word_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    """Inline button handler for word add/cancel confirmation."""
+    q = update.callback_query
+    if not q or not q.data: return
+    await q.answer()
+    parts = q.data.split(":", 1)
+    if len(parts) != 2 or parts[0] not in ("wadd", "wcancel"):
+        return
+    action, sidx = parts
+    try:
+        idx = int(sidx)
+    except ValueError:
+        return
+    con = _db()
+    row = con.execute("SELECT * FROM custom_words WHERE idx=?", (idx,)).fetchone()
+    if not row:
+        con.close()
+        await q.edit_message_text("❌ Запись не найдена.")
+        return
+    if row["status"] != "pending":
+        con.close()
+        await q.edit_message_text(f"⚠ Уже обработано (статус: {row['status']}).")
+        return
+    if action == "wadd":
+        # Race-check: another user/window may have confirmed the same word in the meantime
+        dup = con.execute(
+            "SELECT idx FROM custom_words WHERE status='active' AND LOWER(en_word)=LOWER(?) AND idx!=?",
+            (row["en_word"], idx)).fetchone()
+        if dup:
+            con.execute("DELETE FROM custom_words WHERE idx=? AND status='pending'", (idx,))
+            con.commit()
+            con.close()
+            await q.edit_message_text(f"⚠ Слово уже добавил кто-то другой (#{dup['idx']}). Эта карточка удалена.")
+            return
+        con.execute("UPDATE custom_words SET status='active' WHERE idx=?", (idx,))
+        con.commit()
+        con.close()
+        await q.edit_message_text(
+            f"✅ Добавлено в словарь: {row['emoji'] or '📖'} <b>{html.escape(row['en_word'])}</b> ↔ <b>{html.escape(row['ru_word'])}</b> (#{idx})\nОткрой Words в приложении.",
+            parse_mode="HTML")
+    elif action == "wcancel":
+        con.execute("DELETE FROM custom_words WHERE idx=? AND status='pending'", (idx,))
+        con.commit()
+        con.close()
+        await q.edit_message_text("❌ Отменено.")
+
+
+async def _try_word_command(update, ctx, text: str, fid: int, uid: int, user_name: str) -> bool:
+    """If text matches a vocab command, handle it and return True. Otherwise return False."""
+    m = _WORD_CMD_RE.match(text)
+    if not m:
+        return False
+    arg = (m.group(1) or "").strip()
+    if not arg:
+        await update.message.reply_text(
+            "📚 <b>Словарь</b> — добавить слово в Words:\n\n"
+            "• <code>Словарь: омлет</code> — добавить (AI заполнит карточку)\n"
+            "• <code>Словарь: список</code> — показать все пользовательские слова\n"
+            "• <code>Словарь: del omelet</code> — удалить слово",
+            parse_mode="HTML")
+        return True
+    low = arg.lower()
+    if low in ("список", "list"):
+        await _handle_word_list(update, ctx, fid)
+        return True
+    if low.startswith("del ") or low.startswith("удалить "):
+        target = arg.split(" ", 1)[1] if " " in arg else ""
+        await _handle_word_delete(update, ctx, target, fid)
+        return True
+    # Default: add
+    await _handle_word_add(update, ctx, arg, fid, uid, user_name)
+    return True
+
+
 async def handle_photo(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     """Handle photo messages — exercise image upload (caption 'exercise: <name>')
     or receipt scanning via Claude Vision."""
@@ -1088,6 +1381,10 @@ async def handle_message(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("You're not in a family yet. Open the app and create or join one first!")
         return
 
+    # Vocabulary commands ("Словарь: X" / "Dictionary: X") — handled before the generic NL parser.
+    if await _try_word_command(update, ctx, text, fid, uid, user_name):
+        return
+
     if not ANTHROPIC_API_KEY:
         await update.message.reply_text("AI assistant is not configured. Ask admin to set ANTHROPIC_API_KEY.")
         return
@@ -1114,6 +1411,7 @@ def main():
     app = Application.builder().token(BOT_TOKEN).post_init(post_init).build()
     app.add_handler(CommandHandler("start", cmd_start))
     app.add_handler(CommandHandler("help", cmd_help))
+    app.add_handler(CallbackQueryHandler(handle_word_callback, pattern=r"^w(?:add|cancel):"))
     app.add_handler(MessageHandler(filters.PHOTO, handle_photo))
     app.add_handler(MessageHandler(filters.VOICE, handle_voice))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
