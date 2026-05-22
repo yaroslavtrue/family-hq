@@ -753,6 +753,30 @@ function _plDate(iso){
 function _plStatusLabel(s){return s==="thirsty"?"Wants water":(s==="soon"?"Water soon":"Healthy")}
 function _plStatusColor(s){return s==="thirsty"?"var(--ac)":(s==="soon"?"var(--wn)":"var(--ok)")}
 
+function _rPlantsWidget(){
+  var list=D.plants||[];
+  if(!list.length)return"";
+  var thirstyN=list.filter(function(p){return p.status==="thirsty"}).length;
+  var head='Plants';
+  var subHead=thirstyN?'<span class="hpw-sub">'+thirstyN+(thirstyN===1?" wants":" want")+' water</span>':'';
+  var h='<div class="sc"><span class="sc-l">'+head+subHead+'<span class="sc-cnt">'+list.length+'</span></span></div>';
+  h+='<div class="hpw" onclick="go(\'plants\')">';
+  h+='<div class="hpw-track">';
+  list.forEach(function(p){
+    var img=p.has_image?'<img src="/static/plants/'+p.id+'.jpg?t='+(p.last_watered?Date.parse(p.last_watered)||"":"x")+'" alt="" onerror="this.remove()">':'';
+    var ph=img?"":'<span class="hpw-ph">🪴</span>';
+    var dotColor=_plStatusColor(p.status);
+    var statusLbl=_plStatusLabel(p.status);
+    h+='<div class="hpw-item" onclick="event.stopPropagation();_plState.selectedId='+p.id+';go(\'plants\')">';
+    h+='<div class="hpw-av">'+img+ph+'<span class="hpw-dot" style="background:'+dotColor+'"></span></div>';
+    h+='<div class="hpw-name">'+es(p.custom_name||p.species||"Plant")+'</div>';
+    h+='<div class="hpw-status" style="color:'+dotColor+'">'+statusLbl+'</div>';
+    h+='</div>';
+  });
+  h+='</div></div>';
+  return h;
+}
+
 function rPlants(){
   var list=D.plants||[];
   var thirstyN=list.filter(function(p){return p.status==="thirsty"}).length;
@@ -889,7 +913,7 @@ async function _plWater(pid){
   ren();
 }
 
-function _plOpenAdvice(pid){
+async function _plOpenAdvice(pid){
   var p=(D.plants||[]).find(function(x){return x.id===pid});if(!p)return;
   hp("light");
   var h='<div class="pl-adv-head">';
@@ -900,12 +924,36 @@ function _plOpenAdvice(pid){
   h+='<div class="pl-adv-cell"><div class="pl-adv-cell-l">Water every</div><div class="pl-adv-cell-v">'+(p.water_interval_days||7)+' days</div></div>';
   if(p.light)h+='<div class="pl-adv-cell"><div class="pl-adv-cell-l">Light</div><div class="pl-adv-cell-v">'+es(p.light)+'</div></div>';
   h+='</div>';
+  // History graph placeholder (filled async after fetch)
+  h+='<div class="lb" style="margin-top:14px">Watering — last 30 days</div>';
+  h+='<div id="pl-hist-host" class="pl-hist-host"><div class="emp" style="padding:14px;font-size:12px">Loading…</div></div>';
   if(p.care_tips&&p.care_tips.length){
     h+='<div class="lb" style="margin-top:14px">Care tips</div>';
     p.care_tips.forEach(function(t){h+='<div class="pl-tip">• '+es(t)+'</div>'});
   }
   if(p.last_watered)h+='<div style="font-size:12px;color:var(--ht);margin-top:14px;text-align:center">Last watered '+_plDate(p.last_watered)+'</div>';
   oMC("Care for "+(p.custom_name||p.species||"plant"),h,{ic:"book"});
+  // Fetch + render history graph
+  var d=await A("GET","/api/plants/"+pid+"/history?days=30");
+  var host=document.getElementById("pl-hist-host");if(!host)return;
+  if(!d||!d.dates){host.innerHTML='<div class="emp" style="padding:14px;font-size:12px">Couldn\'t load history</div>';return}
+  host.innerHTML=_plHistHtml(d,p);
+}
+function _plHistHtml(d,p){
+  var watered={};(d.water_days||[]).forEach(function(x){watered[x]=true});
+  var bars='';
+  d.dates.forEach(function(ds){
+    var hit=watered[ds];
+    bars+='<div class="pl-hist-bar '+(hit?"on":"")+'" title="'+ds+'"></div>';
+  });
+  var stats='';
+  if(d.count){
+    var avgPart=d.avg_interval_days?' · avg every '+d.avg_interval_days+'d':'';
+    stats='<div class="pl-hist-stats">'+d.count+' waterings'+avgPart+' · target '+d.target_interval_days+'d</div>';
+  }else{
+    stats='<div class="pl-hist-stats">No waterings logged in this window</div>';
+  }
+  return '<div class="pl-hist-bars">'+bars+'</div>'+stats;
 }
 
 function _plMoreMenu(pid){
@@ -1332,6 +1380,8 @@ h+='</div></div></div>'}else h+='<div style="margin-bottom:16px"></div>';
 h+='<div class="sc">Calendar</div>';
 h+='<div class="cal-strip" onclick="openCalModal()" id="cal-strip"></div>';
 setTimeout(function(){loadCalStrip()},0);
+// Plants widget — horizontal scroll of plants with status. Only renders if any exist.
+h+=_rPlantsWidget();
 // Upcoming 7d
 var upcoming=[];var todayStr=td();
 D.events.forEach(function(ev){var eDate=(ev.event_date||"").split(" ")[0];if(!eDate)return;var diff=Math.round((new Date(eDate)-new Date(todayStr))/86400000);if(diff>=0&&diff<=7)upcoming.push({type:"event",days:diff,icon:"📅",title:es(ev.text),sub:fD(ev.event_date).full,color:"var(--ok)"})});
@@ -3063,7 +3113,7 @@ if(_pwaPrompt){
 }
 h+='<div class="sc"><span class="sc-l">Developer</span></div>';
 h+=_setRow({ico:"debug",acc:"acc-ac",title:"Debug Mode "+(dbgOn?"ON":"OFF"),onclick:"dbgOn=!dbgOn;document.getElementById(\'dbg\').classList.toggle(\'hidden\',!dbgOn);ren()"});
-h+='<div style="margin-top:18px;text-align:center;font-size:11px;color:var(--ht);letter-spacing:.3px">Family HQ v8.25.0</div>';return h}
+h+='<div style="margin-top:18px;text-align:center;font-size:11px;color:var(--ht);letter-spacing:.3px">Family HQ v8.26.0</div>';return h}
 async function setTh(id){
   if(id==="custom"){
     // Tapping Custom in the picker opens the editor (saves happen there). Also apply right away.

@@ -1205,6 +1205,199 @@ async def _try_word_command(update, ctx, text: str, fid: int, uid: int, user_nam
     return True
 
 
+# ─── PLANTS BOT — photo identify + watering commands ─────────────────────
+PLANTS_IMG_DIR = os.environ.get("PLANTS_IMG_DIR", "/app/frontend/plants")
+_PLANT_IMG_CAPTION_RE = _re.compile(r"^(?:plant|цветок|растение|plante)(?:\s*[:\-—]\s*(.+))?$", _re.IGNORECASE | _re.UNICODE)
+_WATER_CMD_RE = _re.compile(r"^(?:water|полить|полив)\s*[:\-—]?\s*(.+)$", _re.IGNORECASE | _re.UNICODE)
+_PLANTS_LIST_RE = _re.compile(r"^(?:plants|растения|цветы)$", _re.IGNORECASE | _re.UNICODE)
+
+_PLANT_BOT_PROMPT = """You are a plant identification expert. Look at the photo and identify the houseplant or garden plant in it.
+
+Return STRICT JSON only, no prose, no code fences:
+{
+  "species": "<English common name, capitalized>",
+  "latin_name": "<Latin binomial>",
+  "water_interval_days": <integer 1-30>,
+  "light": "<bright direct|bright indirect|medium|low>",
+  "care_tips": ["<5 short English tips>"],
+  "confidence": <0.0-1.0>
+}
+If the photo is not a plant or unclear (confidence < 0.4):
+  Return {"confidence": 0, "error": "<short English reason>"}
+Begin response with {."""
+
+
+async def _bot_identify_plant(image_bytes: bytes) -> dict | None:
+    """Claude Haiku Vision: identify a plant photo. Mirrors the in-app endpoint."""
+    if not ANTHROPIC_API_KEY: return None
+    b64 = base64.standard_b64encode(image_bytes).decode("utf-8")
+    try:
+        r = await _http().post("https://api.anthropic.com/v1/messages", headers={
+            "x-api-key": ANTHROPIC_API_KEY,
+            "anthropic-version": "2023-06-01",
+            "content-type": "application/json",
+        }, json={
+            "model": "claude-haiku-4-5-20251001",
+            "max_tokens": 800,
+            "system": _PLANT_BOT_PROMPT,
+            "messages": [{"role": "user", "content": [
+                {"type": "image", "source": {"type": "base64", "media_type": "image/jpeg", "data": b64}},
+                {"type": "text", "text": "Identify this plant. Return JSON only."},
+            ]}],
+        }, timeout=60)
+        data = r.json()
+        text = (data.get("content", [{}])[0].get("text") or "").strip()
+        if text.startswith("```"):
+            text = text.split("\n", 1)[-1].rsplit("```", 1)[0].strip()
+        return json.loads(text)
+    except Exception as ex:
+        log.error(f"bot plant identify failed: {ex}")
+        return None
+
+
+def _plant_status_bot(last_watered: str, added_at: str, interval_days: int) -> str:
+    """Same logic as app.py _plant_status, duplicated for the separate bot process."""
+    base = last_watered or added_at
+    if not base: return "ok"
+    try:
+        from datetime import datetime as _dt
+        b = _dt.fromisoformat(str(base).replace("Z", "+00:00").split(".")[0])
+        if b.tzinfo is None: b = b.replace(tzinfo=ZoneInfo(TIMEZONE))
+    except Exception: return "ok"
+    days = (datetime.now(ZoneInfo(TIMEZONE)) - b).total_seconds() / 86400
+    if days >= (interval_days or 7): return "thirsty"
+    if days >= (interval_days or 7) - 1: return "soon"
+    return "ok"
+
+
+async def _save_plant_image_from_telegram(update, ctx, plant_id: int) -> bool:
+    """Download the largest photo from a TG message and save it as the plant's image."""
+    photo = update.message.photo[-1]
+    file = await ctx.bot.get_file(photo.file_id)
+    img_bytes = await file.download_as_bytearray()
+    os.makedirs(PLANTS_IMG_DIR, exist_ok=True)
+    fp = os.path.join(PLANTS_IMG_DIR, f"{plant_id}.jpg")
+    with open(fp, "wb") as f:
+        f.write(bytes(img_bytes))
+    return True
+
+
+async def _handle_plant_add_photo(update, ctx, fid: int, user_name: str, custom_name: str = ""):
+    """Receipt-style flow: download photo → AI identify → INSERT plant + photo + 1st reminder."""
+    e = html.escape
+    if not ANTHROPIC_API_KEY:
+        await update.message.reply_text("⚠ AI is not configured.")
+        return
+    await update.effective_chat.send_action("typing")
+    photo = update.message.photo[-1]
+    file = await ctx.bot.get_file(photo.file_id)
+    img_bytes = bytes(await file.download_as_bytearray())
+    pending = await update.message.reply_text(f"🪴 Identifying plant…")
+    info = await _bot_identify_plant(img_bytes)
+    if not info:
+        await pending.edit_text("❌ AI request failed. Try again.")
+        return
+    if info.get("confidence", 0) < 0.4 or info.get("error"):
+        await pending.edit_text(f"❌ {e(info.get('error') or 'Could not identify the plant')}")
+        return
+    if not (info.get("species") and info.get("latin_name")):
+        await pending.edit_text("❌ AI returned incomplete data. Try another photo.")
+        return
+    con = _db()
+    tips_json = json.dumps(info.get("care_tips") or [], ensure_ascii=False)
+    cur = con.execute(
+        """INSERT INTO plants (family_id, custom_name, species, latin_name, water_interval_days, light, care_tips, added_by)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+        (fid, (custom_name or "").strip(),
+         info["species"].strip(), info["latin_name"].strip(),
+         int(info.get("water_interval_days") or 7),
+         (info.get("light") or "").strip(),
+         tips_json, update.effective_user.id))
+    pid = cur.lastrowid
+    os.makedirs(PLANTS_IMG_DIR, exist_ok=True)
+    with open(os.path.join(PLANTS_IMG_DIR, f"{pid}.jpg"), "wb") as f:
+        f.write(img_bytes)
+    remind_at = (datetime.now(ZoneInfo(TIMEZONE)) + timedelta(days=int(info.get("water_interval_days") or 7))).strftime("%Y-%m-%d %H:%M")
+    con.execute("INSERT INTO plant_reminders (plant_id, family_id, remind_at) VALUES (?, ?, ?)", (pid, fid, remind_at))
+    con.commit(); con.close()
+    name = (custom_name.strip() or info["species"]).strip()
+    msg = (f"✅ Added <b>{e(name)}</b>\n"
+           f"🪴 {e(info['species'])} (<i>{e(info['latin_name'])}</i>)\n"
+           f"💧 Water every {int(info.get('water_interval_days') or 7)} days · ☀ {e(info.get('light') or '—')}")
+    kb = InlineKeyboardMarkup([[
+        InlineKeyboardButton("🌐 Open in app", web_app=WebAppInfo(url=WEBAPP_URL)),
+    ]])
+    await pending.edit_text(msg, parse_mode="HTML", reply_markup=kb)
+
+
+async def _handle_water_command(update, ctx, text: str, fid: int, user_name: str):
+    """Mark a plant as watered. Lookup by custom_name (case-insensitive) or species."""
+    e = html.escape
+    target = text.strip().lower()
+    if not target:
+        await update.message.reply_text("❌ Use: <code>Water: Yuki</code> or <code>Полить: Юки</code>", parse_mode="HTML")
+        return
+    con = _db()
+    row = con.execute(
+        """SELECT id, custom_name, species, water_interval_days FROM plants
+           WHERE family_id=? AND (LOWER(custom_name)=? OR LOWER(species)=?) LIMIT 1""",
+        (fid, target, target)).fetchone()
+    if not row:
+        # Fuzzy fallback: LIKE %target%
+        row = con.execute(
+            """SELECT id, custom_name, species, water_interval_days FROM plants
+               WHERE family_id=? AND (LOWER(custom_name) LIKE ? OR LOWER(species) LIKE ?) LIMIT 1""",
+            (fid, f"%{target}%", f"%{target}%")).fetchone()
+    if not row:
+        con.close()
+        await update.message.reply_text(f"❌ Plant <b>{e(text)}</b> not found.", parse_mode="HTML")
+        return
+    pid = row["id"]
+    now_iso = datetime.now(ZoneInfo(TIMEZONE)).isoformat()
+    con.execute("UPDATE plants SET last_watered=? WHERE id=?", (now_iso, pid))
+    con.execute("INSERT INTO plant_waterings (plant_id, watered_by) VALUES (?, ?)", (pid, update.effective_user.id))
+    con.execute("UPDATE plant_reminders SET sent=1 WHERE plant_id=? AND sent=0", (pid,))
+    interval = row["water_interval_days"] or 7
+    remind_at = (datetime.now(ZoneInfo(TIMEZONE)) + timedelta(days=interval)).strftime("%Y-%m-%d %H:%M")
+    con.execute("INSERT INTO plant_reminders (plant_id, family_id, remind_at) VALUES (?, ?, ?)", (pid, fid, remind_at))
+    con.commit(); con.close()
+    name = row["custom_name"] or row["species"] or "Plant"
+    await update.message.reply_text(f"💧 Watered <b>{e(name)}</b> · next reminder in {interval} days", parse_mode="HTML")
+
+
+async def _handle_plants_list(update, ctx, fid: int):
+    """List all plants with status emoji + days until next water."""
+    e = html.escape
+    con = _db()
+    rows = con.execute(
+        """SELECT id, custom_name, species, water_interval_days, last_watered, added_at
+           FROM plants WHERE family_id=? ORDER BY id""", (fid,)).fetchall()
+    con.close()
+    if not rows:
+        await update.message.reply_text("📭 No plants yet. Send a photo with caption <code>Plant</code> to add one.", parse_mode="HTML")
+        return
+    lines = [f"🪴 <b>Plants in your family ({len(rows)})</b>\n"]
+    for r in rows:
+        st = _plant_status_bot(r["last_watered"], r["added_at"], r["water_interval_days"])
+        ico = "🔴" if st == "thirsty" else ("🟡" if st == "soon" else "🟢")
+        name = r["custom_name"] or r["species"] or "Plant"
+        sub = f" <i>({e(r['species'])})</i>" if r["custom_name"] else ""
+        lines.append(f"{ico} <b>{e(name)}</b>{sub}")
+    await update.message.reply_text("\n".join(lines), parse_mode="HTML")
+
+
+async def _try_plant_text_command(update, ctx, text: str, fid: int, user_name: str) -> bool:
+    """Handle text-only plant commands. Returns True if matched."""
+    if _PLANTS_LIST_RE.match(text):
+        await _handle_plants_list(update, ctx, fid)
+        return True
+    m = _WATER_CMD_RE.match(text)
+    if m:
+        await _handle_water_command(update, ctx, m.group(1), fid, user_name)
+        return True
+    return False
+
+
 async def handle_photo(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     """Handle photo messages — exercise image upload (caption 'exercise: <name>')
     or receipt scanning via Claude Vision."""
@@ -1235,6 +1428,11 @@ async def handle_photo(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     m2 = _WORD_IMG_CAPTION_RE.match(caption)
     if m2:
         await _save_word_image(update, ctx, fid, user_name, m2.group(1))
+        return
+    # Route: caption "Plant" / "Plant: Yuki" / "Цветок: Юки" → identify + add new plant
+    m3 = _PLANT_IMG_CAPTION_RE.match(caption)
+    if m3:
+        await _handle_plant_add_photo(update, ctx, fid, user_name, (m3.group(1) or "").strip())
         return
 
     if not ANTHROPIC_API_KEY:
@@ -1442,6 +1640,9 @@ async def handle_message(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
 
     # Vocabulary commands ("Словарь: X" / "Dictionary: X") — handled before the generic NL parser.
     if await _try_word_command(update, ctx, text, fid, uid, user_name):
+        return
+    # Plant commands ("Water: Yuki", "Plants", "Полить: Юки")
+    if await _try_plant_text_command(update, ctx, text, fid, user_name):
         return
 
     if not ANTHROPIC_API_KEY:

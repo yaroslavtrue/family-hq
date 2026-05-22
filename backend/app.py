@@ -2617,6 +2617,41 @@ async def plants_image_upload(pid: int, file: UploadFile = File(...), user=Depen
     return {"ok": True, "size": len(data)}
 
 
+@app.get("/api/plants/{pid}/history")
+def plants_history(pid: int, days: int = 30, user=Depends(get_uf), db=Depends(get_db)):
+    """Watering history for the last N days. Returns:
+       - dates: list of ISO dates (YYYY-MM-DD) within window
+       - water_days: subset of `dates` that had at least one watering
+       - count: total waterings in window
+       - avg_interval_days: rolling average between consecutive waterings (or null if <2)"""
+    row = db.execute("SELECT id, water_interval_days FROM plants WHERE id=? AND family_id=?",
+                     (pid, user["family_id"])).fetchone()
+    if not row: raise HTTPException(404)
+    days = max(7, min(120, days))
+    since = (datetime.now(ZoneInfo(TIMEZONE)) - timedelta(days=days)).strftime("%Y-%m-%d")
+    rows = db.execute(
+        "SELECT watered_at FROM plant_waterings WHERE plant_id=? AND watered_at>=? ORDER BY watered_at",
+        (pid, since)).fetchall()
+    water_days = sorted({(r["watered_at"] or "").split("T")[0].split(" ")[0] for r in rows if r["watered_at"]})
+    today = datetime.now(ZoneInfo(TIMEZONE)).date()
+    dates = [(today - timedelta(days=i)).isoformat() for i in range(days - 1, -1, -1)]
+    # Average interval
+    avg = None
+    if len(water_days) >= 2:
+        parsed = sorted(datetime.fromisoformat(d).date() for d in water_days)
+        gaps = [(parsed[i] - parsed[i-1]).days for i in range(1, len(parsed))]
+        if gaps: avg = round(sum(gaps) / len(gaps), 1)
+    return {
+        "plant_id": pid,
+        "days": days,
+        "dates": dates,
+        "water_days": water_days,
+        "count": len(water_days),
+        "avg_interval_days": avg,
+        "target_interval_days": row["water_interval_days"],
+    }
+
+
 @app.delete("/api/plants/{pid}")
 def plants_delete(pid: int, user=Depends(get_uf), db=Depends(get_db)):
     """Hard-delete plant + waterings + reminders + on-disk image."""
@@ -2648,7 +2683,7 @@ def serve_exercise_image(fn: str):
     return r
 
 # ─── Debug & Serve ───────────────────────────────────────────────────────
-APP_VERSION = "v8.25.0"
+APP_VERSION = "v8.26.0"
 
 @app.get("/api/debug/ping")
 def ping(): return {"ok": True, "version": APP_VERSION, "time": datetime.now(ZoneInfo(TIMEZONE)).isoformat()}
