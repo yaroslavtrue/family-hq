@@ -2156,13 +2156,18 @@ def words_answer(body: WordAnswer, user=Depends(get_uf), db=Depends(get_db)):
     return {"ok": True, "status": new_status}
 
 @app.get("/api/words/stats")
-def words_stats(mode: str = "en", user=Depends(get_uf), db=Depends(get_db)):
-    """Returns per-member stats for the given mode + family comparison."""
+def words_stats(user=Depends(get_uf), db=Depends(get_db)):
+    """Returns per-member stats — each row in THAT member's own learn_mode.
+    The viewer sees their English progress AND the spouse's Russian progress on the
+    same screen, instead of being filtered to a single mode."""
     total = _word_count(db)
     members = [dict(r) for r in db.execute(
-        "SELECT user_id, user_name FROM family_members WHERE family_id=?", (user["family_id"],)).fetchall()]
+        "SELECT user_id, user_name, learn_mode FROM family_members WHERE family_id=?",
+        (user["family_id"],)).fetchall()]
     per_member = []
     for m in members:
+        mode = (m.get("learn_mode") or "en").strip()
+        if mode not in ("en", "ru"): mode = "en"
         rows = db.execute(
             "SELECT status, COUNT(*) AS n FROM word_progress WHERE user_id=? AND mode=? GROUP BY status",
             (m["user_id"], mode)).fetchall()
@@ -2177,12 +2182,13 @@ def words_stats(mode: str = "en", user=Depends(get_uf), db=Depends(get_db)):
         per_member.append({
             "user_id": m["user_id"],
             "user_name": m["user_name"],
+            "mode": mode,
             "counts": counts,
             "attempts": attempts_row["a"],
             "correct": attempts_row["c"],
             "accuracy": round(attempts_row["c"] / attempts_row["a"] * 100) if attempts_row["a"] else 0,
         })
-    return {"mode": mode, "total": total, "members": per_member, "my_id": user["id"]}
+    return {"total": total, "members": per_member, "my_id": user["id"]}
 
 @app.post("/api/words/reset")
 def words_reset(mode: str = "en", user=Depends(get_uf), db=Depends(get_db)):
@@ -2820,7 +2826,7 @@ def serve_exercise_image(fn: str):
     return r
 
 # ─── Debug & Serve ───────────────────────────────────────────────────────
-APP_VERSION = "v8.27.3"
+APP_VERSION = "v8.28.0"
 
 @app.get("/api/debug/ping")
 def ping(): return {"ok": True, "version": APP_VERSION, "time": datetime.now(ZoneInfo(TIMEZONE)).isoformat()}

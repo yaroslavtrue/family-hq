@@ -310,11 +310,11 @@ function rWords(){
   if(_wordsFirstLoad){_wordsFirstLoad=false;_wordsInitMode();loadWordsSession()}
   var stats=_wordsState.stats||{learned:0,total:0};
   var modeLabel=_wordsState.mode==="en"?"Learning English":"Learning Russian";
-  // Custom header: ✕ left, learned counter center (tap → stats), ⚙ right
+  // Custom header: ✕ left, learned counter center (tap → stats). Settings moved to main Settings page.
   var h='<div class="wd-hd">';
   h+='<button class="wd-iconbtn" onclick="go(\'home\')" aria-label="Close">'+icon("x",20,2.5)+'</button>';
   h+='<button class="wd-counter" onclick="openWordsStats()"><span class="wd-counter-n">'+(stats.learned||0)+'</span><span class="wd-counter-lb">of '+(stats.total||0)+' learned · '+modeLabel+'</span></button>';
-  h+='<button class="wd-iconbtn" onclick="openWordsSettings()" aria-label="Settings">'+icon("cog",20,2)+'</button>';
+  h+='<span class="wd-iconbtn" style="visibility:hidden" aria-hidden="true"></span>';
   h+='</div>';
   // Loading
   if(_wordsState.loading||(_wordsState.queue.length===0&&_wordsFirstLoad===false&&stats.total===0)){h+='<div class="emp" style="padding-top:40px"><div class="emp-i" style="font-size:32px">⏳</div><div>Loading…</div></div>';return h}
@@ -530,59 +530,69 @@ function _wdAttachSwipe(){
     else{card.style.transition="transform .25s,opacity .25s";card.style.transform="";card.style.opacity="";setTimeout(function(){card.style.transition=""},250)}
   },{passive:true});
 }
-async function openWordsSettings(){
+// Open the learning-language picker from main Settings → Learning section.
+// Each family member picks their own language; stats then show every member in
+// their own mode side-by-side.
+async function openLearnModePicker(){
   hp("light");
   var curEn=_wordsState.mode==="en";
-  var h='<div class="lb">Learning language</div>';
-  h+='<div class="or" style="margin-bottom:18px">';
-  h+='<button class="ob '+(curEn?"s":"")+'" onclick="_setLearnMode(\'en\')">Learn English</button>';
-  h+='<button class="ob '+(!curEn?"s":"")+'" onclick="_setLearnMode(\'ru\')">Learn Russian</button>';
+  var h='<div style="font-size:12px;color:var(--ht);text-align:center;margin-bottom:14px;line-height:1.4">Pick the language YOU want to learn.<br>Each family member can choose differently.</div>';
+  h+='<div class="or">';
+  h+='<button class="ob '+(curEn?"s":"")+'" onclick="_setLearnMode(\'en\')">🇬🇧 Learn English</button>';
+  h+='<button class="ob '+(!curEn?"s":"")+'" onclick="_setLearnMode(\'ru\')">🇷🇺 Learn Russian</button>';
   h+='</div>';
-  h+='<div class="lb">Session</div>';
-  h+='<button class="btn btn-s" style="color:var(--ac);width:100%" onclick="_resetWordsProgress()">Reset progress (this language)</button>';
-  oMC("Words Settings",h,{ic:"book"});
+  oMC("Learning language",h,{ic:"book"});
 }
 async function _setLearnMode(m){
   _wordsState.mode=m;hp("ok");
   await A("PATCH","/api/words/learn-mode",{mode:m});
   var me=_myMember();if(me)me.learn_mode=m;
+  // Wipe in-memory session queue so the next Words open re-fetches in the new mode.
+  _wordsState.cursor=0;_wordsState.queue=[];_wordsFirstLoad=true;
   cMo();
-  _wordsState.cursor=0;_wordsState.queue=[];
-  loadWordsSession();
+  // Re-render whichever tab we're on (Settings shows updated language label).
+  ren();
+  toast((m==="en"?"🇬🇧":"🇷🇺")+" Now learning "+(m==="en"?"English":"Russian"));
 }
 async function _resetWordsProgress(){
-  if(!confirm("Reset all progress for "+(_wordsState.mode==="en"?"English":"Russian")+"?"))return;
+  var lang=_wordsState.mode==="en"?"English":"Russian";
+  if(!confirm("Reset all your Words progress for "+lang+"?\n\nThis wipes your learned/learning state for the language you're currently studying. Other family members are unaffected."))return;
   await A("POST","/api/words/reset?mode="+_wordsState.mode);
-  cMo();hp("ok");
+  hp("ok");toast("Progress reset for "+lang);
   loadWordsSession();
+  // Refresh whichever tab we're on (Settings subtitle may change indirectly).
+  ren();
 }
 async function openWordsStats(){
   hp("light");
-  var d=await A("GET","/api/words/stats?mode="+_wordsState.mode);
+  var d=await A("GET","/api/words/stats");
   if(!d){oMC("Stats","<div>Failed to load.</div>",{ic:"chart"});return}
-  var modeLabel=_wordsState.mode==="en"?"Learning English":"Learning Russian";
-  var h='<div class="lb">'+modeLabel+'</div>';
-  h+='<div style="font-size:11px;color:var(--ht);margin-bottom:10px;text-align:center">Tap a row to see learned words and mistakes</div>';
+  var h='<div style="font-size:11px;color:var(--ht);margin-bottom:10px;text-align:center">Each member’s progress in their own learning language</div>';
   d.members.forEach(function(m){
     var c=m.counts||{};
     var pct=d.total?Math.round((c.learned||0)/d.total*100):0;
     var isMe=m.user_id===d.my_id;
-    h+='<div class="cat-row wd-stats-row" onclick="openMemberDetail('+m.user_id+')"'+(isMe?' style="border:1.5px solid color-mix(in srgb,var(--pr) 45%,transparent);background:color-mix(in srgb,var(--pr) 8%,var(--cd))"':'')+'>';
+    var langFlag=m.mode==="en"?"🇬🇧":"🇷🇺";
+    var langLabel=m.mode==="en"?"Learning English":"Learning Russian";
+    h+='<div class="cat-row wd-stats-row" onclick="openMemberDetail('+m.user_id+',\''+m.mode+'\')"'+(isMe?' style="border:1.5px solid color-mix(in srgb,var(--pr) 45%,transparent);background:color-mix(in srgb,var(--pr) 8%,var(--cd))"':'')+'>';
     h+='<div class="cat-row-h"><span class="nm">'+mAv(m.user_id,22)+es(m.user_name)+(isMe?" (you)":"")+'</span><span class="vl">'+(c.learned||0)+' / '+d.total+'</span></div>';
+    h+='<div style="font-size:11px;font-weight:600;color:var(--ht);margin:2px 0 6px;letter-spacing:.2px">'+langFlag+' '+langLabel+'</div>';
     h+='<div class="progress"><div class="progress-fill tone-ok" style="width:'+pct+'%"></div></div>';
     h+='<div style="font-size:11px;color:var(--ht);margin-top:6px;display:flex;justify-content:space-between;align-items:center"><span>'+(c.learning||0)+' learning · '+m.attempts+' attempts · '+m.accuracy+'% accuracy</span><span style="opacity:.6;font-size:14px">›</span></div>';
     h+='</div>';
   });
   oMC("Stats",h,{ic:"chart"});
 }
-// Member detail — Learned/Mistakes tabs
-var _wdDetailState={tab:"learned",data:null,name:"",uid:0};
-async function openMemberDetail(uid){
+// Member detail — Learned/Mistakes tabs. Mode is now passed from the stats row
+// (each member can be on a different mode), with fallback to the viewer's mode.
+var _wdDetailState={tab:"learned",data:null,name:"",uid:0,mode:"en"};
+async function openMemberDetail(uid,mode){
   hp("light");
-  var d=await A("GET","/api/words/member-detail?user_id="+uid+"&mode="+_wordsState.mode);
+  var m=mode||_wordsState.mode;
+  var d=await A("GET","/api/words/member-detail?user_id="+uid+"&mode="+m);
   if(!d)return;
-  var member=(D.members||[]).find(function(m){return m.user_id===uid});
-  _wdDetailState.data=d;_wdDetailState.tab="learned";_wdDetailState.uid=uid;_wdDetailState.name=member?member.user_name:"";
+  var member=(D.members||[]).find(function(x){return x.user_id===uid});
+  _wdDetailState.data=d;_wdDetailState.tab="learned";_wdDetailState.uid=uid;_wdDetailState.mode=m;_wdDetailState.name=member?member.user_name:"";
   oMC(_wdDetailState.name||"Member",_wdDetailHtml(),{ic:"user"});
 }
 function _wdDetailHtml(){
@@ -1396,6 +1406,8 @@ allSubs.task=b.subtasks_task||{};allSubs.event=b.subtasks_event||{};D.txItems=b.
 D.weather=b.weather||null;D.categories=b.categories||[];D.transactions=b.transactions||[];
 D.exercises=b.exercises||[];D.recentWorkouts=b.recent_workouts||[];D.workoutTemplates=b.workout_templates||[];
 D.plants=b.plants||[];
+// Sync Words state from member data so Settings can read it without opening Words first.
+try{_wordsInitMode()}catch(e){}
 if(D.settings.theme)aT(D.settings.theme);ren()}
 
 // ─── Render ─────────────────────────────────────────────────
@@ -3230,7 +3242,10 @@ var nInc=D.categories.filter(function(c){return c.type==="income"}).length;
 h+='<div class="sc"><span class="sc-l">Money</span></div>';
 h+=_setRow({ico:"list",acc:"acc-pr",title:"Categories",subtitle:nExp+" expense · "+nInc+" income",onclick:"openCatMgr()"});
 h+='<div class="sc"><span class="sc-l">Learning</span></div>';
-h+=_setRow({ico:"book",acc:"acc-pr",title:"Words",subtitle:"Edit cards · add images",onclick:"openWordsMgr()"});
+var _curLearn=_wordsState&&_wordsState.mode==="ru"?"🇷🇺 Russian":"🇬🇧 English";
+h+=_setRow({iconCustom:'<span style="font-size:22px">🎓</span>',acc:"acc-pr",title:"Learning language",subtitle:"Currently: "+_curLearn,onclick:"openLearnModePicker()"});
+h+=_setRow({ico:"book",acc:"acc-pr",title:"Words editor",subtitle:"Edit cards · add images",onclick:"openWordsMgr()"});
+h+=_setRow({iconCustom:'<span style="font-size:22px">🔄</span>',acc:"acc-ac",title:"Reset my progress",subtitle:"Wipe my learned/learning state",onclick:"_resetWordsProgress()"});
 h+='<div class="sc"><span class="sc-l">Integrations</span></div>';
 h+=_setRow({iconCustom:'<span style="font-size:22px">🔵</span>',acc:"",title:"Trello Sync",subtitle:"Board: Работа",onclick:"syncTrello()",right:'<span id="trello-btn" class="lc-rt" style="background:color-mix(in srgb,var(--pr) 16%,transparent);color:var(--pr)">Sync Now</span>'});
 if(_pwaPrompt){
@@ -3240,7 +3255,7 @@ if(_pwaPrompt){
 }
 h+='<div class="sc"><span class="sc-l">Developer</span></div>';
 h+=_setRow({ico:"debug",acc:"acc-ac",title:"Debug Mode "+(dbgOn?"ON":"OFF"),onclick:"dbgOn=!dbgOn;document.getElementById(\'dbg\').classList.toggle(\'hidden\',!dbgOn);ren()"});
-h+='<div style="margin-top:18px;text-align:center;font-size:11px;color:var(--ht);letter-spacing:.3px">Family HQ v8.27.3</div>';return h}
+h+='<div style="margin-top:18px;text-align:center;font-size:11px;color:var(--ht);letter-spacing:.3px">Family HQ v8.28.0</div>';return h}
 async function setTh(id){
   if(id==="custom"){
     // Tapping Custom in the picker opens the editor (saves happen there). Also apply right away.
