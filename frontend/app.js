@@ -2083,11 +2083,17 @@ function _trainStatsBlock(){
   h+='</div>';
   return h;
 }
-function _trainSetPeriod(p){_trainStatsPeriod=p;_trainStatsData=null;hp("sel");ren();_trainStatsLoad()}
+function _trainSetPeriod(p){_trainStatsPeriod=p;_trainStatsData=null;_trainStatsLoading=false;hp("sel");ren();_trainStatsLoad()}
+var _trainStatsLoading=false;
 async function _trainStatsLoad(){
+  // Lazy guard: skip if already loaded or currently fetching. Prevents the
+  // setTimeout(_trainStatsLoad,0) call in rTrain from looping (load→ren→load→…)
+  if(_trainStatsData||_trainStatsLoading)return;
+  _trainStatsLoading=true;
   var q="?period="+_trainStatsPeriod;
   if(_trainMember)q+="&member_id="+_trainMember;
   var d=await A("GET","/api/trainings/stats/period"+q);
+  _trainStatsLoading=false;
   if(!d)return;
   _trainStatsData=d;
   if(tab==="trainings")ren();
@@ -2184,7 +2190,7 @@ function _fmtTon(t){
   return Math.round(t).toLocaleString()+' kg';
 }
 function _weekStartISO(){var d=new Date();var dow=d.getDay();var off=(dow===0)?-6:1-dow;d.setDate(d.getDate()+off);return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0")}
-function setTrainMember(uid){_trainMember=uid;_trainStats=null;hp("sel");ren()}
+function setTrainMember(uid){_trainMember=uid;_trainStats=null;_trainStatsData=null;_trainStatsLoading=false;hp("sel");ren()}
 
 function _workoutCard(w,emphasized){
   var dateLbl=w.date===td()?"Today":fD(w.date).full;
@@ -3401,7 +3407,7 @@ if(_pwaPrompt){
 }
 h+='<div class="sc"><span class="sc-l">Developer</span></div>';
 h+=_setRow({ico:"debug",acc:"acc-ac",title:"Debug Mode "+(dbgOn?"ON":"OFF"),onclick:"dbgOn=!dbgOn;document.getElementById(\'dbg\').classList.toggle(\'hidden\',!dbgOn);ren()"});
-h+='<div style="margin-top:18px;text-align:center;font-size:11px;color:var(--ht);letter-spacing:.3px">Family HQ v8.29.0</div>';return h}
+h+='<div style="margin-top:18px;text-align:center;font-size:11px;color:var(--ht);letter-spacing:.3px">Family HQ v8.29.1</div>';return h}
 async function setTh(id){
   if(id==="custom"){
     // Tapping Custom in the picker opens the editor (saves happen there). Also apply right away.
