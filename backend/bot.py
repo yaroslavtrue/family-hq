@@ -1353,7 +1353,8 @@ async def _handle_plant_add_photo(update, ctx, fid: int, user_name: str, custom_
 
 
 async def _handle_water_command(update, ctx, text: str, fid: int, user_name: str):
-    """Mark a plant as watered. Lookup by custom_name (case-insensitive) or species."""
+    """Toggle today's watering. Same logic as the in-app button: water if not yet today,
+    undo if already watered today. Lookup by custom_name or species (exact then fuzzy)."""
     e = html.escape
     target = text.strip().lower()
     if not target:
@@ -1361,13 +1362,12 @@ async def _handle_water_command(update, ctx, text: str, fid: int, user_name: str
         return
     con = _db()
     row = con.execute(
-        """SELECT id, custom_name, species, water_interval_days FROM plants
+        """SELECT id, custom_name, species, water_interval_days, last_watered FROM plants
            WHERE family_id=? AND (LOWER(custom_name)=? OR LOWER(species)=?) LIMIT 1""",
         (fid, target, target)).fetchone()
     if not row:
-        # Fuzzy fallback: LIKE %target%
         row = con.execute(
-            """SELECT id, custom_name, species, water_interval_days FROM plants
+            """SELECT id, custom_name, species, water_interval_days, last_watered FROM plants
                WHERE family_id=? AND (LOWER(custom_name) LIKE ? OR LOWER(species) LIKE ?) LIMIT 1""",
             (fid, f"%{target}%", f"%{target}%")).fetchone()
     if not row:
@@ -1375,15 +1375,47 @@ async def _handle_water_command(update, ctx, text: str, fid: int, user_name: str
         await update.message.reply_text(f"❌ Plant <b>{e(text)}</b> not found.", parse_mode="HTML")
         return
     pid = row["id"]
-    now_iso = datetime.now(ZoneInfo(TIMEZONE)).isoformat()
-    con.execute("UPDATE plants SET last_watered=? WHERE id=?", (now_iso, pid))
+    interval = row["water_interval_days"] or 7
+    name = row["custom_name"] or row["species"] or "Plant"
+    now_dt = datetime.now(ZoneInfo(TIMEZONE))
+
+    # Was it watered today already?
+    watered_today = False
+    if row["last_watered"]:
+        try:
+            ldt = datetime.fromisoformat(str(row["last_watered"]).replace("Z", "+00:00").split(".")[0])
+            if ldt.tzinfo is None: ldt = ldt.replace(tzinfo=ZoneInfo(TIMEZONE))
+            watered_today = ldt.date() == now_dt.date()
+        except Exception:
+            pass
+
+    if watered_today:
+        # ─── UNDO
+        con.execute("DELETE FROM plant_waterings WHERE plant_id=? AND date(watered_at)=?", (pid, now_dt.date().isoformat()))
+        prev = con.execute("SELECT MAX(watered_at) AS m FROM plant_waterings WHERE plant_id=?", (pid,)).fetchone()
+        new_last = prev["m"] if prev and prev["m"] else None
+        con.execute("UPDATE plants SET last_watered=? WHERE id=?", (new_last, pid))
+        con.execute("DELETE FROM plant_reminders WHERE plant_id=? AND sent=0", (pid,))
+        base_dt = now_dt
+        if new_last:
+            try:
+                bdt = datetime.fromisoformat(str(new_last).replace("Z", "+00:00").split(".")[0])
+                if bdt.tzinfo is None: bdt = bdt.replace(tzinfo=ZoneInfo(TIMEZONE))
+                base_dt = bdt
+            except Exception: pass
+        remind_at = (base_dt + timedelta(days=interval)).strftime("%Y-%m-%d %H:%M")
+        con.execute("INSERT INTO plant_reminders (plant_id, family_id, remind_at) VALUES (?, ?, ?)", (pid, fid, remind_at))
+        con.commit(); con.close()
+        await update.message.reply_text(f"↩ Undid today's watering for <b>{e(name)}</b>", parse_mode="HTML")
+        return
+
+    # ─── WATER
+    con.execute("UPDATE plants SET last_watered=? WHERE id=?", (now_dt.isoformat(), pid))
     con.execute("INSERT INTO plant_waterings (plant_id, watered_by) VALUES (?, ?)", (pid, update.effective_user.id))
     con.execute("UPDATE plant_reminders SET sent=1 WHERE plant_id=? AND sent=0", (pid,))
-    interval = row["water_interval_days"] or 7
-    remind_at = (datetime.now(ZoneInfo(TIMEZONE)) + timedelta(days=interval)).strftime("%Y-%m-%d %H:%M")
+    remind_at = (now_dt + timedelta(days=interval)).strftime("%Y-%m-%d %H:%M")
     con.execute("INSERT INTO plant_reminders (plant_id, family_id, remind_at) VALUES (?, ?, ?)", (pid, fid, remind_at))
     con.commit(); con.close()
-    name = row["custom_name"] or row["species"] or "Plant"
     await update.message.reply_text(f"💧 Watered <b>{e(name)}</b> · next reminder in {interval} days", parse_mode="HTML")
 
 

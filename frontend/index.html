@@ -409,6 +409,9 @@ body.words-mode .ct{padding-top:max(10px, calc(env(safe-area-inset-top, 0px) + 6
 .pl-btn{flex:1;border:none;border-radius:14px;padding:13px 14px;font-size:14px;font-weight:700;cursor:pointer;transition:transform .12s,background .15s;text-shadow:none;display:flex;align-items:center;justify-content:center;gap:6px}
 .pl-btn:active{transform:scale(.96)}
 .pl-btn-primary{background:color-mix(in srgb,var(--ok) 88%,#fff);color:#fff;box-shadow:0 4px 14px color-mix(in srgb,var(--ok) 35%,transparent)}
+/* Watered-today state: muted grey, no glow. Tap to undo. */
+.pl-btn-thanks{background:color-mix(in srgb,#000 28%,rgba(255,255,255,.65));color:#fff;box-shadow:none;border:1px solid rgba(255,255,255,.22);font-weight:600;opacity:.92}
+.pl-btn-thanks:active{transform:scale(.96);opacity:1}
 .pl-btn-secondary{background:rgba(255,255,255,.85);color:#1a1a1a;flex:.85}
 .pl-btn-more{background:rgba(255,255,255,.85);color:#1a1a1a;flex:0 0 50px;font-size:18px;font-weight:900}
 
@@ -822,6 +825,6 @@ body.no-scroll .mx{touch-action:pan-y}
 <!-- Debug -->
 <div class="dbg hidden" id="dbg"><button class="dbg-cp" onclick="navigator.clipboard.writeText(dbgLog.join('\n'))">Copy</button></div>
 <!-- Load JS -->
-<script src="/static/app.js?v=167"></script>
+<script src="/static/app.js?v=168"></script>
 </body>
 </html>

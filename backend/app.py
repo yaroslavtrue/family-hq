@@ -2462,6 +2462,19 @@ def _plant_status(p: dict) -> str:
     return "ok"
 
 
+def _watered_today(p: dict) -> bool:
+    """True if the plant was watered at any point today (in our local TZ)."""
+    last = p.get("last_watered")
+    if not last: return False
+    try:
+        last_dt = datetime.fromisoformat(str(last).replace("Z", "+00:00").split(".")[0])
+        if last_dt.tzinfo is None:
+            last_dt = last_dt.replace(tzinfo=ZoneInfo(TIMEZONE))
+    except Exception:
+        return False
+    return last_dt.date() == datetime.now(ZoneInfo(TIMEZONE)).date()
+
+
 def _plant_view(p: dict) -> dict:
     """Shape a plant row for the frontend."""
     tips = []
@@ -2489,6 +2502,7 @@ def _plant_view(p: dict) -> dict:
         "added_at": p.get("added_at"),
         "added_by": p.get("added_by"),
         "status": _plant_status(p),
+        "watered_today": _watered_today(p),
         "has_image": os.path.isfile(os.path.join(PLANTS_IMG_DIR, f"{p['id']}.jpg")),
     }
 
@@ -2678,15 +2692,45 @@ def plants_update(pid: int, body: PlantEdit, user=Depends(get_uf), db=Depends(ge
 
 @app.post("/api/plants/{pid}/water")
 def plants_water(pid: int, user=Depends(get_uf), db=Depends(get_db)):
-    """Log a watering. Marks any pending reminder as sent and creates the next one."""
+    """Toggle today's watering. If already watered today → UNDO (delete today's log,
+    reset last_watered to the previous max, re-schedule next reminder from that base).
+    Otherwise → WATER (log, mark pending reminder sent, schedule next reminder)."""
     row = db.execute("SELECT * FROM plants WHERE id=? AND family_id=?", (pid, user["family_id"])).fetchone()
     if not row: raise HTTPException(404)
-    now_iso = datetime.now(ZoneInfo(TIMEZONE)).isoformat()
+    row_d = dict(row)
+    interval = row_d.get("water_interval_days") or 7
+    now_dt = datetime.now(ZoneInfo(TIMEZONE))
+
+    if _watered_today(row_d):
+        # ─── UNDO ────────────────────────────────────────
+        today_iso = now_dt.date().isoformat()
+        db.execute("DELETE FROM plant_waterings WHERE plant_id=? AND date(watered_at)=?", (pid, today_iso))
+        prev = db.execute("SELECT MAX(watered_at) AS m FROM plant_waterings WHERE plant_id=?", (pid,)).fetchone()
+        new_last = prev["m"] if prev and prev["m"] else None
+        db.execute("UPDATE plants SET last_watered=? WHERE id=?", (new_last, pid))
+        # Reset reminder queue: drop pending, schedule a fresh one based on the new base
+        db.execute("DELETE FROM plant_reminders WHERE plant_id=? AND sent=0", (pid,))
+        base_dt = now_dt
+        if new_last:
+            try:
+                bdt = datetime.fromisoformat(str(new_last).replace("Z", "+00:00").split(".")[0])
+                if bdt.tzinfo is None: bdt = bdt.replace(tzinfo=ZoneInfo(TIMEZONE))
+                base_dt = bdt
+            except Exception:
+                pass
+        remind_at = (base_dt + timedelta(days=interval)).strftime("%Y-%m-%d %H:%M")
+        db.execute("INSERT INTO plant_reminders (plant_id, family_id, remind_at) VALUES (?, ?, ?)",
+                   (pid, user["family_id"], remind_at))
+        db.commit()
+        fresh = db.execute("SELECT * FROM plants WHERE id=?", (pid,)).fetchone()
+        return _plant_view(dict(fresh))
+
+    # ─── WATER (normal path) ───────────────────────────
+    now_iso = now_dt.isoformat()
     db.execute("UPDATE plants SET last_watered=? WHERE id=?", (now_iso, pid))
     db.execute("INSERT INTO plant_waterings (plant_id, watered_by) VALUES (?, ?)", (pid, user["id"]))
     db.execute("UPDATE plant_reminders SET sent=1 WHERE plant_id=? AND sent=0", (pid,))
-    interval = row["water_interval_days"] or 7
-    remind_at = (datetime.now(ZoneInfo(TIMEZONE)) + timedelta(days=interval)).strftime("%Y-%m-%d %H:%M")
+    remind_at = (now_dt + timedelta(days=interval)).strftime("%Y-%m-%d %H:%M")
     db.execute("INSERT INTO plant_reminders (plant_id, family_id, remind_at) VALUES (?, ?, ?)",
                (pid, user["family_id"], remind_at))
     db.commit()
@@ -2776,7 +2820,7 @@ def serve_exercise_image(fn: str):
     return r
 
 # ─── Debug & Serve ───────────────────────────────────────────────────────
-APP_VERSION = "v8.27.1"
+APP_VERSION = "v8.27.2"
 
 @app.get("/api/debug/ping")
 def ping(): return {"ok": True, "version": APP_VERSION, "time": datetime.now(ZoneInfo(TIMEZONE)).isoformat()}

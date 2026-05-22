@@ -811,9 +811,14 @@ function rPlants(){
     h+='</div>';
     // Speech bubble (text only — no mascot)
     h+='<div class="pl-bubble"><span>'+es(_plVoice(cur))+'</span></div>';
-    // Actions — Water (primary) + ⋯ (more). Tips moved inline below.
+    // Actions — Water (primary, once per day) toggles to "Thank you!" after pressing.
+    // Re-tapping undoes (in case of accidental press).
     h+='<div class="pl-actions">';
-    h+='<button class="pl-btn pl-btn-primary" onclick="_plWater('+cur.id+')">💧 Water</button>';
+    if(cur.watered_today){
+      h+='<button class="pl-btn pl-btn-thanks" onclick="_plWater('+cur.id+')" title="Tap to undo">💚 Thank you!</button>';
+    }else{
+      h+='<button class="pl-btn pl-btn-primary" onclick="_plWater('+cur.id+')">💧 Water</button>';
+    }
     h+='<button class="pl-btn pl-btn-more" onclick="_plMoreMenu('+cur.id+')" aria-label="More">⋯</button>';
     h+='</div>';
     h+='</div></div>';
@@ -1004,12 +1009,19 @@ async function _plPickCandidate(idx){
 
 async function _plWater(pid){
   hp("light");
+  // Toggle endpoint: server decides water-vs-undo based on whether already watered today
   var r=await A("POST","/api/plants/"+pid+"/water");
   if(!r)return;
-  // Update local D.plants entry in place so re-render is instant
   var i=(D.plants||[]).findIndex(function(p){return p.id===pid});
   if(i>=0)D.plants[i]=r;
-  hp("ok");toast("💧 Watered "+(r.custom_name||r.species||"plant"));
+  hp("ok");
+  if(r.watered_today){
+    toast("💧 Watered "+(r.custom_name||r.species||"plant"));
+  }else{
+    toast("↩ Watering undone");
+  }
+  // History cache is stale after watering — drop so it reloads
+  delete _plState.histCache[pid];
   ren();
 }
 
@@ -3195,7 +3207,7 @@ if(_pwaPrompt){
 }
 h+='<div class="sc"><span class="sc-l">Developer</span></div>';
 h+=_setRow({ico:"debug",acc:"acc-ac",title:"Debug Mode "+(dbgOn?"ON":"OFF"),onclick:"dbgOn=!dbgOn;document.getElementById(\'dbg\').classList.toggle(\'hidden\',!dbgOn);ren()"});
-h+='<div style="margin-top:18px;text-align:center;font-size:11px;color:var(--ht);letter-spacing:.3px">Family HQ v8.27.1</div>';return h}
+h+='<div style="margin-top:18px;text-align:center;font-size:11px;color:var(--ht);letter-spacing:.3px">Family HQ v8.27.2</div>';return h}
 async function setTh(id){
   if(id==="custom"){
     // Tapping Custom in the picker opens the editor (saves happen there). Also apply right away.
