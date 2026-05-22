@@ -1476,18 +1476,51 @@ h+='<div class="cal-strip" onclick="openCalModal()" id="cal-strip"></div>';
 setTimeout(function(){loadCalStrip()},0);
 // Plants widget — horizontal scroll of plants with status. Only renders if any exist.
 h+=_rPlantsWidget();
-// Upcoming 7d
-var upcoming=[];var todayStr=td();
-D.events.forEach(function(ev){var eDate=(ev.event_date||"").split(" ")[0];if(!eDate)return;var diff=Math.round((new Date(eDate)-new Date(todayStr))/86400000);if(diff>=0&&diff<=7)upcoming.push({type:"event",days:diff,icon:"📅",title:es(ev.text),sub:fD(ev.event_date).full,color:"var(--ok)"})});
-D.birthdays.forEach(function(b){if(b.days_until>=0&&b.days_until<=7)upcoming.push({type:"birthday",days:b.days_until,icon:b.emoji,title:es(b.name),sub:b.days_until===0?"Today! 🎉":"in "+b.days_until+" days",color:"var(--wn)"})});
-D.subs.forEach(function(s){if(s.days_until>=0&&s.days_until<=7)upcoming.push({type:"sub",days:s.days_until,icon:s.emoji,title:es(s.name),sub:s.amount+" "+s.currency,color:"var(--pr)"})});
-upcoming.sort(function(a,b){return a.days-b.days});
-if(upcoming.length){h+='<div class="sc"><span class="sc-l">Upcoming 7 Days<span class="sc-cnt">'+upcoming.length+'</span></span></div>';upcoming.forEach(function(u){
-var _ud=new Date(Date.now()+u.days*86400000);var dayLabel=u.days===0?"Today":u.days===1?"Tomorrow":dN[_ud.getDay()]+" "+_ud.getDate()+" "+mN[_ud.getMonth()].slice(0,3);
-var tone=u.days===0?"tone-ac":u.days<=2?"tone-wn":"tone-ok";
-var rightPill=u.days===0?'<span class="lc-rt '+tone+'">Today</span>':'<span class="lc-rt '+tone+'">in '+u.days+'d</span>';
-var accClass=u.type==="birthday"?"acc-wn":u.type==="event"?"acc-ok":"";
-h+='<div class="lc"><div class="lc-i '+accClass+'">'+u.icon+'</div><div class="lc-bd"><div class="lc-tt">'+u.title+'</div><div class="lc-mt">'+dayLabel+' · '+u.sub+'</div></div>'+rightPill+'</div>'})}
+// Upcoming 7d — grouped by type (Tasks / Events / Subscriptions / Birthdays)
+var todayStr=td();
+var upTasks=[],upEvents=[],upSubs=[],upBdays=[];
+D.tasks.forEach(function(t){
+  if(t.done) return;
+  var dd=(t.due_date||"").split(" ")[0]; if(!dd) return;
+  var diff=Math.round((new Date(dd)-new Date(todayStr))/86400000);
+  if(diff<0||diff>7) return;
+  var acc=t.priority==="high"?"acc-ac":"acc-pr";
+  var ico=t.priority==="high"?"⚠️":"📋";
+  upTasks.push({days:diff,icon:ico,title:es(t.text),sub:fD(t.due_date).full,accClass:acc});
+});
+D.events.forEach(function(ev){
+  var eDate=(ev.event_date||"").split(" ")[0]; if(!eDate) return;
+  var diff=Math.round((new Date(eDate)-new Date(todayStr))/86400000);
+  if(diff>=0&&diff<=7) upEvents.push({days:diff,icon:"📅",title:es(ev.text),sub:fD(ev.event_date).full,accClass:"acc-ok"});
+});
+D.subs.forEach(function(s){
+  if(s.days_until>=0&&s.days_until<=7) upSubs.push({days:s.days_until,icon:s.emoji,title:es(s.name),sub:s.amount+" "+s.currency,accClass:""});
+});
+D.birthdays.forEach(function(b){
+  if(b.days_until>=0&&b.days_until<=7) upBdays.push({days:b.days_until,icon:b.emoji,title:es(b.name),sub:b.days_until===0?"Today! 🎉":"in "+b.days_until+" days",accClass:"acc-wn"});
+});
+[upTasks,upEvents,upSubs,upBdays].forEach(function(arr){arr.sort(function(a,b){return a.days-b.days})});
+var totalUp=upTasks.length+upEvents.length+upSubs.length+upBdays.length;
+function _upRow(u){
+  var _ud=new Date(Date.now()+u.days*86400000);
+  var dayLabel=u.days===0?"Today":u.days===1?"Tomorrow":dN[_ud.getDay()]+" "+_ud.getDate()+" "+mN[_ud.getMonth()].slice(0,3);
+  var tone=u.days===0?"tone-ac":u.days<=2?"tone-wn":"tone-ok";
+  var rightPill=u.days===0?'<span class="lc-rt '+tone+'">Today</span>':'<span class="lc-rt '+tone+'">in '+u.days+'d</span>';
+  return '<div class="lc"><div class="lc-i '+(u.accClass||"")+'">'+u.icon+'</div><div class="lc-bd"><div class="lc-tt">'+u.title+'</div><div class="lc-mt">'+dayLabel+' · '+u.sub+'</div></div>'+rightPill+'</div>';
+}
+function _upGroup(label,color,arr){
+  if(!arr.length) return '';
+  var out='<div class="sc-sub" style="--gc:'+color+'"><span class="sc-sub-l">'+label+'</span><span class="sc-sub-line"></span><span class="sc-sub-c">'+arr.length+'</span></div>';
+  arr.forEach(function(u){out+=_upRow(u)});
+  return out;
+}
+if(totalUp){
+  h+='<div class="sc"><span class="sc-l">Upcoming 7 Days<span class="sc-cnt">'+totalUp+'</span></span></div>';
+  h+=_upGroup('📋 Tasks','var(--pr)',upTasks);
+  h+=_upGroup('📅 Events','var(--ok)',upEvents);
+  h+=_upGroup('💳 Subscriptions','var(--pr)',upSubs);
+  h+=_upGroup('🎂 Birthdays','var(--wn)',upBdays);
+}
 return h}
 
 // ═══════════════════════════════════════════════════════════
@@ -3207,7 +3240,7 @@ if(_pwaPrompt){
 }
 h+='<div class="sc"><span class="sc-l">Developer</span></div>';
 h+=_setRow({ico:"debug",acc:"acc-ac",title:"Debug Mode "+(dbgOn?"ON":"OFF"),onclick:"dbgOn=!dbgOn;document.getElementById(\'dbg\').classList.toggle(\'hidden\',!dbgOn);ren()"});
-h+='<div style="margin-top:18px;text-align:center;font-size:11px;color:var(--ht);letter-spacing:.3px">Family HQ v8.27.2</div>';return h}
+h+='<div style="margin-top:18px;text-align:center;font-size:11px;color:var(--ht);letter-spacing:.3px">Family HQ v8.27.3</div>';return h}
 async function setTh(id){
   if(id==="custom"){
     // Tapping Custom in the picker opens the editor (saves happen there). Also apply right away.

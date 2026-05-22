@@ -58,6 +58,12 @@ body{font-family:'DM Sans',-apple-system,sans-serif;background:var(--bg);color:v
 .sc-cnt{display:inline-flex;align-items:center;justify-content:center;min-width:18px;height:18px;padding:0 6px;border-radius:9px;background:color-mix(in srgb,var(--ht) 18%,transparent);color:var(--ht);font-size:10px;font-weight:700;letter-spacing:0;margin-left:6px}
 .sc-l{display:inline-flex;align-items:center;gap:6px}
 .sc-ico{display:inline-flex;align-items:center;line-height:1;opacity:.95}
+/* Sub-group divider inside a section (Upcoming 7 days → Tasks / Events / Subs / Birthdays).
+   Color tinted via --gc custom property per group. */
+.sc-sub{display:flex;align-items:center;gap:10px;margin:14px 0 8px;font-size:11px;font-weight:700;letter-spacing:.4px}
+.sc-sub-l{color:var(--gc,var(--ht));flex-shrink:0}
+.sc-sub-line{flex:1;height:1px;background:color-mix(in srgb,var(--gc,var(--bd)) 28%,transparent)}
+.sc-sub-c{flex-shrink:0;font-size:10px;font-weight:700;color:var(--gc,var(--ht));background:color-mix(in srgb,var(--gc,var(--ht)) 14%,transparent);padding:2px 9px;border-radius:9px}
 
 /* Cards */
 .c{background:var(--cd);border-radius:var(--r);padding:16px 18px;margin-bottom:12px;border:1px solid var(--bd);display:flex;align-items:center;gap:13px;transition:all .25s;animation:ci .3s ease-out;box-shadow:var(--shadow-1)}
@@ -825,6 +831,6 @@ body.no-scroll .mx{touch-action:pan-y}
 <!-- Debug -->
 <div class="dbg hidden" id="dbg"><button class="dbg-cp" onclick="navigator.clipboard.writeText(dbgLog.join('\n'))">Copy</button></div>
 <!-- Load JS -->
-<script src="/static/app.js?v=168"></script>
+<script src="/static/app.js?v=169"></script>
 </body>
 </html>
