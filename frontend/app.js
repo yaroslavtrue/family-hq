@@ -146,7 +146,9 @@ palette:'<circle cx="13.5" cy="6.5" r="1" fill="currentColor"/><circle cx="17.5"
 pin:'<path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/>',
 book:'<path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/>',
 speaker:'<polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"/>',
-translate:'<path d="m16 3 4 4-4 4"/><path d="M20 7H4"/><path d="m8 21-4-4 4-4"/><path d="M4 17h16"/>'
+translate:'<path d="m16 3 4 4-4 4"/><path d="M20 7H4"/><path d="m8 21-4-4 4-4"/><path d="M4 17h16"/>',
+flower:'<circle cx="12" cy="12" r="2.5"/><circle cx="12" cy="5.5" r="3"/><circle cx="18.5" cy="12" r="3"/><circle cx="12" cy="18.5" r="3"/><circle cx="5.5" cy="12" r="3"/>',
+leaf:'<path d="M11 20A7 7 0 0 1 9.8 6.1C15.5 5 17 4.48 19 2c1 2 2 4.18 2 8 0 5.5-4.78 10-10 10Z"/><path d="M2 21c0-3 1.85-5.36 5.08-6"/>'
 };
 // Wrappers — pre-built default sizes for the most-used icons
 const I={
@@ -807,8 +809,8 @@ function rPlants(){
     h+='<div class="pl-card-titles"><div class="pl-card-name"><span>'+es(cur.custom_name||cur.species||"Plant")+'</span><button class="bi" onclick="_plOpenEdit('+cur.id+')" aria-label="Edit" style="color:#fff;opacity:.8">'+I.ed+'</button></div><div class="pl-card-sub">'+es(cur.latin_name||cur.species||"")+'</div></div>';
     h+='<div class="pl-pill" style="background:'+_plStatusColor(cur.status)+'"><span class="pl-pill-dot"></span>'+_plStatusLabel(cur.status)+'</div>';
     h+='</div>';
-    // Speech bubble
-    h+='<div class="pl-bubble"><span class="pl-bubble-icon">🥟</span><span>'+es(_plVoice(cur))+'</span></div>';
+    // Speech bubble (text only — no mascot)
+    h+='<div class="pl-bubble"><span>'+es(_plVoice(cur))+'</span></div>';
     // Actions — Water (primary) + ⋯ (more). Tips moved inline below.
     h+='<div class="pl-actions">';
     h+='<button class="pl-btn pl-btn-primary" onclick="_plWater('+cur.id+')">💧 Water</button>';
@@ -897,7 +899,7 @@ function _plOpenAdd(){
   h+='<input class="inp" id="pl-name" placeholder="e.g. Yuki, Momi, Hana…" maxlength="40">';
   h+='<div id="pl-add-msg" style="margin-top:10px;font-size:12px;color:var(--ht);text-align:center;min-height:18px"></div>';
   h+='<button class="btn" id="pl-add-go" onclick="_plDoAdd()" disabled style="opacity:.5">Identify & add</button>';
-  oMC("Add plant",h,{ic:"book"});
+  oMC("Add plant",h,{ic:"flower"});
 }
 var _plPhotoData=null;
 function _plOnPhotoPicked(input){
@@ -964,7 +966,7 @@ function _plShowCandidates(candidates,customName){
   // Stash for picker
   _plState._candidates=candidates;
   _plState._candCustomName=customName||"";
-  oMC("Which one is it?",h,{ic:"book"});
+  oMC("Which one is it?",h,{ic:"flower"});
 }
 
 async function _plPickCandidate(idx){
@@ -1043,7 +1045,7 @@ function _plMoreMenu(pid){
   h+='<button class="menu-i" onclick="cMo();_plReplacePhoto('+pid+')"><span class="mi-ico">📷</span><span class="mi-l">Replace photo</span></button>';
   h+='<div style="height:1px;background:var(--bd);margin:6px 0"></div>';
   h+='<button class="menu-i" onclick="cMo();_plDelete('+pid+')" style="color:var(--ac)"><span class="mi-ico">🗑</span><span class="mi-l">Delete plant</span></button>';
-  oMC("More",h,{ic:"book"});
+  oMC("More",h,{ic:"flower"});
 }
 
 function _plOpenEdit(pid){
@@ -1055,7 +1057,7 @@ function _plOpenEdit(pid){
   h+='<div class="dr"><div><div class="dl">Water every (days)</div><input class="inp" type="number" min="1" max="60" id="ple-int" value="'+(p.water_interval_days||7)+'"></div><div><div class="dl">Light</div><input class="inp" id="ple-light" value="'+es(p.light||"")+'"></div></div>';
   h+='<div class="lb" style="margin-top:12px">Notes</div><input class="inp" id="ple-notes" value="'+es(p.notes||"")+'" placeholder="Personal reminders, anniversaries…">';
   h+='<button class="btn" style="margin-top:18px" onclick="_plSaveEdit('+pid+')">Save</button>';
-  oMC("Edit plant",h,{ic:"book"});
+  oMC("Edit plant",h,{ic:"flower"});
 }
 async function _plSaveEdit(pid){
   var v=function(id){return (document.getElementById(id)||{}).value||""};
@@ -1205,7 +1207,7 @@ const NV=[
 {id:"money",l:"Money",sv:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg>'},
 {id:"profile",l:"Profile",sv:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>'}
 ];
-const TT={home:{i:"home",t:"Family HQ",s:"Everything at a glance"},tasks:{i:"clipboard",t:"Tasks",s:"Manage & assign"},shop:{i:"cart",t:"Shopping",s:"Shared list"},trainings:{i:"dumbbell",t:"Trainings",s:"Workouts & progress"},words:{i:"book",t:"Words",s:"Vocabulary learning"},plants:{i:"book",t:"Plants",s:"Care & watering"},money:{i:"dollar",t:"Money",s:"Budget & subs"},profile:{i:"user",t:"Profile",s:"Personal stats"},events:{i:"clock",t:"Events",s:"Schedule"},birthdays:{i:"cake",t:"Birthdays",s:"Never forget"},clean:{i:"broom",t:"Cleaning",s:"Apartment zones"},settings:{i:"cog",t:"Settings",s:"Customize"},subs:{i:"card",t:"Subscriptions",s:"Monthly payments"}};
+const TT={home:{i:"home",t:"Family HQ",s:"Everything at a glance"},tasks:{i:"clipboard",t:"Tasks",s:"Manage & assign"},shop:{i:"cart",t:"Shopping",s:"Shared list"},trainings:{i:"dumbbell",t:"Trainings",s:"Workouts & progress"},words:{i:"book",t:"Words",s:"Vocabulary learning"},plants:{i:"flower",t:"Plants",s:"Care & watering"},money:{i:"dollar",t:"Money",s:"Budget & subs"},profile:{i:"user",t:"Profile",s:"Personal stats"},events:{i:"clock",t:"Events",s:"Schedule"},birthdays:{i:"cake",t:"Birthdays",s:"Never forget"},clean:{i:"broom",t:"Cleaning",s:"Apartment zones"},settings:{i:"cog",t:"Settings",s:"Customize"},subs:{i:"card",t:"Subscriptions",s:"Monthly payments"}};
 
 (function(){var n=document.getElementById("nv");NV.forEach(function(t){var b=document.createElement("button");b.className="ni"+(t.id==="home"?" a":"");b.dataset.t=t.id;b.innerHTML='<span class="nb hidden" id="b-'+t.id+'"></span>'+t.sv+'<span>'+t.l+'</span>';b.onclick=function(){go(t.id)};n.appendChild(b)})})();
 
@@ -1414,7 +1416,7 @@ subs: (D.subs||[]).filter(function(s){return s.days_until!=null&&s.days_until>=0
 var items=[
 {id:"shop",ic:"cart",label:"Shopping",cnt:cnt.shop},
 {id:"trainings",ic:"dumbbell",label:"Trainings",cnt:0},
-{id:"plants",ic:"book",label:"Plants",cnt:(D.plants||[]).filter(function(p){return p.status==="thirsty"}).length},
+{id:"plants",ic:"flower",label:"Plants",cnt:(D.plants||[]).filter(function(p){return p.status==="thirsty"}).length},
 {id:"birthdays",ic:"cake",label:"Birthdays",cnt:cnt.birthdays},
 {id:"clean",ic:"broom",label:"Cleaning",cnt:cnt.clean},
 {id:"subs",ic:"card",label:"Subscriptions",cnt:cnt.subs},
@@ -3193,7 +3195,7 @@ if(_pwaPrompt){
 }
 h+='<div class="sc"><span class="sc-l">Developer</span></div>';
 h+=_setRow({ico:"debug",acc:"acc-ac",title:"Debug Mode "+(dbgOn?"ON":"OFF"),onclick:"dbgOn=!dbgOn;document.getElementById(\'dbg\').classList.toggle(\'hidden\',!dbgOn);ren()"});
-h+='<div style="margin-top:18px;text-align:center;font-size:11px;color:var(--ht);letter-spacing:.3px">Family HQ v8.27.0</div>';return h}
+h+='<div style="margin-top:18px;text-align:center;font-size:11px;color:var(--ht);letter-spacing:.3px">Family HQ v8.27.1</div>';return h}
 async function setTh(id){
   if(id==="custom"){
     // Tapping Custom in the picker opens the editor (saves happen there). Also apply right away.

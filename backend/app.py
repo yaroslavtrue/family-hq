@@ -2290,7 +2290,7 @@ def word_update(idx: int, body: WordEdit, user=Depends(get_uf), db=Depends(get_d
                 except Exception as e: log.warning(f"Image rename failed {old_key}→{new_key}: {e}")
     return {"ok": True, "image_key": _img_key((payload.get("en_word") or old_en))}
 
-from fastapi import UploadFile, File
+from fastapi import UploadFile, File, Form
 
 @app.post("/api/words/one/{idx}/image")
 async def word_image_upload(idx: int, file: UploadFile = File(...), user=Depends(get_uf), db=Depends(get_db)):
@@ -2567,7 +2567,7 @@ def _create_plant_from_info(db, family_id: int, user_id: int, info: dict, custom
 @app.post("/api/plants")
 async def plants_create(
     file: UploadFile = File(...),
-    custom_name: str = "",
+    custom_name: str = Form(""),
     user=Depends(get_uf), db=Depends(get_db),
 ):
     """Create a new plant from a photo. AI identifies the species + watering schedule + tips,
@@ -2614,8 +2614,8 @@ class PlantFinalize(BaseModel):
 @app.post("/api/plants/finalize")
 async def plants_finalize(
     file: UploadFile = File(...),
-    candidate: str = "",
-    custom_name: str = "",
+    candidate: str = Form(""),
+    custom_name: str = Form(""),
     user=Depends(get_uf), db=Depends(get_db),
 ):
     """Create a plant from a user-chosen candidate (when AI returned multiple options).
@@ -2776,7 +2776,7 @@ def serve_exercise_image(fn: str):
     return r
 
 # ─── Debug & Serve ───────────────────────────────────────────────────────
-APP_VERSION = "v8.27.0"
+APP_VERSION = "v8.27.1"
 
 @app.get("/api/debug/ping")
 def ping(): return {"ok": True, "version": APP_VERSION, "time": datetime.now(ZoneInfo(TIMEZONE)).isoformat()}
