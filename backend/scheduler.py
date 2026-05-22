@@ -628,6 +628,24 @@ async def check_plant_reminders():
     con.commit(); con.close()
 
 
+async def cleanup_old_reminders():
+    """Delete already-sent plant_reminders rows older than 30 days. These accumulate
+    with every watering (each /water marks the prior one sent + inserts a new one),
+    so without cleanup the table grows unbounded. Cosmetic but keeps the DB lean."""
+    con = _con()
+    try:
+        cur = con.execute(
+            "DELETE FROM plant_reminders WHERE sent=1 AND remind_at < datetime('now', '-30 days')")
+        n = cur.rowcount
+        con.commit()
+        if n:
+            log.info(f"🧹 Cleaned {n} old sent plant_reminders")
+    except Exception as e:
+        log.warning(f"cleanup_old_reminders failed: {e}")
+    finally:
+        con.close()
+
+
 async def cleanup_pending_words():
     """Delete custom_words rows stuck in 'pending' status for more than 24h.
     These are left behind when a user types 'Словарь: X' in the bot but never

@@ -219,6 +219,7 @@ async def lifespan(app: FastAPI):
     aps.add_job(sched.sync_trello, "interval", minutes=30)
     aps.add_job(sched.cleanup_pending_words, "cron", hour=3, minute=30)
     aps.add_job(sched.check_plant_reminders, "interval", minutes=30)
+    aps.add_job(sched.cleanup_old_reminders, "cron", hour=3, minute=45)
     aps.start(); log.info("✅ Family HQ v5"); yield; aps.shutdown()
 
 app = FastAPI(title="Family HQ v5", lifespan=lifespan)
@@ -2387,35 +2388,15 @@ ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_API_KEY", "").strip()
 import base64 as _b64
 import json as _json_mod
 
-_PLANT_PROMPT = """You are an expert botanist identifying houseplants and garden plants from photos.
-
-Return STRICT JSON only, no prose, no code fences. Choose ONE of three response formats:
-
-(A) CONFIDENT — when you're confident (>= 0.7) about a single species:
-{
-  "species": "<English common name, capitalized>",
-  "latin_name": "<Latin binomial, e.g. Monstera deliciosa>",
-  "water_interval_days": <integer 1-30, typical days between waterings indoors>,
-  "light": "<one of: bright direct, bright indirect, medium, low>",
-  "care_tips": ["<tip1>", "<tip2>", "<tip3>", "<tip4>", "<tip5>"],
-  "confidence": <0.7-1.0>
-}
-
-(B) UNCERTAIN — when you see a plant but can't pick one species with > 0.7 confidence, list 2-3 plausible candidates:
-{
-  "candidates": [
-    {"species": "...", "latin_name": "...", "water_interval_days": ..., "light": "...", "care_tips": [...], "confidence": 0.0-0.7},
-    {"species": "...", "latin_name": "...", "water_interval_days": ..., "light": "...", "care_tips": [...], "confidence": 0.0-0.7}
-  ]
-}
-Each candidate must have ALL the fields (full plant data, not just name) so the user can pick directly.
-
-(C) NOT A PLANT — when the photo isn't a plant, is too dark/blurry/cropped to identify, or you have no plausible guess:
-{"error": "<one short English sentence: what's wrong>"}
-
-care_tips style: 5 short, actionable, practical sentences in English (8-15 words each). Cover watering nuance, light preferences, humidity, common mistakes, signs of trouble.
-
-Begin response with {."""
+# Shared identification prompt + status helpers + species cache override —
+# kept in backend/plants_common.py so app.py and bot.py can't drift.
+from backend.plants_common import (
+    PLANT_PROMPT as _PLANT_PROMPT,
+    PLANT_MODEL as _PLANT_MODEL,
+    plant_status as _plant_status_impl,
+    watered_today as _watered_today_impl,
+    apply_species_cache as _apply_species_cache_impl,
+)
 
 
 async def _identify_plant_image(image_bytes: bytes) -> dict | None:
@@ -2429,7 +2410,7 @@ async def _identify_plant_image(image_bytes: bytes) -> dict | None:
                 "anthropic-version": "2023-06-01",
                 "content-type": "application/json",
             }, json={
-                "model": "claude-sonnet-4-5",
+                "model": _PLANT_MODEL,
                 "max_tokens": 1500,
                 "system": _PLANT_PROMPT,
                 "messages": [{"role": "user", "content": [
@@ -2447,38 +2428,9 @@ async def _identify_plant_image(image_bytes: bytes) -> dict | None:
         return None
 
 
-def _plant_status(p: dict) -> str:
-    """Compute current watering status based on last_watered + interval."""
-    interval = p.get("water_interval_days") or 7
-    last = p.get("last_watered")
-    if not last:
-        # Never watered — base on added_at instead so brand-new plants don't scream
-        last = p.get("added_at")
-    if not last: return "ok"
-    try:
-        last_dt = datetime.fromisoformat(last.replace("Z", "+00:00").split(".")[0])
-        if last_dt.tzinfo is None:
-            last_dt = last_dt.replace(tzinfo=ZoneInfo(TIMEZONE))
-    except Exception:
-        return "ok"
-    now_dt = datetime.now(ZoneInfo(TIMEZONE))
-    days = (now_dt - last_dt).total_seconds() / 86400
-    if days >= interval: return "thirsty"
-    if days >= interval - 1: return "soon"
-    return "ok"
-
-
-def _watered_today(p: dict) -> bool:
-    """True if the plant was watered at any point today (in our local TZ)."""
-    last = p.get("last_watered")
-    if not last: return False
-    try:
-        last_dt = datetime.fromisoformat(str(last).replace("Z", "+00:00").split(".")[0])
-        if last_dt.tzinfo is None:
-            last_dt = last_dt.replace(tzinfo=ZoneInfo(TIMEZONE))
-    except Exception:
-        return False
-    return last_dt.date() == datetime.now(ZoneInfo(TIMEZONE)).date()
+# Thin wrappers that bake TIMEZONE into the shared helpers
+def _plant_status(p: dict) -> str: return _plant_status_impl(p, TIMEZONE)
+def _watered_today(p: dict) -> bool: return _watered_today_impl(p, TIMEZONE)
 
 
 def _plant_view(p: dict) -> dict:
@@ -2528,37 +2480,8 @@ def _schedule_first_reminder(db, plant_id: int, family_id: int, interval_days: i
                (plant_id, family_id, remind_at))
 
 
-def _apply_species_cache(db, candidate: dict) -> dict:
-    """If we've seen this latin_name before, override candidate's tips/interval/light with
-    the cached values (consistency across all plants of the same species). Otherwise
-    insert the candidate's data into the cache for next time.
-
-    Mutates and returns the candidate dict."""
-    latin_key = (candidate.get("latin_name") or "").strip().lower()
-    if not latin_key:
-        return candidate
-    row = db.execute("SELECT * FROM plant_species_cache WHERE latin_name=?", (latin_key,)).fetchone()
-    if row:
-        # Cache hit — override
-        candidate["water_interval_days"] = row["water_interval_days"] or candidate.get("water_interval_days") or 7
-        candidate["light"] = row["light"] or candidate.get("light", "")
-        try:
-            candidate["care_tips"] = _json_mod.loads(row["care_tips"]) if row["care_tips"] else candidate.get("care_tips", [])
-        except Exception:
-            pass
-    else:
-        # Cache miss — insert
-        try:
-            db.execute(
-                "INSERT OR REPLACE INTO plant_species_cache (latin_name, species, water_interval_days, light, care_tips) VALUES (?, ?, ?, ?, ?)",
-                (latin_key,
-                 (candidate.get("species") or "").strip(),
-                 int(candidate.get("water_interval_days") or 7),
-                 (candidate.get("light") or "").strip(),
-                 _json_mod.dumps(candidate.get("care_tips") or [], ensure_ascii=False)))
-        except Exception as ex:
-            log.warning(f"species cache insert failed: {ex}")
-    return candidate
+# Aliased to the shared helper — body lives in backend/plants_common.py
+_apply_species_cache = _apply_species_cache_impl
 
 
 def _create_plant_from_info(db, family_id: int, user_id: int, info: dict, custom_name: str, image_bytes: bytes) -> dict:
@@ -2826,7 +2749,7 @@ def serve_exercise_image(fn: str):
     return r
 
 # ─── Debug & Serve ───────────────────────────────────────────────────────
-APP_VERSION = "v8.28.0"
+APP_VERSION = "v8.28.1"
 
 @app.get("/api/debug/ping")
 def ping(): return {"ok": True, "version": APP_VERSION, "time": datetime.now(ZoneInfo(TIMEZONE)).isoformat()}

@@ -1211,27 +1211,19 @@ _PLANT_IMG_CAPTION_RE = _re.compile(r"^(?:plant|цветок|растение|pl
 _WATER_CMD_RE = _re.compile(r"^(?:water|полить|полив)\s*[:\-—]?\s*(.+)$", _re.IGNORECASE | _re.UNICODE)
 _PLANTS_LIST_RE = _re.compile(r"^(?:plants|растения|цветы)$", _re.IGNORECASE | _re.UNICODE)
 
-_PLANT_BOT_PROMPT = """You are an expert botanist identifying houseplants from photos.
-
-Return STRICT JSON only. If you are confident (>= 0.7), return:
-{
-  "species": "<English common name>",
-  "latin_name": "<Latin binomial>",
-  "water_interval_days": <1-30>,
-  "light": "<bright direct|bright indirect|medium|low>",
-  "care_tips": ["<5 short English tips>"],
-  "confidence": <0.7-1.0>
-}
-If you can't identify confidently:
-  {"error": "<short English sentence>"}
-
-care_tips: 5 short, actionable English sentences (8-15 words each).
-Begin response with {."""
+# Shared prompt + helpers — same as app.py to prevent drift
+from backend.plants_common import (
+    PLANT_PROMPT as _PLANT_PROMPT,
+    PLANT_MODEL as _PLANT_MODEL,
+    plant_status as _plant_status_impl,
+    apply_species_cache as _apply_species_cache,
+)
 
 
 async def _bot_identify_plant(image_bytes: bytes) -> dict | None:
-    """Claude Sonnet 4.5 Vision: identify a plant photo. Mirrors the in-app endpoint
-    (but bot path skips the candidate-picker UX — uncertain = ask user to retake)."""
+    """Claude Sonnet 4.5 Vision: identify a plant photo. Same prompt as the in-app
+    endpoint (but bot path doesn't use the candidate-picker UX — uncertain responses
+    naturally fail the confidence check below and ask the user to retake)."""
     if not ANTHROPIC_API_KEY: return None
     b64 = base64.standard_b64encode(image_bytes).decode("utf-8")
     try:
@@ -1240,9 +1232,9 @@ async def _bot_identify_plant(image_bytes: bytes) -> dict | None:
             "anthropic-version": "2023-06-01",
             "content-type": "application/json",
         }, json={
-            "model": "claude-sonnet-4-5",
-            "max_tokens": 1200,
-            "system": _PLANT_BOT_PROMPT,
+            "model": _PLANT_MODEL,
+            "max_tokens": 1500,
+            "system": _PLANT_PROMPT,
             "messages": [{"role": "user", "content": [
                 {"type": "image", "source": {"type": "base64", "media_type": "image/jpeg", "data": b64}},
                 {"type": "text", "text": "Identify this plant. Return JSON only."},
@@ -1259,18 +1251,12 @@ async def _bot_identify_plant(image_bytes: bytes) -> dict | None:
 
 
 def _plant_status_bot(last_watered: str, added_at: str, interval_days: int) -> str:
-    """Same logic as app.py _plant_status, duplicated for the separate bot process."""
-    base = last_watered or added_at
-    if not base: return "ok"
-    try:
-        from datetime import datetime as _dt
-        b = _dt.fromisoformat(str(base).replace("Z", "+00:00").split(".")[0])
-        if b.tzinfo is None: b = b.replace(tzinfo=ZoneInfo(TIMEZONE))
-    except Exception: return "ok"
-    days = (datetime.now(ZoneInfo(TIMEZONE)) - b).total_seconds() / 86400
-    if days >= (interval_days or 7): return "thirsty"
-    if days >= (interval_days or 7) - 1: return "soon"
-    return "ok"
+    """Thin shim for the bot's sqlite row → plants_common.plant_status."""
+    return _plant_status_impl({
+        "last_watered": last_watered,
+        "added_at": added_at,
+        "water_interval_days": interval_days or 7,
+    }, TIMEZONE)
 
 
 async def _save_plant_image_from_telegram(update, ctx, plant_id: int) -> bool:
@@ -1307,25 +1293,8 @@ async def _handle_plant_add_photo(update, ctx, fid: int, user_name: str, custom_
         await pending.edit_text("❌ AI returned incomplete data. Try another photo.")
         return
     con = _db()
-    # Apply species cache: if we've seen this latin_name before, override AI's tips
-    # with the canonical ones for consistency. Otherwise insert into cache.
-    latin_key = info["latin_name"].strip().lower()
-    cached = con.execute("SELECT water_interval_days, light, care_tips FROM plant_species_cache WHERE latin_name=?", (latin_key,)).fetchone()
-    if cached:
-        info["water_interval_days"] = cached["water_interval_days"] or info.get("water_interval_days") or 7
-        info["light"] = cached["light"] or info.get("light", "")
-        try: info["care_tips"] = json.loads(cached["care_tips"]) if cached["care_tips"] else info.get("care_tips", [])
-        except Exception: pass
-    else:
-        try:
-            con.execute(
-                "INSERT OR REPLACE INTO plant_species_cache (latin_name, species, water_interval_days, light, care_tips) VALUES (?, ?, ?, ?, ?)",
-                (latin_key, info["species"].strip(),
-                 int(info.get("water_interval_days") or 7),
-                 (info.get("light") or "").strip(),
-                 json.dumps(info.get("care_tips") or [], ensure_ascii=False)))
-        except Exception as ex:
-            log.warning(f"bot species cache insert: {ex}")
+    # Apply species cache (shared logic with app.py) — mutates `info` in place
+    _apply_species_cache(con, info)
     tips_json = json.dumps(info.get("care_tips") or [], ensure_ascii=False)
     cur = con.execute(
         """INSERT INTO plants (family_id, custom_name, species, latin_name, water_interval_days, light, care_tips, added_by)
