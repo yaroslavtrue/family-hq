@@ -791,6 +791,20 @@ body.words-mode .ct{padding-top:max(10px, calc(env(safe-area-inset-top, 0px) + 6
 body.no-scroll{overflow:hidden;touch-action:none}
 body.no-scroll .mx{touch-action:pan-y}
 
+/* ─── Profile widgets (v8.30) ──────────────────────────────── */
+.prof-widget{background:var(--cd);border:1px solid var(--bd);border-radius:16px;padding:14px 16px;margin-bottom:14px;box-shadow:var(--shadow-1);transition:transform .12s,border-color .15s}
+.prof-widget:active{transform:scale(.99)}
+.prof-w-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:6px}
+.prof-w-cell{text-align:center;padding:6px 4px;border-radius:10px;background:color-mix(in srgb,var(--bd) 18%,transparent)}
+.prof-w-vl{font-size:22px;font-weight:800;line-height:1.1;letter-spacing:-.5px}
+.prof-w-lb{font-size:10px;color:var(--ht);font-weight:700;letter-spacing:.4px;text-transform:uppercase;margin-top:4px}
+.prof-w-hd{display:flex;justify-content:space-between;align-items:flex-start;gap:10px}
+.prof-w-big{font-size:24px;font-weight:800;color:var(--tx);letter-spacing:-.4px;line-height:1.1}
+.prof-w-sub{font-size:12px;color:var(--ht);font-weight:600;margin-top:3px}
+.prof-w-flag{font-size:18px;display:flex;align-items:center;flex-shrink:0}
+.prof-w-delta{font-size:12px;font-weight:700;background:color-mix(in srgb,currentColor 14%,transparent);padding:3px 9px;border-radius:9px;letter-spacing:.2px;flex-shrink:0}
+.prof-w-meta{display:flex;gap:6px;flex-wrap:wrap;font-size:11px;color:var(--ht);font-weight:600;margin-top:10px;padding-top:10px;border-top:1px solid color-mix(in srgb,var(--bd) 50%,transparent)}
+
 /* ─── Trainings redesign (v8.29) ───────────────────────────── */
 .tr-greet{padding:4px 0 14px;display:flex;justify-content:space-between;align-items:flex-end}
 .tr-greet-hi{font-size:22px;font-weight:800;letter-spacing:-.4px;color:var(--tx)}
@@ -905,6 +919,6 @@ body.no-scroll .mx{touch-action:pan-y}
 <!-- Debug -->
 <div class="dbg hidden" id="dbg"><button class="dbg-cp" onclick="navigator.clipboard.writeText(dbgLog.join('\n'))">Copy</button></div>
 <!-- Load JS -->
-<script src="/static/app.js?v=173"></script>
+<script src="/static/app.js?v=174"></script>
 </body>
 </html>

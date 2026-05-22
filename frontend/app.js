@@ -2979,19 +2979,49 @@ h+='</div>';
 // Selected-member hero block
 if(_profMember){var m=D.members.find(function(x){return x.user_id===_profMember});
   if(m)h+='<div class="prof-hero">'+mAv(m.user_id,64)+'<div class="prof-hero-bd"><div class="prof-hero-nm">'+es(m.user_name)+'</div><div class="prof-hero-sub">Personal stats</div><div class="prof-hero-strip" style="background:'+m.color+'"></div></div></div>'}
-// Tasks — 4 stat tiles
+
+// ─── Tasks — single unified widget with 4 inline metrics ────────
 h+='<div class="sc"><span class="sc-l">'+icon("clipboard",12,2.4)+'Tasks</span></div>';
-h+='<div class="sts">';
-h+='<div class="st st-mn"><div class="st-ico tone-pr">'+icon("list",16,2.2)+'</div><div class="st-lb">Active</div><div class="st-vl" style="color:var(--pr)"><span class="cu" data-count="'+s.tasks_active+'">0</span></div></div>';
-h+='<div class="st st-mn"><div class="st-ico tone-ok">'+icon("ck",16,2.6)+'</div><div class="st-lb">Completed</div><div class="st-vl pos"><span class="cu" data-count="'+s.tasks_done+'">0</span></div></div>';
-h+='<div class="st st-mn"><div class="st-ico tone-ac">'+icon("dot",14,0)+'</div><div class="st-lb">Overdue</div><div class="st-vl neg"><span class="cu" data-count="'+s.tasks_overdue+'">0</span></div></div>';
-h+='<div class="st st-mn"><div class="st-ico tone-pr" style="color:var(--wn);border-color:color-mix(in srgb,var(--wn) 42%,transparent);background:linear-gradient(135deg,color-mix(in srgb,var(--wn) 38%,transparent),color-mix(in srgb,var(--wn) 8%,transparent))">'+icon("bolt",16,2.2)+'</div><div class="st-lb">High Priority</div><div class="st-vl" style="color:var(--wn)"><span class="cu" data-count="'+s.tasks_high+'">0</span></div></div>';
+h+='<div class="prof-widget">';
+h+='<div class="prof-w-grid">';
+h+='<div class="prof-w-cell"><div class="prof-w-vl" style="color:var(--pr)"><span class="cu" data-count="'+s.tasks_active+'">0</span></div><div class="prof-w-lb">Active</div></div>';
+h+='<div class="prof-w-cell"><div class="prof-w-vl" style="color:var(--ok)"><span class="cu" data-count="'+s.tasks_done+'">0</span></div><div class="prof-w-lb">Completed</div></div>';
+h+='<div class="prof-w-cell"><div class="prof-w-vl" style="color:var(--ac)"><span class="cu" data-count="'+s.tasks_overdue+'">0</span></div><div class="prof-w-lb">Overdue</div></div>';
+h+='<div class="prof-w-cell"><div class="prof-w-vl" style="color:var(--wn)"><span class="cu" data-count="'+s.tasks_high+'">0</span></div><div class="prof-w-lb">High pri</div></div>';
+h+='</div></div>';
+
+// ─── Words widget ────────────────────────────────────────────
+var wPct=s.words_total>0?Math.round(s.words_learned/s.words_total*100):0;
+var wFlag=s.words_mode==="ru"?"🇷🇺":s.words_mode==="en"?"🇬🇧":"";
+var wLabel=s.words_mode==="ru"?"Russian":s.words_mode==="en"?"English":"All languages";
+h+='<div class="sc"><span class="sc-l">'+icon("book",12,2.4)+'Words</span><button class="at" onclick="go(\'words\')">Open ›</button></div>';
+h+='<div class="prof-widget" onclick="go(\'words\')" style="cursor:pointer">';
+h+='<div class="prof-w-hd"><div><div class="prof-w-big">'+s.words_learned+' <span style="font-size:14px;color:var(--ht);font-weight:600">/ '+s.words_total+'</span></div><div class="prof-w-sub">learned · '+wPct+'%</div></div><div class="prof-w-flag">'+wFlag+'<span style="font-size:10px;color:var(--ht);font-weight:600;letter-spacing:.3px;text-transform:uppercase;margin-left:6px">'+es(wLabel)+'</span></div></div>';
+h+='<div class="progress" style="margin-top:8px"><div class="progress-fill tone-ok" style="width:'+wPct+'%"></div></div>';
+h+='<div class="prof-w-meta"><span>'+s.words_learning+' learning</span><span>·</span><span>'+s.words_accuracy+'% accuracy</span></div>';
 h+='</div>';
-// Cleaning progress
+
+// ─── Trainings widget ────────────────────────────────────────
+var tWk=s.train_week||{tonnage:0,workouts:0};
+var tPrev=s.train_prev_week||{tonnage:0};
+var dPct=s.train_delta_pct;
+var deltaHtml='';
+if(dPct!==null&&dPct!==undefined){
+  var dCol=dPct>=0?'var(--ok)':'var(--ac)';
+  var dArrow=dPct>=0?"▲":"▼";
+  deltaHtml='<span class="prof-w-delta" style="color:'+dCol+'">'+dArrow+' '+Math.abs(dPct)+'%</span>';
+}
+h+='<div class="sc"><span class="sc-l">'+icon("dumbbell",12,2.4)+'Trainings</span><button class="at" onclick="go(\'trainings\')">Open ›</button></div>';
+h+='<div class="prof-widget" onclick="go(\'trainings\')" style="cursor:pointer">';
+h+='<div class="prof-w-hd"><div><div class="prof-w-big">'+_fmtTon(tWk.tonnage)+'</div><div class="prof-w-sub">this week · '+tWk.workouts+' workout'+(tWk.workouts===1?"":"s")+'</div></div>'+deltaHtml+'</div>';
+if(tPrev.tonnage>0)h+='<div class="prof-w-meta"><span>Last week:</span><span style="color:var(--tx);font-weight:600">'+_fmtTon(tPrev.tonnage)+'</span></div>';
+h+='</div>';
+
+// ─── Cleaning progress (unchanged, at the bottom) ─────────────
 var cPct=s.clean_total>0?Math.round(s.clean_done/s.clean_total*100):0;
 h+='<div class="sc"><span class="sc-l">'+icon("broom",12,2.4)+'Cleaning</span></div>';
 h+='<div class="cat-row"><div class="cat-row-h"><span class="nm">'+s.clean_done+'/'+s.clean_total+' tasks done</span><span class="vl" style="color:var(--ok)">'+cPct+'%</span></div><div class="progress"><div class="progress-fill tone-ok" style="width:'+cPct+'%"></div></div></div>';
-// Count-up animation
+
 setTimeout(function(){FX.countStats(document.getElementById("ct"))},50);
 return h}
 
@@ -3444,7 +3474,7 @@ if(_pwaPrompt){
 }
 h+='<div class="sc"><span class="sc-l">Developer</span></div>';
 h+=_setRow({ico:"debug",acc:"acc-ac",title:"Debug Mode "+(dbgOn?"ON":"OFF"),onclick:"dbgOn=!dbgOn;document.getElementById(\'dbg\').classList.toggle(\'hidden\',!dbgOn);ren()"});
-h+='<div style="margin-top:18px;text-align:center;font-size:11px;color:var(--ht);letter-spacing:.3px">Family HQ v8.29.2</div>';return h}
+h+='<div style="margin-top:18px;text-align:center;font-size:11px;color:var(--ht);letter-spacing:.3px">Family HQ v8.30.0</div>';return h}
 async function setTh(id){
   if(id==="custom"){
     // Tapping Custom in the picker opens the editor (saves happen there). Also apply right away.

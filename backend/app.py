@@ -1234,6 +1234,63 @@ def profile_stats(member_id: int | None = None, user=Depends(get_uf), db=Depends
     clean_done = db.execute(f"SELECT COUNT(*) c FROM cleaning_tasks ct WHERE ct.family_id=? AND ct.done=1 {cf}", cp).fetchone()["c"]
     clean_total = db.execute(f"SELECT COUNT(*) c FROM cleaning_tasks ct WHERE ct.family_id=? {cf}", cp).fetchone()["c"]
 
+    # ─── Words stats — per member in their own mode, or family aggregate ──
+    words_total = _word_count(db)
+    words_learned = 0; words_learning = 0; words_attempts = 0; words_correct = 0
+    words_mode = None
+    if member_id:
+        mm = db.execute("SELECT learn_mode FROM family_members WHERE user_id=?", (member_id,)).fetchone()
+        if mm: words_mode = (mm["learn_mode"] or "en")
+        rs = db.execute(
+            "SELECT status, COUNT(*) n FROM word_progress WHERE user_id=? AND mode=? GROUP BY status",
+            (member_id, words_mode or "en")).fetchall()
+        for r in rs:
+            if r["status"] == "learned": words_learned = r["n"]
+            elif r["status"] == "learning": words_learning = r["n"]
+        ar = db.execute(
+            "SELECT COALESCE(SUM(attempts),0) a, COALESCE(SUM(correct_count),0) c FROM word_progress WHERE user_id=? AND mode=?",
+            (member_id, words_mode or "en")).fetchone()
+        words_attempts = ar["a"] or 0; words_correct = ar["c"] or 0
+    else:
+        # Family aggregate: sum across all members in their own modes
+        fam = db.execute("SELECT user_id, learn_mode FROM family_members WHERE family_id=?", (f,)).fetchall()
+        for fm in fam:
+            m_mode = (fm["learn_mode"] or "en")
+            rs = db.execute(
+                "SELECT status, COUNT(*) n FROM word_progress WHERE user_id=? AND mode=? GROUP BY status",
+                (fm["user_id"], m_mode)).fetchall()
+            for r in rs:
+                if r["status"] == "learned": words_learned += r["n"]
+                elif r["status"] == "learning": words_learning += r["n"]
+            ar = db.execute(
+                "SELECT COALESCE(SUM(attempts),0) a, COALESCE(SUM(correct_count),0) c FROM word_progress WHERE user_id=? AND mode=?",
+                (fm["user_id"], m_mode)).fetchone()
+            words_attempts += ar["a"] or 0; words_correct += ar["c"] or 0
+    words_accuracy = round(words_correct / words_attempts * 100) if words_attempts else 0
+
+    # ─── Trainings stats — this week tonnage + delta vs last week ──
+    wk_start_d = now.date() - timedelta(days=now.weekday())
+    wk_end_d = wk_start_d + timedelta(days=6)
+    prev_start_d = wk_start_d - timedelta(days=7)
+    prev_end_d = wk_start_d - timedelta(days=1)
+    wf_member = "AND w.member_id=?" if member_id else ""
+    wf_p = (member_id,) if member_id else ()
+    def _train_window(d_from, d_to):
+        r = db.execute(f"""
+            SELECT COALESCE(SUM(ws.reps * ws.weight),0) tonnage,
+                   COUNT(DISTINCT w.id) workouts
+            FROM workouts w
+            LEFT JOIN workout_exercises wx ON wx.workout_id=w.id
+            LEFT JOIN workout_sets ws ON ws.workout_exercise_id=wx.id
+            WHERE w.family_id=? AND w.date>=? AND w.date<=? {wf_member}
+        """, (f, d_from, d_to) + wf_p).fetchone()
+        return {"tonnage": round(r["tonnage"] or 0, 2), "workouts": r["workouts"] or 0}
+    train_week = _train_window(wk_start_d.isoformat(), wk_end_d.isoformat())
+    train_prev = _train_window(prev_start_d.isoformat(), prev_end_d.isoformat())
+    train_delta_pct = None
+    if train_prev["tonnage"] > 0:
+        train_delta_pct = round((train_week["tonnage"] - train_prev["tonnage"]) / train_prev["tonnage"] * 100)
+
     return {
         "member_id": member_id,
         "tasks_active": tasks_active, "tasks_done": tasks_done,
@@ -1243,6 +1300,11 @@ def profile_stats(member_id: int | None = None, user=Depends(get_uf), db=Depends
         "top_category": top_cat,
         "shop_total": shop_total, "shop_bought": shop_bought,
         "clean_done": clean_done, "clean_total": clean_total,
+        "words_total": words_total, "words_learned": words_learned,
+        "words_learning": words_learning, "words_accuracy": words_accuracy,
+        "words_mode": words_mode,
+        "train_week": train_week, "train_prev_week": train_prev,
+        "train_delta_pct": train_delta_pct,
     }
 
 # ═════════════════════════════════════════════════════════════════════════
@@ -2947,7 +3009,7 @@ def serve_exercise_image(fn: str):
     return r
 
 # ─── Debug & Serve ───────────────────────────────────────────────────────
-APP_VERSION = "v8.29.2"
+APP_VERSION = "v8.30.0"
 
 @app.get("/api/debug/ping")
 def ping(): return {"ok": True, "version": APP_VERSION, "time": datetime.now(ZoneInfo(TIMEZONE)).isoformat()}
