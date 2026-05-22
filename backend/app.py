@@ -1147,11 +1147,14 @@ def money_summary(month: str | None = None, user=Depends(get_uf), db=Depends(get
         FROM categories c LEFT JOIN transactions t ON t.category_id=c.id AND t.family_id=c.family_id AND t.type='expense' AND t.date LIKE ?
         WHERE c.family_id=? AND c.type='expense' GROUP BY c.id ORDER BY total DESC
     """, (sel_month+"%", f)).fetchall()]
-    # Monthly chart: last 6 months ending on the selected month
+    # Monthly chart: last 24 months ending on CURRENT month (stable window —
+    # selected month is just highlighted; scrolling navigates the chart, not the data).
+    # Frontend can build year watermarks from this contiguous array.
     months = []
-    for i in range(5, -1, -1):
-        m = sm - i
-        y = sy
+    cy, cm_now = now.year, now.month
+    for i in range(23, -1, -1):
+        m = cm_now - i
+        y = cy
         while m <= 0: m += 12; y -= 1
         mk = f"{y}-{m:02d}"
         mi = db.execute("SELECT COALESCE(SUM(amount_eur),0) s FROM transactions WHERE family_id=? AND type='income' AND date LIKE ?", (f, mk+"%")).fetchone()["s"]
@@ -3009,7 +3012,7 @@ def serve_exercise_image(fn: str):
     return r
 
 # ─── Debug & Serve ───────────────────────────────────────────────────────
-APP_VERSION = "v8.30.1"
+APP_VERSION = "v8.30.2"
 
 @app.get("/api/debug/ping")
 def ping(): return {"ok": True, "version": APP_VERSION, "time": datetime.now(ZoneInfo(TIMEZONE)).isoformat()}

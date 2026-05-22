@@ -1908,11 +1908,17 @@ function _anaShift(delta){
   var y=parseInt(cur.slice(0,4),10),m=parseInt(cur.slice(5,7),10)+delta;
   while(m<=0){m+=12;y--}while(m>12){m-=12;y++}
   var next=y+"-"+String(m).padStart(2,"0");
-  // Block going beyond current month
   if(next>_curYM())return;
-  _anaMonth=(next===_curYM())?null:next;
+  _anaSetMonth(next);
+}
+// Direct month selection — clicked from a bar in the monthly chart
+function _anaSetMonth(mk){
+  var cur=(_moneySummary&&_moneySummary.month)||_curYM();
+  if(mk===cur)return;
+  if(mk>_curYM())return; // future blocked
+  _anaMonth=(mk===_curYM())?null:mk;
   hp("sel");
-  if(_anaCache[next]){_moneySummary=_anaCache[next];ren()}
+  if(_anaCache[mk]){_moneySummary=_anaCache[mk];ren()}
   else{_moneySummary=null;loadMoneySummary()}
 }
 function _curYM(){var d=new Date();return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")}
@@ -1937,15 +1943,47 @@ h+='<div class="st st-mn"><div class="st-ico tone-pr">'+icon("wallet",16,2.2)+'<
 h+='</div>';
 // Optional Subs row as a single full-width tile
 if(s.subs_eur)h+='<div class="cat-row" style="margin-bottom:14px"><div class="cat-row-h"><span class="nm">'+icon("card",14,2.2)+' Subscriptions this month</span><span class="vl" style="color:var(--pr)">€'+s.subs_eur.toFixed(0)+'</span></div></div>';
-// Monthly chart (bars)
+// Monthly chart — horizontally-scrollable strip of last 24 months with year
+// watermarks behind bars. Tap a bar to navigate to that month.
 if(s.months&&s.months.length){
 var maxM=1;s.months.forEach(function(m){maxM=Math.max(maxM,m.income,m.expense)});
-h+='<div class="sc"><span class="sc-l"><span class="sc-ico">'+icon("chart",12,2.4)+'</span>Last 6 Months</span></div>';
-h+='<div class="chart-bars">';
-s.months.forEach(function(m){var ih=Math.max(3,m.income/maxM*74);var eh=Math.max(3,m.expense/maxM*74);
-h+='<div class="cbar"><div class="cbar-pair"><div class="cbar-b b-in" style="height:'+ih+'px"></div><div class="cbar-b b-ex" style="height:'+eh+'px"></div></div><div class="cbar-lb">'+m.month.split("-")[1]+'</div></div>'});
-h+='</div>';
-h+='<div class="chart-legend"><span><span class="dotk" style="background:var(--ok)"></span>Income</span><span><span class="dotk" style="background:var(--ac)"></span>Expense</span></div>'}
+h+='<div class="sc"><span class="sc-l"><span class="sc-ico">'+icon("chart",12,2.4)+'</span>Monthly</span></div>';
+// Compute contiguous year groups (assumes months are sorted oldest → newest)
+var yGroups=[],curG=null;
+s.months.forEach(function(m,i){
+  var y=m.month.substring(0,4);
+  if(!curG||curG.year!==y){curG={year:y,start:i,end:i};yGroups.push(curG)}
+  else curG.end=i;
+});
+var total=s.months.length;
+h+='<div class="chart-wrap" id="ana-chart"><div class="chart-strip">';
+// Year watermarks (positioned absolute behind bars)
+yGroups.forEach(function(g){
+  var leftPct=(g.start/total*100).toFixed(2);
+  var widthPct=((g.end-g.start+1)/total*100).toFixed(2);
+  h+='<div class="chart-yr-wm" style="left:'+leftPct+'%;width:'+widthPct+'%">'+g.year+'</div>';
+});
+// Bars (clickable)
+var monNames=["jan","feb","mar","apr","may","jun","jul","aug","sep","oct","nov","dec"];
+s.months.forEach(function(m){
+  var ih=Math.max(3,m.income/maxM*74);
+  var eh=Math.max(3,m.expense/maxM*74);
+  var sel=m.month===s.month?' cbar-sel':'';
+  var mi=parseInt(m.month.split("-")[1],10)-1;
+  var lbl=monNames[mi]||m.month.split("-")[1];
+  h+='<div class="cbar'+sel+'" onclick="_anaSetMonth(\''+m.month+'\')"><div class="cbar-pair"><div class="cbar-b b-in" style="height:'+ih+'px"></div><div class="cbar-b b-ex" style="height:'+eh+'px"></div></div><div class="cbar-lb">'+lbl+'</div></div>';
+});
+h+='</div></div>';
+h+='<div class="chart-legend"><span><span class="dotk" style="background:var(--ok)"></span>Income</span><span><span class="dotk" style="background:var(--ac)"></span>Expense</span></div>';
+// After render, scroll the selected bar into view (centered)
+setTimeout(function(){
+  var sel=document.querySelector('.cbar-sel');
+  var wrap=document.getElementById('ana-chart');
+  if(!sel||!wrap)return;
+  var sr=sel.getBoundingClientRect(),wr=wrap.getBoundingClientRect();
+  wrap.scrollLeft+=sr.left-wr.left-(wr.width/2)+(sr.width/2);
+},30);
+}
 // By category — polished progress rows
 if(s.by_category&&s.by_category.length){var maxC=s.by_category[0]?s.by_category[0].total:1;
 h+='<div class="sc"><span class="sc-l">By Category</span></div>';
@@ -3495,7 +3533,7 @@ if(_pwaPrompt){
 }
 h+='<div class="sc"><span class="sc-l">Developer</span></div>';
 h+=_setRow({ico:"debug",acc:"acc-ac",title:"Debug Mode "+(dbgOn?"ON":"OFF"),onclick:"dbgOn=!dbgOn;document.getElementById(\'dbg\').classList.toggle(\'hidden\',!dbgOn);ren()"});
-h+='<div style="margin-top:18px;text-align:center;font-size:11px;color:var(--ht);letter-spacing:.3px">Family HQ v8.30.1</div>';return h}
+h+='<div style="margin-top:18px;text-align:center;font-size:11px;color:var(--ht);letter-spacing:.3px">Family HQ v8.30.2</div>';return h}
 async function setTh(id){
   if(id==="custom"){
     // Tapping Custom in the picker opens the editor (saves happen there). Also apply right away.
