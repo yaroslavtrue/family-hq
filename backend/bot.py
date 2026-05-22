@@ -1211,24 +1211,27 @@ _PLANT_IMG_CAPTION_RE = _re.compile(r"^(?:plant|цветок|растение|pl
 _WATER_CMD_RE = _re.compile(r"^(?:water|полить|полив)\s*[:\-—]?\s*(.+)$", _re.IGNORECASE | _re.UNICODE)
 _PLANTS_LIST_RE = _re.compile(r"^(?:plants|растения|цветы)$", _re.IGNORECASE | _re.UNICODE)
 
-_PLANT_BOT_PROMPT = """You are a plant identification expert. Look at the photo and identify the houseplant or garden plant in it.
+_PLANT_BOT_PROMPT = """You are an expert botanist identifying houseplants from photos.
 
-Return STRICT JSON only, no prose, no code fences:
+Return STRICT JSON only. If you are confident (>= 0.7), return:
 {
-  "species": "<English common name, capitalized>",
+  "species": "<English common name>",
   "latin_name": "<Latin binomial>",
-  "water_interval_days": <integer 1-30>,
+  "water_interval_days": <1-30>,
   "light": "<bright direct|bright indirect|medium|low>",
   "care_tips": ["<5 short English tips>"],
-  "confidence": <0.0-1.0>
+  "confidence": <0.7-1.0>
 }
-If the photo is not a plant or unclear (confidence < 0.4):
-  Return {"confidence": 0, "error": "<short English reason>"}
+If you can't identify confidently:
+  {"error": "<short English sentence>"}
+
+care_tips: 5 short, actionable English sentences (8-15 words each).
 Begin response with {."""
 
 
 async def _bot_identify_plant(image_bytes: bytes) -> dict | None:
-    """Claude Haiku Vision: identify a plant photo. Mirrors the in-app endpoint."""
+    """Claude Sonnet 4.5 Vision: identify a plant photo. Mirrors the in-app endpoint
+    (but bot path skips the candidate-picker UX — uncertain = ask user to retake)."""
     if not ANTHROPIC_API_KEY: return None
     b64 = base64.standard_b64encode(image_bytes).decode("utf-8")
     try:
@@ -1237,8 +1240,8 @@ async def _bot_identify_plant(image_bytes: bytes) -> dict | None:
             "anthropic-version": "2023-06-01",
             "content-type": "application/json",
         }, json={
-            "model": "claude-haiku-4-5-20251001",
-            "max_tokens": 800,
+            "model": "claude-sonnet-4-5",
+            "max_tokens": 1200,
             "system": _PLANT_BOT_PROMPT,
             "messages": [{"role": "user", "content": [
                 {"type": "image", "source": {"type": "base64", "media_type": "image/jpeg", "data": b64}},
@@ -1304,6 +1307,25 @@ async def _handle_plant_add_photo(update, ctx, fid: int, user_name: str, custom_
         await pending.edit_text("❌ AI returned incomplete data. Try another photo.")
         return
     con = _db()
+    # Apply species cache: if we've seen this latin_name before, override AI's tips
+    # with the canonical ones for consistency. Otherwise insert into cache.
+    latin_key = info["latin_name"].strip().lower()
+    cached = con.execute("SELECT water_interval_days, light, care_tips FROM plant_species_cache WHERE latin_name=?", (latin_key,)).fetchone()
+    if cached:
+        info["water_interval_days"] = cached["water_interval_days"] or info.get("water_interval_days") or 7
+        info["light"] = cached["light"] or info.get("light", "")
+        try: info["care_tips"] = json.loads(cached["care_tips"]) if cached["care_tips"] else info.get("care_tips", [])
+        except Exception: pass
+    else:
+        try:
+            con.execute(
+                "INSERT OR REPLACE INTO plant_species_cache (latin_name, species, water_interval_days, light, care_tips) VALUES (?, ?, ?, ?, ?)",
+                (latin_key, info["species"].strip(),
+                 int(info.get("water_interval_days") or 7),
+                 (info.get("light") or "").strip(),
+                 json.dumps(info.get("care_tips") or [], ensure_ascii=False)))
+        except Exception as ex:
+            log.warning(f"bot species cache insert: {ex}")
     tips_json = json.dumps(info.get("care_tips") or [], ensure_ascii=False)
     cur = con.execute(
         """INSERT INTO plants (family_id, custom_name, species, latin_name, water_interval_days, light, care_tips, added_by)

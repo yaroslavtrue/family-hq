@@ -729,7 +729,7 @@ async function _weSave(){
 }
 
 // ─── Plants — family-shared plant care with AI species identification ─────
-var _plState={selectedId:null};
+var _plState={selectedId:null,histCache:{}}; // histCache[plant_id] = {dates,water_days,count,avg_interval_days,target_interval_days}
 // Speech-bubble phrase bank, keyed to watering status. Selection is deterministic by
 // (plant.id + day-of-year) so the phrase stays stable for a whole day instead of
 // flickering on every re-render.
@@ -809,13 +809,14 @@ function rPlants(){
     h+='</div>';
     // Speech bubble
     h+='<div class="pl-bubble"><span class="pl-bubble-icon">🥟</span><span>'+es(_plVoice(cur))+'</span></div>';
-    // Actions
+    // Actions — Water (primary) + ⋯ (more). Tips moved inline below.
     h+='<div class="pl-actions">';
     h+='<button class="pl-btn pl-btn-primary" onclick="_plWater('+cur.id+')">💧 Water</button>';
-    h+='<button class="pl-btn pl-btn-secondary" onclick="_plOpenAdvice('+cur.id+')">📖 Tips</button>';
     h+='<button class="pl-btn pl-btn-more" onclick="_plMoreMenu('+cur.id+')" aria-label="More">⋯</button>';
     h+='</div>';
     h+='</div></div>';
+    // ─── Inline tips section (replaces the old Tips modal) ─────
+    h+=_rPlantInlineTips(cur);
   }
   // ─── Summary ──────────────────────────────────────
   if(list.length){
@@ -827,9 +828,48 @@ function rPlants(){
     h+='</div>';
   }
   h+='</div>';
-  // Attach swipe gesture after render
-  setTimeout(_plAttachSwipe,80);
+  // Attach swipe gesture after render + load history if needed
+  setTimeout(function(){
+    _plAttachSwipe();
+    if(cur&&!_plState.histCache[cur.id])_plLoadHistory(cur.id);
+  },80);
   return h;
+}
+
+// Inline care section under the main card — replaces the old Tips modal.
+function _rPlantInlineTips(cur){
+  var hist=_plState.histCache[cur.id];
+  var h='<div class="pl-inline">';
+  // Header
+  h+='<div class="pl-inline-h">Care for <strong>'+es(cur.custom_name||cur.species||"plant")+'</strong></div>';
+  // Meta row
+  h+='<div class="pl-adv-meta" style="margin-bottom:12px">';
+  h+='<div class="pl-adv-cell"><div class="pl-adv-cell-l">Water every</div><div class="pl-adv-cell-v">'+(cur.water_interval_days||7)+' days</div></div>';
+  if(cur.light)h+='<div class="pl-adv-cell"><div class="pl-adv-cell-l">Light</div><div class="pl-adv-cell-v">'+es(cur.light)+'</div></div>';
+  h+='</div>';
+  // History graph
+  h+='<div class="lb" style="margin-top:4px">Watering — last 30 days</div>';
+  if(hist){
+    h+=_plHistHtml(hist,cur);
+  }else{
+    h+='<div class="pl-hist-host"><div class="emp" style="padding:10px;font-size:11px;color:var(--ht)">Loading history…</div></div>';
+  }
+  // Tips list
+  if(cur.care_tips&&cur.care_tips.length){
+    h+='<div class="lb" style="margin-top:14px">Care tips</div>';
+    cur.care_tips.forEach(function(t){h+='<div class="pl-tip">• '+es(t)+'</div>'});
+  }
+  if(cur.last_watered)h+='<div style="font-size:11px;color:var(--ht);margin-top:12px;text-align:center">Last watered '+_plDate(cur.last_watered)+'</div>';
+  h+='</div>';
+  return h;
+}
+
+async function _plLoadHistory(pid){
+  var d=await A("GET","/api/plants/"+pid+"/history?days=30");
+  if(!d||!d.dates)return;
+  _plState.histCache[pid]=d;
+  // Re-render only if user is still on this plant
+  if(tab==="plants"&&_plState.selectedId===pid)ren();
 }
 function _plSelect(id){_plState.selectedId=id;hp("sel");ren()}
 function _plAttachSwipe(){
@@ -889,9 +929,14 @@ async function _plDoAdd(){
       return;
     }
     var p=await r.json();
+    // Branch: AI returned candidates (uncertain) — show picker
+    if(p&&p.candidates&&p.candidates.length){
+      _plShowCandidates(p.candidates,name.trim());
+      return;
+    }
+    // Branch: AI confidently created the plant
     _plPhotoData=null;
     hp("ok");toast("Added "+(p.custom_name||p.species||"plant"));
-    // Refresh bundle so D.plants is current, then jump to that plant
     await load();
     _plState.selectedId=p.id;
     cMo();
@@ -899,6 +944,59 @@ async function _plDoAdd(){
   }catch(e){
     if(msg)msg.textContent="❌ Network error";
     if(btn){btn.disabled=false;btn.textContent="Identify & add"}
+  }
+}
+
+// AI returned multiple candidates — let user pick. Photo is kept in _plPhotoData and
+// re-uploaded with the chosen candidate to /api/plants/finalize.
+function _plShowCandidates(candidates,customName){
+  hp("light");
+  var h='<div style="text-align:center;margin-bottom:14px"><div style="font-size:13px;color:var(--ht);line-height:1.4">AI isn\'t sure — pick the closest match:</div></div>';
+  candidates.forEach(function(c,i){
+    var pct=Math.round((c.confidence||0)*100);
+    h+='<button class="pl-cand" onclick="_plPickCandidate('+i+')">';
+    h+='<div class="pl-cand-i">🪴</div>';
+    h+='<div class="pl-cand-bd"><div class="pl-cand-n">'+es(c.species||"")+'</div><div class="pl-cand-s">'+es(c.latin_name||"")+'</div></div>';
+    h+='<div class="pl-cand-c">'+pct+'%</div>';
+    h+='</button>';
+  });
+  h+='<button class="btn btn-s" style="margin-top:14px;background:transparent;color:var(--ht);border:1px solid var(--bd)" onclick="cMo()">Cancel</button>';
+  // Stash for picker
+  _plState._candidates=candidates;
+  _plState._candCustomName=customName||"";
+  oMC("Which one is it?",h,{ic:"book"});
+}
+
+async function _plPickCandidate(idx){
+  var cand=(_plState._candidates||[])[idx];
+  if(!cand||!_plPhotoData)return;
+  hp("ok");
+  // Show inline progress
+  document.getElementById("mb").innerHTML='<div class="emp" style="padding:30px"><div class="emp-i">⏳</div><div>Adding…</div></div>';
+  var fd=new FormData();
+  fd.append("file",_plPhotoData);
+  fd.append("candidate",JSON.stringify(cand));
+  fd.append("custom_name",_plState._candCustomName||"");
+  var headers={};
+  if(iD)headers["X-Telegram-Init-Data"]=iD;
+  var sess=_getSess();if(sess)headers["X-Session-Token"]=sess;
+  try{
+    var r=await fetch("/api/plants/finalize",{method:"POST",headers:headers,body:fd});
+    if(!r.ok){
+      var err="";try{var j=await r.json();err=j.detail||""}catch(e){}
+      document.getElementById("mb").innerHTML='<div class="emp" style="padding:30px;color:var(--ac)">❌ '+(err||"Failed")+'</div>';
+      return;
+    }
+    var p=await r.json();
+    _plPhotoData=null;
+    _plState._candidates=null;
+    toast("Added "+(p.custom_name||p.species||"plant"));
+    await load();
+    _plState.selectedId=p.id;
+    cMo();
+    if(tab!=="plants")go("plants"); else ren();
+  }catch(e){
+    document.getElementById("mb").innerHTML='<div class="emp" style="padding:30px;color:var(--ac)">❌ Network error</div>';
   }
 }
 
@@ -913,31 +1011,13 @@ async function _plWater(pid){
   ren();
 }
 
-async function _plOpenAdvice(pid){
-  var p=(D.plants||[]).find(function(x){return x.id===pid});if(!p)return;
-  hp("light");
-  var h='<div class="pl-adv-head">';
-  h+='<div class="pl-adv-name">'+es(p.custom_name||p.species||"")+'</div>';
-  h+='<div class="pl-adv-sub">'+es(p.latin_name||"")+'</div>';
-  h+='</div>';
-  h+='<div class="pl-adv-meta">';
-  h+='<div class="pl-adv-cell"><div class="pl-adv-cell-l">Water every</div><div class="pl-adv-cell-v">'+(p.water_interval_days||7)+' days</div></div>';
-  if(p.light)h+='<div class="pl-adv-cell"><div class="pl-adv-cell-l">Light</div><div class="pl-adv-cell-v">'+es(p.light)+'</div></div>';
-  h+='</div>';
-  // History graph placeholder (filled async after fetch)
-  h+='<div class="lb" style="margin-top:14px">Watering — last 30 days</div>';
-  h+='<div id="pl-hist-host" class="pl-hist-host"><div class="emp" style="padding:14px;font-size:12px">Loading…</div></div>';
-  if(p.care_tips&&p.care_tips.length){
-    h+='<div class="lb" style="margin-top:14px">Care tips</div>';
-    p.care_tips.forEach(function(t){h+='<div class="pl-tip">• '+es(t)+'</div>'});
-  }
-  if(p.last_watered)h+='<div style="font-size:12px;color:var(--ht);margin-top:14px;text-align:center">Last watered '+_plDate(p.last_watered)+'</div>';
-  oMC("Care for "+(p.custom_name||p.species||"plant"),h,{ic:"book"});
-  // Fetch + render history graph
-  var d=await A("GET","/api/plants/"+pid+"/history?days=30");
-  var host=document.getElementById("pl-hist-host");if(!host)return;
-  if(!d||!d.dates){host.innerHTML='<div class="emp" style="padding:14px;font-size:12px">Couldn\'t load history</div>';return}
-  host.innerHTML=_plHistHtml(d,p);
+// Care details are now shown inline below the main card (see _rPlantInlineTips).
+// Keep this function as a thin redirect so any stale onclick references still work.
+function _plOpenAdvice(pid){
+  _plState.selectedId=pid;
+  if(tab!=="plants")go("plants"); else ren();
+  // Scroll to the inline tips section
+  setTimeout(function(){var el=document.querySelector(".pl-inline");if(el)el.scrollIntoView({behavior:"smooth",block:"start"})},120);
 }
 function _plHistHtml(d,p){
   var watered={};(d.water_days||[]).forEach(function(x){watered[x]=true});
@@ -3113,7 +3193,7 @@ if(_pwaPrompt){
 }
 h+='<div class="sc"><span class="sc-l">Developer</span></div>';
 h+=_setRow({ico:"debug",acc:"acc-ac",title:"Debug Mode "+(dbgOn?"ON":"OFF"),onclick:"dbgOn=!dbgOn;document.getElementById(\'dbg\').classList.toggle(\'hidden\',!dbgOn);ren()"});
-h+='<div style="margin-top:18px;text-align:center;font-size:11px;color:var(--ht);letter-spacing:.3px">Family HQ v8.26.0</div>';return h}
+h+='<div style="margin-top:18px;text-align:center;font-size:11px;color:var(--ht);letter-spacing:.3px">Family HQ v8.27.0</div>';return h}
 async function setTh(id){
   if(id==="custom"){
     // Tapping Custom in the picker opens the editor (saves happen there). Also apply right away.
@@ -3254,10 +3334,14 @@ function oMC(t,h,opts){
   document.getElementById("mt3").innerHTML=titleHtml;
   document.getElementById("mb").innerHTML=h;
   document.getElementById("mo").classList.add("op");
+  document.body.classList.add("no-scroll"); // lock page scroll; only #mb (modal body) scrolls inside
   hp("light");
   setTimeout(function(){var i=document.querySelector("#mb input");if(i)i.focus()},300)
 }
-function cMo(){document.getElementById("mo").classList.remove("op")}
+function cMo(){
+  document.getElementById("mo").classList.remove("op");
+  document.body.classList.remove("no-scroll");
+}
 
 // Event/Birthday add modals (from hamburger pages)
 function oMoEvt(){var dy=td();oMC("New Event",'<input class="inp" id="f-t" placeholder="Event name"><div class="lb">Start</div><div class="dr"><div><div class="dl">Date</div><input type="date" id="f-d" value="'+dy+'" min="'+dy+'"></div><div><div class="dl">Time</div><input type="time" id="f-tm" value="12:00" step="60"></div></div><div class="lb">End (optional)</div><div class="dr"><div><input type="date" id="f-ed"></div><div><input type="time" id="f-et" step="60"></div></div><button class="btn" onclick="doEv()">Add Event</button>',{ic:"clock"})}

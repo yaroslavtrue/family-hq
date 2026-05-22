@@ -2381,22 +2381,33 @@ ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_API_KEY", "").strip()
 import base64 as _b64
 import json as _json_mod
 
-_PLANT_PROMPT = """You are a plant identification expert. Look at the photo and identify the houseplant or garden plant in it.
+_PLANT_PROMPT = """You are an expert botanist identifying houseplants and garden plants from photos.
 
-Return STRICT JSON only, no prose, no code fences:
+Return STRICT JSON only, no prose, no code fences. Choose ONE of three response formats:
+
+(A) CONFIDENT — when you're confident (>= 0.7) about a single species:
 {
   "species": "<English common name, capitalized>",
   "latin_name": "<Latin binomial, e.g. Monstera deliciosa>",
-  "water_interval_days": <integer 1-30, typical days between waterings for typical indoor conditions>,
+  "water_interval_days": <integer 1-30, typical days between waterings indoors>,
   "light": "<one of: bright direct, bright indirect, medium, low>",
   "care_tips": ["<tip1>", "<tip2>", "<tip3>", "<tip4>", "<tip5>"],
-  "confidence": <0.0-1.0>
+  "confidence": <0.7-1.0>
 }
 
-care_tips: 5 short, actionable, practical sentences in English. Focus on watering nuance, light, humidity, common mistakes, signs of trouble.
+(B) UNCERTAIN — when you see a plant but can't pick one species with > 0.7 confidence, list 2-3 plausible candidates:
+{
+  "candidates": [
+    {"species": "...", "latin_name": "...", "water_interval_days": ..., "light": "...", "care_tips": [...], "confidence": 0.0-0.7},
+    {"species": "...", "latin_name": "...", "water_interval_days": ..., "light": "...", "care_tips": [...], "confidence": 0.0-0.7}
+  ]
+}
+Each candidate must have ALL the fields (full plant data, not just name) so the user can pick directly.
 
-If the photo doesn't contain a plant, is too blurry, or you cannot identify the species with reasonable confidence (>0.4):
-  Return {"confidence": 0, "error": "<one short English sentence: what's wrong>"}
+(C) NOT A PLANT — when the photo isn't a plant, is too dark/blurry/cropped to identify, or you have no plausible guess:
+{"error": "<one short English sentence: what's wrong>"}
+
+care_tips style: 5 short, actionable, practical sentences in English (8-15 words each). Cover watering nuance, light preferences, humidity, common mistakes, signs of trouble.
 
 Begin response with {."""
 
@@ -2412,8 +2423,8 @@ async def _identify_plant_image(image_bytes: bytes) -> dict | None:
                 "anthropic-version": "2023-06-01",
                 "content-type": "application/json",
             }, json={
-                "model": "claude-haiku-4-5-20251001",
-                "max_tokens": 800,
+                "model": "claude-sonnet-4-5",
+                "max_tokens": 1500,
                 "system": _PLANT_PROMPT,
                 "messages": [{"role": "user", "content": [
                     {"type": "image", "source": {"type": "base64", "media_type": "image/jpeg", "data": b64}},
@@ -2497,6 +2508,62 @@ def _schedule_first_reminder(db, plant_id: int, family_id: int, interval_days: i
                (plant_id, family_id, remind_at))
 
 
+def _apply_species_cache(db, candidate: dict) -> dict:
+    """If we've seen this latin_name before, override candidate's tips/interval/light with
+    the cached values (consistency across all plants of the same species). Otherwise
+    insert the candidate's data into the cache for next time.
+
+    Mutates and returns the candidate dict."""
+    latin_key = (candidate.get("latin_name") or "").strip().lower()
+    if not latin_key:
+        return candidate
+    row = db.execute("SELECT * FROM plant_species_cache WHERE latin_name=?", (latin_key,)).fetchone()
+    if row:
+        # Cache hit — override
+        candidate["water_interval_days"] = row["water_interval_days"] or candidate.get("water_interval_days") or 7
+        candidate["light"] = row["light"] or candidate.get("light", "")
+        try:
+            candidate["care_tips"] = _json_mod.loads(row["care_tips"]) if row["care_tips"] else candidate.get("care_tips", [])
+        except Exception:
+            pass
+    else:
+        # Cache miss — insert
+        try:
+            db.execute(
+                "INSERT OR REPLACE INTO plant_species_cache (latin_name, species, water_interval_days, light, care_tips) VALUES (?, ?, ?, ?, ?)",
+                (latin_key,
+                 (candidate.get("species") or "").strip(),
+                 int(candidate.get("water_interval_days") or 7),
+                 (candidate.get("light") or "").strip(),
+                 _json_mod.dumps(candidate.get("care_tips") or [], ensure_ascii=False)))
+        except Exception as ex:
+            log.warning(f"species cache insert failed: {ex}")
+    return candidate
+
+
+def _create_plant_from_info(db, family_id: int, user_id: int, info: dict, custom_name: str, image_bytes: bytes) -> dict:
+    """Common path: cache-merge, INSERT plant row, save image, schedule first reminder.
+    Returns the freshly-created plant view."""
+    info = _apply_species_cache(db, info)
+    tips_json = _json_mod.dumps(info.get("care_tips") or [], ensure_ascii=False)
+    cur = db.execute(
+        """INSERT INTO plants (family_id, custom_name, species, latin_name, water_interval_days, light, care_tips, added_by)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+        (family_id, (custom_name or "").strip(),
+         info["species"].strip(), info["latin_name"].strip(),
+         int(info.get("water_interval_days") or 7),
+         (info.get("light") or "").strip(),
+         tips_json, user_id))
+    pid = cur.lastrowid
+    os.makedirs(PLANTS_IMG_DIR, exist_ok=True)
+    with open(os.path.join(PLANTS_IMG_DIR, f"{pid}.jpg"), "wb") as f:
+        f.write(image_bytes)
+    _schedule_first_reminder(db, pid, family_id, int(info.get("water_interval_days") or 7))
+    db.commit()
+    row = db.execute("SELECT * FROM plants WHERE id=?", (pid,)).fetchone()
+    return _plant_view(dict(row))
+
+
 @app.post("/api/plants")
 async def plants_create(
     file: UploadFile = File(...),
@@ -2504,7 +2571,9 @@ async def plants_create(
     user=Depends(get_uf), db=Depends(get_db),
 ):
     """Create a new plant from a photo. AI identifies the species + watering schedule + tips,
-    then we save the row, the image, and schedule the first reminder."""
+    then we save the row, the image, and schedule the first reminder. If the AI is uncertain
+    (returns `candidates` array), we return them to the client for user selection — the
+    finalize endpoint then creates the plant from the chosen candidate."""
     if (file.content_type or "").split("/")[0] != "image":
         raise HTTPException(400, "not an image")
     data = await file.read()
@@ -2515,30 +2584,54 @@ async def plants_create(
     info = await _identify_plant_image(data)
     if not info:
         raise HTTPException(502, "AI request failed")
-    if info.get("confidence", 0) < 0.4 or info.get("error"):
-        raise HTTPException(400, info.get("error") or "Couldn't identify the plant — try another photo with better lighting")
-    # Required fields
+    # Branch 1: AI provided candidates (uncertain) — return them, don't create yet
+    if isinstance(info.get("candidates"), list) and info["candidates"]:
+        # Validate each has the required fields
+        valid = [c for c in info["candidates"] if c.get("species") and c.get("latin_name")]
+        if valid:
+            return {"candidates": valid[:3]}
+        # Fall through to error if candidates were malformed
+    # Branch 2: AI gave up
+    if info.get("error"):
+        raise HTTPException(400, info["error"])
+    # Branch 3: confident answer
+    if info.get("confidence", 0) < 0.4:
+        raise HTTPException(400, "Couldn't identify the plant — try another photo with better lighting")
     if not (info.get("species") and info.get("latin_name")):
         raise HTTPException(400, "AI returned incomplete data — try again")
-    tips_json = _json_mod.dumps(info.get("care_tips") or [], ensure_ascii=False)
-    cur = db.execute(
-        """INSERT INTO plants (family_id, custom_name, species, latin_name, water_interval_days, light, care_tips, added_by)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
-        (user["family_id"], (custom_name or "").strip(),
-         info["species"].strip(), info["latin_name"].strip(),
-         int(info.get("water_interval_days") or 7),
-         (info.get("light") or "").strip(),
-         tips_json, user["id"]),
-    )
-    pid = cur.lastrowid
-    # Save image
-    os.makedirs(PLANTS_IMG_DIR, exist_ok=True)
-    with open(os.path.join(PLANTS_IMG_DIR, f"{pid}.jpg"), "wb") as f:
-        f.write(data)
-    _schedule_first_reminder(db, pid, user["family_id"], int(info.get("water_interval_days") or 7))
-    db.commit()
-    row = db.execute("SELECT * FROM plants WHERE id=?", (pid,)).fetchone()
-    return _plant_view(dict(row))
+    return _create_plant_from_info(db, user["family_id"], user["id"], info, custom_name, data)
+
+
+class PlantFinalize(BaseModel):
+    species: str
+    latin_name: str
+    water_interval_days: int = 7
+    light: str = ""
+    care_tips: list[str] = []
+    custom_name: str = ""
+
+
+@app.post("/api/plants/finalize")
+async def plants_finalize(
+    file: UploadFile = File(...),
+    candidate: str = "",
+    custom_name: str = "",
+    user=Depends(get_uf), db=Depends(get_db),
+):
+    """Create a plant from a user-chosen candidate (when AI returned multiple options).
+    Frontend re-uploads the photo here along with the chosen candidate as a JSON string."""
+    if (file.content_type or "").split("/")[0] != "image":
+        raise HTTPException(400, "not an image")
+    data = await file.read()
+    if not data or len(data) > 5 * 1024 * 1024:
+        raise HTTPException(400, "empty or too large (max 5 MB)")
+    try:
+        cand = _json_mod.loads(candidate) if candidate else {}
+    except Exception:
+        raise HTTPException(400, "invalid candidate JSON")
+    if not (cand.get("species") and cand.get("latin_name")):
+        raise HTTPException(400, "candidate is missing species/latin_name")
+    return _create_plant_from_info(db, user["family_id"], user["id"], cand, custom_name, data)
 
 
 class PlantEdit(BaseModel):
@@ -2683,7 +2776,7 @@ def serve_exercise_image(fn: str):
     return r
 
 # ─── Debug & Serve ───────────────────────────────────────────────────────
-APP_VERSION = "v8.26.0"
+APP_VERSION = "v8.27.0"
 
 @app.get("/api/debug/ping")
 def ping(): return {"ok": True, "version": APP_VERSION, "time": datetime.now(ZoneInfo(TIMEZONE)).isoformat()}

@@ -540,6 +540,19 @@ def migrate(db_path):
             );
             CREATE INDEX IF NOT EXISTS idx_plant_reminders_pending ON plant_reminders(sent, remind_at);
         """),
+        # v22: species-level cache so AI's tips/interval/light stay consistent across
+        # multiple plants of the same species (and we skip the AI work the 2nd+ time).
+        # Keyed by lowercased latin_name — that's the universal botanical identifier.
+        lambda c: c.executescript("""
+            CREATE TABLE IF NOT EXISTS plant_species_cache (
+                latin_name TEXT PRIMARY KEY,    -- LOWER(canonical Latin binomial)
+                species TEXT,                    -- English common name (last seen)
+                water_interval_days INTEGER,
+                light TEXT,
+                care_tips TEXT,                  -- JSON array
+                cached_at TEXT DEFAULT (datetime('now'))
+            );
+        """),
     ]
 
     for i, mig in enumerate(migrations):
