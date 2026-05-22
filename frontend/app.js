@@ -1664,14 +1664,23 @@ function rTransactions(){
 var txs=D.transactions;if(searchQ)txs=txs.filter(function(x){return matchQ(x.description)});
 if(filt)txs=txs.filter(function(x){return x.member_id===filt});
 var cats={};D.categories.forEach(function(c){cats[c.id]=c});
-// Top: 3 stat tiles (Income / Expense / Balance)
-var tInc=0,tExp=0;
-D.transactions.forEach(function(tx){if(tx.type==="income")tInc+=(tx.amount_eur||0);else tExp+=(tx.amount_eur||0)});
-var bal=tInc-tExp;
-var h='<div class="sts sts-3">';
-h+='<div class="st st-mn"><div class="st-ico tone-ok">'+icon("trendUp",16,2.2)+'</div><div class="st-lb">Income</div><div class="st-vl pos">€'+tInc.toFixed(0)+'</div></div>';
-h+='<div class="st st-mn"><div class="st-ico tone-ac">'+icon("trendDown",16,2.2)+'</div><div class="st-lb">Expense</div><div class="st-vl neg">€'+tExp.toFixed(0)+'</div></div>';
-h+='<div class="st st-mn"><div class="st-ico tone-pr">'+icon("wallet",16,2.2)+'</div><div class="st-lb">Balance</div><div class="st-vl '+(bal>=0?"pos":"neg")+'">'+(bal>=0?"+":"−")+'€'+Math.abs(bal).toFixed(0)+'</div></div>';
+// Tiles always use server-aggregated CURRENT-MONTH totals so the Transactions tab
+// agrees with Analytics. Frontend used to sum all 100 bundle rows (mixed months).
+// Separate cache _curMonthSummary so Analytics navigation to past months doesn't
+// disturb Transactions.
+if(!_curMonthSummary)_loadCurMonthSummary();
+var s=_curMonthSummary;
+var loading=!s;
+var tInc=loading?null:s.income, tExp=loading?null:s.expense, bal=loading?null:s.balance;
+var monthLbl=s?new Date(s.month+"-01T00:00:00").toLocaleString("en-US",{month:"long",year:"numeric"}):"";
+var h='';
+if(monthLbl)h+='<div style="text-align:center;font-size:10px;color:var(--ht);font-weight:700;letter-spacing:.6px;text-transform:uppercase;margin-bottom:8px">'+monthLbl+'</div>';
+function _tv(v){return v===null?'<span style="opacity:.4">…</span>':'€'+v.toFixed(0)}
+function _bv(v){if(v===null)return _tv(null);return (v>=0?"+":"−")+'€'+Math.abs(v).toFixed(0)}
+h+='<div class="sts sts-3">';
+h+='<div class="st st-mn"><div class="st-ico tone-ok">'+icon("trendUp",16,2.2)+'</div><div class="st-lb">Income</div><div class="st-vl pos">'+_tv(tInc)+'</div></div>';
+h+='<div class="st st-mn"><div class="st-ico tone-ac">'+icon("trendDown",16,2.2)+'</div><div class="st-lb">Expense</div><div class="st-vl neg">'+_tv(tExp)+'</div></div>';
+h+='<div class="st st-mn"><div class="st-ico tone-pr">'+icon("wallet",16,2.2)+'</div><div class="st-lb">Balance</div><div class="st-vl '+(bal===null?"":(bal>=0?"pos":"neg"))+'">'+_bv(bal)+'</div></div>';
 h+='</div>';
 if(!txs.length)return h+em(icon("wallet",48,1.8),"No transactions","Tap + to add");
 // Member filter row
@@ -1701,12 +1710,12 @@ txs.forEach(function(tx){
 });
 return h}
 
-async function dlTx(id){hp();await A("DELETE","/api/transactions/"+id);_moneySummary=null;_anaCache={};await load();toast("🗑 Deleted")}
+async function dlTx(id){hp();await A("DELETE","/api/transactions/"+id);_moneySummary=null;_curMonthSummary=null;_anaCache={};await load();toast("🗑 Deleted")}
 function edTx(id){var tx=D.transactions.find(function(x){return x.id===id});if(!tx)return;_assign=tx.member_id||0;
 var catOpts=D.categories.filter(function(c){return c.type===tx.type}).map(function(c){return '<button class="ob '+(tx.category_id===c.id?"s":"")+'" onclick="window._txCat='+c.id+';this.parentNode.querySelectorAll(\'.ob\').forEach(function(b){b.classList.remove(\'s\')});this.classList.add(\'s\')">'+c.emoji+" "+es(c.name)+'</button>'}).join("");
 window._txCat=tx.category_id||0;window._txType=tx.type;
 oMC("Edit Transaction",'<div class="dr"><div><div class="dl">Amount</div><input class="inp" id="tx-a" type="number" step="0.01" value="'+tx.amount+'"></div><div><div class="dl">Currency</div><select id="tx-c"><option value="RSD"'+(tx.currency==="RSD"?" selected":"")+'>din. RSD</option><option value="EUR"'+(tx.currency==="EUR"?" selected":"")+'>€ EUR</option><option value="USD"'+(tx.currency==="USD"?" selected":"")+'>$ USD</option><option value="GBP"'+(tx.currency==="GBP"?" selected":"")+'>£ GBP</option><option value="RUB"'+(tx.currency==="RUB"?" selected":"")+'>₽ RUB</option></select></div></div><div class="lb">Description</div><input class="inp" id="tx-d" value="'+es(tx.description||"")+'"><div class="lb">Category</div><div class="or">'+catOpts+'</div><div class="lb">Date</div><input type="date" id="tx-dt" value="'+tx.date+'"><div class="lb">Who</div>'+assignPk("txm",tx.member_id)+'<button class="btn" onclick="svTx('+id+')">Save</button>',{ic:"wallet"})}
-async function svTx(id){var a=parseFloat(document.getElementById("tx-a").value);var c=document.getElementById("tx-c").value;var d=document.getElementById("tx-d").value.trim();var dt=document.getElementById("tx-dt").value;if(!a)return;await A("PUT","/api/transactions/"+id,{amount:a,currency:c,description:d,date:dt,category_id:window._txCat||null,member_id:_assign||null});cMo();hp();_moneySummary=null;_anaCache={};await load()}
+async function svTx(id){var a=parseFloat(document.getElementById("tx-a").value);var c=document.getElementById("tx-c").value;var d=document.getElementById("tx-d").value.trim();var dt=document.getElementById("tx-dt").value;if(!a)return;await A("PUT","/api/transactions/"+id,{amount:a,currency:c,description:d,date:dt,category_id:window._txCat||null,member_id:_assign||null});cMo();hp();_moneySummary=null;_curMonthSummary=null;_anaCache={};await load()}
 
 // ─── Digest config modal ─────────────────────────────────────
 var DIGEST_SECS=[
@@ -1882,6 +1891,18 @@ async function svSub(id){var n=document.getElementById("su-n").value.trim();var 
 
 // Analytics
 var _moneySummary=null,_anaMonth=null,_anaCache={};
+// Separate cache for Transactions tab tiles (always current month, independent of
+// Analytics-tab navigation). Invalidated on every tx CRUD alongside _moneySummary.
+var _curMonthSummary=null,_curMonthLoading=false;
+async function _loadCurMonthSummary(){
+  if(_curMonthSummary||_curMonthLoading)return;
+  _curMonthLoading=true;
+  var s=await A("GET","/api/money/summary"); // no month param → current
+  _curMonthLoading=false;
+  if(!s)return;
+  _curMonthSummary=s;
+  if(tab==="money"&&moneyTab==="transactions")ren();
+}
 function _anaShift(delta){
   var cur=_anaMonth||_curYM();
   var y=parseInt(cur.slice(0,4),10),m=parseInt(cur.slice(5,7),10)+delta;
@@ -3474,7 +3495,7 @@ if(_pwaPrompt){
 }
 h+='<div class="sc"><span class="sc-l">Developer</span></div>';
 h+=_setRow({ico:"debug",acc:"acc-ac",title:"Debug Mode "+(dbgOn?"ON":"OFF"),onclick:"dbgOn=!dbgOn;document.getElementById(\'dbg\').classList.toggle(\'hidden\',!dbgOn);ren()"});
-h+='<div style="margin-top:18px;text-align:center;font-size:11px;color:var(--ht);letter-spacing:.3px">Family HQ v8.30.0</div>';return h}
+h+='<div style="margin-top:18px;text-align:center;font-size:11px;color:var(--ht);letter-spacing:.3px">Family HQ v8.30.1</div>';return h}
 async function setTh(id){
   if(id==="custom"){
     // Tapping Custom in the picker opens the editor (saves happen there). Also apply right away.
@@ -3656,7 +3677,7 @@ cMo();hp();await load()}
 async function doEv(){var t=document.getElementById("f-t").value.trim();var d=document.getElementById("f-d").value;var tm=document.getElementById("f-tm").value||"12:00";if(!t||!d)return;var ed=document.getElementById("f-ed")?document.getElementById("f-ed").value:"";var et=document.getElementById("f-et")?document.getElementById("f-et").value:"";var end=ed?ed+" "+(et||tm):null;await A("POST","/api/events",{text:t,event_date:d+" "+tm,end_date:end});cMo();hp();await load()}
 async function doBd(){var n=document.getElementById("bd-n").value.trim();var e=document.getElementById("bd-e").value.trim()||"🎂";var d=document.getElementById("bd-d").value;if(!n||!d)return;await A("POST","/api/birthdays",{name:n,emoji:e,birth_date:d,reminders:_bdRems});cMo();hp();await load()}
 async function doNewSub(){var n=document.getElementById("su-n").value.trim();var e=document.getElementById("su-e").value.trim()||"💳";var a=parseFloat(document.getElementById("su-a").value);var c=document.getElementById("su-c").value;var d=parseInt(document.getElementById("su-d").value)||1;if(!n||!a)return;await A("POST","/api/subscriptions",{name:n,emoji:e,amount:a,currency:c,billing_day:d,assigned_to:_assign||null,reminders:_subRems});cMo();hp();await load()}
-async function doTx(){var a=parseFloat(document.getElementById("tx-a").value);if(!a)return;var c=document.getElementById("tx-c").value;var d=document.getElementById("tx-d").value.trim();var dt=document.getElementById("tx-dt").value;await A("POST","/api/transactions",{type:window._txType,amount:a,currency:c,description:d,date:dt,category_id:window._txCat||null,member_id:_assign||null});cMo();hp();_moneySummary=null;_anaCache={};await load()}
+async function doTx(){var a=parseFloat(document.getElementById("tx-a").value);if(!a)return;var c=document.getElementById("tx-c").value;var d=document.getElementById("tx-d").value.trim();var dt=document.getElementById("tx-dt").value;await A("POST","/api/transactions",{type:window._txType,amount:a,currency:c,description:d,date:dt,category_id:window._txCat||null,member_id:_assign||null});cMo();hp();_moneySummary=null;_curMonthSummary=null;_anaCache={};await load()}
 
 // ═══════════════════════════════════════════════════════════
 // VIEWPORT FIX
