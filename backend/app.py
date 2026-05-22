@@ -7,7 +7,7 @@ from calendar import monthrange
 from urllib.parse import parse_qs
 from contextlib import asynccontextmanager
 from zoneinfo import ZoneInfo
-from fastapi import FastAPI, HTTPException, Depends, Request
+from fastapi import FastAPI, HTTPException, Depends, Request, UploadFile, File, Form
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 from fastapi.middleware.cors import CORSMiddleware
@@ -2495,7 +2495,7 @@ def word_update(idx: int, body: WordEdit, user=Depends(get_uf), db=Depends(get_d
                 except Exception as e: log.warning(f"Image rename failed {old_key}→{new_key}: {e}")
     return {"ok": True, "image_key": _img_key((payload.get("en_word") or old_en))}
 
-from fastapi import UploadFile, File, Form
+# (UploadFile, File, Form imported at the top now)
 
 @app.post("/api/words/one/{idx}/image")
 async def word_image_upload(idx: int, file: UploadFile = File(...), user=Depends(get_uf), db=Depends(get_db)):
