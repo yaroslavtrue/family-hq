@@ -1945,11 +1945,16 @@ function _trainScopeMember(){return _trainMember===null?_trainMyId():_trainMembe
 
 function rTrain(){
 var myId=_trainMyId();
-// Default to "my" view on first load (until user toggles)
 if(_trainMember===undefined)_trainMember=myId;
 var h='';
-// Member switcher pills: Yaroslav | Ella | Family
-h+='<div class="fb2">';
+// ─── Greeting ─────────────────────────────────────
+if(_trainMember!==null){
+  var meMember=(D.members||[]).find(function(m){return m.user_id===_trainMember});
+  var meName=meMember?meMember.user_name:'there';
+  h+='<div class="tr-greet"><div><div class="tr-greet-hi">Hi, '+es(meName)+'!</div><div class="tr-greet-sub">Ready for a workout?</div></div></div>';
+}
+// ─── Member switcher pills ────────────────────────
+h+='<div class="fb2" style="margin-bottom:18px">';
 D.members.forEach(function(m){
   h+='<button class="fi '+(_trainMember===m.user_id?"a":"")+'" style="display:inline-flex;align-items:center;gap:5px" onclick="setTrainMember('+m.user_id+')">'+mAv(m.user_id,18)+es(m.user_name)+'</button>';
 });
@@ -1963,59 +1968,200 @@ if(_trainMember===null){
   return h;
 }
 
-// Per-member view: weekly summary + templates + today's workout + recent
 var memberWorkouts=(D.recentWorkouts||[]).filter(function(w){return w.member_id===_trainMember});
-var today=td();var weekStart=_weekStartISO();
-var tdayT=0,tdaySets=0,wkT=0,wkSets=0,wkCount=0;
-memberWorkouts.forEach(function(w){
-  if(w.date===today){tdayT+=w.tonnage||0;tdaySets+=w.sets||0}
-  if(w.date>=weekStart){wkT+=w.tonnage||0;wkSets+=w.sets||0;wkCount++}
-});
-
-// Stats tiles (2 col)
-h+='<div class="sts" style="margin-bottom:14px">';
-h+='<div class="st st-mn"><div class="st-ico tone-pr">'+icon("dumbbell",16,2.2)+'</div><div class="st-lb">Today</div><div class="st-vl" style="color:var(--pr)">'+_fmtTon(tdayT)+'</div><div style="font-size:11px;color:var(--ht);margin-top:2px">'+tdaySets+' sets</div></div>';
-h+='<div class="st st-mn"><div class="st-ico tone-ok">'+icon("chart",16,2.2)+'</div><div class="st-lb">This Week</div><div class="st-vl pos">'+_fmtTon(wkT)+'</div><div style="font-size:11px;color:var(--ht);margin-top:2px">'+wkCount+' workouts · '+wkSets+' sets</div></div>';
-h+='</div>';
-
-// Progress button (outlined gradient)
-h+='<button class="btn btn-s" style="margin-bottom:16px;width:100%;display:inline-flex;align-items:center;justify-content:center;gap:7px" onclick="openTrainStats()">'+icon("chart",15,2.2)+'<span>Progress & PRs</span></button>';
-
-// Today's workout (or Start CTA)
+var today=td();
 var todayW=memberWorkouts.find(function(w){return w.date===today});
-if(todayW){
-  var inProg=todayW.started_at&&!todayW.finished_at;
-  h+='<div class="sc"><span class="sc-l"><span class="sc-ico">'+icon("calendar",12,2.4)+'</span>Today'+(inProg?'<span class="sc-cnt" style="background:color-mix(in srgb,var(--ok) 16%,transparent);color:var(--ok);text-transform:uppercase;font-size:9px;letter-spacing:.3px;padding:0 7px">in progress</span>':'')+'</span></div>';
+
+// ─── Active workout banner (top priority if in progress) ──
+if(todayW&&todayW.started_at&&!todayW.finished_at){
+  h+='<div class="tr-active" onclick="openWorkout('+todayW.id+')">'+
+    '<div class="tr-active-pulse"></div>'+
+    '<div class="tr-active-bd"><div class="tr-active-l">● Active workout</div><div class="tr-active-n">'+(todayW.name?es(todayW.name):"In progress")+' · '+_fmtTon(todayW.tonnage||0)+'</div></div>'+
+    '<span class="lc-chev">›</span></div>';
+}
+
+// ─── My Workouts carousel ─────────────────────────
+var myTpls=(D.workoutTemplates||[]).filter(function(t){return!t.member_id||t.member_id===_trainMember});
+h+='<div class="sc"><span class="sc-l"><span class="sc-ico">'+icon("dumbbell",12,2.4)+'</span>My Workouts</span>'+
+   (myTpls.length?'<button class="at" onclick="openNewTemplate()">+ New</button>':'')+'</div>';
+
+if(myTpls.length===0){
+  h+='<div class="tr-tpl-row"><button class="tr-tpl-add" onclick="openNewTemplate()"><span style="font-size:32px;line-height:1">+</span><span style="font-size:11px;margin-top:8px">Create template</span></button>';
+  h+='<button class="tr-tpl-add" onclick="startBlankWorkout()" style="border-style:solid;border-color:color-mix(in srgb,var(--ok) 45%,transparent);background:color-mix(in srgb,var(--ok) 8%,var(--cd));color:var(--ok)"><span style="font-size:30px;line-height:1">▶</span><span style="font-size:11px;margin-top:8px">Empty workout</span></button>';
+  h+='</div>';
+}else{
+  h+='<div class="tr-tpl-row">';
+  h+='<button class="tr-tpl-add" onclick="openNewTemplate()"><span style="font-size:32px;line-height:1">+</span><span style="font-size:11px;margin-top:8px">Add</span></button>';
+  myTpls.forEach(function(t){h+=_templateHeroCard(t)});
+  h+='</div>';
+}
+
+// ─── Statistics with period tabs ───────────────────
+h+='<div class="sc"><span class="sc-l"><span class="sc-ico">'+icon("chart",12,2.4)+'</span>Statistics</span>'+
+   '<button class="at" onclick="openTrainStats()">Details ›</button></div>';
+h+=_trainStatsBlock();
+
+// ─── Last workout ──────────────────────────────────
+var last=memberWorkouts.filter(function(w){return w.date!==today})[0];
+if(todayW&&!(todayW.started_at&&!todayW.finished_at)){
+  // Today is finished — show it as "Today's workout"
+  h+='<div class="sc"><span class="sc-l"><span class="sc-ico">'+icon("calendar",12,2.4)+'</span>Today’s workout</span></div>';
   h+=_workoutCard(todayW,true);
-}else if(_trainMember===myId){
-  // Start Workout button (uses template picker if templates exist)
-  if((D.workoutTemplates||[]).length>0){
-    h+='<button class="btn" style="margin-bottom:8px;display:inline-flex;align-items:center;justify-content:center;gap:7px;width:100%" onclick="openStartWorkoutPicker()"><span style="font-size:16px;line-height:1">▶</span><span>Start Workout</span></button>';
-    h+='<button class="btn btn-s" style="margin-bottom:18px;width:100%;display:inline-flex;align-items:center;justify-content:center;gap:7px" onclick="startBlankWorkout()">'+icon("pl",14,2.5)+'<span>Empty workout</span></button>';
-  }else{
-    h+='<button class="btn" style="margin-bottom:8px;display:inline-flex;align-items:center;justify-content:center;gap:7px;width:100%" onclick="startBlankWorkout()"><span style="font-size:16px;line-height:1">▶</span><span>Start Empty Workout</span></button>';
-    h+='<div style="font-size:12px;color:var(--ht);margin-bottom:16px;text-align:center">Or create a template below to reuse a program</div>';
-  }
+}else if(last){
+  h+='<div class="sc"><span class="sc-l"><span class="sc-ico">'+icon("clock",12,2.4)+'</span>Last workout</span></div>';
+  h+=_workoutCard(last,false);
 }
 
-// Templates section
-if(_trainMember===myId){
-  var myTpls=(D.workoutTemplates||[]).filter(function(t){return!t.member_id||t.member_id===myId});
-  h+='<div class="sc" style="display:flex;justify-content:space-between;align-items:center"><span class="sc-l"><span class="sc-ico">'+icon("list",12,2.4)+'</span>My Templates<span class="sc-cnt">'+myTpls.length+'</span></span><button class="at" onclick="openNewTemplate()">+ New</button></div>';
-  if(myTpls.length===0){
-    h+='<div style="font-size:12px;color:var(--ht);padding:12px 14px;border:1.5px dashed var(--bd);border-radius:14px;margin-bottom:14px;text-align:center">No templates yet · tap + New to create your first program</div>';
-  }else{
-    myTpls.forEach(function(t){h+=_templateCard(t)});
-  }
+// Trigger stats fetch (period defaults to "week") after first render
+setTimeout(_trainStatsLoad,0);
+return h;
 }
 
-// Recent workouts (excluding today)
-var others=memberWorkouts.filter(function(w){return w.date!==today});
-if(others.length){
-  h+='<div class="sc" style="margin-top:14px"><span class="sc-l"><span class="sc-ico">'+icon("clock",12,2.4)+'</span>Recent<span class="sc-cnt">'+others.length+'</span></span></div>';
-  others.forEach(function(w){h+=_workoutCard(w,false)});
+// ─── Template hero card (replaces old _templateCard for main view) ─────
+function _templateHeroCard(t){
+  var n=t.exercise_count||(t.exercises_list||[]).length;
+  var col1=t.color_from||"#6366f1", col2=t.color_to||"#4338ca";
+  var muscle=t.primary_muscle||"mixed";
+  var muscleEmoji=({legs:"🦵",lower:"🦵",arms:"💪",biceps:"💪",triceps:"💪",chest:"🫁",back:"🔙",shoulders:"🤸",core:"⚡",abs:"⚡",cardio:"🏃",glutes:"🍑",mixed:"🏋️"})[muscle]||"🏋️";
+  var bgStyle;
+  if(t.has_image){
+    bgStyle='background-image:linear-gradient(180deg,rgba(0,0,0,0) 0%,rgba(0,0,0,.45) 100%),url(/static/workouts/'+t.id+'.jpg);background-size:cover;background-position:center';
+  }else{
+    bgStyle='background:linear-gradient(135deg,'+col1+','+col2+')';
+  }
+  return '<button class="tr-tpl" style="'+bgStyle+'" onclick="openTemplateDetail('+t.id+')">'+
+    (t.has_image?'':'<div class="tr-tpl-emoji">'+muscleEmoji+'</div>')+
+    '<div class="tr-tpl-name">'+es(t.name)+'</div>'+
+    '<div class="tr-tpl-count">'+n+' exercises</div>'+
+    '</button>';
 }
-return h
+
+// ─── Stats block with period tabs ──────────────────────────
+var _trainStatsPeriod="week";
+var _trainStatsData=null;
+function _trainStatsBlock(){
+  var d=_trainStatsData;
+  var h='<div class="tr-tabs">';
+  var periods=[["day","Day"],["week","Week"],["month","Month"],["year","Year"]];
+  periods.forEach(function(p){
+    h+='<button class="tr-tab '+(_trainStatsPeriod===p[0]?"a":"")+'" onclick="_trainSetPeriod(\''+p[0]+'\')">'+p[1]+'</button>';
+  });
+  h+='</div>';
+  if(!d){
+    h+='<div class="tr-stat-big"><div style="padding:30px;text-align:center;color:var(--ht);font-size:13px">⏳ Loading…</div></div>';
+    return h;
+  }
+  var deltaPart='';
+  if(d.delta_pct!==null&&d.delta_pct!==undefined){
+    var col=d.delta_pct>=0?'var(--ok)':'var(--ac)';
+    var arrow=d.delta_pct>=0?"▲":"▼";
+    var prevLbl={day:"yesterday",week:"last week",month:"last month",year:"last year"}[d.period]||"previous";
+    deltaPart='<div class="tr-delta" style="color:'+col+'">'+arrow+' '+Math.abs(d.delta_pct)+'% vs '+prevLbl+'</div>';
+  }
+  h+='<div class="tr-stat-big">';
+  h+='<div class="tr-stat-lb">Tonnage · '+es(d.label)+'</div>';
+  h+='<div class="tr-stat-vl">'+_fmtTon(d.current.tonnage)+'</div>';
+  h+=deltaPart;
+  // Bars
+  if(d.bars&&d.bars.length){
+    h+='<div class="tr-bars">';
+    d.bars.forEach(function(b){
+      var pct=d.max_bar?Math.max(2,b.tonnage/d.max_bar*100):0;
+      var cls=b.is_current?'tr-bar tr-bar-cur':'tr-bar';
+      var tip=b.is_current&&b.tonnage>0?'<span class="tr-bar-tooltip">'+_fmtTon(b.tonnage)+'</span>':'';
+      h+='<div class="tr-bar-col">'+tip+'<div class="'+cls+'" style="height:'+pct+'%"></div><div class="tr-bar-lb">'+es(b.label)+'</div></div>';
+    });
+    h+='</div>';
+  }
+  h+='</div>';
+  // Secondary metrics
+  h+='<div class="tr-metrics">';
+  h+='<div class="tr-metric"><div class="tr-metric-lb">Workouts</div><div class="tr-metric-vl">'+(d.current.workouts||0)+'</div></div>';
+  h+='<div class="tr-metric"><div class="tr-metric-lb">Sets</div><div class="tr-metric-vl">'+(d.current.sets||0)+'</div></div>';
+  h+='<div class="tr-metric"><div class="tr-metric-lb">Avg / workout</div><div class="tr-metric-vl">'+_fmtTon(d.avg_per_workout||0)+'</div></div>';
+  h+='<div class="tr-metric"><div class="tr-metric-lb">Max day</div><div class="tr-metric-vl">'+_fmtTon(d.max_daily||0)+'</div></div>';
+  h+='</div>';
+  return h;
+}
+function _trainSetPeriod(p){_trainStatsPeriod=p;_trainStatsData=null;hp("sel");ren();_trainStatsLoad()}
+async function _trainStatsLoad(){
+  var q="?period="+_trainStatsPeriod;
+  if(_trainMember)q+="&member_id="+_trainMember;
+  var d=await A("GET","/api/trainings/stats/period"+q);
+  if(!d)return;
+  _trainStatsData=d;
+  if(tab==="trainings")ren();
+}
+
+// ─── Template detail modal ──────────────────────────────────
+async function openTemplateDetail(tid){
+  hp("light");
+  var t=(D.workoutTemplates||[]).find(function(x){return x.id===tid});
+  if(!t){toast("Template not found");return}
+  var ex=t.exercises_list||[];
+  var col1=t.color_from||"#6366f1", col2=t.color_to||"#4338ca";
+  var muscle=t.primary_muscle||"mixed";
+  var muscleEmoji=({legs:"🦵",lower:"🦵",arms:"💪",biceps:"💪",triceps:"💪",chest:"🫁",back:"🔙",shoulders:"🤸",core:"⚡",abs:"⚡",cardio:"🏃",glutes:"🍑",mixed:"🏋️"})[muscle]||"🏋️";
+  var bgStyle;
+  if(t.has_image){
+    bgStyle='background-image:linear-gradient(180deg,rgba(0,0,0,0) 0%,rgba(0,0,0,.55) 100%),url(/static/workouts/'+tid+'.jpg?t='+Date.now()+');background-size:cover;background-position:center';
+  }else{
+    bgStyle='background:linear-gradient(135deg,'+col1+','+col2+')';
+  }
+  var h='<div class="tr-detail-hero" style="'+bgStyle+'">';
+  if(!t.has_image)h+='<div class="tr-detail-emoji">'+muscleEmoji+'</div>';
+  h+='<div class="tr-detail-hero-bd"><div class="tr-detail-name">'+es(t.name)+'</div>';
+  h+='<div class="tr-detail-count">'+ex.length+' exercises</div></div></div>';
+  // Image upload row
+  h+='<div class="tr-detail-actions">';
+  h+='<label class="btn btn-s" style="margin:0;cursor:pointer;flex:1;display:inline-flex;align-items:center;justify-content:center;gap:6px"><input type="file" accept="image/*" style="display:none" onchange="_trImgUpload('+tid+',this)">📷 '+(t.has_image?'Replace':'Upload')+' image</label>';
+  if(t.has_image)h+='<button class="btn btn-s" style="flex:0 0 auto;background:transparent;color:var(--ac);border:1px solid color-mix(in srgb,var(--ac) 40%,transparent)" onclick="_trImgDelete('+tid+')">🗑</button>';
+  h+='</div>';
+  // Exercise list
+  if(!ex.length){
+    h+='<div class="emp" style="padding:30px;font-size:13px;color:var(--ht)">No exercises yet. Tap Edit to add some.</div>';
+  }else{
+    ex.forEach(function(e){
+      var img=e.image_url?'<img src="'+es(e.image_url)+'" alt="" onerror="this.remove()">':'';
+      var ph=img?'':'<span style="font-size:22px">'+(e.emoji||"💪")+'</span>';
+      var rest=e.rest_seconds?Math.round(e.rest_seconds)+'s rest':'';
+      h+='<div class="tr-ex-row">'+
+        '<div class="tr-ex-img">'+img+ph+'</div>'+
+        '<div class="tr-ex-bd"><div class="tr-ex-n">'+es(e.name)+'</div>'+
+        '<div class="tr-ex-mt">'+es(e.muscle_group||"")+(rest?' · '+rest:'')+'</div></div>'+
+        '</div>';
+    });
+  }
+  h+='<div class="tr-detail-cta">';
+  h+='<button class="btn btn-s" style="background:transparent;color:var(--ht);border:1px solid var(--bd);flex:1" onclick="cMo();editTemplate('+tid+')">'+I.ed+' Edit</button>';
+  h+='<button class="btn" style="flex:2" onclick="cMo();startFromTemplate('+tid+')">▶ Start workout</button>';
+  h+='</div>';
+  oMC(t.name||"Workout",h,{ic:"dumbbell"});
+}
+
+async function _trImgUpload(tid,input){
+  var f=input.files&&input.files[0];if(!f)return;
+  if(f.size>5*1024*1024){toast("> 5 MB");return}
+  hp("light");
+  var fd=new FormData();fd.append("file",f);
+  var headers={};
+  if(iD)headers["X-Telegram-Init-Data"]=iD;
+  var sess=_getSess();if(sess)headers["X-Session-Token"]=sess;
+  try{
+    var r=await fetch("/api/workout-templates/"+tid+"/image",{method:"POST",headers:headers,body:fd});
+    if(!r.ok){toast("Upload failed");return}
+    hp("ok");toast("Image saved");
+    await load();
+    cMo();openTemplateDetail(tid);
+  }catch(e){toast("Network error")}
+}
+async function _trImgDelete(tid){
+  if(!confirm("Remove image?"))return;
+  var r=await A("DELETE","/api/workout-templates/"+tid+"/image");
+  if(!r)return;
+  hp("ok");toast("Image removed");
+  await load();
+  cMo();openTemplateDetail(tid);
 }
 
 function _templateCard(t){
@@ -3255,7 +3401,7 @@ if(_pwaPrompt){
 }
 h+='<div class="sc"><span class="sc-l">Developer</span></div>';
 h+=_setRow({ico:"debug",acc:"acc-ac",title:"Debug Mode "+(dbgOn?"ON":"OFF"),onclick:"dbgOn=!dbgOn;document.getElementById(\'dbg\').classList.toggle(\'hidden\',!dbgOn);ren()"});
-h+='<div style="margin-top:18px;text-align:center;font-size:11px;color:var(--ht);letter-spacing:.3px">Family HQ v8.28.0</div>';return h}
+h+='<div style="margin-top:18px;text-align:center;font-size:11px;color:var(--ht);letter-spacing:.3px">Family HQ v8.29.0</div>';return h}
 async function setTh(id){
   if(id==="custom"){
     // Tapping Custom in the picker opens the editor (saves happen there). Also apply right away.

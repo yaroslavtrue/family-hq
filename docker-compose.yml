@@ -28,3 +28,6 @@ services:
       # Plant photos — uploaded via /api/plants from the in-app camera/file picker.
       # URL /static/plants/<id>.jpg. One image per plant.
       - ./frontend/plants:/app/frontend/plants
+      # Workout template hero images — AI-generated body-part illustrations
+      # uploaded per template. URL /static/workouts/<template_id>.jpg.
+      - ./frontend/workouts:/app/frontend/workouts

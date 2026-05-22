@@ -1485,6 +1485,57 @@ def del_set(sid: int, user=Depends(get_uf), db=Depends(get_db)):
     return {"ok": True}
 
 # ─── Workout templates ────────────────────────────────────────────────────
+# ─── Workout template color theme — auto-derived from muscle groups ───
+# Mapping: most common muscle_group across the template's exercises → color pair
+# (used for gradient backgrounds on hero cards). Each pair = (lighter, darker).
+WORKOUT_MUSCLE_COLORS = {
+    "legs":      ("#10b981", "#047857"),  # emerald
+    "lower":     ("#10b981", "#047857"),
+    "arms":      ("#3b82f6", "#1d4ed8"),  # blue
+    "biceps":    ("#3b82f6", "#1d4ed8"),
+    "triceps":   ("#3b82f6", "#1d4ed8"),
+    "back":      ("#8b5cf6", "#5b21b6"),  # purple
+    "chest":     ("#a78bfa", "#6d28d9"),  # violet
+    "shoulders": ("#06b6d4", "#0e7490"),  # cyan
+    "core":      ("#f59e0b", "#b45309"),  # amber
+    "abs":       ("#f59e0b", "#b45309"),
+    "cardio":    ("#ef4444", "#b91c1c"),  # red
+    "glutes":    ("#10b981", "#047857"),
+}
+WORKOUT_DEFAULT_COLOR = ("#6366f1", "#4338ca")  # indigo
+WORKOUTS_IMG_DIR = os.environ.get("WORKOUTS_IMG_DIR", "/app/frontend/workouts")
+
+def _workout_muscle_color(muscle_groups: list[str]) -> tuple[str, tuple[str, str]]:
+    """Given a list of muscle_group strings (from exercises in a template), return
+    (primary_muscle, (color_light, color_dark)). Picks the most common group."""
+    if not muscle_groups:
+        return ("mixed", WORKOUT_DEFAULT_COLOR)
+    counts = {}
+    for g in muscle_groups:
+        if not g: continue
+        k = g.strip().lower()
+        counts[k] = counts.get(k, 0) + 1
+    if not counts:
+        return ("mixed", WORKOUT_DEFAULT_COLOR)
+    primary = max(counts.items(), key=lambda kv: kv[1])[0]
+    return (primary, WORKOUT_MUSCLE_COLORS.get(primary, WORKOUT_DEFAULT_COLOR))
+
+
+def _template_meta(t: dict) -> dict:
+    """Compute UI metadata (color, primary muscle, has_image, exercise count) for a template."""
+    ex_list = t.get("exercises_list") or []
+    muscles = [e.get("muscle_group", "") for e in ex_list]
+    primary, (col_l, col_d) = _workout_muscle_color(muscles)
+    has_image = os.path.isfile(os.path.join(WORKOUTS_IMG_DIR, f"{t['id']}.jpg"))
+    return {
+        "primary_muscle": primary,
+        "color_from": col_l,
+        "color_to": col_d,
+        "has_image": has_image,
+        "exercise_count": len(ex_list),
+    }
+
+
 @app.get("/api/workout-templates")
 def list_templates(member_id: int | None = None, user=Depends(get_uf), db=Depends(get_db)):
     f = user["family_id"]
@@ -1508,7 +1559,38 @@ def list_templates(member_id: int | None = None, user=Depends(get_uf), db=Depend
         by_t = _group_by(rows, "template_id")
         for t in templates:
             t["exercises_list"] = by_t.get(t["id"], [])
+            t.update(_template_meta(t))
     return templates
+
+
+@app.post("/api/workout-templates/{tid}/image")
+async def template_image_upload(tid: int, file: UploadFile = File(...), user=Depends(get_uf), db=Depends(get_db)):
+    """Upload a hero image for a workout template. Saved as /app/frontend/workouts/<tid>.jpg.
+    Replaces existing image."""
+    row = db.execute("SELECT id FROM workout_templates WHERE id=? AND family_id=?",
+                     (tid, user["family_id"])).fetchone()
+    if not row: raise HTTPException(404)
+    if (file.content_type or "").split("/")[0] != "image":
+        raise HTTPException(400, "not an image")
+    data = await file.read()
+    if not data or len(data) > 5 * 1024 * 1024:
+        raise HTTPException(400, "empty or too large (max 5 MB)")
+    os.makedirs(WORKOUTS_IMG_DIR, exist_ok=True)
+    with open(os.path.join(WORKOUTS_IMG_DIR, f"{tid}.jpg"), "wb") as f:
+        f.write(data)
+    return {"ok": True, "size": len(data)}
+
+
+@app.delete("/api/workout-templates/{tid}/image")
+def template_image_delete(tid: int, user=Depends(get_uf), db=Depends(get_db)):
+    row = db.execute("SELECT id FROM workout_templates WHERE id=? AND family_id=?",
+                     (tid, user["family_id"])).fetchone()
+    if not row: raise HTTPException(404)
+    fp = os.path.join(WORKOUTS_IMG_DIR, f"{tid}.jpg")
+    if os.path.isfile(fp):
+        try: os.remove(fp); return {"ok": True}
+        except Exception as e: raise HTTPException(500, f"delete failed: {e}")
+    return {"ok": True, "noop": True}
 
 @app.post("/api/workout-templates")
 def create_template(body: TemplateCreate, user=Depends(get_uf), db=Depends(get_db)):
@@ -1679,6 +1761,122 @@ def trainings_stats(member_id: int | None = None, user=Depends(get_uf), db=Depen
         "today": today_stats, "week": week_stats, "month": month_stats,
         "weeks": weeks, "top_exercises": top_exercises, "personal_records": personal_records,
     }
+
+
+@app.get("/api/trainings/stats/period")
+def trainings_stats_period(
+    period: str = "week",
+    member_id: int | None = None,
+    user=Depends(get_uf), db=Depends(get_db),
+):
+    """Period-aggregated tonnage with comparison vs previous period + bar-chart buckets +
+    secondary metrics. Drives the redesigned Stats page.
+
+    period: 'day' | 'week' | 'month' | 'year'
+      - day   → 7 daily bars ending today; compare today vs yesterday
+      - week  → 7 daily bars Mon-Sun (or last 7 days); compare this vs last week
+      - month → ~30 daily bars; compare this vs last month
+      - year  → 12 monthly bars; compare this vs last year"""
+    if period not in ("day", "week", "month", "year"):
+        raise HTTPException(400, "invalid period")
+    f = user["family_id"]
+    where_member = "AND w.member_id=?" if member_id else ""
+    params_member = [member_id] if member_id else []
+    now = datetime.now(ZoneInfo(TIMEZONE))
+    today = now.date()
+
+    def _sum(date_from, date_to):
+        r = db.execute(f"""
+            SELECT COALESCE(SUM(ws.reps * ws.weight), 0) AS tonnage,
+                   COUNT(DISTINCT w.id) AS workouts,
+                   COUNT(ws.id) AS sets
+            FROM workouts w
+            LEFT JOIN workout_exercises wx ON wx.workout_id=w.id
+            LEFT JOIN workout_sets ws ON ws.workout_exercise_id=wx.id
+            WHERE w.family_id=? AND w.date>=? AND w.date<=? {where_member}
+        """, [f, date_from, date_to] + params_member).fetchone()
+        return {"tonnage": round(r["tonnage"] or 0, 2), "workouts": r["workouts"] or 0, "sets": r["sets"] or 0}
+
+    # Period bounds + comparison
+    if period == "day":
+        cur_from = today; cur_to = today
+        prev_from = today - timedelta(days=1); prev_to = prev_from
+        label = "Today"
+        # Bars: last 7 days
+        bars = []
+        for i in range(6, -1, -1):
+            d = today - timedelta(days=i)
+            stat = _sum(d.isoformat(), d.isoformat())
+            bars.append({"label": d.strftime("%a"), "date": d.isoformat(), "tonnage": stat["tonnage"], "is_current": i == 0})
+    elif period == "week":
+        wk_start = today - timedelta(days=today.weekday())
+        cur_from = wk_start; cur_to = wk_start + timedelta(days=6)
+        prev_from = wk_start - timedelta(days=7); prev_to = wk_start - timedelta(days=1)
+        label = "This week"
+        bars = []
+        for i in range(7):
+            d = wk_start + timedelta(days=i)
+            stat = _sum(d.isoformat(), d.isoformat())
+            bars.append({"label": ["Mon","Tue","Wed","Thu","Fri","Sat","Sun"][i], "date": d.isoformat(),
+                         "tonnage": stat["tonnage"], "is_current": d == today})
+    elif period == "month":
+        m_start = today.replace(day=1)
+        # Find last day of current month
+        next_m = (m_start + timedelta(days=32)).replace(day=1)
+        m_end = next_m - timedelta(days=1)
+        cur_from = m_start; cur_to = m_end
+        # Previous month
+        prev_end = m_start - timedelta(days=1)
+        prev_start = prev_end.replace(day=1)
+        prev_from = prev_start; prev_to = prev_end
+        label = m_start.strftime("%B")
+        # Bars: every day of current month
+        bars = []
+        d = m_start
+        while d <= m_end:
+            stat = _sum(d.isoformat(), d.isoformat())
+            bars.append({"label": str(d.day), "date": d.isoformat(),
+                         "tonnage": stat["tonnage"], "is_current": d == today})
+            d += timedelta(days=1)
+    else:  # year
+        y_start = today.replace(month=1, day=1)
+        y_end = today.replace(month=12, day=31)
+        cur_from = y_start; cur_to = y_end
+        prev_from = y_start.replace(year=y_start.year - 1)
+        prev_to = y_end.replace(year=y_end.year - 1)
+        label = str(today.year)
+        bars = []
+        for m in range(1, 13):
+            ms = today.replace(month=m, day=1)
+            me = (ms.replace(day=28) + timedelta(days=4)).replace(day=1) - timedelta(days=1)
+            stat = _sum(ms.isoformat(), me.isoformat())
+            bars.append({"label": ms.strftime("%b"), "date": ms.isoformat(),
+                         "tonnage": stat["tonnage"], "is_current": ms.month == today.month})
+
+    cur = _sum(cur_from.isoformat(), cur_to.isoformat())
+    prev = _sum(prev_from.isoformat(), prev_to.isoformat())
+    delta_pct = None
+    if prev["tonnage"] > 0:
+        delta_pct = round((cur["tonnage"] - prev["tonnage"]) / prev["tonnage"] * 100)
+
+    # Secondary metrics — same window as current period
+    avg_per_workout = round(cur["tonnage"] / cur["workouts"], 2) if cur["workouts"] else 0
+    # Max daily tonnage in current period
+    max_daily = max((b["tonnage"] for b in bars), default=0)
+    max_bar = max((b["tonnage"] for b in bars), default=1) or 1
+
+    return {
+        "period": period,
+        "label": label,
+        "current": cur,
+        "previous": prev,
+        "delta_pct": delta_pct,
+        "bars": bars,
+        "max_bar": max_bar,
+        "avg_per_workout": avg_per_workout,
+        "max_daily": max_daily,
+    }
+
 
 # Calendar — month view items
 @app.get("/api/calendar")
@@ -2749,7 +2947,7 @@ def serve_exercise_image(fn: str):
     return r
 
 # ─── Debug & Serve ───────────────────────────────────────────────────────
-APP_VERSION = "v8.28.1"
+APP_VERSION = "v8.29.0"
 
 @app.get("/api/debug/ping")
 def ping(): return {"ok": True, "version": APP_VERSION, "time": datetime.now(ZoneInfo(TIMEZONE)).isoformat()}
