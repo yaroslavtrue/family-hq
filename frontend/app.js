@@ -2801,6 +2801,42 @@ function taskTabSet(t){
   else{hi.innerHTML=icon("clipboard",22,2.2);ht.textContent="Tasks";hs.textContent="Manage & assign"}
   ren()
 }
+// Countdown pill for an event row. Returns {text, cls} or null if dates are missing.
+//   Future:  "Today" / "Tomorrow" / "in N days" / "in N weeks" / "in ~N months" / "in N years"
+//   Ongoing: "Day X of N" (only for multi-day events)
+//   Past:    "yesterday" / "N days ago" / "N weeks ago" / "N months ago" / "N years ago" (muted)
+function _evtCountdown(ev, todayStr){
+  var s=(ev.event_date||"").split(" ")[0]; if(!s) return null;
+  var e=(ev.end_date||s).split(" ")[0];
+  var sDate=new Date(s+"T00:00:00");
+  var eDate=new Date(e+"T00:00:00");
+  var today=new Date(todayStr+"T00:00:00");
+  if(isNaN(sDate)||isNaN(today)) return null;
+  var DAY=86400000;
+  // Ongoing multi-day event
+  if(sDate<=today && today<=eDate && s!==e){
+    var total=Math.round((eDate-sDate)/DAY)+1;
+    var cur=Math.round((today-sDate)/DAY)+1;
+    return {text:"Day "+cur+" of "+total, cls:"evt-cd-now"};
+  }
+  var diff=Math.round((sDate-today)/DAY);
+  if(diff===0) return {text:"Today", cls:"evt-cd-now"};
+  if(diff===1) return {text:"Tomorrow", cls:"evt-cd-soon"};
+  if(diff===-1) return {text:"yesterday", cls:"evt-cd-past"};
+  function _humanize(d){
+    if(d<7) return d+" days";
+    if(d<30) return Math.round(d/7)+" week"+(Math.round(d/7)>1?"s":"");
+    if(d<365) return "~"+Math.round(d/30)+" months";
+    return "~"+Math.round(d/365)+" year"+(Math.round(d/365)>1?"s":"");
+  }
+  if(diff>0){
+    var cls = diff<=7?"evt-cd-soon":(diff<=30?"evt-cd-far":"evt-cd-fafar");
+    return {text:"in "+_humanize(diff), cls:cls};
+  }
+  // diff < -1
+  return {text:_humanize(Math.abs(diff))+" ago", cls:"evt-cd-past"};
+}
+
 function rEvts(){
 if(!D.events.length)return em(icon("clock",48,1.8),"No events","Tap + Add Event to start")+rEvtAddBtn();
 var evts=D.events;if(searchQ)evts=evts.filter(function(e){return matchQ(e.text)});
@@ -2835,10 +2871,11 @@ ordered.forEach(function(ev){
   var st=(ev.event_date||"").split(" ")[1]||"";
   var ep=ev.end_date?(" → "+fD(ev.end_date).date+" "+(ev.end_date.split(" ")[1]||"")):"";
   var rowCls="evt-row"+(isHigh?" evt-high":"")+(isPast?" evt-past":"");
+  var cd=_evtCountdown(ev,todayStr);
   h+='<div class="'+rowCls+'" data-evt-id="'+ev.id+'">';
   h+='<div class="evt-dot" style="background:'+c+'"></div>';
   h+='<div class="c evt-card">';
-  h+='<div class="bd"><div class="tt" style="font-weight:600">'+es(ev.text)+'</div>';
+  h+='<div class="bd"><div class="evt-tt-row"><div class="tt" style="font-weight:600;flex:1;min-width:0">'+es(ev.text)+'</div>'+(cd?'<span class="evt-cd '+cd.cls+'">'+cd.text+'</span>':'')+'</div>';
   h+='<div class="mt" style="margin-top:6px"><span class="bg" style="background:color-mix(in srgb,'+c+',transparent 85%);color:'+c+'">'+fd.day+" "+fd.date+'</span><span>'+st+ep+'</span> '+sC("event",ev.id)+' <button class="xb" onclick="tX(\'event\','+ev.id+')">'+(ex["event_"+ev.id]?"▾":"▸")+'</button></div></div>';
   h+='<button class="bi" onclick="dEv('+ev.id+')">'+I.tr+'</button>';
   h+='</div>'+rSu("event",ev.id)+'</div>';
@@ -3407,7 +3444,7 @@ if(_pwaPrompt){
 }
 h+='<div class="sc"><span class="sc-l">Developer</span></div>';
 h+=_setRow({ico:"debug",acc:"acc-ac",title:"Debug Mode "+(dbgOn?"ON":"OFF"),onclick:"dbgOn=!dbgOn;document.getElementById(\'dbg\').classList.toggle(\'hidden\',!dbgOn);ren()"});
-h+='<div style="margin-top:18px;text-align:center;font-size:11px;color:var(--ht);letter-spacing:.3px">Family HQ v8.29.1</div>';return h}
+h+='<div style="margin-top:18px;text-align:center;font-size:11px;color:var(--ht);letter-spacing:.3px">Family HQ v8.29.2</div>';return h}
 async function setTh(id){
   if(id==="custom"){
     // Tapping Custom in the picker opens the editor (saves happen there). Also apply right away.
