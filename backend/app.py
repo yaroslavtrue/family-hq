@@ -218,6 +218,7 @@ async def lifespan(app: FastAPI):
     aps.add_job(sched.refresh_weather, "interval", minutes=60, next_run_time=datetime.now(ZoneInfo(TIMEZONE)))
     aps.add_job(sched.sync_trello, "interval", minutes=30)
     aps.add_job(sched.cleanup_pending_words, "cron", hour=3, minute=30)
+    aps.add_job(sched.check_plant_reminders, "interval", minutes=30)
     aps.start(); log.info("✅ Family HQ v5"); yield; aps.shutdown()
 
 app = FastAPI(title="Family HQ v5", lifespan=lifespan)
@@ -1960,6 +1961,13 @@ async def bundle(user=Depends(get_uf), db=Depends(get_db)):
         for t in workout_templates:
             t["exercises_list"] = by_t.get(t["id"], [])
 
+    plants = []
+    try:
+        plant_rows = db.execute("SELECT * FROM plants WHERE family_id=? ORDER BY id", (f,)).fetchall()
+        plants = [_plant_view(dict(r)) for r in plant_rows]
+    except Exception as e:
+        log.warning(f"plants bundle: {e}")
+
     return {
         "tasks": tasks, "recurring": recurring, "shopping": shopping, "folders": folders,
         "events": events, "birthdays": bdays, "subs": subs, "dashboard": dashboard,
@@ -1969,6 +1977,7 @@ async def bundle(user=Depends(get_uf), db=Depends(get_db)):
         "tx_items": tx_items,
         "exercises": exercises, "recent_workouts": recent_workouts,
         "workout_templates": workout_templates,
+        "plants": plants,
     }
 
 # ═════════════════════════════════════════════════════════════════════════
@@ -2364,6 +2373,266 @@ def set_learn_mode(body: LearnMode, user=Depends(get_uf), db=Depends(get_db)):
     db.execute("UPDATE family_members SET learn_mode=? WHERE user_id=?", (body.mode, user["id"])); db.commit()
     return {"ok": True}
 
+# ═════════════════════════════════════════════════════════════════════════
+# PLANTS — family-shared plant care with AI species identification
+# ═════════════════════════════════════════════════════════════════════════
+PLANTS_IMG_DIR = os.environ.get("PLANTS_IMG_DIR", "/app/frontend/plants")
+ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_API_KEY", "").strip()
+import base64 as _b64
+import json as _json_mod
+
+_PLANT_PROMPT = """You are a plant identification expert. Look at the photo and identify the houseplant or garden plant in it.
+
+Return STRICT JSON only, no prose, no code fences:
+{
+  "species": "<English common name, capitalized>",
+  "latin_name": "<Latin binomial, e.g. Monstera deliciosa>",
+  "water_interval_days": <integer 1-30, typical days between waterings for typical indoor conditions>,
+  "light": "<one of: bright direct, bright indirect, medium, low>",
+  "care_tips": ["<tip1>", "<tip2>", "<tip3>", "<tip4>", "<tip5>"],
+  "confidence": <0.0-1.0>
+}
+
+care_tips: 5 short, actionable, practical sentences in English. Focus on watering nuance, light, humidity, common mistakes, signs of trouble.
+
+If the photo doesn't contain a plant, is too blurry, or you cannot identify the species with reasonable confidence (>0.4):
+  Return {"confidence": 0, "error": "<one short English sentence: what's wrong>"}
+
+Begin response with {."""
+
+
+async def _identify_plant_image(image_bytes: bytes) -> dict | None:
+    """Call Claude Haiku Vision to identify a plant. Returns dict or None on API failure."""
+    if not ANTHROPIC_API_KEY: return None
+    b64 = _b64.standard_b64encode(image_bytes).decode("utf-8")
+    try:
+        async with httpx.AsyncClient(timeout=60) as c:
+            r = await c.post("https://api.anthropic.com/v1/messages", headers={
+                "x-api-key": ANTHROPIC_API_KEY,
+                "anthropic-version": "2023-06-01",
+                "content-type": "application/json",
+            }, json={
+                "model": "claude-haiku-4-5-20251001",
+                "max_tokens": 800,
+                "system": _PLANT_PROMPT,
+                "messages": [{"role": "user", "content": [
+                    {"type": "image", "source": {"type": "base64", "media_type": "image/jpeg", "data": b64}},
+                    {"type": "text", "text": "Identify this plant. Return JSON only."},
+                ]}],
+            })
+            data = r.json()
+            text = (data.get("content", [{}])[0].get("text") or "").strip()
+            if text.startswith("```"):
+                text = text.split("\n", 1)[-1].rsplit("```", 1)[0].strip()
+            return _json_mod.loads(text)
+    except Exception as e:
+        log.error(f"plant identify failed: {e}")
+        return None
+
+
+def _plant_status(p: dict) -> str:
+    """Compute current watering status based on last_watered + interval."""
+    interval = p.get("water_interval_days") or 7
+    last = p.get("last_watered")
+    if not last:
+        # Never watered — base on added_at instead so brand-new plants don't scream
+        last = p.get("added_at")
+    if not last: return "ok"
+    try:
+        last_dt = datetime.fromisoformat(last.replace("Z", "+00:00").split(".")[0])
+        if last_dt.tzinfo is None:
+            last_dt = last_dt.replace(tzinfo=ZoneInfo(TIMEZONE))
+    except Exception:
+        return "ok"
+    now_dt = datetime.now(ZoneInfo(TIMEZONE))
+    days = (now_dt - last_dt).total_seconds() / 86400
+    if days >= interval: return "thirsty"
+    if days >= interval - 1: return "soon"
+    return "ok"
+
+
+def _plant_view(p: dict) -> dict:
+    """Shape a plant row for the frontend."""
+    tips = []
+    if p.get("care_tips"):
+        try: tips = _json_mod.loads(p["care_tips"])
+        except Exception: tips = []
+    next_water = None
+    if p.get("last_watered") and p.get("water_interval_days"):
+        try:
+            last = datetime.fromisoformat(p["last_watered"].replace("Z", "+00:00").split(".")[0])
+            if last.tzinfo is None: last = last.replace(tzinfo=ZoneInfo(TIMEZONE))
+            next_water = (last + timedelta(days=p["water_interval_days"])).isoformat()
+        except Exception: pass
+    return {
+        "id": p["id"],
+        "custom_name": p.get("custom_name") or "",
+        "species": p.get("species") or "",
+        "latin_name": p.get("latin_name") or "",
+        "water_interval_days": p.get("water_interval_days") or 7,
+        "light": p.get("light") or "",
+        "care_tips": tips,
+        "notes": p.get("notes") or "",
+        "last_watered": p.get("last_watered"),
+        "next_water": next_water,
+        "added_at": p.get("added_at"),
+        "added_by": p.get("added_by"),
+        "status": _plant_status(p),
+        "has_image": os.path.isfile(os.path.join(PLANTS_IMG_DIR, f"{p['id']}.jpg")),
+    }
+
+
+@app.get("/api/plants")
+def plants_list(user=Depends(get_uf), db=Depends(get_db)):
+    """All plants in the family, with computed status."""
+    rows = db.execute("SELECT * FROM plants WHERE family_id=? ORDER BY id", (user["family_id"],)).fetchall()
+    plants = [_plant_view(dict(r)) for r in rows]
+    return {"plants": plants, "thirsty_count": sum(1 for p in plants if p["status"] == "thirsty")}
+
+
+def _schedule_first_reminder(db, plant_id: int, family_id: int, interval_days: int):
+    """Schedule the first watering reminder for a freshly-added plant."""
+    remind_at = (datetime.now(ZoneInfo(TIMEZONE)) + timedelta(days=interval_days)).strftime("%Y-%m-%d %H:%M")
+    db.execute("INSERT INTO plant_reminders (plant_id, family_id, remind_at) VALUES (?, ?, ?)",
+               (plant_id, family_id, remind_at))
+
+
+@app.post("/api/plants")
+async def plants_create(
+    file: UploadFile = File(...),
+    custom_name: str = "",
+    user=Depends(get_uf), db=Depends(get_db),
+):
+    """Create a new plant from a photo. AI identifies the species + watering schedule + tips,
+    then we save the row, the image, and schedule the first reminder."""
+    if (file.content_type or "").split("/")[0] != "image":
+        raise HTTPException(400, "not an image")
+    data = await file.read()
+    if not data or len(data) > 5 * 1024 * 1024:
+        raise HTTPException(400, "empty or too large (max 5 MB)")
+    if not ANTHROPIC_API_KEY:
+        raise HTTPException(500, "AI not configured")
+    info = await _identify_plant_image(data)
+    if not info:
+        raise HTTPException(502, "AI request failed")
+    if info.get("confidence", 0) < 0.4 or info.get("error"):
+        raise HTTPException(400, info.get("error") or "Couldn't identify the plant — try another photo with better lighting")
+    # Required fields
+    if not (info.get("species") and info.get("latin_name")):
+        raise HTTPException(400, "AI returned incomplete data — try again")
+    tips_json = _json_mod.dumps(info.get("care_tips") or [], ensure_ascii=False)
+    cur = db.execute(
+        """INSERT INTO plants (family_id, custom_name, species, latin_name, water_interval_days, light, care_tips, added_by)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+        (user["family_id"], (custom_name or "").strip(),
+         info["species"].strip(), info["latin_name"].strip(),
+         int(info.get("water_interval_days") or 7),
+         (info.get("light") or "").strip(),
+         tips_json, user["id"]),
+    )
+    pid = cur.lastrowid
+    # Save image
+    os.makedirs(PLANTS_IMG_DIR, exist_ok=True)
+    with open(os.path.join(PLANTS_IMG_DIR, f"{pid}.jpg"), "wb") as f:
+        f.write(data)
+    _schedule_first_reminder(db, pid, user["family_id"], int(info.get("water_interval_days") or 7))
+    db.commit()
+    row = db.execute("SELECT * FROM plants WHERE id=?", (pid,)).fetchone()
+    return _plant_view(dict(row))
+
+
+class PlantEdit(BaseModel):
+    custom_name: str | None = None
+    species: str | None = None
+    latin_name: str | None = None
+    water_interval_days: int | None = None
+    light: str | None = None
+    care_tips: list[str] | None = None
+    notes: str | None = None
+
+
+@app.patch("/api/plants/{pid}")
+def plants_update(pid: int, body: PlantEdit, user=Depends(get_uf), db=Depends(get_db)):
+    """Edit a plant. Changing water_interval_days re-schedules the next reminder."""
+    row = db.execute("SELECT * FROM plants WHERE id=? AND family_id=?", (pid, user["family_id"])).fetchone()
+    if not row: raise HTTPException(404)
+    payload = body.dict(exclude_unset=True)
+    if "care_tips" in payload and payload["care_tips"] is not None:
+        payload["care_tips"] = _json_mod.dumps(payload["care_tips"], ensure_ascii=False)
+    interval_changed = "water_interval_days" in payload and payload["water_interval_days"] != row["water_interval_days"]
+    if payload:
+        sets, params = [], []
+        for k, v in payload.items():
+            sets.append(f"{k}=?"); params.append(v)
+        params.append(pid)
+        db.execute(f"UPDATE plants SET {','.join(sets)} WHERE id=?", params)
+    if interval_changed:
+        # Reschedule pending reminders to reflect the new interval
+        db.execute("UPDATE plant_reminders SET sent=1 WHERE plant_id=? AND sent=0", (pid,))
+        base = row["last_watered"] or row["added_at"]
+        try:
+            base_dt = datetime.fromisoformat(base.replace("Z", "+00:00").split(".")[0])
+            if base_dt.tzinfo is None: base_dt = base_dt.replace(tzinfo=ZoneInfo(TIMEZONE))
+        except Exception:
+            base_dt = datetime.now(ZoneInfo(TIMEZONE))
+        remind_at = (base_dt + timedelta(days=payload["water_interval_days"])).strftime("%Y-%m-%d %H:%M")
+        db.execute("INSERT INTO plant_reminders (plant_id, family_id, remind_at) VALUES (?, ?, ?)",
+                   (pid, user["family_id"], remind_at))
+    db.commit()
+    fresh = db.execute("SELECT * FROM plants WHERE id=?", (pid,)).fetchone()
+    return _plant_view(dict(fresh))
+
+
+@app.post("/api/plants/{pid}/water")
+def plants_water(pid: int, user=Depends(get_uf), db=Depends(get_db)):
+    """Log a watering. Marks any pending reminder as sent and creates the next one."""
+    row = db.execute("SELECT * FROM plants WHERE id=? AND family_id=?", (pid, user["family_id"])).fetchone()
+    if not row: raise HTTPException(404)
+    now_iso = datetime.now(ZoneInfo(TIMEZONE)).isoformat()
+    db.execute("UPDATE plants SET last_watered=? WHERE id=?", (now_iso, pid))
+    db.execute("INSERT INTO plant_waterings (plant_id, watered_by) VALUES (?, ?)", (pid, user["id"]))
+    db.execute("UPDATE plant_reminders SET sent=1 WHERE plant_id=? AND sent=0", (pid,))
+    interval = row["water_interval_days"] or 7
+    remind_at = (datetime.now(ZoneInfo(TIMEZONE)) + timedelta(days=interval)).strftime("%Y-%m-%d %H:%M")
+    db.execute("INSERT INTO plant_reminders (plant_id, family_id, remind_at) VALUES (?, ?, ?)",
+               (pid, user["family_id"], remind_at))
+    db.commit()
+    fresh = db.execute("SELECT * FROM plants WHERE id=?", (pid,)).fetchone()
+    return _plant_view(dict(fresh))
+
+
+@app.post("/api/plants/{pid}/image")
+async def plants_image_upload(pid: int, file: UploadFile = File(...), user=Depends(get_uf), db=Depends(get_db)):
+    """Replace a plant's photo without re-identifying."""
+    row = db.execute("SELECT id FROM plants WHERE id=? AND family_id=?", (pid, user["family_id"])).fetchone()
+    if not row: raise HTTPException(404)
+    if (file.content_type or "").split("/")[0] != "image":
+        raise HTTPException(400, "not an image")
+    data = await file.read()
+    if not data or len(data) > 5 * 1024 * 1024:
+        raise HTTPException(400, "empty or too large (max 5 MB)")
+    os.makedirs(PLANTS_IMG_DIR, exist_ok=True)
+    with open(os.path.join(PLANTS_IMG_DIR, f"{pid}.jpg"), "wb") as f:
+        f.write(data)
+    return {"ok": True, "size": len(data)}
+
+
+@app.delete("/api/plants/{pid}")
+def plants_delete(pid: int, user=Depends(get_uf), db=Depends(get_db)):
+    """Hard-delete plant + waterings + reminders + on-disk image."""
+    row = db.execute("SELECT id FROM plants WHERE id=? AND family_id=?", (pid, user["family_id"])).fetchone()
+    if not row: raise HTTPException(404)
+    db.execute("DELETE FROM plant_reminders WHERE plant_id=?", (pid,))
+    db.execute("DELETE FROM plant_waterings WHERE plant_id=?", (pid,))
+    db.execute("DELETE FROM plants WHERE id=?", (pid,))
+    db.commit()
+    fp = os.path.join(PLANTS_IMG_DIR, f"{pid}.jpg")
+    if os.path.isfile(fp):
+        try: os.remove(fp)
+        except Exception as e: log.warning(f"plant image delete failed: {e}")
+    return {"ok": True}
+
+
 # ─── Exercise images (uploaded via Telegram bot, served from Docker volume) ──
 EXERCISE_IMG_DIR = os.environ.get("EXERCISE_IMG_DIR", "/data/exercise_images")
 
@@ -2379,7 +2648,7 @@ def serve_exercise_image(fn: str):
     return r
 
 # ─── Debug & Serve ───────────────────────────────────────────────────────
-APP_VERSION = "v8.24.1"
+APP_VERSION = "v8.25.0"
 
 @app.get("/api/debug/ping")
 def ping(): return {"ok": True, "version": APP_VERSION, "time": datetime.now(ZoneInfo(TIMEZONE)).isoformat()}

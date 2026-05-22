@@ -25,3 +25,6 @@ services:
       # resolves here. Files added manually via Telegram bot (photo + caption "Картинка: X")
       # or scp. Missing files just stay on the emoji fallback in the UI.
       - ./frontend/words:/app/frontend/words
+      # Plant photos — uploaded via /api/plants from the in-app camera/file picker.
+      # URL /static/plants/<id>.jpg. One image per plant.
+      - ./frontend/plants:/app/frontend/plants

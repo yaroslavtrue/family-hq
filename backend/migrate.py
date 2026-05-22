@@ -503,6 +503,43 @@ def migrate(db_path):
         # Unsplash integration in v8.23.1). Words use hand-uploaded files now —
         # no cache table needed.
         lambda c: c.executescript("DROP TABLE IF EXISTS word_image_cache;"),
+        # v21: Plants feature — family-shared plant collection with AI-identified species,
+        # watering schedule + history, and reminders. Photo per plant stored at
+        # /app/frontend/plants/<id>.jpg (volume-mounted, same pattern as words/weather).
+        lambda c: c.executescript("""
+            CREATE TABLE IF NOT EXISTS plants (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                family_id INTEGER NOT NULL,
+                custom_name TEXT,
+                species TEXT,
+                latin_name TEXT,
+                water_interval_days INTEGER DEFAULT 7,
+                light TEXT,
+                care_tips TEXT,            -- JSON array of strings
+                notes TEXT,
+                last_watered TEXT,
+                added_by INTEGER,
+                added_at TEXT DEFAULT (datetime('now'))
+            );
+            CREATE INDEX IF NOT EXISTS idx_plants_family ON plants(family_id);
+
+            CREATE TABLE IF NOT EXISTS plant_waterings (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                plant_id INTEGER NOT NULL,
+                watered_at TEXT DEFAULT (datetime('now')),
+                watered_by INTEGER
+            );
+            CREATE INDEX IF NOT EXISTS idx_waterings_plant ON plant_waterings(plant_id, watered_at DESC);
+
+            CREATE TABLE IF NOT EXISTS plant_reminders (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                plant_id INTEGER NOT NULL,
+                family_id INTEGER NOT NULL,
+                remind_at TEXT NOT NULL,
+                sent INTEGER DEFAULT 0
+            );
+            CREATE INDEX IF NOT EXISTS idx_plant_reminders_pending ON plant_reminders(sent, remind_at);
+        """),
     ]
 
     for i, mig in enumerate(migrations):

@@ -84,7 +84,7 @@ function aT(id){
 // ─── State ──────────────────────────────────────────────────
 let tab="home",cTheme="midnight",filt=null,fS=null,ex={},dbgOn=false,dbgLog=[];
 let taskTab="active",calTab="events",moneyTab="transactions",shopFold=null,searchQ="",searchOpen=false,menuOpen=false;
-let D={tasks:[],recurring:[],shopping:[],folders:[],events:[],birthdays:[],subs:[],dashboard:{},members:[],zones:[],settings:{},weather:null,categories:[],transactions:[],exercises:[],recentWorkouts:[],workoutTemplates:[]};
+let D={tasks:[],recurring:[],shopping:[],folders:[],events:[],birthdays:[],subs:[],dashboard:{},members:[],zones:[],settings:{},weather:null,categories:[],transactions:[],exercises:[],recentWorkouts:[],workoutTemplates:[],plants:[]};
 let allSubs={task:{},event:{}};
 let _assign=0,_pri="normal",_rems=[],_zRems=[],_bdRems=[],_subRems=[],zOpen={};
 // Trainings state — _trainMember undefined means "not yet initialized" (first render → my_id)
@@ -728,6 +728,261 @@ async function _weSave(){
   openWordsMgr();
 }
 
+// ─── Plants — family-shared plant care with AI species identification ─────
+var _plState={selectedId:null};
+// Speech-bubble phrase bank, keyed to watering status. Selection is deterministic by
+// (plant.id + day-of-year) so the phrase stays stable for a whole day instead of
+// flickering on every re-render.
+var PLANT_VOICE={
+  thirsty:["I'm getting thirsty 💧","The soil's so dry...","A drink would be lovely","Please don't forget me","I could really use some water"],
+  soon:["Could use a drink soon...","Almost time for water","Save me a sip for tomorrow"],
+  ok:["Feeling great! ✨","Growing well 🌱","Thanks for the care","Loving the light here","All good — keep it up!"]
+};
+function _plVoice(p){
+  var arr=PLANT_VOICE[p.status]||PLANT_VOICE.ok;
+  var today=Math.floor(Date.now()/86400000);
+  return arr[(Math.abs((p.id||0)+today))%arr.length];
+}
+function _plDate(iso){
+  if(!iso)return"";
+  try{var d=new Date(iso);var diff=Math.round((Date.now()-d.getTime())/86400000);
+    if(diff===0)return"today";if(diff===1)return"yesterday";if(diff<7)return diff+" days ago";
+    return d.toLocaleDateString();
+  }catch(e){return""}
+}
+function _plStatusLabel(s){return s==="thirsty"?"Wants water":(s==="soon"?"Water soon":"Healthy")}
+function _plStatusColor(s){return s==="thirsty"?"var(--ac)":(s==="soon"?"var(--wn)":"var(--ok)")}
+
+function rPlants(){
+  var list=D.plants||[];
+  var thirstyN=list.filter(function(p){return p.status==="thirsty"}).length;
+  // Auto-select first plant on first render
+  if(!_plState.selectedId&&list.length)_plState.selectedId=list[0].id;
+  var cur=list.find(function(p){return p.id===_plState.selectedId});
+  var h='<div class="pl-wrap">';
+  // ─── Avatar carousel ─────────────────────────────
+  h+='<div class="pl-avatars">';
+  h+='<button class="pl-av pl-av-add" onclick="_plOpenAdd()" aria-label="Add plant"><div class="pl-av-pic pl-av-plus">'+icon("pl",22,2.5)+'</div><div class="pl-av-l">Add</div></button>';
+  list.forEach(function(p){
+    var sel=(p.id===_plState.selectedId)?"s":"";
+    var img=p.has_image?'<img src="/static/plants/'+p.id+'.jpg?t='+(p.last_watered?Date.parse(p.last_watered)||"":"x")+'" alt="" onerror="this.remove()">':'';
+    var ph=img?"":'<span class="pl-av-ph">🪴</span>';
+    h+='<button class="pl-av '+sel+'" onclick="_plSelect('+p.id+')"><div class="pl-av-pic">'+img+ph+'<span class="pl-av-dot" style="background:'+_plStatusColor(p.status)+'"></span></div><div class="pl-av-l">'+es(p.custom_name||p.species||"Plant")+'</div></button>';
+  });
+  h+='</div>';
+  // ─── Main card ────────────────────────────────────
+  if(!cur){
+    h+='<div class="emp" style="padding:50px 14px"><div class="emp-i" style="font-size:46px">🪴</div><div class="emp-t">No plants yet</div><div style="font-size:13px;color:var(--ht);margin-top:6px">Tap <b>+ Add</b> above and snap a photo — AI will identify it</div></div>';
+  }else{
+    var imgUrl=cur.has_image?'/static/plants/'+cur.id+'.jpg?t='+(cur.last_watered?Date.parse(cur.last_watered)||"":"x"):'';
+    h+='<div class="pl-card">';
+    h+='<div class="pl-card-bg" style="'+(imgUrl?'background-image:url(\''+imgUrl+'\')':'')+'"></div>';
+    if(!imgUrl)h+='<div class="pl-card-noimg">🪴</div>';
+    h+='<div class="pl-card-over">';
+    h+='<div class="pl-card-top">';
+    h+='<div class="pl-card-titles"><div class="pl-card-name"><span>'+es(cur.custom_name||cur.species||"Plant")+'</span><button class="bi" onclick="_plOpenEdit('+cur.id+')" aria-label="Edit" style="color:#fff;opacity:.8">'+I.ed+'</button></div><div class="pl-card-sub">'+es(cur.latin_name||cur.species||"")+'</div></div>';
+    h+='<div class="pl-pill" style="background:'+_plStatusColor(cur.status)+'"><span class="pl-pill-dot"></span>'+_plStatusLabel(cur.status)+'</div>';
+    h+='</div>';
+    // Speech bubble
+    h+='<div class="pl-bubble"><span class="pl-bubble-icon">🥟</span><span>'+es(_plVoice(cur))+'</span></div>';
+    // Actions
+    h+='<div class="pl-actions">';
+    h+='<button class="pl-btn pl-btn-primary" onclick="_plWater('+cur.id+')">💧 Water</button>';
+    h+='<button class="pl-btn pl-btn-secondary" onclick="_plOpenAdvice('+cur.id+')">📖 Tips</button>';
+    h+='<button class="pl-btn pl-btn-more" onclick="_plMoreMenu('+cur.id+')" aria-label="More">⋯</button>';
+    h+='</div>';
+    h+='</div></div>';
+  }
+  // ─── Summary ──────────────────────────────────────
+  if(list.length){
+    h+='<div class="pl-sum">';
+    h+='<div class="pl-sum-h">📊 Today</div>';
+    if(thirstyN){h+='<div class="pl-sum-row"><span style="color:'+_plStatusColor("thirsty")+'">🪴 '+thirstyN+(thirstyN===1?" plant wants":" plants want")+' water</span></div>'}
+    else{h+='<div class="pl-sum-row"><span style="color:var(--ok)">✓ All plants happy</span></div>'}
+    if(cur&&cur.last_watered)h+='<div class="pl-sum-row" style="color:var(--ht);font-size:12px">Last watered '+es(cur.custom_name||cur.species||"plant")+': '+_plDate(cur.last_watered)+'</div>';
+    h+='</div>';
+  }
+  h+='</div>';
+  // Attach swipe gesture after render
+  setTimeout(_plAttachSwipe,80);
+  return h;
+}
+function _plSelect(id){_plState.selectedId=id;hp("sel");ren()}
+function _plAttachSwipe(){
+  var card=document.querySelector(".pl-card");if(!card||card._sw)return;card._sw=true;
+  var start=null;
+  card.addEventListener("touchstart",function(e){if(e.target&&e.target.closest("button"))return;start={x:e.touches[0].clientX,y:e.touches[0].clientY}},{passive:true});
+  card.addEventListener("touchend",function(e){
+    if(!start)return;var dx=e.changedTouches[0].clientX-start.x;var dy=e.changedTouches[0].clientY-start.y;start=null;
+    if(Math.abs(dy)>40||Math.abs(dx)<60)return;
+    var list=D.plants||[];if(list.length<2)return;
+    var i=list.findIndex(function(p){return p.id===_plState.selectedId});
+    if(i<0)return;
+    var next=dx<0?(i+1)%list.length:(i-1+list.length)%list.length;
+    _plSelect(list[next].id);
+  },{passive:true});
+}
+
+// ─── Add flow: pick photo → upload → AI identify → server creates ──
+function _plOpenAdd(){
+  hp("light");
+  var h='<div class="lb">Snap a photo</div>';
+  h+='<div style="font-size:12px;color:var(--ht);margin-bottom:14px;line-height:1.4">AI will identify the plant, set a watering schedule, and write care tips. ~3 seconds.</div>';
+  h+='<label class="pl-photo-pick" id="pl-photo-pick"><input type="file" id="pl-file" accept="image/*" capture="environment" style="display:none" onchange="_plOnPhotoPicked(this)"><div class="pl-photo-icon">📷</div><div class="pl-photo-l">Take photo or choose from gallery</div></label>';
+  h+='<div class="lb" style="margin-top:14px">Nickname (optional)</div>';
+  h+='<input class="inp" id="pl-name" placeholder="e.g. Yuki, Momi, Hana…" maxlength="40">';
+  h+='<div id="pl-add-msg" style="margin-top:10px;font-size:12px;color:var(--ht);text-align:center;min-height:18px"></div>';
+  h+='<button class="btn" id="pl-add-go" onclick="_plDoAdd()" disabled style="opacity:.5">Identify & add</button>';
+  oMC("Add plant",h,{ic:"book"});
+}
+var _plPhotoData=null;
+function _plOnPhotoPicked(input){
+  var f=input.files&&input.files[0];if(!f)return;
+  if(f.size>5*1024*1024){document.getElementById("pl-add-msg").textContent="Photo > 5 MB — pick a smaller one";return}
+  _plPhotoData=f;
+  // Preview
+  var url=URL.createObjectURL(f);
+  var p=document.getElementById("pl-photo-pick");
+  if(p){p.style.backgroundImage='url('+url+')';p.classList.add("pl-photo-set");p.querySelector(".pl-photo-icon").style.opacity=0;p.querySelector(".pl-photo-l").textContent="Tap to change"}
+  var go=document.getElementById("pl-add-go");if(go){go.disabled=false;go.style.opacity=1}
+}
+async function _plDoAdd(){
+  if(!_plPhotoData)return;
+  var name=(document.getElementById("pl-name")||{}).value||"";
+  var msg=document.getElementById("pl-add-msg");
+  if(msg)msg.textContent="🤖 Identifying plant…";
+  var btn=document.getElementById("pl-add-go");if(btn){btn.disabled=true;btn.textContent="Working…"}
+  var fd=new FormData();fd.append("file",_plPhotoData);fd.append("custom_name",name.trim());
+  var headers={};
+  if(iD)headers["X-Telegram-Init-Data"]=iD;
+  var sess=_getSess();if(sess)headers["X-Session-Token"]=sess;
+  try{
+    var r=await fetch("/api/plants",{method:"POST",headers:headers,body:fd});
+    if(!r.ok){
+      var err="";try{var j=await r.json();err=j.detail||""}catch(e){}
+      if(msg)msg.textContent="❌ "+(err||"Upload failed");
+      if(btn){btn.disabled=false;btn.textContent="Identify & add"}
+      return;
+    }
+    var p=await r.json();
+    _plPhotoData=null;
+    hp("ok");toast("Added "+(p.custom_name||p.species||"plant"));
+    // Refresh bundle so D.plants is current, then jump to that plant
+    await load();
+    _plState.selectedId=p.id;
+    cMo();
+    if(tab!=="plants")go("plants"); else ren();
+  }catch(e){
+    if(msg)msg.textContent="❌ Network error";
+    if(btn){btn.disabled=false;btn.textContent="Identify & add"}
+  }
+}
+
+async function _plWater(pid){
+  hp("light");
+  var r=await A("POST","/api/plants/"+pid+"/water");
+  if(!r)return;
+  // Update local D.plants entry in place so re-render is instant
+  var i=(D.plants||[]).findIndex(function(p){return p.id===pid});
+  if(i>=0)D.plants[i]=r;
+  hp("ok");toast("💧 Watered "+(r.custom_name||r.species||"plant"));
+  ren();
+}
+
+function _plOpenAdvice(pid){
+  var p=(D.plants||[]).find(function(x){return x.id===pid});if(!p)return;
+  hp("light");
+  var h='<div class="pl-adv-head">';
+  h+='<div class="pl-adv-name">'+es(p.custom_name||p.species||"")+'</div>';
+  h+='<div class="pl-adv-sub">'+es(p.latin_name||"")+'</div>';
+  h+='</div>';
+  h+='<div class="pl-adv-meta">';
+  h+='<div class="pl-adv-cell"><div class="pl-adv-cell-l">Water every</div><div class="pl-adv-cell-v">'+(p.water_interval_days||7)+' days</div></div>';
+  if(p.light)h+='<div class="pl-adv-cell"><div class="pl-adv-cell-l">Light</div><div class="pl-adv-cell-v">'+es(p.light)+'</div></div>';
+  h+='</div>';
+  if(p.care_tips&&p.care_tips.length){
+    h+='<div class="lb" style="margin-top:14px">Care tips</div>';
+    p.care_tips.forEach(function(t){h+='<div class="pl-tip">• '+es(t)+'</div>'});
+  }
+  if(p.last_watered)h+='<div style="font-size:12px;color:var(--ht);margin-top:14px;text-align:center">Last watered '+_plDate(p.last_watered)+'</div>';
+  oMC("Care for "+(p.custom_name||p.species||"plant"),h,{ic:"book"});
+}
+
+function _plMoreMenu(pid){
+  hp("light");
+  var p=(D.plants||[]).find(function(x){return x.id===pid});if(!p)return;
+  var h='<button class="menu-i" onclick="cMo();_plOpenEdit('+pid+')"><span class="mi-ico">'+I.ed+'</span><span class="mi-l">Edit details</span></button>';
+  h+='<button class="menu-i" onclick="cMo();_plReplacePhoto('+pid+')"><span class="mi-ico">📷</span><span class="mi-l">Replace photo</span></button>';
+  h+='<div style="height:1px;background:var(--bd);margin:6px 0"></div>';
+  h+='<button class="menu-i" onclick="cMo();_plDelete('+pid+')" style="color:var(--ac)"><span class="mi-ico">🗑</span><span class="mi-l">Delete plant</span></button>';
+  oMC("More",h,{ic:"book"});
+}
+
+function _plOpenEdit(pid){
+  var p=(D.plants||[]).find(function(x){return x.id===pid});if(!p)return;
+  hp("light");
+  var h='<div class="lb">Nickname</div><input class="inp" id="ple-name" value="'+es(p.custom_name||"")+'" placeholder="e.g. Yuki" maxlength="40">';
+  h+='<div class="lb" style="margin-top:12px">Species</div><input class="inp" id="ple-species" value="'+es(p.species||"")+'">';
+  h+='<div class="lb" style="margin-top:12px">Latin name</div><input class="inp" id="ple-latin" value="'+es(p.latin_name||"")+'">';
+  h+='<div class="dr"><div><div class="dl">Water every (days)</div><input class="inp" type="number" min="1" max="60" id="ple-int" value="'+(p.water_interval_days||7)+'"></div><div><div class="dl">Light</div><input class="inp" id="ple-light" value="'+es(p.light||"")+'"></div></div>';
+  h+='<div class="lb" style="margin-top:12px">Notes</div><input class="inp" id="ple-notes" value="'+es(p.notes||"")+'" placeholder="Personal reminders, anniversaries…">';
+  h+='<button class="btn" style="margin-top:18px" onclick="_plSaveEdit('+pid+')">Save</button>';
+  oMC("Edit plant",h,{ic:"book"});
+}
+async function _plSaveEdit(pid){
+  var v=function(id){return (document.getElementById(id)||{}).value||""};
+  var body={
+    custom_name:v("ple-name").trim(),
+    species:v("ple-species").trim(),
+    latin_name:v("ple-latin").trim(),
+    water_interval_days:parseInt(v("ple-int"))||7,
+    light:v("ple-light").trim(),
+    notes:v("ple-notes").trim()
+  };
+  if(!body.species||!body.latin_name){toast("Species & Latin name required");return}
+  var r=await A("PATCH","/api/plants/"+pid,body);
+  if(!r)return;
+  var i=(D.plants||[]).findIndex(function(p){return p.id===pid});
+  if(i>=0)D.plants[i]=r;
+  cMo();hp("ok");toast("Saved");ren();
+}
+
+function _plReplacePhoto(pid){
+  // Trigger native file picker, upload, refresh
+  var input=document.createElement("input");
+  input.type="file";input.accept="image/*";input.capture="environment";
+  input.onchange=async function(){
+    var f=input.files&&input.files[0];if(!f)return;
+    if(f.size>5*1024*1024){toast("> 5 MB");return}
+    hp("light");
+    var fd=new FormData();fd.append("file",f);
+    var headers={};
+    if(iD)headers["X-Telegram-Init-Data"]=iD;
+    var sess=_getSess();if(sess)headers["X-Session-Token"]=sess;
+    try{
+      var r=await fetch("/api/plants/"+pid+"/image",{method:"POST",headers:headers,body:fd});
+      if(!r.ok){toast("Upload failed");return}
+      hp("ok");toast("Photo updated");
+      // Mark has_image true and force re-render
+      var i=(D.plants||[]).findIndex(function(p){return p.id===pid});
+      if(i>=0)D.plants[i].has_image=true;
+      ren();
+    }catch(e){toast("Network error")}
+  };
+  input.click();
+}
+
+async function _plDelete(pid){
+  var p=(D.plants||[]).find(function(x){return x.id===pid});if(!p)return;
+  if(!confirm("Delete "+(p.custom_name||p.species||"this plant")+"? This can't be undone."))return;
+  var r=await A("DELETE","/api/plants/"+pid);
+  if(!r)return;
+  hp("ok");toast("Deleted");
+  D.plants=(D.plants||[]).filter(function(x){return x.id!==pid});
+  if(_plState.selectedId===pid)_plState.selectedId=(D.plants[0]||{}).id||null;
+  ren();
+}
+
 async function _selectCity(name,lat,lon){
   hp("ok");
   await A("PATCH","/api/settings",{weather_city:name,weather_lat:lat,weather_lon:lon});
@@ -822,7 +1077,7 @@ const NV=[
 {id:"money",l:"Money",sv:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg>'},
 {id:"profile",l:"Profile",sv:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>'}
 ];
-const TT={home:{i:"home",t:"Family HQ",s:"Everything at a glance"},tasks:{i:"clipboard",t:"Tasks",s:"Manage & assign"},shop:{i:"cart",t:"Shopping",s:"Shared list"},trainings:{i:"dumbbell",t:"Trainings",s:"Workouts & progress"},words:{i:"book",t:"Words",s:"Vocabulary learning"},money:{i:"dollar",t:"Money",s:"Budget & subs"},profile:{i:"user",t:"Profile",s:"Personal stats"},events:{i:"clock",t:"Events",s:"Schedule"},birthdays:{i:"cake",t:"Birthdays",s:"Never forget"},clean:{i:"broom",t:"Cleaning",s:"Apartment zones"},settings:{i:"cog",t:"Settings",s:"Customize"},subs:{i:"card",t:"Subscriptions",s:"Monthly payments"}};
+const TT={home:{i:"home",t:"Family HQ",s:"Everything at a glance"},tasks:{i:"clipboard",t:"Tasks",s:"Manage & assign"},shop:{i:"cart",t:"Shopping",s:"Shared list"},trainings:{i:"dumbbell",t:"Trainings",s:"Workouts & progress"},words:{i:"book",t:"Words",s:"Vocabulary learning"},plants:{i:"book",t:"Plants",s:"Care & watering"},money:{i:"dollar",t:"Money",s:"Budget & subs"},profile:{i:"user",t:"Profile",s:"Personal stats"},events:{i:"clock",t:"Events",s:"Schedule"},birthdays:{i:"cake",t:"Birthdays",s:"Never forget"},clean:{i:"broom",t:"Cleaning",s:"Apartment zones"},settings:{i:"cog",t:"Settings",s:"Customize"},subs:{i:"card",t:"Subscriptions",s:"Monthly payments"}};
 
 (function(){var n=document.getElementById("nv");NV.forEach(function(t){var b=document.createElement("button");b.className="ni"+(t.id==="home"?" a":"");b.dataset.t=t.id;b.innerHTML='<span class="nb hidden" id="b-'+t.id+'"></span>'+t.sv+'<span>'+t.l+'</span>';b.onclick=function(){go(t.id)};n.appendChild(b)})})();
 
@@ -840,7 +1095,7 @@ if(t==="tasks"&&taskTab&&taskTab!=="active"){
   if(taskTab==="events"){_hi.innerHTML=icon("clock",22,2.2);document.getElementById("ht").textContent="Events";document.getElementById("hs").textContent="Schedule";_evtsFirstRender=true}
   else if(taskTab==="recurring"){_hi.innerHTML=icon("refresh",22,2.2);document.getElementById("ht").textContent="Recurring";document.getElementById("hs").textContent="Repeating tasks"}
 }
-var noFab=["home","settings","clean","events","birthdays","subs","profile","trainings","words"];
+var noFab=["home","settings","clean","events","birthdays","subs","profile","trainings","words","plants"];
 var hideFab=noFab.indexOf(t)>=0||(t==="tasks"&&taskTab==="events");
 document.getElementById("fab").classList.toggle("hidden",hideFab);
 // Words mode renders its own header — hide the global one
@@ -998,6 +1253,7 @@ if(b.family&&b.family.joined)fS=b.family;D.zones=b.zones||[];
 allSubs.task=b.subtasks_task||{};allSubs.event=b.subtasks_event||{};D.txItems=b.tx_items||{};
 D.weather=b.weather||null;D.categories=b.categories||[];D.transactions=b.transactions||[];
 D.exercises=b.exercises||[];D.recentWorkouts=b.recent_workouts||[];D.workoutTemplates=b.workout_templates||[];
+D.plants=b.plants||[];
 if(D.settings.theme)aT(D.settings.theme);ren()}
 
 // ─── Render ─────────────────────────────────────────────────
@@ -1013,7 +1269,7 @@ case"home":c.innerHTML=rH();if(_firstHomeRender){_firstHomeRender=false;FX.count
 case"shop":c.innerHTML=rSh();break;case"money":c.innerHTML=rMoney();break;
 case"trainings":c.innerHTML=rTrain();break;
 case"events":c.innerHTML=rEvts();break;case"birthdays":c.innerHTML=rBdays();break;
-case"clean":c.innerHTML=rC();break;case"settings":c.innerHTML=rSet();break;case"subs":c.innerHTML=rSubsList();break;case"profile":c.innerHTML=rProfile();break;case"words":c.innerHTML=rWords();break}}
+case"clean":c.innerHTML=rC();break;case"settings":c.innerHTML=rSet();break;case"subs":c.innerHTML=rSubsList();break;case"profile":c.innerHTML=rProfile();break;case"words":c.innerHTML=rWords();break;case"plants":c.innerHTML=rPlants();break}}
 function sB(t,n){var e=document.getElementById("b-"+t);if(!e)return;if(n>0){e.textContent=n;e.classList.remove("hidden")}else e.classList.add("hidden")}
 
 // Hamburger menu — dynamically rendered with counters
@@ -1030,6 +1286,7 @@ subs: (D.subs||[]).filter(function(s){return s.days_until!=null&&s.days_until>=0
 var items=[
 {id:"shop",ic:"cart",label:"Shopping",cnt:cnt.shop},
 {id:"trainings",ic:"dumbbell",label:"Trainings",cnt:0},
+{id:"plants",ic:"book",label:"Plants",cnt:(D.plants||[]).filter(function(p){return p.status==="thirsty"}).length},
 {id:"birthdays",ic:"cake",label:"Birthdays",cnt:cnt.birthdays},
 {id:"clean",ic:"broom",label:"Cleaning",cnt:cnt.clean},
 {id:"subs",ic:"card",label:"Subscriptions",cnt:cnt.subs},
@@ -1271,6 +1528,7 @@ var DIGEST_SECS=[
 {id:"events",emoji:"📅",name:"Upcoming Events",color:"var(--ok)"},
 {id:"subs",emoji:"💳",name:"Subscriptions",color:"var(--pr)"},
 {id:"birthdays",emoji:"🎂",name:"Birthdays",color:"var(--wn)"},
+{id:"plants",emoji:"🪴",name:"Plants to water",color:"var(--ok)"},
 {id:"word_of_day",emoji:"📚",name:"Word of the Day (RU/EN)",color:"#a78bfa"},
 {id:"tip",emoji:"💡",name:"Tip of the Day",color:"var(--ht)"}
 ];
@@ -2805,7 +3063,7 @@ if(_pwaPrompt){
 }
 h+='<div class="sc"><span class="sc-l">Developer</span></div>';
 h+=_setRow({ico:"debug",acc:"acc-ac",title:"Debug Mode "+(dbgOn?"ON":"OFF"),onclick:"dbgOn=!dbgOn;document.getElementById(\'dbg\').classList.toggle(\'hidden\',!dbgOn);ren()"});
-h+='<div style="margin-top:18px;text-align:center;font-size:11px;color:var(--ht);letter-spacing:.3px">Family HQ v8.24.1</div>';return h}
+h+='<div style="margin-top:18px;text-align:center;font-size:11px;color:var(--ht);letter-spacing:.3px">Family HQ v8.25.0</div>';return h}
 async function setTh(id){
   if(id==="custom"){
     // Tapping Custom in the picker opens the editor (saves happen there). Also apply right away.

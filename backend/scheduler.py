@@ -336,7 +336,7 @@ async def sync_trello():
     con.close()
     log.info(f"Trello sync done: {len(relevant)} cards processed")
 
-DEFAULT_SECTIONS = ["greeting","weather","tasks_today","tasks_tomorrow","events","subs","birthdays","word_of_day","tip"]
+DEFAULT_SECTIONS = ["greeting","weather","tasks_today","tasks_tomorrow","events","subs","birthdays","plants","word_of_day","tip"]
 
 def _build_digest_sections(con, fid, uid, user_name, now, section_order=None):
     """Build digest sections (HTML parse_mode). Each builder returns list of HTML lines."""
@@ -483,6 +483,32 @@ def _build_digest_sections(con, fid, uid, user_name, now, section_order=None):
         ]
     builders["word_of_day"] = _word_of_day
 
+    # ─── Plants that need water today
+    def _plants():
+        # Pull plants where (now - last_watered) >= water_interval_days OR never watered + (now-added) >= interval
+        rows = con.execute("""
+            SELECT id, custom_name, species, water_interval_days, last_watered, added_at
+            FROM plants WHERE family_id=?
+        """, (fid,)).fetchall()
+        thirsty = []
+        from datetime import datetime as _dt
+        now_dt = now
+        for r in rows:
+            base = r["last_watered"] or r["added_at"]
+            if not base: continue
+            try:
+                b = _dt.fromisoformat(str(base).replace("Z", "+00:00").split(".")[0])
+                if b.tzinfo is None: b = b.replace(tzinfo=now.tzinfo)
+            except Exception: continue
+            days = (now_dt - b).total_seconds() / 86400
+            if days >= (r["water_interval_days"] or 7):
+                thirsty.append(r["custom_name"] or r["species"] or "Plant")
+        if not thirsty: return None
+        head = "🪴 <b>Plants need water today</b>"
+        body = ", ".join(e(n) for n in thirsty)
+        return [head, body]
+    builders["plants"] = _plants
+
     # ─── Tip of the day — blockquote (Telegram renders with vertical accent line)
     def _tip():
         raw = DAILY_TIPS[now.timetuple().tm_yday % len(DAILY_TIPS)]
@@ -581,6 +607,25 @@ async def morning_digest():
             if not text.strip(): continue  # all sections disabled — skip silently
             await _send(member["tg_chat_id"], text, parse_mode="HTML")
     con.close()
+
+
+async def check_plant_reminders():
+    """Send a Telegram message when a plant's watering interval has elapsed.
+    Runs every 30 minutes. After delivery the reminder is marked sent; a fresh one
+    is scheduled by /api/plants/{id}/water (or by /api/plants/{id} PATCH on interval change)."""
+    now = datetime.now(ZoneInfo(TIMEZONE)).strftime("%Y-%m-%d %H:%M")
+    con = _con()
+    rows = con.execute("""
+        SELECT pr.id, pr.family_id, p.id AS plant_id, p.custom_name, p.species
+        FROM plant_reminders pr JOIN plants p ON p.id=pr.plant_id
+        WHERE pr.sent=0 AND pr.remind_at <= ?
+    """, (now,)).fetchall()
+    for r in rows:
+        name = (r["custom_name"] or r["species"] or "Your plant").strip()
+        msg = f"🪴 *{html.escape(name)}* would love some water"
+        await _notify_all(r["family_id"], msg, con)
+        con.execute("UPDATE plant_reminders SET sent=1 WHERE id=?", (r["id"],))
+    con.commit(); con.close()
 
 
 async def cleanup_pending_words():
