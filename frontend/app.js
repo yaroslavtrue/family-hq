@@ -117,9 +117,32 @@ var LANG={
     set_developer:"Developer", set_invite_code:"Invite Code",
     set_share_invite:"Share invite", set_leave_family:"Leave Family",
     set_share_hint:"Share this with new members",
+    set_money:"Money", set_categories:"Categories", set_learning:"Learning",
+    set_integrations:"Integrations", set_learning_lang:"Learning language",
+    set_words_editor:"Words editor", set_reset_progress:"Reset my progress",
+    set_morning_digest:"Morning Digest", set_morning_digest_sub:"Sections & order",
+    set_trello_sync:"Trello Sync",
+    set_debug:"Debug Mode", set_words_editor_sub:"Edit cards · add images",
+    set_reset_progress_sub:"Wipe my learned/learning state",
     // Generic
     g_loading:"Loading…", g_today:"Today", g_yesterday:"Yesterday", g_tomorrow:"Tomorrow",
     g_upcoming:"Upcoming", g_completed:"Completed", g_all:"All",
+    g_active:"Active", g_recurring:"Recurring", g_events:"Events",
+    g_calendar:"Calendar", g_upcoming_7:"Upcoming 7 Days",
+    g_tasks:"Tasks", g_subscriptions:"Subscriptions", g_birthdays:"Birthdays",
+    g_in_days:"in {n}d", g_in_days_full:"in {n} days", g_feels:"feels",
+    g_today_bday:"Today! 🎉", g_no_items:"Nothing yet",
+    g_by_category:"By Category", g_limits:"Limits", g_menu:"Menu",
+    m_transactions:"Transactions", m_analytics:"Analytics",
+    m_income:"Income", m_expense:"Expense", m_balance:"Balance",
+    m_this_month:"This Month",
+    pl_thirsty:"Wants water", pl_soon:"Water soon", pl_healthy:"Healthy",
+    pl_water:"Water", pl_thanks:"Thank you!", pl_add:"Add",
+    pl_care_for:"Care for", pl_water_every:"Water every",
+    pl_growth_timeline:"Growth timeline", pl_care_tips:"Care tips",
+    // Toasts (common)
+    ts_saved:"Saved", ts_deleted:"Deleted", ts_error:"Error",
+    ts_network:"Network error", ts_copied:"Copied",
   },
   ru:{
     nav_home:"Главная", nav_tasks:"Задачи", nav_words:"Слова", nav_money:"Финансы", nav_profile:"Профиль",
@@ -145,11 +168,36 @@ var LANG={
     set_developer:"Разработчик", set_invite_code:"Код приглашения",
     set_share_invite:"Поделиться приглашением", set_leave_family:"Покинуть семью",
     set_share_hint:"Отправь этот код новым участникам",
+    set_money:"Финансы", set_categories:"Категории", set_learning:"Обучение",
+    set_integrations:"Интеграции", set_learning_lang:"Язык изучения",
+    set_words_editor:"Редактор слов", set_reset_progress:"Сбросить мой прогресс",
+    set_morning_digest:"Утренняя сводка", set_morning_digest_sub:"Разделы и порядок",
+    set_trello_sync:"Trello",
+    set_debug:"Режим отладки", set_words_editor_sub:"Карточки · картинки",
+    set_reset_progress_sub:"Очистить мои выученные слова",
     g_loading:"Загрузка…", g_today:"Сегодня", g_yesterday:"Вчера", g_tomorrow:"Завтра",
     g_upcoming:"Скоро", g_completed:"Выполнено", g_all:"Все",
+    g_active:"Активные", g_recurring:"Повторяющиеся", g_events:"События",
+    g_calendar:"Календарь", g_upcoming_7:"Ближайшие 7 дней",
+    g_tasks:"Задачи", g_subscriptions:"Подписки", g_birthdays:"Дни рождения",
+    g_in_days:"через {n}д", g_in_days_full:"через {n} дн",
+    g_feels:"ощущ.", g_today_bday:"Сегодня! 🎉", g_no_items:"Пока пусто",
+    g_by_category:"По категориям", g_limits:"Лимиты", g_menu:"Меню",
+    m_transactions:"Транзакции", m_analytics:"Аналитика",
+    m_income:"Доход", m_expense:"Расход", m_balance:"Баланс",
+    m_this_month:"Этот месяц",
+    pl_thirsty:"Хочет пить", pl_soon:"Скоро полить", pl_healthy:"Здорово",
+    pl_water:"Полить", pl_thanks:"Спасибо!", pl_add:"Добавить",
+    pl_care_for:"Уход за", pl_water_every:"Поливать каждые",
+    pl_growth_timeline:"История роста", pl_care_tips:"Советы по уходу",
+    ts_saved:"Сохранено", ts_deleted:"Удалено", ts_error:"Ошибка",
+    ts_network:"Ошибка сети", ts_copied:"Скопировано",
   }
 };
-function t(k){var d=LANG[_lang]||LANG.en;return (d&&d[k])||LANG.en[k]||k}
+function t(k,vars){var d=LANG[_lang]||LANG.en;var s=(d&&d[k])||LANG.en[k]||k;
+  if(vars){Object.keys(vars).forEach(function(vk){s=s.replace("{"+vk+"}",vars[vk])})}
+  return s;
+}
 // Persist language choice — POSTs to backend, updates _lang, re-renders nav + current tab.
 async function setLang(newLang){
   if(newLang!=="en"&&newLang!=="ru")return;
@@ -356,7 +404,7 @@ function renderWeatherPage(){
   var vdHtml='<video class="wbg-vd" autoplay muted loop playsinline preload="metadata" onloadeddata="this.classList.add(\'loaded\');this.parentNode.classList.add(\'has-video\')" onerror="this.remove()"><source src="/static/weather/'+cat+'.mp4" type="video/mp4"></video><div class="wbg-vd-scrim"></div>';
   var h='<div class="wx-hero wbg wbg-'+cat+'">'+vdHtml;
   h+='<div class="wx-hero-ico" style="filter:drop-shadow(0 2px 4px rgba(0,0,0,.35))">'+wIconAnim(w.label,72,true)+'</div>';
-  h+='<div class="wx-hero-tx" style="text-shadow:0 1px 3px rgba(0,0,0,.5)"><div class="wx-hero-lb" style="color:rgba(255,255,255,.7)">Today</div>';
+  h+='<div class="wx-hero-tx" style="text-shadow:0 1px 3px rgba(0,0,0,.5)"><div class="wx-hero-lb" style="color:rgba(255,255,255,.7)">'+t("g_today")+'</div>';
   h+='<div class="wx-hero-temp" style="color:#fff">'+w.now+'°</div>';
   h+='<div class="wx-hero-sub" style="color:rgba(255,255,255,.88)">'+es(w.label||"")+' · feels '+w.feels+'°</div>';
   h+='<div class="wx-hero-range"><span class="hi" style="color:#fff">↑ '+today.max+'°</span><span style="color:rgba(255,255,255,.75)">↓ '+today.min+'°</span></div></div></div>';
@@ -887,7 +935,7 @@ function _plDate(iso){
     return d.toLocaleDateString();
   }catch(e){return""}
 }
-function _plStatusLabel(s){return s==="thirsty"?"Wants water":(s==="soon"?"Water soon":"Healthy")}
+function _plStatusLabel(s){return s==="thirsty"?t("pl_thirsty"):(s==="soon"?t("pl_soon"):t("pl_healthy"))}
 function _plStatusColor(s){return s==="thirsty"?"var(--ac)":(s==="soon"?"var(--wn)":"var(--ok)")}
 
 function _rPlantsWidget(){
@@ -950,9 +998,9 @@ function rPlants(){
     // Re-tapping undoes (in case of accidental press).
     h+='<div class="pl-actions">';
     if(cur.watered_today){
-      h+='<button class="pl-btn pl-btn-thanks" onclick="_plWater('+cur.id+')" title="Tap to undo">💚 Thank you!</button>';
+      h+='<button class="pl-btn pl-btn-thanks" onclick="_plWater('+cur.id+')" title="Tap to undo">💚 '+t("pl_thanks")+'</button>';
     }else{
-      h+='<button class="pl-btn pl-btn-primary" onclick="_plWater('+cur.id+')">💧 Water</button>';
+      h+='<button class="pl-btn pl-btn-primary" onclick="_plWater('+cur.id+')">💧 '+t("pl_water")+'</button>';
     }
     h+='<button class="pl-btn pl-btn-more" onclick="_plMoreMenu('+cur.id+')" aria-label="More">⋯</button>';
     h+='</div>';
@@ -984,7 +1032,7 @@ function _rPlantInlineTips(cur){
   var hist=_plState.histCache[cur.id];
   var h='<div class="pl-inline">';
   // Header
-  h+='<div class="pl-inline-h">Care for <strong>'+es(cur.custom_name||cur.species||"plant")+'</strong></div>';
+  h+='<div class="pl-inline-h">'+t("pl_care_for")+' <strong>'+es(cur.custom_name||cur.species||"plant")+'</strong></div>';
   // Meta row
   h+='<div class="pl-adv-meta" style="margin-bottom:12px">';
   h+='<div class="pl-adv-cell"><div class="pl-adv-cell-l">Water every</div><div class="pl-adv-cell-v">'+(cur.water_interval_days||7)+' days</div></div>';
@@ -998,11 +1046,11 @@ function _rPlantInlineTips(cur){
     h+='<div class="pl-hist-host"><div class="emp" style="padding:10px;font-size:11px;color:var(--ht)">Loading history…</div></div>';
   }
   // Growth timeline — newest first horizontal scroll
-  h+='<div class="lb" style="margin-top:14px;display:flex;align-items:center;justify-content:space-between"><span>Growth timeline</span><span style="font-size:10px;color:var(--ht);font-weight:600;letter-spacing:.3px;text-transform:uppercase">'+((_plState.photosCache[cur.id]||[]).length)+' photos</span></div>';
+  h+='<div class="lb" style="margin-top:14px;display:flex;align-items:center;justify-content:space-between"><span>'+t("pl_growth_timeline")+'</span><span style="font-size:10px;color:var(--ht);font-weight:600;letter-spacing:.3px;text-transform:uppercase">'+((_plState.photosCache[cur.id]||[]).length)+'</span></div>';
   h+=_plPhotoStripHtml(cur);
   // Tips list
   if(cur.care_tips&&cur.care_tips.length){
-    h+='<div class="lb" style="margin-top:14px">Care tips</div>';
+    h+='<div class="lb" style="margin-top:14px">'+t("pl_care_tips")+'</div>';
     cur.care_tips.forEach(function(t){h+='<div class="pl-tip">• '+es(t)+'</div>'});
   }
   if(cur.last_watered)h+='<div style="font-size:11px;color:var(--ht);margin-top:12px;text-align:center">Last watered '+_plDate(cur.last_watered)+'</div>';
@@ -1680,6 +1728,8 @@ function sB(t,n){var e=document.getElementById("b-"+t);if(!e)return;if(n>0){e.te
 // Hamburger menu — dynamically rendered with counters
 function rMenuItems(){
 var el=document.getElementById("menu-items");if(!el)return;
+// Also localize the menu header ("Menu" / "Меню") — DOM-driven from index.html
+var mh=document.querySelector('.menu-h');if(mh)mh.textContent=t("g_menu");
 // Compute "active" counts per section
 var cnt={
 shop: (D.shopping||[]).filter(function(s){return!s.bought}).length,
@@ -1688,21 +1738,22 @@ birthdays: (D.birthdays||[]).filter(function(b){return b.days_until!=null&&b.day
 clean: (D.zones||[]).filter(function(z){return z.dirty}).length,
 subs: (D.subs||[]).filter(function(s){return s.days_until!=null&&s.days_until>=0&&s.days_until<=5}).length,
 };
+// Labels read through t("tt_<id>_t") so they share keys with the page-header dict (single source of truth).
 var items=[
-{id:"shop",ic:"cart",label:"Shopping",cnt:cnt.shop},
-{id:"trainings",ic:"dumbbell",label:"Trainings",cnt:0},
-{id:"plants",ic:"flower",label:"Plants",cnt:(D.plants||[]).filter(function(p){return p.status==="thirsty"}).length},
-{id:"birthdays",ic:"cake",label:"Birthdays",cnt:cnt.birthdays},
-{id:"clean",ic:"broom",label:"Cleaning",cnt:cnt.clean},
-{id:"subs",ic:"card",label:"Subscriptions",cnt:cnt.subs},
+{id:"shop",ic:"cart",cnt:cnt.shop},
+{id:"trainings",ic:"dumbbell",cnt:0},
+{id:"plants",ic:"flower",cnt:(D.plants||[]).filter(function(p){return p.status==="thirsty"}).length},
+{id:"birthdays",ic:"cake",cnt:cnt.birthdays},
+{id:"clean",ic:"broom",cnt:cnt.clean},
+{id:"subs",ic:"card",cnt:cnt.subs},
 ];
 var h='';
 items.forEach(function(it){
 var b=it.cnt>0?'<span class="mi-cnt">'+it.cnt+'</span>':'';
-h+='<button class="menu-i" onclick="go(\''+it.id+'\')"><span class="mi-ico">'+icon(it.ic,20,2)+'</span><span class="mi-l">'+it.label+'</span>'+b+'</button>';
+h+='<button class="menu-i" onclick="go(\''+it.id+'\')"><span class="mi-ico">'+icon(it.ic,20,2)+'</span><span class="mi-l">'+t("tt_"+it.id+"_t")+'</span>'+b+'</button>';
 });
 h+='<div style="height:1px;background:var(--bd);margin:8px 0"></div>';
-h+='<button class="menu-i" onclick="go(\'settings\')"><span class="mi-ico">'+icon("cog",20,2)+'</span><span class="mi-l">Settings</span></button>';
+h+='<button class="menu-i" onclick="go(\'settings\')"><span class="mi-ico">'+icon("cog",20,2)+'</span><span class="mi-l">'+t("tt_settings_t")+'</span></button>';
 el.innerHTML=h;
 // Show dot on hamburger icon if any section has active items
 var totalActive=Object.values(cnt).reduce(function(a,b){return a+b},0);
@@ -1728,13 +1779,13 @@ h+='<div class="wbg wbg-'+cat+'" onclick="openWeatherPage()" style="cursor:point
     '<div style="flex:1;min-width:0">'+
       '<div style="font-size:30px;font-weight:800;color:#fff;line-height:1.05">'+w.now+'°</div>'+
       '<div style="font-size:13px;color:rgba(255,255,255,.88);font-weight:600;margin-top:3px;letter-spacing:.2px;display:flex;align-items:center;gap:4px">'+icon("pin",11,2)+es(_city)+'</div>'+
-      '<div style="font-size:11px;color:rgba(255,255,255,.55);margin-top:1px">feels '+w.feels+'°</div>'+
+      '<div style="font-size:11px;color:rgba(255,255,255,.55);margin-top:1px">'+t("g_feels")+' '+w.feels+'°</div>'+
     '</div>'+
     '<div style="display:flex;gap:8px;align-self:flex-start">';
-_next.forEach(function(dy,i){var lbl=i===0?"Tomorrow":wDayName(dy.date);h+='<div style="text-align:center;min-width:40px"><div style="font-size:9px;color:rgba(255,255,255,.65);font-weight:600">'+lbl+'</div><div style="margin:2px auto;filter:drop-shadow(0 1px 2px rgba(0,0,0,.3));display:flex;justify-content:center">'+wIconAnim(dy.label,24,false)+'</div><div style="font-size:11px;font-weight:700;color:#fff">'+dy.max+'°</div><div style="font-size:9px;color:rgba(255,255,255,.55)">'+dy.min+'°</div></div>'});
+_next.forEach(function(dy,i){var lbl=i===0?t("g_tomorrow"):wDayName(dy.date);h+='<div style="text-align:center;min-width:40px"><div style="font-size:9px;color:rgba(255,255,255,.65);font-weight:600">'+lbl+'</div><div style="margin:2px auto;filter:drop-shadow(0 1px 2px rgba(0,0,0,.3));display:flex;justify-content:center">'+wIconAnim(dy.label,24,false)+'</div><div style="font-size:11px;font-weight:700;color:#fff">'+dy.max+'°</div><div style="font-size:9px;color:rgba(255,255,255,.55)">'+dy.min+'°</div></div>'});
 h+='</div></div></div>'}else h+='<div style="margin-bottom:16px"></div>';
 // Calendar strip
-h+='<div class="sc">Calendar</div>';
+h+='<div class="sc">'+t("g_calendar")+'</div>';
 h+='<div class="cal-strip" onclick="openCalModal()" id="cal-strip"></div>';
 setTimeout(function(){loadCalStrip()},0);
 // Plants widget — horizontal scroll of plants with status. Only renders if any exist.
@@ -1760,15 +1811,15 @@ D.subs.forEach(function(s){
   if(s.days_until>=0&&s.days_until<=7) upSubs.push({days:s.days_until,icon:s.emoji,title:es(s.name),sub:s.amount+" "+s.currency,accClass:""});
 });
 D.birthdays.forEach(function(b){
-  if(b.days_until>=0&&b.days_until<=7) upBdays.push({days:b.days_until,icon:b.emoji,title:es(b.name),sub:b.days_until===0?"Today! 🎉":"in "+b.days_until+" days",accClass:"acc-wn"});
+  if(b.days_until>=0&&b.days_until<=7) upBdays.push({days:b.days_until,icon:b.emoji,title:es(b.name),sub:b.days_until===0?t("g_today_bday"):t("g_in_days_full",{n:b.days_until}),accClass:"acc-wn"});
 });
 [upTasks,upEvents,upSubs,upBdays].forEach(function(arr){arr.sort(function(a,b){return a.days-b.days})});
 var totalUp=upTasks.length+upEvents.length+upSubs.length+upBdays.length;
 function _upRow(u){
   var _ud=new Date(Date.now()+u.days*86400000);
-  var dayLabel=u.days===0?"Today":u.days===1?"Tomorrow":dN[_ud.getDay()]+" "+_ud.getDate()+" "+mN[_ud.getMonth()].slice(0,3);
+  var dayLabel=u.days===0?t("g_today"):u.days===1?t("g_tomorrow"):dN[_ud.getDay()]+" "+_ud.getDate()+" "+mN[_ud.getMonth()].slice(0,3);
   var tone=u.days===0?"tone-ac":u.days<=2?"tone-wn":"tone-ok";
-  var rightPill=u.days===0?'<span class="lc-rt '+tone+'">Today</span>':'<span class="lc-rt '+tone+'">in '+u.days+'d</span>';
+  var rightPill=u.days===0?'<span class="lc-rt '+tone+'">'+t("g_today")+'</span>':'<span class="lc-rt '+tone+'">'+t("g_in_days",{n:u.days})+'</span>';
   return '<div class="lc"><div class="lc-i '+(u.accClass||"")+'">'+u.icon+'</div><div class="lc-bd"><div class="lc-tt">'+u.title+'</div><div class="lc-mt">'+dayLabel+' · '+u.sub+'</div></div>'+rightPill+'</div>';
 }
 function _upGroup(label,color,arr){
@@ -1778,18 +1829,18 @@ function _upGroup(label,color,arr){
   return out;
 }
 if(totalUp){
-  h+='<div class="sc"><span class="sc-l">Upcoming 7 Days<span class="sc-cnt">'+totalUp+'</span></span></div>';
-  h+=_upGroup('📋 Tasks','var(--pr)',upTasks);
-  h+=_upGroup('📅 Events','var(--ok)',upEvents);
-  h+=_upGroup('💳 Subscriptions','var(--pr)',upSubs);
-  h+=_upGroup('🎂 Birthdays','var(--wn)',upBdays);
+  h+='<div class="sc"><span class="sc-l">'+t("g_upcoming_7")+'<span class="sc-cnt">'+totalUp+'</span></span></div>';
+  h+=_upGroup('📋 '+t("g_tasks"),'var(--pr)',upTasks);
+  h+=_upGroup('📅 '+t("g_events"),'var(--ok)',upEvents);
+  h+=_upGroup('💳 '+t("g_subscriptions"),'var(--pr)',upSubs);
+  h+=_upGroup('🎂 '+t("g_birthdays"),'var(--wn)',upBdays);
 }
 return h}
 
 // ═══════════════════════════════════════════════════════════
 // TASKS
 // ═══════════════════════════════════════════════════════════
-function rT(){var h='<div class="tabs"><button class="tab '+(taskTab==="active"?"a":"")+'" onclick="taskTabSet(\'active\')"><span style="display:inline-flex;align-items:center;gap:6px">'+icon("clipboard",13,2.2)+'Active</span></button><button class="tab '+(taskTab==="recurring"?"a":"")+'" onclick="taskTabSet(\'recurring\')"><span style="display:inline-flex;align-items:center;gap:6px">'+icon("refresh",13,2.2)+'Recurring</span></button><button class="tab '+(taskTab==="events"?"a":"")+'" onclick="taskTabSet(\'events\')"><span style="display:inline-flex;align-items:center;gap:6px">'+icon("clock",13,2.2)+'Events</span></button></div>';
+function rT(){var h='<div class="tabs"><button class="tab '+(taskTab==="active"?"a":"")+'" onclick="taskTabSet(\'active\')"><span style="display:inline-flex;align-items:center;gap:6px">'+icon("clipboard",13,2.2)+t("g_active")+'</span></button><button class="tab '+(taskTab==="recurring"?"a":"")+'" onclick="taskTabSet(\'recurring\')"><span style="display:inline-flex;align-items:center;gap:6px">'+icon("refresh",13,2.2)+t("g_recurring")+'</span></button><button class="tab '+(taskTab==="events"?"a":"")+'" onclick="taskTabSet(\'events\')"><span style="display:inline-flex;align-items:center;gap:6px">'+icon("clock",13,2.2)+t("g_events")+'</span></button></div>';
 if(taskTab==="recurring")return h+rRecur();
 if(taskTab==="events")return h+rEvts();
 h+='<div class="fb2"><button class="fi '+(!filt?"a":"")+'" onclick="filt=null;ren()">All</button>';
@@ -1907,7 +1958,7 @@ async function dlFolder(fid){await A("DELETE","/api/shopping/folders/"+fid);cMo(
 // MONEY — Transactions | Subs | Analytics
 // ═══════════════════════════════════════════════════════════
 function rMoney(){
-var h='<div class="tabs"><button class="tab '+(moneyTab==="transactions"?"a":"")+'" onclick="moneyTab=\'transactions\';ren()"><span style="display:inline-flex;align-items:center;gap:6px">'+icon("arrowUpDown",13,2.2)+'Transactions</span></button><button class="tab '+(moneyTab==="analytics"?"a":"")+'" onclick="moneyTab=\'analytics\';ren()"><span style="display:inline-flex;align-items:center;gap:6px">'+icon("chart",13,2.2)+'Analytics</span></button></div>';
+var h='<div class="tabs"><button class="tab '+(moneyTab==="transactions"?"a":"")+'" onclick="moneyTab=\'transactions\';ren()"><span style="display:inline-flex;align-items:center;gap:6px">'+icon("arrowUpDown",13,2.2)+t("m_transactions")+'</span></button><button class="tab '+(moneyTab==="analytics"?"a":"")+'" onclick="moneyTab=\'analytics\';ren()"><span style="display:inline-flex;align-items:center;gap:6px">'+icon("chart",13,2.2)+t("m_analytics")+'</span></button></div>';
 if(moneyTab==="analytics")return h+rAnalytics();
 return h+rTransactions()}
 
@@ -2219,13 +2270,13 @@ function _anaExtrasHtml(){
   var h='';
   if(s.by_category&&s.by_category.length){
     var maxC=s.by_category[0]?s.by_category[0].total:1;
-    h+='<div class="sc"><span class="sc-l">By Category</span></div>';
+    h+='<div class="sc"><span class="sc-l">'+t("g_by_category")+'</span></div>';
     s.by_category.forEach(function(c){if(!c.total)return;var pct=Math.max(2,c.total/maxC*100);
       h+='<div class="cat-row"><div class="cat-row-h"><span class="nm"><span class="em">'+c.emoji+'</span>'+es(c.name)+'</span><span class="vl">€'+c.total.toFixed(0)+'</span></div><div class="progress"><div class="progress-fill" style="width:'+pct+'%"></div></div></div>';
     });
   }
   if(s.limits&&s.limits.length){
-    h+='<div class="sc" style="margin-top:12px"><span class="sc-l">Limits</span></div>';
+    h+='<div class="sc" style="margin-top:12px"><span class="sc-l">'+t("g_limits")+'</span></div>';
     s.limits.forEach(function(l){var pct=Math.min(100,l.spent/l.monthly_limit*100);var over=l.spent>l.monthly_limit;
       h+='<div class="cat-row"><div class="cat-row-h"><span class="nm"><span class="em">'+l.emoji+'</span>'+es(l.name)+'</span><span class="vl" style="color:'+(over?"var(--ac)":"var(--tx)")+'">€'+l.spent.toFixed(0)+' / €'+l.monthly_limit.toFixed(0)+'</span></div><div class="progress"><div class="progress-fill '+(over?"tone-ac":"tone-ok")+'" style="width:'+pct+'%"></div></div></div>';
     });
@@ -3860,26 +3911,26 @@ var thAcc=curTh.pr;
 var thStyle='background:linear-gradient(135deg,color-mix(in srgb,'+thAcc+' 38%,transparent),color-mix(in srgb,'+thAcc+' 10%,transparent));border-color:color-mix(in srgb,'+thAcc+' 48%,transparent);color:'+thAcc+';box-shadow:inset 0 1px 0 color-mix(in srgb,'+thAcc+' 20%,transparent),0 2px 12px color-mix(in srgb,'+thAcc+' 22%,transparent)';
 h+=_setRow({ico:"palette",iconStyle:thStyle,title:curTh.n,subtitle:"Tap to change · "+Object.keys(TH).length+" themes · "+curTh.e,onclick:"openThemePicker()"});
 h+='<div class="sc"><span class="sc-l">'+t("set_notifications")+'</span></div>';
-h+=_setRow({ico:"bl",acc:"acc-wn",title:"Morning Digest",subtitle:"Time: "+(D.settings.digest_time||"09:00")+" · Sections & order",onclick:"openDigestCfg()"});
+h+=_setRow({ico:"bl",acc:"acc-wn",title:t("set_morning_digest"),subtitle:(D.settings.digest_time||"09:00")+" · "+t("set_morning_digest_sub"),onclick:"openDigestCfg()"});
 var nExp=D.categories.filter(function(c){return c.type==="expense"}).length;
 var nInc=D.categories.filter(function(c){return c.type==="income"}).length;
-h+='<div class="sc"><span class="sc-l">Money</span></div>';
-h+=_setRow({ico:"list",acc:"acc-pr",title:"Categories",subtitle:nExp+" expense · "+nInc+" income",onclick:"openCatMgr()"});
-h+='<div class="sc"><span class="sc-l">Learning</span></div>';
+h+='<div class="sc"><span class="sc-l">'+t("set_money")+'</span></div>';
+h+=_setRow({ico:"list",acc:"acc-pr",title:t("set_categories"),subtitle:nExp+" expense · "+nInc+" income",onclick:"openCatMgr()"});
+h+='<div class="sc"><span class="sc-l">'+t("set_learning")+'</span></div>';
 var _curLearn=_wordsState&&_wordsState.mode==="ru"?"🇷🇺 Russian":"🇬🇧 English";
-h+=_setRow({iconCustom:'<span style="font-size:22px">🎓</span>',acc:"acc-pr",title:"Learning language",subtitle:"Currently: "+_curLearn,onclick:"openLearnModePicker()"});
-h+=_setRow({ico:"book",acc:"acc-pr",title:"Words editor",subtitle:"Edit cards · add images",onclick:"openWordsMgr()"});
-h+=_setRow({iconCustom:'<span style="font-size:22px">🔄</span>',acc:"acc-ac",title:"Reset my progress",subtitle:"Wipe my learned/learning state",onclick:"_resetWordsProgress()"});
-h+='<div class="sc"><span class="sc-l">Integrations</span></div>';
+h+=_setRow({iconCustom:'<span style="font-size:22px">🎓</span>',acc:"acc-pr",title:t("set_learning_lang"),subtitle:_curLearn,onclick:"openLearnModePicker()"});
+h+=_setRow({ico:"book",acc:"acc-pr",title:t("set_words_editor"),subtitle:t("set_words_editor_sub"),onclick:"openWordsMgr()"});
+h+=_setRow({iconCustom:'<span style="font-size:22px">🔄</span>',acc:"acc-ac",title:t("set_reset_progress"),subtitle:t("set_reset_progress_sub"),onclick:"_resetWordsProgress()"});
+h+='<div class="sc"><span class="sc-l">'+t("set_integrations")+'</span></div>';
 h+=_setRow({iconCustom:'<span style="font-size:22px">🔵</span>',acc:"",title:"Trello Sync",subtitle:"Board: Работа",onclick:"syncTrello()",right:'<span id="trello-btn" class="lc-rt" style="background:color-mix(in srgb,var(--pr) 16%,transparent);color:var(--pr)">Sync Now</span>'});
 if(_pwaPrompt){
   h+=_setRow({iconCustom:'<span style="font-size:22px">📱</span>',acc:"",title:"Install App",subtitle:"Add to home screen — works offline",onclick:"installPWA()",right:'<span class="lc-rt" style="background:color-mix(in srgb,var(--pr) 16%,transparent);color:var(--pr)">Install</span>'});
 }else if(!iD && /iPhone|iPad|iPod/.test(navigator.userAgent||"")){
   h+='<div class="lc"><div class="lc-i acc-pr"><span style="font-size:22px">📱</span></div><div class="lc-bd"><div class="lc-tt">Install on iOS</div><div class="lc-mt">Tap <b>Share</b> ⬆ → <b>Add to Home Screen</b></div></div></div>';
 }
-h+='<div class="sc"><span class="sc-l">Developer</span></div>';
-h+=_setRow({ico:"debug",acc:"acc-ac",title:"Debug Mode "+(dbgOn?"ON":"OFF"),onclick:"dbgOn=!dbgOn;document.getElementById(\'dbg\').classList.toggle(\'hidden\',!dbgOn);ren()"});
-h+='<div style="margin-top:18px;text-align:center;font-size:11px;color:var(--ht);letter-spacing:.3px">Family HQ v8.32.0</div>';return h}
+h+='<div class="sc"><span class="sc-l">'+t("set_developer")+'</span></div>';
+h+=_setRow({ico:"debug",acc:"acc-ac",title:t("set_debug")+" "+(dbgOn?"ON":"OFF"),onclick:"dbgOn=!dbgOn;document.getElementById(\'dbg\').classList.toggle(\'hidden\',!dbgOn);ren()"});
+h+='<div style="margin-top:18px;text-align:center;font-size:11px;color:var(--ht);letter-spacing:.3px">Family HQ v8.32.1</div>';return h}
 async function setTh(id){
   if(id==="custom"){
     // Tapping Custom in the picker opens the editor (saves happen there). Also apply right away.
