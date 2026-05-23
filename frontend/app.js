@@ -1557,6 +1557,35 @@ function shJn(){oMC("Join Family",'<div style="text-align:center;margin-bottom:1
 async function doCr(){var n=document.getElementById("fn").value.trim()||"Our Family";var r=await A("POST","/api/family/create",{name:n});if(!r||r.detail){alert(r?r.detail:"Error");return}cMo();hp();fS={joined:true,invite_code:r.invite_code,name:r.name,members:[]};document.querySelectorAll(".ni").forEach(function(e){e.style.opacity="1"});oMC("Family Created! 🎉",'<div style="text-align:center"><div style="font-size:14px;color:var(--ht);margin-bottom:12px">Share this code:</div><div class="cd2"><div class="ct2">'+r.invite_code+'</div><div class="cl2">Invite Code</div></div><button class="btn" onclick="cMo();load()">Got it!</button></div>',{ic:"user"})}
 async function doJn(){var c=document.getElementById("fc").value.trim();if(c.length<4){alert("Enter code");return}var r=await A("POST","/api/family/join",{code:c});if(!r||r.detail){alert(r?r.detail:"Invalid");return}cMo();hp();fS={joined:true,name:r.name};document.querySelectorAll(".ni").forEach(function(e){e.style.opacity="1"});await load()}
 
+// Share invite — opens Telegram's native share sheet via WebApp API, falls back to navigator.share, falls back to clipboard.
+function shareInvite(){
+  if(!fS||!fS.invite_code){toast("No invite code yet");return}
+  hp("light");
+  var code=fS.invite_code;
+  var bot=(window.tg&&tg.initDataUnsafe&&tg.initDataUnsafe.start_param)?"":"";
+  var msg="Join my family on Family HQ! Open the app and enter invite code: "+code;
+  // Telegram WebApp has openTelegramLink — opens share sheet inside Telegram
+  if(window.tg&&tg.openTelegramLink){
+    try{
+      // tg://msg_url forwards a prefilled text to a contact picker
+      tg.openTelegramLink("https://t.me/share/url?url="+encodeURIComponent("https://t.me/")+"&text="+encodeURIComponent(msg));
+      return;
+    }catch(e){}
+  }
+  // PWA / browser fallback
+  if(navigator.share){
+    navigator.share({title:"Family HQ invite",text:msg}).catch(function(){});
+    return;
+  }
+  // Last resort — clipboard
+  try{
+    navigator.clipboard.writeText(msg);
+    toast("Invite copied to clipboard");
+  }catch(e){
+    prompt("Copy this invite text:",msg);
+  }
+}
+
 // ─── Load (bundle) ──────────────────────────────────────────
 async function load(){var b=await A("GET","/api/bundle");if(!b)return;
 // Any CRUD that triggers load() may have changed tasks/events/etc that the calendar
@@ -3748,7 +3777,9 @@ function _setRow(opts){
 if(fS&&fS.joined){
   h+='<div class="sc"><span class="sc-l">Family</span></div>';
   h+=_setRow({ico:"user",acc:"acc-ok",title:es(fS.name||"My Family"),subtitle:"Family workspace"});
-  h+='<div class="invite-card"><div class="invite-lb">Invite Code</div><div class="invite-cd">'+(fS.invite_code||"...")+'</div><div class="invite-hint">Share this with new members</div></div>';
+  h+='<div class="invite-card"><div class="invite-lb">Invite Code</div><div class="invite-cd">'+(fS.invite_code||"...")+'</div><div class="invite-hint">Share this with new members</div>'+
+     '<button class="btn btn-s" style="margin-top:12px;width:100%;font-size:13px" onclick="shareInvite()">Share invite</button>'+
+     '</div>';
   h+='<div class="sc"><span class="sc-l">Members<span class="sc-cnt">'+(fS.members||[]).length+'</span></span></div>';
   (fS.members||[]).forEach(function(m){
     var right='<button class="bi" onclick="edMe('+m.user_id+',\''+es(m.user_name)+'\',\''+m.emoji+'\',\''+m.color+'\')">'+I.ed+'</button>';
@@ -3783,7 +3814,7 @@ if(_pwaPrompt){
 }
 h+='<div class="sc"><span class="sc-l">Developer</span></div>';
 h+=_setRow({ico:"debug",acc:"acc-ac",title:"Debug Mode "+(dbgOn?"ON":"OFF"),onclick:"dbgOn=!dbgOn;document.getElementById(\'dbg\').classList.toggle(\'hidden\',!dbgOn);ren()"});
-h+='<div style="margin-top:18px;text-align:center;font-size:11px;color:var(--ht);letter-spacing:.3px">Family HQ v8.31.1</div>';return h}
+h+='<div style="margin-top:18px;text-align:center;font-size:11px;color:var(--ht);letter-spacing:.3px">Family HQ v8.32.0</div>';return h}
 async function setTh(id){
   if(id==="custom"){
     // Tapping Custom in the picker opens the editor (saves happen there). Also apply right away.
