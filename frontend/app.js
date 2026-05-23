@@ -1891,6 +1891,8 @@ async function svSub(id){var n=document.getElementById("su-n").value.trim();var 
 
 // Analytics
 var _moneySummary=null,_anaMonth=null,_anaCache={};
+// Chart scroll choreography: instant centering on initial render, smooth on subsequent.
+var _anaFirstScroll=true;
 // Separate cache for Transactions tab tiles (always current month, independent of
 // Analytics-tab navigation). Invalidated on every tx CRUD alongside _moneySummary.
 var _curMonthSummary=null,_curMonthLoading=false;
@@ -1911,13 +1913,18 @@ function _anaShift(delta){
   if(next>_curYM())return;
   _anaSetMonth(next);
 }
-// Direct month selection — clicked from a bar in the monthly chart
+// Direct month selection — clicked from a bar in the monthly chart.
+// Saves chart scroll-left before the re-render so the new DOM can restore it +
+// smooth-scroll to the newly-selected bar (instead of snapping from 0).
+var _anaSavedScroll=null;
 function _anaSetMonth(mk){
   var cur=(_moneySummary&&_moneySummary.month)||_curYM();
   if(mk===cur)return;
   if(mk>_curYM())return; // future blocked
   _anaMonth=(mk===_curYM())?null:mk;
   hp("sel");
+  var wrap=document.getElementById('ana-chart');
+  _anaSavedScroll = wrap ? wrap.scrollLeft : null;
   if(_anaCache[mk]){_moneySummary=_anaCache[mk];ren()}
   else{_moneySummary=null;loadMoneySummary()}
 }
@@ -1975,13 +1982,24 @@ s.months.forEach(function(m){
 });
 h+='</div></div>';
 h+='<div class="chart-legend"><span><span class="dotk" style="background:var(--ok)"></span>Income</span><span><span class="dotk" style="background:var(--ac)"></span>Expense</span></div>';
-// After render, scroll the selected bar into view (centered)
+// Two-step scroll: instantly restore saved scroll (no jump to 0), then smoothly
+// animate to centered-on-selected. On first render _anaSavedScroll is null →
+// start centred immediately without animation.
 setTimeout(function(){
-  var sel=document.querySelector('.cbar-sel');
   var wrap=document.getElementById('ana-chart');
-  if(!sel||!wrap)return;
+  if(!wrap)return;
+  if(_anaSavedScroll!=null){
+    wrap.scrollLeft=_anaSavedScroll;
+    _anaSavedScroll=null;
+  }
+  var sel=document.querySelector('.cbar-sel');
+  if(!sel)return;
   var sr=sel.getBoundingClientRect(),wr=wrap.getBoundingClientRect();
-  wrap.scrollLeft+=sr.left-wr.left-(wr.width/2)+(sr.width/2);
+  var target=wrap.scrollLeft+sr.left-wr.left-(wr.width/2)+(sr.width/2);
+  if(Math.abs(target-wrap.scrollLeft)<4)return; // already centred
+  // Smooth animation when triggered by month change; instant on first paint.
+  if(_anaFirstScroll){wrap.scrollLeft=target;_anaFirstScroll=false}
+  else wrap.scrollTo({left:target,behavior:'smooth'});
 },30);
 }
 // By category — polished progress rows
@@ -3533,7 +3551,7 @@ if(_pwaPrompt){
 }
 h+='<div class="sc"><span class="sc-l">Developer</span></div>';
 h+=_setRow({ico:"debug",acc:"acc-ac",title:"Debug Mode "+(dbgOn?"ON":"OFF"),onclick:"dbgOn=!dbgOn;document.getElementById(\'dbg\').classList.toggle(\'hidden\',!dbgOn);ren()"});
-h+='<div style="margin-top:18px;text-align:center;font-size:11px;color:var(--ht);letter-spacing:.3px">Family HQ v8.30.2</div>';return h}
+h+='<div style="margin-top:18px;text-align:center;font-size:11px;color:var(--ht);letter-spacing:.3px">Family HQ v8.30.3</div>';return h}
 async function setTh(id){
   if(id==="custom"){
     // Tapping Custom in the picker opens the editor (saves happen there). Also apply right away.
