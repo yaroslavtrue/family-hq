@@ -140,6 +140,57 @@ var LANG={
     pl_water:"Water", pl_thanks:"Thank you!", pl_add:"Add",
     pl_care_for:"Care for", pl_water_every:"Water every",
     pl_growth_timeline:"Growth timeline", pl_care_tips:"Care tips",
+    // Modal titles
+    mt_add_task:"Add Task", mt_edit_task:"Edit Task",
+    mt_add_event:"Add Event", mt_edit_event:"Edit Event",
+    mt_add_expense:"Add Expense", mt_add_income:"Add Income",
+    mt_add_shop:"Add Item", mt_add_sub:"Add Subscription",
+    mt_add_bday:"Add Birthday", mt_add_recur:"Add Recurring",
+    mt_add_plant:"Add plant", mt_edit_plant:"Edit plant",
+    mt_more:"More", mt_photo:"Photo", mt_which_one:"Which one is it?",
+    mt_create_family:"Create Family", mt_join_family:"Join Family",
+    mt_new_folder:"New Folder", mt_categories:"Categories",
+    mt_choose_city:"Choose city", mt_stats:"Stats",
+    mt_morning_digest:"Morning Digest", mt_learning_lang:"Learning language",
+    mt_words:"Words", mt_edit_word:"Edit word",
+    mt_start_workout:"Start Workout", mt_new_template:"New Template",
+    mt_edit_template:"Edit Template", mt_edit_set:"Edit Set",
+    mt_edit_workout:"Edit Workout", mt_add_exercise:"Add exercise",
+    mt_progress:"Progress", mt_edit_bday:"Edit Birthday", mt_add_zone:"Add Zone",
+    mt_choose_theme:"Choose theme", mt_custom_theme:"Custom Theme",
+    mt_new_cat:"New Category", mt_edit_cat:"Edit Category",
+    mt_new_exercise:"New exercise", mt_workout:"Workout",
+    // Form fields
+    f_title:"Title", f_text:"Text", f_amount:"Amount", f_currency:"Currency",
+    f_category:"Category", f_description:"Description", f_date:"Date",
+    f_priority:"Priority", f_assigned_to:"Assigned to", f_when:"When",
+    f_repeat:"Repeat", f_emoji:"Emoji", f_name:"Name", f_quantity:"Quantity",
+    f_price:"Price", f_folder:"Folder", f_notes:"Notes", f_color:"Color",
+    f_image:"Image", f_caption:"Caption",
+    // Buttons
+    btn_create:"Create", btn_update:"Update", btn_join:"Join",
+    btn_remove:"Remove", btn_set:"Set", btn_start:"Start",
+    btn_finish:"Finish", btn_apply:"Apply", btn_reset:"Reset",
+    btn_take_photo:"Take photo", btn_choose_photo:"Choose photo",
+    // Confirms
+    cf_delete_task:"Delete this task?", cf_delete_event:"Delete this event?",
+    cf_delete_transaction:"Delete this transaction?",
+    cf_delete_generic:"Delete?", cf_leave_family:"Leave family?",
+    // Empty states
+    es_no_tasks:"No tasks yet", es_no_events:"No events", es_no_money:"No transactions",
+    es_no_shop:"Shopping list empty", es_no_birthdays:"No birthdays",
+    es_no_subs:"No subscriptions",
+    // Priorities + statuses
+    p_low:"Low", p_normal:"Normal", p_high:"High",
+    // Time-of-day for digest etc
+    g_morning:"Morning", g_afternoon:"Afternoon", g_evening:"Evening",
+    g_enter_code:"Enter 6-character code",
+    g_reminders:"Reminders", g_date_of_birth:"Date of Birth",
+    g_assigned_to:"Assigned to", g_assign_to:"Assign to",
+    g_start:"Start", g_time:"Time", g_end_opt:"End (optional)",
+    g_schedule:"Schedule", g_daily:"Daily", g_weekly:"Weekly", g_monthly:"Monthly",
+    g_days:"Days", g_day_of_month:"Day of month", g_what_to_do:"What needs to be done?",
+    g_due_date:"Due Date", g_who:"Who",
     // Toasts (common)
     ts_saved:"Saved", ts_deleted:"Deleted", ts_error:"Error",
     ts_network:"Network error", ts_copied:"Copied",
@@ -190,6 +241,50 @@ var LANG={
     pl_water:"Полить", pl_thanks:"Спасибо!", pl_add:"Добавить",
     pl_care_for:"Уход за", pl_water_every:"Поливать каждые",
     pl_growth_timeline:"История роста", pl_care_tips:"Советы по уходу",
+    mt_add_task:"Новая задача", mt_edit_task:"Изменить задачу",
+    mt_add_event:"Новое событие", mt_edit_event:"Изменить событие",
+    mt_add_expense:"Расход", mt_add_income:"Доход",
+    mt_add_shop:"Новый товар", mt_add_sub:"Новая подписка",
+    mt_add_bday:"Новый день рождения", mt_add_recur:"Повторяющаяся задача",
+    mt_add_plant:"Новое растение", mt_edit_plant:"Изменить растение",
+    mt_more:"Ещё", mt_photo:"Фото", mt_which_one:"Какое именно?",
+    mt_create_family:"Создать семью", mt_join_family:"Присоединиться",
+    mt_new_folder:"Новая папка", mt_categories:"Категории",
+    mt_choose_city:"Выбрать город", mt_stats:"Статистика",
+    mt_morning_digest:"Утренняя сводка", mt_learning_lang:"Язык изучения",
+    mt_words:"Слова", mt_edit_word:"Изменить слово",
+    mt_start_workout:"Начать тренировку", mt_new_template:"Новый шаблон",
+    mt_edit_template:"Изменить шаблон", mt_edit_set:"Изменить подход",
+    mt_edit_workout:"Изменить тренировку", mt_add_exercise:"Добавить упражнение",
+    mt_progress:"Прогресс", mt_edit_bday:"Изменить день рождения", mt_add_zone:"Новая зона",
+    mt_choose_theme:"Выбрать тему", mt_custom_theme:"Своя тема",
+    mt_new_cat:"Новая категория", mt_edit_cat:"Изменить категорию",
+    mt_new_exercise:"Новое упражнение", mt_workout:"Тренировка",
+    f_title:"Название", f_text:"Текст", f_amount:"Сумма", f_currency:"Валюта",
+    f_category:"Категория", f_description:"Описание", f_date:"Дата",
+    f_priority:"Приоритет", f_assigned_to:"Назначено", f_when:"Когда",
+    f_repeat:"Повтор", f_emoji:"Эмодзи", f_name:"Имя", f_quantity:"Количество",
+    f_price:"Цена", f_folder:"Папка", f_notes:"Заметки", f_color:"Цвет",
+    f_image:"Картинка", f_caption:"Подпись",
+    btn_create:"Создать", btn_update:"Обновить", btn_join:"Войти",
+    btn_remove:"Убрать", btn_set:"Задать", btn_start:"Начать",
+    btn_finish:"Завершить", btn_apply:"Применить", btn_reset:"Сбросить",
+    btn_take_photo:"Сделать фото", btn_choose_photo:"Выбрать фото",
+    cf_delete_task:"Удалить задачу?", cf_delete_event:"Удалить событие?",
+    cf_delete_transaction:"Удалить транзакцию?",
+    cf_delete_generic:"Удалить?", cf_leave_family:"Покинуть семью?",
+    es_no_tasks:"Задач пока нет", es_no_events:"Событий нет", es_no_money:"Транзакций нет",
+    es_no_shop:"Список покупок пуст", es_no_birthdays:"Дней рождения нет",
+    es_no_subs:"Подписок нет",
+    p_low:"Низкий", p_normal:"Обычный", p_high:"Высокий",
+    g_morning:"Утро", g_afternoon:"День", g_evening:"Вечер",
+    g_enter_code:"Введи 6-значный код",
+    g_reminders:"Напоминания", g_date_of_birth:"Дата рождения",
+    g_assigned_to:"Назначено", g_assign_to:"Назначить",
+    g_start:"Начало", g_time:"Время", g_end_opt:"Конец (опционально)",
+    g_schedule:"Расписание", g_daily:"Ежедневно", g_weekly:"Еженедельно", g_monthly:"Ежемесячно",
+    g_days:"Дни", g_day_of_month:"День месяца", g_what_to_do:"Что нужно сделать?",
+    g_due_date:"Срок", g_who:"Кто",
     ts_saved:"Сохранено", ts_deleted:"Удалено", ts_error:"Ошибка",
     ts_network:"Ошибка сети", ts_copied:"Скопировано",
   }
@@ -439,7 +534,7 @@ async function refreshWeather(){
 // City search modal — debounced geocode lookup, tap a result to save it as the family's city
 var _citySearchT=null;
 function openCitySearch(){
-  oMC("Choose city",'<input class="inp" id="wx-q" placeholder="Type city name..." oninput="_searchCityDebounced(this.value)" autocomplete="off"><div id="wx-results" style="margin-top:10px"></div>',{ic:"pin"})
+  oMC(t("mt_choose_city"),'<input class="inp" id="wx-q" placeholder="..." oninput="_searchCityDebounced(this.value)" autocomplete="off"><div id="wx-results" style="margin-top:10px"></div>',{ic:"pin"})
 }
 function _searchCityDebounced(q){if(_citySearchT)clearTimeout(_citySearchT);_citySearchT=setTimeout(function(){_doCitySearch(q)},280)}
 async function _doCitySearch(q){
@@ -709,7 +804,7 @@ async function openLearnModePicker(){
   h+='<button class="ob '+(curEn?"s":"")+'" onclick="_setLearnMode(\'en\')">🇬🇧 Learn English</button>';
   h+='<button class="ob '+(!curEn?"s":"")+'" onclick="_setLearnMode(\'ru\')">🇷🇺 Learn Russian</button>';
   h+='</div>';
-  oMC("Learning language",h,{ic:"book"});
+  oMC(t("mt_learning_lang"),h,{ic:"book"});
 }
 async function _setLearnMode(m){
   _wordsState.mode=m;hp("ok");
@@ -749,7 +844,7 @@ async function openWordsStats(){
     h+='<div style="font-size:11px;color:var(--ht);margin-top:6px;display:flex;justify-content:space-between;align-items:center"><span>'+(c.learning||0)+' learning · '+m.attempts+' attempts · '+m.accuracy+'% accuracy</span><span style="opacity:.6;font-size:14px">›</span></div>';
     h+='</div>';
   });
-  oMC("Stats",h,{ic:"chart"});
+  oMC(t("mt_stats"),h,{ic:"chart"});
 }
 // Member detail — Learned/Mistakes tabs. Mode is now passed from the stats row
 // (each member can be on a different mode), with fallback to the viewer's mode.
@@ -787,7 +882,7 @@ function _wdDetailSet(tab){_wdDetailState.tab=tab;hp("sel");document.getElementB
 var _wmState={all:[],query:""};
 async function openWordsMgr(){
   hp("light");
-  oMC("Words","<div class=\"emp\" style=\"padding:30px 14px\"><div class=\"emp-i\" style=\"font-size:28px\">⏳</div><div>Loading…</div></div>",{ic:"book"});
+  oMC(t("mt_words"),"<div class=\"emp\" style=\"padding:30px 14px\"><div class=\"emp-i\" style=\"font-size:28px\">⏳</div><div>"+t("g_loading")+"</div></div>",{ic:"book"});
   var d=await A("GET","/api/words/all");
   if(!d||!d.words){document.getElementById("mb").innerHTML="<div class=\"emp\" style=\"padding:30px\">Failed to load.</div>";return}
   _wmState.all=d.words;_wmState.query="";
@@ -812,7 +907,7 @@ function _wmSearch(v){_wmState.query=v;var i=document.getElementById("wm-q");var
 var _weState={idx:null,data:null};
 async function openWordEdit(idx){
   hp("light");
-  oMC("Edit word","<div class=\"emp\" style=\"padding:30px\"><div class=\"emp-i\">⏳</div><div>Loading…</div></div>",{ic:"book"});
+  oMC(t("mt_edit_word"),"<div class=\"emp\" style=\"padding:30px\"><div class=\"emp-i\">⏳</div><div>"+t("g_loading")+"</div></div>",{ic:"book"});
   var d=await A("GET","/api/words/one/"+idx);
   if(!d){document.getElementById("mb").innerHTML="<div class=\"emp\" style=\"padding:30px\">Failed to load.</div>";return}
   _weState.idx=idx;_weState.data=d;
@@ -1132,7 +1227,7 @@ function _plPhotoView(photoId, plantId){
   h+='<button class="btn btn-s" style="flex:1;background:transparent;color:var(--ac);border:1px solid color-mix(in srgb,var(--ac) 40%,transparent)" onclick="_plPhotoDelete('+p.id+','+plantId+')">🗑 Delete</button>';
   h+='<button class="btn" style="flex:1.5" onclick="_plPhotoSaveCaption('+p.id+','+plantId+')">Save</button>';
   h+='</div>';
-  oMC("Photo",h,{ic:"flower"});
+  oMC(t("mt_photo"),h,{ic:"flower"});
 }
 
 async function _plPhotoSaveCaption(photoId, plantId){
@@ -1193,7 +1288,7 @@ function _plOpenAdd(){
   h+='<input class="inp" id="pl-name" placeholder="e.g. Yuki, Momi, Hana…" maxlength="40">';
   h+='<div id="pl-add-msg" style="margin-top:10px;font-size:12px;color:var(--ht);text-align:center;min-height:18px"></div>';
   h+='<button class="btn" id="pl-add-go" onclick="_plDoAdd()" disabled style="opacity:.5">Identify & add</button>';
-  oMC("Add plant",h,{ic:"flower"});
+  oMC(t("mt_add_plant"),h,{ic:"flower"});
 }
 var _plPhotoData=null;
 function _plOnPhotoPicked(input){
@@ -1261,7 +1356,7 @@ function _plShowCandidates(candidates,customName){
   // Stash for picker
   _plState._candidates=candidates;
   _plState._candCustomName=customName||"";
-  oMC("Which one is it?",h,{ic:"flower"});
+  oMC(t("mt_which_one"),h,{ic:"flower"});
 }
 
 async function _plPickCandidate(idx){
@@ -1348,7 +1443,7 @@ function _plMoreMenu(pid){
   h+='<button class="menu-i" onclick="cMo();_plReplacePhoto('+pid+')"><span class="mi-ico">📷</span><span class="mi-l">Replace photo</span></button>';
   h+='<div style="height:1px;background:var(--bd);margin:6px 0"></div>';
   h+='<button class="menu-i" onclick="cMo();_plDelete('+pid+')" style="color:var(--ac)"><span class="mi-ico">🗑</span><span class="mi-l">Delete plant</span></button>';
-  oMC("More",h,{ic:"flower"});
+  oMC(t("mt_more"),h,{ic:"flower"});
 }
 
 function _plOpenEdit(pid){
@@ -1367,7 +1462,7 @@ function _plOpenEdit(pid){
   h+='<div class="dl" style="margin-top:6px">🟡 When water due soon</div><input class="inp" id="ple-v-soon" value="'+es(vo.soon||"")+'" placeholder="Could use a drink soon…" maxlength="120">';
   h+='<div class="dl" style="margin-top:6px">🔴 When thirsty</div><input class="inp" id="ple-v-thirsty" value="'+es(vo.thirsty||"")+'" placeholder="I’m getting thirsty 💧" maxlength="120">';
   h+='<button class="btn" style="margin-top:18px" onclick="_plSaveEdit('+pid+')">Save</button>';
-  oMC("Edit plant",h,{ic:"flower"});
+  oMC(t("mt_edit_plant"),h,{ic:"flower"});
 }
 async function _plSaveEdit(pid){
   var v=function(id){return (document.getElementById(id)||{}).value||""};
@@ -1686,8 +1781,8 @@ if(!iD&&_getSess()){
 var pwaLogout=(!iD&&_getSess())?'<div style="margin-top:24px;padding-top:16px;border-top:1px solid var(--bd);text-align:center"><div style="font-size:12px;color:var(--ht);margin-bottom:10px">Wrong Telegram account?</div><button class="onb-b s2" style="background:transparent;border:1.5px solid var(--ac);color:var(--ac)" onclick="_logoutPwa()">Sign out & try different account</button></div>':'';
 document.getElementById("ct").innerHTML='<div class="onb"><div class="onb-ico">'+icon("user",44,2)+'</div><div class="onb-t">Welcome to Family HQ</div><div class="onb-s">Create a new family or join an existing one with an invite code.</div>'+currentUid+'<div style="height:18px"></div><button class="onb-b p" onclick="shCr()">'+icon("pl",16,2.5)+'<span style="margin-left:6px">Create Family</span></button><div style="color:var(--ht);font-size:13px;margin:10px 0;letter-spacing:.5px;text-transform:uppercase;font-weight:600">or</div><button class="onb-b s2" onclick="shJn()"><span style="margin-right:4px">Join with Code</span></button>'+pwaLogout+'</div>'
 }
-function shCr(){oMC("Create Family",'<input class="inp" id="fn" placeholder="Family name" value="Our Family"><button class="btn" onclick="doCr()">Create</button>',{ic:"user"})}
-function shJn(){oMC("Join Family",'<div style="text-align:center;margin-bottom:16px"><div style="font-size:14px;color:var(--ht);margin-bottom:12px">Enter 6-character code</div><input class="ci2" id="fc" placeholder="ABC123" maxlength="6"></div><button class="btn" onclick="doJn()">Join</button>',{ic:"user"})}
+function shCr(){oMC(t("mt_create_family"),'<input class="inp" id="fn" placeholder="'+t("f_name")+'" value="Our Family"><button class="btn" onclick="doCr()">'+t("btn_create")+'</button>',{ic:"user"})}
+function shJn(){oMC(t("mt_join_family"),'<div style="text-align:center;margin-bottom:16px"><div style="font-size:14px;color:var(--ht);margin-bottom:12px">'+t("g_enter_code")+'</div><input class="ci2" id="fc" placeholder="ABC123" maxlength="6"></div><button class="btn" onclick="doJn()">'+t("btn_join")+'</button>',{ic:"user"})}
 async function doCr(){var n=document.getElementById("fn").value.trim()||"Our Family";var r=await A("POST","/api/family/create",{name:n});if(!r||r.detail){alert(r?r.detail:"Error");return}cMo();hp();fS={joined:true,invite_code:r.invite_code,name:r.name,members:[]};document.querySelectorAll(".ni").forEach(function(e){e.style.opacity="1"});oMC("Family Created! 🎉",'<div style="text-align:center"><div style="font-size:14px;color:var(--ht);margin-bottom:12px">Share this code:</div><div class="cd2"><div class="ct2">'+r.invite_code+'</div><div class="cl2">Invite Code</div></div><button class="btn" onclick="cMo();load()">Got it!</button></div>',{ic:"user"})}
 async function doJn(){var c=document.getElementById("fc").value.trim();if(c.length<4){alert("Enter code");return}var r=await A("POST","/api/family/join",{code:c});if(!r||r.detail){alert(r?r.detail:"Invalid");return}cMo();hp();fS={joined:true,name:r.name};document.querySelectorAll(".ni").forEach(function(e){e.style.opacity="1"});await load()}
 
@@ -1948,7 +2043,7 @@ async function dSh(id){hp("warn");await A("DELETE","/api/shopping/"+id);await lo
 async function clSh(){hp();await A("DELETE","/api/shopping/clear-bought");await load();toast("✓ Cleared")}
 function edShop(sid){var s=D.shopping.find(function(x){return x.id===sid});if(!s)return;var folderOpts='<button class="ob '+(!s.folder_id?"s":"")+'" onclick="window._sFold=0;this.parentNode.querySelectorAll(\'.ob\').forEach(function(b){b.classList.remove(\'s\')});this.classList.add(\'s\')">None</button>';D.folders.forEach(function(f){folderOpts+='<button class="ob '+(s.folder_id===f.id?"s":"")+'" onclick="window._sFold='+f.id+';this.parentNode.querySelectorAll(\'.ob\').forEach(function(b){b.classList.remove(\'s\')});this.classList.add(\'s\')">'+f.emoji+" "+es(f.name)+'</button>'});window._sFold=s.folder_id||0;oMC("Edit Item",'<input class="inp" id="se-n" value="'+es(s.item)+'"><div class="dr"><div><div class="dl">Quantity</div><input class="inp" id="se-q" value="'+(s.quantity||"")+'" placeholder="e.g. 1kg"></div><div><div class="dl">Price (din.)</div><input class="inp" id="se-p" type="number" value="'+(s.price||"")+'" placeholder="0"></div></div>'+(D.folders.length?'<div class="lb">Folder</div><div class="or">'+folderOpts+'</div>':'')+'<button class="btn" onclick="svShop('+sid+')">Save</button>',{ic:"cart"})}
 async function svShop(sid){var n=document.getElementById("se-n").value.trim();var q=document.getElementById("se-q").value.trim();var p=parseFloat(document.getElementById("se-p").value)||null;if(!n)return;await A("PUT","/api/shopping/"+sid,{item:n,quantity:q||null,price:p,folder_id:window._sFold||null});cMo();hp();await load()}
-function shAddFolder(){oMC("New Folder",'<input class="inp" id="ff-n" placeholder="Folder name"><input class="inp" id="ff-e" placeholder="📁" value="📁" style="width:80px"><button class="btn" onclick="doAddFolder()">Create</button>',{ic:"list"})}
+function shAddFolder(){oMC(t("mt_new_folder"),'<input class="inp" id="ff-n" placeholder="'+t("f_folder")+'"><input class="inp" id="ff-e" placeholder="📁" value="📁" style="width:80px"><button class="btn" onclick="doAddFolder()">'+t("btn_create")+'</button>',{ic:"list"})}
 async function doAddFolder(){var n=document.getElementById("ff-n").value.trim();var e=document.getElementById("ff-e").value.trim()||"📁";if(!n)return;await A("POST","/api/shopping/folders",{name:n,emoji:e});cMo();hp();await load()}
 function edFolder(fid){var f=D.folders.find(function(x){return x.id===fid});if(!f)return;oMC("Edit Folder",'<input class="inp" id="ef-n" value="'+es(f.name)+'"><input class="inp" id="ef-e" value="'+f.emoji+'" style="width:80px"><button class="btn" onclick="svFolder('+fid+')">Save</button><div style="margin-top:16px;padding-top:16px;border-top:1px solid var(--bd)"><button class="btn btn-s" style="color:var(--ac);font-size:13px" onclick="dlFolder('+fid+')">Delete Folder</button></div>',{ic:"list"})}
 async function svFolder(fid){var n=document.getElementById("ef-n").value.trim();var e=document.getElementById("ef-e").value.trim();if(!n)return;await A("PUT","/api/shopping/folders/"+fid,{name:n,emoji:e});cMo();hp();await load()}
@@ -2059,7 +2154,7 @@ return _dgOrder}
 function openDigestCfg(){
 // Deep copy so toggling/reordering inside the modal doesn't mutate the cached order before Save
 _dgOrder=_getDigestOrder().map(function(o){return{id:o.id,enabled:o.enabled}});
-oMC("Morning Digest",digestCfgHtml(),{ic:"bl"})}
+oMC(t("mt_morning_digest"),digestCfgHtml(),{ic:"bl"})}
 
 function digestCfgHtml(){
 var h='<div class="lb">Delivery Time</div><input type="time" id="dg-time" value="'+(D.settings.digest_time||"09:00")+'" step="60" style="margin-bottom:16px">';
@@ -2752,7 +2847,7 @@ function openStartWorkoutPicker(){
   }
   h+='<div style="margin-top:14px;padding-top:14px;border-top:1px solid var(--bd)">'+
     '<button class="btn btn-s" style="background:transparent;border:1.5px solid var(--bd);color:var(--tx)" onclick="cMo();startBlankWorkout()">+ Empty workout (no template)</button></div>';
-  oMC("Start Workout",h,{ic:"dumbbell"});
+  oMC(t("mt_start_workout"),h,{ic:"dumbbell"});
 }
 
 async function startFromTemplate(tid){
@@ -2785,13 +2880,13 @@ var _tplDraft=null; // {id?, name, exercise_ids: []}
 
 function openNewTemplate(){
   _tplDraft={id:null,name:"",exercise_ids:[]};
-  oMC("New Template",_tplEditorHtml(),{ic:"list"});
+  oMC(t("mt_new_template"),_tplEditorHtml(),{ic:"list"});
 }
 function editTemplate(tid){
   var t=(D.workoutTemplates||[]).find(function(x){return x.id===tid});
   if(!t)return;
   _tplDraft={id:tid,name:t.name,exercise_ids:(t.exercises_list||[]).map(function(e){return e.exercise_id})};
-  oMC("Edit Template",_tplEditorHtml(),{ic:"list"});
+  oMC(t("mt_edit_template"),_tplEditorHtml(),{ic:"list"});
 }
 function _tplEditorHtml(){
   var t=_tplDraft;
@@ -2845,12 +2940,12 @@ function _tplPickExercise(){
     h+='</div>';
   });
   h+='</div>';
-  oMC("Add exercise to template",h,{ic:"dumbbell"});
+  oMC(t("mt_add_exercise"),h,{ic:"dumbbell"});
 }
 function _tplAddEx(eid){
   _tplDraft.exercise_ids.push(eid);
   // Re-open editor (cMo + new modal)
-  oMC(_tplDraft.id?"Edit Template":"New Template",_tplEditorHtml(),{ic:"list"});
+  oMC(_tplDraft.id?t("mt_edit_template"):t("mt_new_template"),_tplEditorHtml(),{ic:"list"});
 }
 async function saveTemplate(){
   var nameI=document.getElementById("tpl-n");
@@ -3011,7 +3106,7 @@ async function deleteSet(sid){
 }
 
 function editSet(sid,wxid,reps,weight,unit){
-  oMC("Edit Set",
+  oMC(t("mt_edit_set"),
     '<div class="dr"><div><div class="dl">Reps</div><input class="inp" id="es-r" type="number" min="1" value="'+reps+'"></div>'+
     '<div><div class="dl">Weight</div><input class="inp" id="es-w" type="number" step="0.5" value="'+weight+'"></div></div>'+
     '<button class="btn" onclick="svSet('+sid+')">Save</button>',{ic:"dumbbell"});
@@ -3038,7 +3133,7 @@ async function deleteWorkout(wid){
 
 function editWorkoutMeta(wid){
   var w=_curWorkout;if(!w)return;
-  oMC("Edit Workout",
+  oMC(t("mt_edit_workout"),
     '<div class="lb">Name</div><input class="inp" id="ew-n" value="'+es(w.name||"")+'" placeholder="e.g. Push Day">'+
     '<div class="lb">Date</div><input type="date" id="ew-d" value="'+w.date+'">'+
     '<div class="lb">Notes</div><input class="inp" id="ew-notes" value="'+es(w.notes||"")+'">'+
@@ -3073,7 +3168,7 @@ function openExercisePicker(wid){
   h+='</div>';
   h+='<div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--bd)">'+
     '<button class="btn btn-s" onclick="newExercise('+wid+')">+ New exercise</button></div>';
-  oMC("Add exercise",h,{ic:"dumbbell"});
+  oMC(t("mt_add_exercise"),h,{ic:"dumbbell"});
 }
 function _filterExercises(q){
   q=q.toLowerCase().trim();
@@ -3088,7 +3183,7 @@ async function addExToWorkout(wid,exId){
   await _refreshWorkoutView(wid);
 }
 function newExercise(wid){
-  oMC("New exercise",
+  oMC(t("mt_new_exercise"),
     '<div class="lb">Name</div><input class="inp" id="ne-n" placeholder="e.g. Lateral Raise">'+
     '<div class="dr"><div><div class="dl">Emoji</div><input class="inp" id="ne-e" value="💪" style="text-align:center;font-size:20px"></div>'+
     '<div><div class="dl">Muscle</div><select id="ne-mg" class="inp"><option value="chest">Chest</option><option value="back">Back</option><option value="legs">Legs</option><option value="shoulders">Shoulders</option><option value="arms">Arms</option><option value="core">Core</option><option value="other">Other</option></select></div></div>'+
@@ -3176,7 +3271,7 @@ async function openTrainStats(){
       h+='<div class="c"><span style="font-size:24px">'+p.emoji+'</span><div class="bd"><div class="tt" style="font-weight:600">'+es(p.name)+'</div><div class="mt">'+p.weight+'kg × '+p.reps+' · <span style="color:var(--ht)">est 1RM '+oneRm+'kg</span> · '+fD(p.date).date+'</div></div></div>';
     });
   }
-  oMC("Progress",h,{ic:"chart"});
+  oMC(t("mt_progress"),h,{ic:"chart"});
 }
 
 // Per-exercise progression chart
@@ -3356,7 +3451,7 @@ var dateTxt=b.birth_date.split("-").slice(1).reverse().join(".");
 h+='<div class="lc"><div class="lc-i acc-wn">'+b.emoji+'</div><div class="lc-bd"><div class="lc-tt">'+es(b.name)+'</div><div class="lc-mt">🎂 '+dateTxt+'</div></div><span class="lc-rt '+tone+'">'+rightTxt+'</span><button class="bi" onclick="edBd('+b.id+')" style="margin-left:4px">'+I.ed+'</button><button class="bi" onclick="dlBd('+b.id+')">'+I.tr+'</button></div>'});return h}
 function rBdAddBtn(){return '<button class="btn btn-s" style="margin-bottom:16px" onclick="oMoBd()">+ Add Birthday</button>'}
 async function dlBd(id){hp();await A("DELETE","/api/birthdays/"+id);await load();toast("🗑 Deleted")}
-function edBd(id){var b=D.birthdays.find(function(x){return x.id===id});if(!b)return;_bdRems=(b.reminders||[]).map(function(r){return{days_before:r.days_before,time:r.time||"09:00"}});oMC("Edit Birthday",'<input class="inp" id="bd-n" value="'+es(b.name)+'"><input class="inp" id="bd-e" value="'+b.emoji+'" style="width:80px"><div class="lb">Reminders</div><div id="brl">'+bdRemPk()+'</div><button class="btn" onclick="svBd('+id+')">Save</button>',{ic:"cake"})}
+function edBd(id){var b=D.birthdays.find(function(x){return x.id===id});if(!b)return;_bdRems=(b.reminders||[]).map(function(r){return{days_before:r.days_before,time:r.time||"09:00"}});oMC(t("mt_edit_bday"),'<input class="inp" id="bd-n" value="'+es(b.name)+'"><input class="inp" id="bd-e" value="'+b.emoji+'" style="width:80px"><div class="lb">'+t("g_reminders")+'</div><div id="brl">'+bdRemPk()+'</div><button class="btn" onclick="svBd('+id+')">'+t("btn_save")+'</button>',{ic:"cake"})}
 async function svBd(id){var n=document.getElementById("bd-n").value.trim();var e=document.getElementById("bd-e").value.trim();if(!n)return;await A("PUT","/api/birthdays/"+id,{name:n,emoji:e,reminders:_bdRems});cMo();hp();await load()}
 
 // ═══════════════════════════════════════════════════════════
@@ -3399,7 +3494,7 @@ function edZn(zid){var z=D.zones.find(function(x){return x.id===zid});if(!z)retu
 async function svZn(zid){var n=document.getElementById("ez-n").value.trim();var i=document.getElementById("ez-i").value.trim();if(!n)return;await A("PUT","/api/cleaning/zones/"+zid,{name:n,icon:i,assigned_to:_assign||null,reminders:_zRems});cMo();hp();await load()}
 function edZT(tid){var t=null;D.zones.forEach(function(z){(z.tasks||[]).forEach(function(tk){if(tk.id===tid)t=tk})});if(!t)return;_assign=t.assigned_to||0;oMC("Edit Cleaning Task",'<input class="inp" id="zt-t" value="'+es(t.text)+'"><div class="dr"><div><div class="dl">Reset (days)</div><input class="inp" id="zt-d" type="number" value="'+(t.reset_days||7)+'" min="1" max="90"></div></div><div class="lb">Assigned to</div>'+assignPk("ztap",t.assigned_to)+'<button class="btn" onclick="svZT('+tid+')">Save</button>',{ic:"broom"})}
 async function svZT(tid){var text=document.getElementById("zt-t").value.trim();var rd=parseInt(document.getElementById("zt-d").value)||7;if(!text)return;await A("PUT","/api/cleaning/tasks/"+tid,{text:text,icon:"🧹",assigned_to:_assign||null,reset_days:rd});cMo();hp();await load()}
-function shAZ(){_assign=0;oMC("Add Zone",'<input class="inp" id="zn" placeholder="Zone name"><input class="inp" id="zic" placeholder="🍳" style="width:80px"><div class="lb">Assigned to</div>'+assignPk("zap",null)+'<button class="btn" onclick="doAZ()">Add Zone</button>',{ic:"broom"})}
+function shAZ(){_assign=0;oMC(t("mt_add_zone"),'<input class="inp" id="zn" placeholder="'+t("f_name")+'"><input class="inp" id="zic" placeholder="🍳" style="width:80px"><div class="lb">'+t("f_assigned_to")+'</div>'+assignPk("zap",null)+'<button class="btn" onclick="doAZ()">'+t("btn_add")+'</button>',{ic:"broom"})}
 async function doAZ(){var n=document.getElementById("zn").value.trim();if(!n)return;var i=document.getElementById("zic").value.trim()||"🏠";await A("POST","/api/cleaning/zones",{name:n,icon:i,assigned_to:_assign||null});cMo();hp();await load()}
 
 // ═══════════════════════════════════════════════════════════
@@ -3930,7 +4025,7 @@ if(_pwaPrompt){
 }
 h+='<div class="sc"><span class="sc-l">'+t("set_developer")+'</span></div>';
 h+=_setRow({ico:"debug",acc:"acc-ac",title:t("set_debug")+" "+(dbgOn?"ON":"OFF"),onclick:"dbgOn=!dbgOn;document.getElementById(\'dbg\').classList.toggle(\'hidden\',!dbgOn);ren()"});
-h+='<div style="margin-top:18px;text-align:center;font-size:11px;color:var(--ht);letter-spacing:.3px">Family HQ v8.32.1</div>';return h}
+h+='<div style="margin-top:18px;text-align:center;font-size:11px;color:var(--ht);letter-spacing:.3px">Family HQ v8.32.2</div>';return h}
 async function setTh(id){
   if(id==="custom"){
     // Tapping Custom in the picker opens the editor (saves happen there). Also apply right away.
@@ -3953,7 +4048,7 @@ function openThemePicker(){
     h+='<div class="tc" onclick="setTh(\''+id+'\');cMo()" style="background:'+t.cd+';border:2px solid '+(sl?t.pr:t.bd)+'"><div class="te">'+t.e+'</div><div class="tn" style="color:'+t.tx+'">'+t.n+'</div><div class="td">'+[t.pr,t.ac,t.ok,t.wn].map(function(c){return '<div class="tdd" style="background:'+c+'"></div>'}).join("")+'</div></div>'
   });
   h+='</div>';
-  oMC("Choose theme",h,{ic:"palette"})
+  oMC(t("mt_choose_theme"),h,{ic:"palette"})
 }
 
 // ─── Custom theme editor ─────────────────────────────────────────
@@ -3966,7 +4061,7 @@ function openCustomThemeEditor(){
   _customDraft=_getMyCustomPalette()||_seedCustomFromTheme(seedFrom);
   // Apply draft immediately so user sees live preview
   aT("custom");
-  oMC("Custom Theme",_customEditorHtml(),{ic:"palette"})
+  oMC(t("mt_custom_theme"),_customEditorHtml(),{ic:"palette"})
 }
 function _customEditorHtml(){
   var p=_customDraft;
@@ -4040,7 +4135,7 @@ async function _saveCustomTheme(){
 }
 async function setDg(v){await A("PATCH","/api/settings",{digest_time:v});hp()}
 var _catTab="expense";
-function openCatMgr(){_catTab="expense";oMC("Categories",catMgrHtml(),{ic:"list"})}
+function openCatMgr(){_catTab="expense";oMC(t("mt_categories"),catMgrHtml(),{ic:"list"})}
 function catMgrHtml(){
 var h='<div class="tabs" style="margin-bottom:16px"><button class="tab '+(_catTab==="expense"?"a":"")+'" onclick="_catTab=\'expense\';document.getElementById(\'mb\').innerHTML=catMgrHtml()">💸 Expense</button><button class="tab '+(_catTab==="income"?"a":"")+'" onclick="_catTab=\'income\';document.getElementById(\'mb\').innerHTML=catMgrHtml()">💰 Income</button></div>';
 D.categories.filter(function(c){return c.type===_catTab}).forEach(function(c){
@@ -4057,11 +4152,11 @@ async function svMe(uid){var n=document.getElementById("me-n").value.trim();var 
 // MODAL
 // ═══════════════════════════════════════════════════════════
 function txCatRefresh(){var el=document.getElementById("tx-cats");if(!el)return;var cats=D.categories.filter(function(c){return c.type===window._txType});var h="";cats.forEach(function(c){h+='<button class="ob'+(window._txCat===c.id?" s":"")+'" onclick="window._txCat='+c.id+';this.parentNode.querySelectorAll(\'.ob\').forEach(function(b){b.classList.remove(\'s\')});this.classList.add(\'s\')">'+c.emoji+" "+es(c.name)+"</button>"});h+='<button class="ob" onclick="addCatInline()" style="border:1.5px dashed var(--ht)">+ New</button>';el.innerHTML=h;window._txCat=0}
-function addCatInline(){var t=window._txType;oMC("New Category",'<input class="inp" id="nc-n" placeholder="Category name"><input class="inp" id="nc-e" placeholder="📦" value="📦" style="width:80px"><button class="btn" onclick="doAddCatInline(\''+t+'\')">Create</button>',{ic:"list"})}
+function addCatInline(){var ty=window._txType;oMC(t("mt_new_cat"),'<input class="inp" id="nc-n" placeholder="'+t("f_name")+'"><input class="inp" id="nc-e" placeholder="📦" value="📦" style="width:80px"><button class="btn" onclick="doAddCatInline(\''+ty+'\')">'+t("btn_create")+'</button>',{ic:"list"})}
 async function doAddCatInline(type){var n=document.getElementById("nc-n").value.trim();var e=document.getElementById("nc-e").value.trim()||"📦";if(!n)return;await A("POST","/api/categories",{name:n,emoji:e,type:type});cMo();hp();await load();go("money");oMo()}
-function addCat(type){oMC("New Category",'<input class="inp" id="nc-n" placeholder="Category name"><input class="inp" id="nc-e" placeholder="📦" value="📦" style="width:80px"><button class="btn" onclick="doAddCat(\''+type+'\')">Create</button>',{ic:"list"})}
+function addCat(type){oMC(t("mt_new_cat"),'<input class="inp" id="nc-n" placeholder="'+t("f_name")+'"><input class="inp" id="nc-e" placeholder="📦" value="📦" style="width:80px"><button class="btn" onclick="doAddCat(\''+type+'\')">'+t("btn_create")+'</button>',{ic:"list"})}
 async function doAddCat(type){var n=document.getElementById("nc-n").value.trim();var e=document.getElementById("nc-e").value.trim()||"📦";if(!n)return;await A("POST","/api/categories",{name:n,emoji:e,type:type});cMo();hp();await load()}
-function edCat(cid){var c=D.categories.find(function(x){return x.id===cid});if(!c)return;oMC("Edit Category",'<input class="inp" id="ec-n" value="'+es(c.name)+'"><input class="inp" id="ec-e" value="'+c.emoji+'" style="width:80px"><button class="btn" onclick="svCat('+cid+')">Save</button>',{ic:"list"})}
+function edCat(cid){var c=D.categories.find(function(x){return x.id===cid});if(!c)return;oMC(t("mt_edit_cat"),'<input class="inp" id="ec-n" value="'+es(c.name)+'"><input class="inp" id="ec-e" value="'+c.emoji+'" style="width:80px"><button class="btn" onclick="svCat('+cid+')">'+t("btn_save")+'</button>',{ic:"list"})}
 async function svCat(cid){var n=document.getElementById("ec-n").value.trim();var e=document.getElementById("ec-e").value.trim();if(!n)return;await A("PUT","/api/categories/"+cid,{name:n,emoji:e});cMo();hp();await load()}
 async function dlCat(cid){if(!confirm("Delete category?"))return;await A("DELETE","/api/categories/"+cid);hp();await load();toast("Deleted")}
 // oMC(title, body, opts?) — opts.ic = icon name to show in a tinted square left of the title
@@ -4081,24 +4176,24 @@ function cMo(){
 }
 
 // Event/Birthday add modals (from hamburger pages)
-function oMoEvt(){var dy=td();oMC("New Event",'<input class="inp" id="f-t" placeholder="Event name"><div class="lb">Start</div><div class="dr"><div><div class="dl">Date</div><input type="date" id="f-d" value="'+dy+'" min="'+dy+'"></div><div><div class="dl">Time</div><input type="time" id="f-tm" value="12:00" step="60"></div></div><div class="lb">End (optional)</div><div class="dr"><div><input type="date" id="f-ed"></div><div><input type="time" id="f-et" step="60"></div></div><button class="btn" onclick="doEv()">Add Event</button>',{ic:"clock"})}
-function oMoBd(){_bdRems=[{days_before:1,time:"09:00"},{days_before:0,time:"09:00"}];oMC("Add Birthday",'<input class="inp" id="bd-n" placeholder="Name"><input class="inp" id="bd-e" value="🎂" style="width:80px"><div class="lb">Date of Birth</div><div class="dr"><div><input type="date" id="bd-d"></div></div><div class="lb">Reminders</div><div id="brl">'+bdRemPk()+'</div><button class="btn" onclick="doBd()">Add Birthday</button>',{ic:"cake"})}
+function oMoEvt(){var dy=td();oMC(t("mt_add_event"),'<input class="inp" id="f-t" placeholder="'+t("f_name")+'"><div class="lb">'+t("g_start")+'</div><div class="dr"><div><div class="dl">'+t("f_date")+'</div><input type="date" id="f-d" value="'+dy+'" min="'+dy+'"></div><div><div class="dl">'+t("g_time")+'</div><input type="time" id="f-tm" value="12:00" step="60"></div></div><div class="lb">'+t("g_end_opt")+'</div><div class="dr"><div><input type="date" id="f-ed"></div><div><input type="time" id="f-et" step="60"></div></div><button class="btn" onclick="doEv()">'+t("btn_add")+'</button>',{ic:"clock"})}
+function oMoBd(){_bdRems=[{days_before:1,time:"09:00"},{days_before:0,time:"09:00"}];oMC(t("mt_add_bday"),'<input class="inp" id="bd-n" placeholder="'+t("f_name")+'"><input class="inp" id="bd-e" value="🎂" style="width:80px"><div class="lb">'+t("g_date_of_birth")+'</div><div class="dr"><div><input type="date" id="bd-d"></div></div><div class="lb">'+t("g_reminders")+'</div><div id="brl">'+bdRemPk()+'</div><button class="btn" onclick="doBd()">'+t("btn_add")+'</button>',{ic:"cake"})}
 
 // FAB handler
 function oMo(){_assign=0;_pri="normal";_rems=[];var dy=td();
 switch(tab){
 case"tasks":
-    if(taskTab==="recurring"){oMC("New Recurring Task",'<input class="inp" id="f-t" placeholder="Task name"><div class="lb">Assign to</div>'+assignPk("ap",null)+'<div class="lb">Schedule</div><div class="or"><button class="ob s" onclick="document.getElementById(\'rr\').value=\'daily\';this.parentNode.querySelectorAll(\'.ob\').forEach(function(b){b.classList.remove(\'s\')});this.classList.add(\'s\');document.getElementById(\'wd\').classList.add(\'hidden\');document.getElementById(\'md\').classList.add(\'hidden\')">Daily</button><button class="ob" onclick="document.getElementById(\'rr\').value=\'weekly:\';this.parentNode.querySelectorAll(\'.ob\').forEach(function(b){b.classList.remove(\'s\')});this.classList.add(\'s\');document.getElementById(\'wd\').classList.remove(\'hidden\');document.getElementById(\'md\').classList.add(\'hidden\')">Weekly</button><button class="ob" onclick="document.getElementById(\'rr\').value=\'monthly:\';this.parentNode.querySelectorAll(\'.ob\').forEach(function(b){b.classList.remove(\'s\')});this.classList.add(\'s\');document.getElementById(\'md\').classList.remove(\'hidden\');document.getElementById(\'wd\').classList.add(\'hidden\')">Monthly</button></div><input type="hidden" id="rr" value="daily"><div id="wd" class="hidden"><div class="lb">Days</div><div class="or">'+["mon","tue","wed","thu","fri","sat","sun"].map(function(d){return '<button class="ob" onclick="this.classList.toggle(\'s\')">'+d+'</button>'}).join("")+'</div></div><div id="md" class="hidden"><div class="lb">Day of month</div><input class="inp" id="f-md" type="number" min="1" max="28" value="1"></div><button class="btn" onclick="doRec()">Create</button>',{ic:"refresh"})}
-    else{oMC("New Task",'<input class="inp" id="f-t" placeholder="What needs to be done?"><div class="lb">Assign to</div>'+assignPk("ap",null)+'<div class="lb">Priority</div><div class="or">'+["low","normal","high"].map(function(p){return '<button class="ob ob-pri-'+p+' '+(p==="normal"?"s":"")+'" onclick="_pri=\''+p+'\';this.parentNode.querySelectorAll(\'.ob\').forEach(function(b){b.classList.remove(\'s\')});this.classList.add(\'s\')">'+p[0].toUpperCase()+p.slice(1)+'</button>'}).join("")+'</div><div class="lb">Due Date</div><div class="dr"><div><input type="date" id="f-dd" min="'+dy+'"></div></div><div class="lb">Reminders</div><div id="rw">'+remPk()+'</div><button class="btn" onclick="doTk()">Add Task</button>',{ic:"clipboard"})}break;
+    if(taskTab==="recurring"){oMC(t("mt_add_recur"),'<input class="inp" id="f-t" placeholder="'+t("f_text")+'"><div class="lb">'+t("g_assign_to")+'</div>'+assignPk("ap",null)+'<div class="lb">'+t("g_schedule")+'</div><div class="or"><button class="ob s" onclick="document.getElementById(\'rr\').value=\'daily\';this.parentNode.querySelectorAll(\'.ob\').forEach(function(b){b.classList.remove(\'s\')});this.classList.add(\'s\');document.getElementById(\'wd\').classList.add(\'hidden\');document.getElementById(\'md\').classList.add(\'hidden\')">'+t("g_daily")+'</button><button class="ob" onclick="document.getElementById(\'rr\').value=\'weekly:\';this.parentNode.querySelectorAll(\'.ob\').forEach(function(b){b.classList.remove(\'s\')});this.classList.add(\'s\');document.getElementById(\'wd\').classList.remove(\'hidden\');document.getElementById(\'md\').classList.add(\'hidden\')">'+t("g_weekly")+'</button><button class="ob" onclick="document.getElementById(\'rr\').value=\'monthly:\';this.parentNode.querySelectorAll(\'.ob\').forEach(function(b){b.classList.remove(\'s\')});this.classList.add(\'s\');document.getElementById(\'md\').classList.remove(\'hidden\');document.getElementById(\'wd\').classList.add(\'hidden\')">'+t("g_monthly")+'</button></div><input type="hidden" id="rr" value="daily"><div id="wd" class="hidden"><div class="lb">'+t("g_days")+'</div><div class="or">'+["mon","tue","wed","thu","fri","sat","sun"].map(function(d){return '<button class="ob" onclick="this.classList.toggle(\'s\')">'+d+'</button>'}).join("")+'</div></div><div id="md" class="hidden"><div class="lb">'+t("g_day_of_month")+'</div><input class="inp" id="f-md" type="number" min="1" max="28" value="1"></div><button class="btn" onclick="doRec()">'+t("btn_create")+'</button>',{ic:"refresh"})}
+    else{oMC(t("mt_add_task"),'<input class="inp" id="f-t" placeholder="'+t("g_what_to_do")+'"><div class="lb">'+t("g_assign_to")+'</div>'+assignPk("ap",null)+'<div class="lb">'+t("f_priority")+'</div><div class="or">'+["low","normal","high"].map(function(p){return '<button class="ob ob-pri-'+p+' '+(p==="normal"?"s":"")+'" onclick="_pri=\''+p+'\';this.parentNode.querySelectorAll(\'.ob\').forEach(function(b){b.classList.remove(\'s\')});this.classList.add(\'s\')">'+t("p_"+p)+'</button>'}).join("")+'</div><div class="lb">'+t("g_due_date")+'</div><div class="dr"><div><input type="date" id="f-dd" min="'+dy+'"></div></div><div class="lb">'+t("g_reminders")+'</div><div id="rw">'+remPk()+'</div><button class="btn" onclick="doTk()">'+t("btn_add")+'</button>',{ic:"clipboard"})}break;
 case"shop":
     // Enhanced: full form like edit
     var folderOpts='<button class="ob s" onclick="window._newShopFold=0;this.parentNode.querySelectorAll(\'.ob\').forEach(function(b){b.classList.remove(\'s\')});this.classList.add(\'s\')">None</button>';
     D.folders.forEach(function(f){folderOpts+='<button class="ob" onclick="window._newShopFold='+f.id+';this.parentNode.querySelectorAll(\'.ob\').forEach(function(b){b.classList.remove(\'s\')});this.classList.add(\'s\')">'+f.emoji+" "+es(f.name)+'</button>'});
     window._newShopFold=0;
-    oMC("Add Item",'<input class="inp" id="ns-n" placeholder="Item name"><div class="dr"><div><div class="dl">Quantity</div><input class="inp" id="ns-q" placeholder="e.g. 1kg"></div><div><div class="dl">Price (din.)</div><input class="inp" id="ns-p" type="number" placeholder="0"></div></div>'+(D.folders.length?'<div class="lb">Folder</div><div class="or">'+folderOpts+'</div>':'')+'<button class="btn" onclick="doShNew()">Add</button>',{ic:"cart"});break;
+    oMC(t("mt_add_shop"),'<input class="inp" id="ns-n" placeholder="'+t("f_name")+'"><div class="dr"><div><div class="dl">'+t("f_quantity")+'</div><input class="inp" id="ns-q" placeholder="1kg"></div><div><div class="dl">'+t("f_price")+' (din.)</div><input class="inp" id="ns-p" type="number" placeholder="0"></div></div>'+(D.folders.length?'<div class="lb">'+t("f_folder")+'</div><div class="or">'+folderOpts+'</div>':'')+'<button class="btn" onclick="doShNew()">'+t("btn_add")+'</button>',{ic:"cart"});break;
 case"money":{
     _assign=0;window._txType="expense";window._txCat=0;
-    oMC("Add Transaction",'<div class="or" style="margin-bottom:8px"><button class="ob s" id="tb-exp" onclick="window._txType=\'expense\';document.getElementById(\'tb-exp\').classList.add(\'s\');document.getElementById(\'tb-inc\').classList.remove(\'s\');txCatRefresh()">💸 Expense</button><button class="ob" id="tb-inc" onclick="window._txType=\'income\';document.getElementById(\'tb-inc\').classList.add(\'s\');document.getElementById(\'tb-exp\').classList.remove(\'s\');txCatRefresh()">💰 Income</button></div><div class="dr"><div><div class="dl">Amount</div><input class="inp" id="tx-a" type="number" step="0.01" placeholder="0"></div><div><div class="dl">Currency</div><select id="tx-c"><option value="RSD">din.</option><option value="EUR">€</option><option value="USD">$</option><option value="GBP">£</option><option value="RUB">₽</option></select></div></div><div class="lb">Description</div><input class="inp" id="tx-d" placeholder="What for?"><div class="lb">Category</div><div class="or" id="tx-cats"></div><div class="lb">Date</div><input type="date" id="tx-dt" value="'+dy+'"><div class="lb">Who</div>'+assignPk("txm",null)+'<button class="btn" onclick="doTx()">Add</button>',{ic:"wallet"});setTimeout(txCatRefresh,50)}break}
+    oMC(t("mt_add_expense"),'<div class="or" style="margin-bottom:8px"><button class="ob s" id="tb-exp" onclick="window._txType=\'expense\';document.getElementById(\'tb-exp\').classList.add(\'s\');document.getElementById(\'tb-inc\').classList.remove(\'s\');txCatRefresh()">💸 '+t("m_expense")+'</button><button class="ob" id="tb-inc" onclick="window._txType=\'income\';document.getElementById(\'tb-inc\').classList.add(\'s\');document.getElementById(\'tb-exp\').classList.remove(\'s\');txCatRefresh()">💰 '+t("m_income")+'</button></div><div class="dr"><div><div class="dl">'+t("f_amount")+'</div><input class="inp" id="tx-a" type="number" step="0.01" placeholder="0"></div><div><div class="dl">'+t("f_currency")+'</div><select id="tx-c"><option value="RSD">din.</option><option value="EUR">€</option><option value="USD">$</option><option value="GBP">£</option><option value="RUB">₽</option></select></div></div><div class="lb">'+t("f_description")+'</div><input class="inp" id="tx-d" placeholder=""><div class="lb">'+t("f_category")+'</div><div class="or" id="tx-cats"></div><div class="lb">'+t("f_date")+'</div><input type="date" id="tx-dt" value="'+dy+'"><div class="lb">'+t("g_who")+'</div>'+assignPk("txm",null)+'<button class="btn" onclick="doTx()">'+t("btn_add")+'</button>',{ic:"wallet"});setTimeout(txCatRefresh,50)}break}
 document.getElementById("mo").classList.add("op");setTimeout(function(){var i=document.querySelector("#mb input[type=text],#mb input.inp");if(i)i.focus()},300)}
 
 // Submit handlers
