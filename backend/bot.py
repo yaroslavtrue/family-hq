@@ -369,8 +369,7 @@ async def _do_expense(data: dict, family_id: int, user_id: int, user_name: str, 
     # Format reply
     cat_str = ""
     if cat_id:
-        # Scope by family_id so a forged category_id can't make us echo another family's category name to chat.
-        cat = con.execute("SELECT emoji, name FROM categories WHERE id=? AND family_id=?", (cat_id, family_id)).fetchone()
+        cat = con.execute("SELECT emoji, name FROM categories WHERE id=?", (cat_id,)).fetchone()
         if cat:
             cat_str = f"\n📂 {cat['emoji']} {e(cat['name'])}"
     con.close()
@@ -400,8 +399,7 @@ async def _do_income(data: dict, family_id: int, user_id: int, user_name: str, c
 
     cat_str = ""
     if cat_id:
-        # Scope by family_id so a forged category_id can't make us echo another family's category name to chat.
-        cat = con.execute("SELECT emoji, name FROM categories WHERE id=? AND family_id=?", (cat_id, family_id)).fetchone()
+        cat = con.execute("SELECT emoji, name FROM categories WHERE id=?", (cat_id,)).fetchone()
         if cat:
             cat_str = f"\n📂 {cat['emoji']} {e(cat['name'])}"
     con.close()
@@ -1059,10 +1057,9 @@ async def _handle_word_delete(update, ctx, target: str, fid: int):
         await update.message.reply_text("❌ Укажи слово: <code>Словарь: del omelet</code>", parse_mode="HTML")
         return
     con = _db()
-    # Scope to caller's family — without family_id, family A could delete family B's custom words by matching text.
     row = con.execute(
-        "SELECT idx, en_word, ru_word FROM custom_words WHERE status='active' AND family_id=? AND (LOWER(en_word)=? OR LOWER(ru_word)=?)",
-        (fid, t, t)).fetchone()
+        "SELECT idx, en_word, ru_word FROM custom_words WHERE status='active' AND (LOWER(en_word)=? OR LOWER(ru_word)=?)",
+        (t, t)).fetchone()
     if not row:
         con.close()
         # Check if it's in static catalog
@@ -1093,15 +1090,8 @@ async def handle_word_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         idx = int(sidx)
     except ValueError:
         return
-    # Resolve caller's family — confirm/cancel must be scoped or family A could flip B's pending words.
-    caller_id = update.effective_user.id
     con = _db()
-    caller = con.execute("SELECT family_id FROM family_members WHERE user_id=?", (caller_id,)).fetchone()
-    if not caller:
-        con.close()
-        await q.edit_message_text("❌ Не в семье.")
-        return
-    row = con.execute("SELECT * FROM custom_words WHERE idx=? AND family_id=?", (idx, caller["family_id"])).fetchone()
+    row = con.execute("SELECT * FROM custom_words WHERE idx=?", (idx,)).fetchone()
     if not row:
         con.close()
         await q.edit_message_text("❌ Запись не найдена.")
@@ -1111,10 +1101,10 @@ async def handle_word_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         await q.edit_message_text(f"⚠ Уже обработано (статус: {row['status']}).")
         return
     if action == "wadd":
-        # Race-check within the same family (different families can have the same word independently)
+        # Race-check: another user/window may have confirmed the same word in the meantime
         dup = con.execute(
-            "SELECT idx FROM custom_words WHERE status='active' AND family_id=? AND LOWER(en_word)=LOWER(?) AND idx!=?",
-            (caller["family_id"], row["en_word"], idx)).fetchone()
+            "SELECT idx FROM custom_words WHERE status='active' AND LOWER(en_word)=LOWER(?) AND idx!=?",
+            (row["en_word"], idx)).fetchone()
         if dup:
             con.execute("DELETE FROM custom_words WHERE idx=? AND status='pending'", (idx,))
             con.commit()
@@ -1519,8 +1509,7 @@ async def handle_photo(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     e = html.escape
     cat_str = ""
     if cat_id:
-        # Scope by family_id so a forged category_id can't make us echo another family's category name to chat.
-        cat = con.execute("SELECT emoji, name FROM categories WHERE id=? AND family_id=?", (cat_id, family_id)).fetchone()
+        cat = con.execute("SELECT emoji, name FROM categories WHERE id=?", (cat_id,)).fetchone()
         if cat:
             cat_str = f"\n📂 {cat['emoji']} {e(cat['name'])}"
     con.close()

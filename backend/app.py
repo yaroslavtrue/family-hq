@@ -877,22 +877,13 @@ def list_subs_all(pt: str, user=Depends(get_uf), db=Depends(get_db)):
 
 @app.post("/api/subtasks/{pt}/{pid}")
 async def create_subtask(pt: str, pid: int, body: SubCreate, user=Depends(get_uf), db=Depends(get_db)):
-    # Verify the parent belongs to caller's family — otherwise a malicious client could
-    # pollute their own family with a subtask that points at another family's row, and
-    # leak the parent's text via the notification message that follows.
-    parent_tbl = {"task": "tasks", "event": "events", "transaction": "transactions"}.get(pt)
-    if not parent_tbl: raise HTTPException(400, "Invalid parent type")
-    # transactions has no `text` column — just verify ownership; tasks/events have text for the notify msg.
-    if pt == "transaction":
-        if not db.execute(f"SELECT 1 FROM {parent_tbl} WHERE id=? AND family_id=?", (pid, user["family_id"])).fetchone():
-            raise HTTPException(404, "Parent not found")
-        pn = ""
-    else:
-        parent = db.execute(f"SELECT text FROM {parent_tbl} WHERE id=? AND family_id=?", (pid, user["family_id"])).fetchone()
-        if not parent: raise HTTPException(404, "Parent not found")
-        pn = parent["text"]
     db.execute("INSERT INTO subtasks (parent_type,parent_id,family_id,text) VALUES (?,?,?,?)", (pt, pid, user["family_id"], body.text)); db.commit()
     if pt != "transaction":
+        tbl = {"task": "tasks", "event": "events"}.get(pt)
+        pn = ""
+        if tbl:
+            row = db.execute(f"SELECT text FROM {tbl} WHERE id=?", (pid,)).fetchone()
+            if row: pn = row["text"]
         await notify_all(user["family_id"], f"📝 *{user['first_name']}* added step _{body.text}_ to *{pn}*", db)
     return {"ok": True}
 
@@ -1106,8 +1097,7 @@ async def create_transaction(body: TransactionCreate, user=Depends(get_uf), db=D
     # Notify
     cat = ""
     if body.category_id:
-        # Scope by family_id so a malicious caller can't have us echo another family's category name back to chat.
-        cr = db.execute("SELECT emoji, name FROM categories WHERE id=? AND family_id=?", (body.category_id, user["family_id"])).fetchone()
+        cr = db.execute("SELECT emoji, name FROM categories WHERE id=?", (body.category_id,)).fetchone()
         if cr: cat = f" {cr['emoji']} {cr['name']}"
     sign = "💸" if body.type == "expense" else "💰"
     await notify_all(user["family_id"], f"{sign} *{user['first_name']}*: {body.amount} {body.currency}{cat}", db)
@@ -1362,13 +1352,7 @@ def edit_exercise(eid: int, body: ExerciseEdit, user=Depends(get_uf), db=Depends
 
 @app.delete("/api/exercises/{eid}")
 def del_exercise(eid: int, user=Depends(get_uf), db=Depends(get_db)):
-    # Verify ownership first — otherwise the "in use" check would leak existence of other families' workouts.
-    if not db.execute("SELECT 1 FROM exercises WHERE id=? AND family_id=?", (eid, user["family_id"])).fetchone():
-        raise HTTPException(404)
-    used = db.execute("""SELECT 1 FROM workout_exercises we
-                          JOIN workouts w ON w.id=we.workout_id
-                          WHERE we.exercise_id=? AND w.family_id=? LIMIT 1""",
-                       (eid, user["family_id"])).fetchone()
+    used = db.execute("SELECT 1 FROM workout_exercises WHERE exercise_id=? LIMIT 1", (eid,)).fetchone()
     if used:
         raise HTTPException(400, "Exercise is used in workouts; remove those first")
     db.execute("DELETE FROM exercises WHERE id=? AND family_id=?", (eid, user["family_id"]))
@@ -1496,11 +1480,7 @@ def edit_workout(wid: int, body: WorkoutEdit, user=Depends(get_uf), db=Depends(g
 
 @app.delete("/api/workouts/{wid}")
 def del_workout(wid: int, user=Depends(get_uf), db=Depends(get_db)):
-    # Verify ownership FIRST — cascade DELETEs below don't filter by family_id,
-    # so we must confirm the workout belongs to the caller's family before touching children.
-    if not db.execute("SELECT 1 FROM workouts WHERE id=? AND family_id=?", (wid, user["family_id"])).fetchone():
-        raise HTTPException(404)
-    # Cascade (workout_id is unique per workouts row, which we just ownership-checked)
+    # Cascade
     db.execute("""DELETE FROM workout_sets WHERE workout_exercise_id IN
                    (SELECT id FROM workout_exercises WHERE workout_id=?)""", (wid,))
     db.execute("DELETE FROM workout_exercises WHERE workout_id=?", (wid,))
@@ -2562,14 +2542,12 @@ def word_update(idx: int, body: WordEdit, user=Depends(get_uf), db=Depends(get_d
             vals = [idx] + list(payload.values()) + [user["id"]]
             db.execute(f"INSERT INTO word_overrides ({','.join(cols)}) VALUES ({','.join(['?']*len(vals))})", vals)
     else:
-        # Custom word — scoped to the caller's family so families can't rewrite each other's vocab.
-        own = db.execute("SELECT 1 FROM custom_words WHERE idx=? AND family_id=?", (idx, user["family_id"])).fetchone()
-        if not own: raise HTTPException(404, "word not found")
+        # Custom word
         sets, params = [], []
         for k, v in payload.items():
             sets.append(f"{k}=?"); params.append(v)
-        params.extend([idx, user["family_id"]])
-        db.execute(f"UPDATE custom_words SET {','.join(sets)} WHERE idx=? AND family_id=?", params)
+        params.append(idx)
+        db.execute(f"UPDATE custom_words SET {','.join(sets)} WHERE idx=?", params)
     db.commit()
     # Image rename on en_word change
     if "en_word" in payload and payload["en_word"] != old_en:
@@ -3123,7 +3101,7 @@ def serve_exercise_image(fn: str):
     return r
 
 # ─── Debug & Serve ───────────────────────────────────────────────────────
-APP_VERSION = "v8.32.0"
+APP_VERSION = "v8.31.1"
 
 @app.get("/api/debug/ping")
 def ping(): return {"ok": True, "version": APP_VERSION, "time": datetime.now(ZoneInfo(TIMEZONE)).isoformat()}
