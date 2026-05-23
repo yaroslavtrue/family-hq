@@ -1913,9 +1913,9 @@ function _anaShift(delta){
   if(next>_curYM())return;
   _anaSetMonth(next);
 }
-// Direct month selection — clicked from a bar in the monthly chart.
-// Saves chart scroll-left before the re-render so the new DOM can restore it +
-// smooth-scroll to the newly-selected bar (instead of snapping from 0).
+// Direct month selection — clicked from a bar (or arrow nav).
+// Uses partial DOM update: chart strip stays alive (year watermarks don't blink,
+// scroll position preserved), only tiles/header/extras swap with a fade.
 var _anaSavedScroll=null;
 function _anaSetMonth(mk){
   var cur=(_moneySummary&&_moneySummary.month)||_curYM();
@@ -1923,10 +1923,15 @@ function _anaSetMonth(mk){
   if(mk>_curYM())return; // future blocked
   _anaMonth=(mk===_curYM())?null:mk;
   hp("sel");
-  var wrap=document.getElementById('ana-chart');
-  _anaSavedScroll = wrap ? wrap.scrollLeft : null;
-  if(_anaCache[mk]){_moneySummary=_anaCache[mk];ren()}
-  else{_moneySummary=null;loadMoneySummary()}
+  // 1. Instant: shift bar highlight + smooth scroll to centre
+  _anaUpdateChartHighlight(mk);
+  // 2. Apply data update (from cache or via fetch) with fade-swap of tiles/extras
+  if(_anaCache[mk]){
+    _moneySummary=_anaCache[mk];
+    _anaApplyPartial();
+  }else{
+    _anaFetchAndApply(mk);
+  }
 }
 function _curYM(){var d=new Date();return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")}
 async function loadMoneySummary(){
@@ -1935,21 +1940,84 @@ async function loadMoneySummary(){
   _moneySummary=s;_anaCache[s.month]=s;
   ren()
 }
+// Analytics is split into named-container sections so month switches can do
+// surgical DOM updates (no chart rebuild → year watermark stays put, scroll
+// preserved, only tile values + category bars fade-swap).
+function _anaHeaderHtml(){
+  var s=_moneySummary;
+  var monthLabel=s&&s.month?new Date(s.month+"-01T00:00:00").toLocaleString("en-US",{month:"long",year:"numeric"}):"";
+  var fwdDis=s&&s.is_current?' style="opacity:.3;pointer-events:none"':"";
+  return '<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;padding:0 4px"><button class="bi" onclick="_anaShift(-1)" style="padding:6px 10px;font-size:16px">◀</button><div style="font-weight:700;font-size:16px;letter-spacing:-.2px">'+monthLabel+'</div><button class="bi" onclick="_anaShift(1)"'+fwdDis+' style="padding:6px 10px;font-size:16px">▶</button></div>';
+}
+function _anaTilesHtml(){
+  var s=_moneySummary;if(!s)return'';
+  var h='<div class="sts sts-3">';
+  h+='<div class="st st-mn"><div class="st-ico tone-ok">'+icon("trendUp",16,2.2)+'</div><div class="st-lb">Income</div><div class="st-vl pos">€'+s.income.toFixed(0)+'</div></div>';
+  h+='<div class="st st-mn"><div class="st-ico tone-ac">'+icon("trendDown",16,2.2)+'</div><div class="st-lb">Expense</div><div class="st-vl neg">€'+s.expense.toFixed(0)+'</div></div>';
+  h+='<div class="st st-mn"><div class="st-ico tone-pr">'+icon("wallet",16,2.2)+'</div><div class="st-lb">Balance</div><div class="st-vl '+(s.balance>=0?"pos":"neg")+'">'+(s.balance>=0?"+":"−")+'€'+Math.abs(s.balance).toFixed(0)+'</div></div>';
+  h+='</div>';
+  if(s.subs_eur)h+='<div class="cat-row" style="margin-bottom:14px;margin-top:6px"><div class="cat-row-h"><span class="nm">'+icon("card",14,2.2)+' Subscriptions this month</span><span class="vl" style="color:var(--pr)">€'+s.subs_eur.toFixed(0)+'</span></div></div>';
+  return h;
+}
+function _anaExtrasHtml(){
+  var s=_moneySummary;if(!s)return'';
+  var h='';
+  if(s.by_category&&s.by_category.length){
+    var maxC=s.by_category[0]?s.by_category[0].total:1;
+    h+='<div class="sc"><span class="sc-l">By Category</span></div>';
+    s.by_category.forEach(function(c){if(!c.total)return;var pct=Math.max(2,c.total/maxC*100);
+      h+='<div class="cat-row"><div class="cat-row-h"><span class="nm"><span class="em">'+c.emoji+'</span>'+es(c.name)+'</span><span class="vl">€'+c.total.toFixed(0)+'</span></div><div class="progress"><div class="progress-fill" style="width:'+pct+'%"></div></div></div>';
+    });
+  }
+  if(s.limits&&s.limits.length){
+    h+='<div class="sc" style="margin-top:12px"><span class="sc-l">Limits</span></div>';
+    s.limits.forEach(function(l){var pct=Math.min(100,l.spent/l.monthly_limit*100);var over=l.spent>l.monthly_limit;
+      h+='<div class="cat-row"><div class="cat-row-h"><span class="nm"><span class="em">'+l.emoji+'</span>'+es(l.name)+'</span><span class="vl" style="color:'+(over?"var(--ac)":"var(--tx)")+'">€'+l.spent.toFixed(0)+' / €'+l.monthly_limit.toFixed(0)+'</span></div><div class="progress"><div class="progress-fill '+(over?"tone-ac":"tone-ok")+'" style="width:'+pct+'%"></div></div></div>';
+    });
+  }
+  h+='<button class="btn btn-s" style="margin-top:14px" onclick="_anaCache={};_curMonthSummary=null;_moneySummary=null;loadMoneySummary()">'+icon("refresh",13,2.2)+' Refresh Analytics</button>';
+  return h;
+}
+// In-place innerHTML swap with retriggered fade animation
+function _anaFadeSwap(el, html){
+  if(!el)return;
+  el.innerHTML=html;
+  el.classList.remove('ana-soft');
+  void el.offsetWidth; // force reflow so animation restarts
+  el.classList.add('ana-soft');
+}
+// Move .cbar-sel to the clicked bar + smooth scroll without re-rendering chart
+function _anaUpdateChartHighlight(mk){
+  document.querySelectorAll('.cbar.cbar-sel').forEach(function(el){el.classList.remove('cbar-sel')});
+  var b=document.querySelector('.cbar[data-month="'+mk+'"]');
+  if(!b)return;
+  b.classList.add('cbar-sel');
+  var wrap=document.getElementById('ana-chart');
+  if(!wrap)return;
+  var sr=b.getBoundingClientRect(),wr=wrap.getBoundingClientRect();
+  var target=wrap.scrollLeft+sr.left-wr.left-(wr.width/2)+(sr.width/2);
+  if(Math.abs(target-wrap.scrollLeft)<4)return;
+  wrap.scrollTo({left:target,behavior:'smooth'});
+}
+// Apply month change WITHOUT touching the chart DOM (kept alive across updates)
+function _anaApplyPartial(){
+  if(tab!=="money"||moneyTab!=="analytics"){ren();return}
+  _anaFadeSwap(document.getElementById('ana-header'),_anaHeaderHtml());
+  _anaFadeSwap(document.getElementById('ana-tiles'),_anaTilesHtml());
+  _anaFadeSwap(document.getElementById('ana-extras'),_anaExtrasHtml());
+}
+async function _anaFetchAndApply(mk){
+  var s=await A("GET","/api/money/summary?month="+mk);
+  if(!s)return;
+  _moneySummary=s;_anaCache[s.month]=s;
+  _anaApplyPartial();
+}
+
 function rAnalytics(){
 if(!_moneySummary){loadMoneySummary();return '<div class="emp"><div class="emp-i" style="font-size:32px">⏳</div><div>Loading...</div></div>'}
 var s=_moneySummary;
-var monthLabel=s.month?new Date(s.month+"-01T00:00:00").toLocaleString("en-US",{month:"long",year:"numeric"}):"";
-var fwdDis=s.is_current?' style="opacity:.3;pointer-events:none"':"";
-// Month nav (←  Month YYYY  →)
-var h='<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:12px;padding:0 4px"><button class="bi" onclick="_anaShift(-1)" style="padding:6px 10px;font-size:16px">◀</button><div style="font-weight:700;font-size:16px;letter-spacing:-.2px">'+monthLabel+'</div><button class="bi" onclick="_anaShift(1)"'+fwdDis+' style="padding:6px 10px;font-size:16px">▶</button></div>';
-// 3 stat tiles for the selected month
-h+='<div class="sts sts-3">';
-h+='<div class="st st-mn"><div class="st-ico tone-ok">'+icon("trendUp",16,2.2)+'</div><div class="st-lb">Income</div><div class="st-vl pos">€'+s.income.toFixed(0)+'</div></div>';
-h+='<div class="st st-mn"><div class="st-ico tone-ac">'+icon("trendDown",16,2.2)+'</div><div class="st-lb">Expense</div><div class="st-vl neg">€'+s.expense.toFixed(0)+'</div></div>';
-h+='<div class="st st-mn"><div class="st-ico tone-pr">'+icon("wallet",16,2.2)+'</div><div class="st-lb">Balance</div><div class="st-vl '+(s.balance>=0?"pos":"neg")+'">'+(s.balance>=0?"+":"−")+'€'+Math.abs(s.balance).toFixed(0)+'</div></div>';
-h+='</div>';
-// Optional Subs row as a single full-width tile
-if(s.subs_eur)h+='<div class="cat-row" style="margin-bottom:14px"><div class="cat-row-h"><span class="nm">'+icon("card",14,2.2)+' Subscriptions this month</span><span class="vl" style="color:var(--pr)">€'+s.subs_eur.toFixed(0)+'</span></div></div>';
+var h='<div id="ana-header" style="margin-bottom:12px">'+_anaHeaderHtml()+'</div>';
+h+='<div id="ana-tiles">'+_anaTilesHtml()+'</div>';
 // Monthly chart — horizontally-scrollable strip of last 24 months with year
 // watermarks behind bars. Tap a bar to navigate to that month.
 if(s.months&&s.months.length){
@@ -1978,7 +2046,7 @@ s.months.forEach(function(m){
   var sel=m.month===s.month?' cbar-sel':'';
   var mi=parseInt(m.month.split("-")[1],10)-1;
   var lbl=monNames[mi]||m.month.split("-")[1];
-  h+='<div class="cbar'+sel+'" onclick="_anaSetMonth(\''+m.month+'\')"><div class="cbar-pair"><div class="cbar-b b-in" style="height:'+ih+'px"></div><div class="cbar-b b-ex" style="height:'+eh+'px"></div></div><div class="cbar-lb">'+lbl+'</div></div>';
+  h+='<div class="cbar'+sel+'" data-month="'+m.month+'" onclick="_anaSetMonth(\''+m.month+'\')"><div class="cbar-pair"><div class="cbar-b b-in" style="height:'+ih+'px"></div><div class="cbar-b b-ex" style="height:'+eh+'px"></div></div><div class="cbar-lb">'+lbl+'</div></div>';
 });
 h+='</div></div>';
 h+='<div class="chart-legend"><span><span class="dotk" style="background:var(--ok)"></span>Income</span><span><span class="dotk" style="background:var(--ac)"></span>Expense</span></div>';
@@ -2002,16 +2070,8 @@ setTimeout(function(){
   else wrap.scrollTo({left:target,behavior:'smooth'});
 },30);
 }
-// By category — polished progress rows
-if(s.by_category&&s.by_category.length){var maxC=s.by_category[0]?s.by_category[0].total:1;
-h+='<div class="sc"><span class="sc-l">By Category</span></div>';
-s.by_category.forEach(function(c){if(!c.total)return;var pct=Math.max(2,c.total/maxC*100);
-h+='<div class="cat-row"><div class="cat-row-h"><span class="nm"><span class="em">'+c.emoji+'</span>'+es(c.name)+'</span><span class="vl">€'+c.total.toFixed(0)+'</span></div><div class="progress"><div class="progress-fill" style="width:'+pct+'%"></div></div></div>'})}
-// Limits
-if(s.limits&&s.limits.length){h+='<div class="sc" style="margin-top:12px"><span class="sc-l">Limits</span></div>';
-s.limits.forEach(function(l){var pct=Math.min(100,l.spent/l.monthly_limit*100);var over=l.spent>l.monthly_limit;
-h+='<div class="cat-row"><div class="cat-row-h"><span class="nm"><span class="em">'+l.emoji+'</span>'+es(l.name)+'</span><span class="vl" style="color:'+(over?"var(--ac)":"var(--tx)")+'">€'+l.spent.toFixed(0)+' / €'+l.monthly_limit.toFixed(0)+'</span></div><div class="progress"><div class="progress-fill '+(over?"tone-ac":"tone-ok")+'" style="width:'+pct+'%"></div></div></div>'})}
-h+='<button class="btn btn-s" style="margin-top:14px" onclick="_anaCache={};_moneySummary=null;loadMoneySummary()">'+icon("refresh",13,2.2)+' Refresh Analytics</button>';
+// By Category + Limits + Refresh button — swappable on month change
+h+='<div id="ana-extras">'+_anaExtrasHtml()+'</div>';
 return h}
 
 // ═══════════════════════════════════════════════════════════
@@ -3551,7 +3611,7 @@ if(_pwaPrompt){
 }
 h+='<div class="sc"><span class="sc-l">Developer</span></div>';
 h+=_setRow({ico:"debug",acc:"acc-ac",title:"Debug Mode "+(dbgOn?"ON":"OFF"),onclick:"dbgOn=!dbgOn;document.getElementById(\'dbg\').classList.toggle(\'hidden\',!dbgOn);ren()"});
-h+='<div style="margin-top:18px;text-align:center;font-size:11px;color:var(--ht);letter-spacing:.3px">Family HQ v8.30.3</div>';return h}
+h+='<div style="margin-top:18px;text-align:center;font-size:11px;color:var(--ht);letter-spacing:.3px">Family HQ v8.30.4</div>';return h}
 async function setTh(id){
   if(id==="custom"){
     // Tapping Custom in the picker opens the editor (saves happen there). Also apply right away.

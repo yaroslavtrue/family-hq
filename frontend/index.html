@@ -174,6 +174,11 @@ body{font-family:'DM Sans',-apple-system,sans-serif;background:var(--bg);color:v
 .chart-wrap .cbar-b.b-in{--c1:color-mix(in srgb,var(--ok),white 18%);--c2:var(--ok)}
 .chart-wrap .cbar-b.b-ex{--c1:color-mix(in srgb,var(--ac),white 18%);--c2:var(--ac)}
 .chart-wrap .cbar-lb{font-size:10px;color:var(--ht);margin-top:6px;font-weight:600;letter-spacing:.3px;text-transform:lowercase}
+/* Soft fade-swap for Analytics containers (tiles / header / extras) — retriggered
+   on month change via _anaFadeSwap so values feel smooth instead of snapping. */
+@keyframes ana-soft-swap{from{opacity:.45;transform:translateY(3px)}to{opacity:1;transform:none}}
+.ana-soft{animation:ana-soft-swap .28s cubic-bezier(.2,.9,.3,1.05) both}
+
 @keyframes cbar-sel-pop{0%{transform:scaleY(.94);opacity:.6}60%{transform:scaleY(1.06);opacity:1}100%{transform:scaleY(1.04);opacity:1}}
 .chart-wrap .cbar-sel{background:color-mix(in srgb,var(--pr) 12%,transparent);animation:cbar-sel-pop .35s cubic-bezier(.2,.9,.3,1.1) both}
 .chart-wrap .cbar-sel .cbar-b{transform:scaleY(1.04);box-shadow:0 0 12px color-mix(in srgb,currentColor 30%,transparent);transition:transform .25s cubic-bezier(.2,.9,.3,1.1),box-shadow .25s ease-out}
@@ -939,6 +944,6 @@ body.no-scroll .mx{touch-action:pan-y}
 <!-- Debug -->
 <div class="dbg hidden" id="dbg"><button class="dbg-cp" onclick="navigator.clipboard.writeText(dbgLog.join('\n'))">Copy</button></div>
 <!-- Load JS -->
-<script src="/static/app.js?v=177"></script>
+<script src="/static/app.js?v=178"></script>
 </body>
 </html>
