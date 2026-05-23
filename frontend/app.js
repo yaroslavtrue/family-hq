@@ -1398,6 +1398,10 @@ async function doJn(){var c=document.getElementById("fc").value.trim();if(c.leng
 
 // ─── Load (bundle) ──────────────────────────────────────────
 async function load(){var b=await A("GET","/api/bundle");if(!b)return;
+// Any CRUD that triggers load() may have changed tasks/events/etc that the calendar
+// caches separately by month. Drop the cache so next strip/modal render fetches fresh
+// — fixes "task still pending in Today after marking done in Tasks tab" class of bugs.
+try{_calCache={}}catch(e){}
 D.tasks=b.tasks||[];D.recurring=b.recurring||[];D.shopping=b.shopping||[];D.folders=b.folders||[];
 D.events=b.events||[];D.birthdays=b.birthdays||[];D.subs=b.subs||[];
 D.dashboard=b.dashboard||{};D.members=b.members||[];D.settings=b.settings||{};
@@ -3283,6 +3287,8 @@ var sections=[{label:"Today",iso:todayISO},{label:"Tomorrow",iso:tmrISO}];
 var hasAgenda=false;
 sections.forEach(function(sec){
 var items=dm[sec.iso]?dm[sec.iso].items:[];
+// Hide completed tasks (and any other items flagged done) from the agenda
+items=items.filter(function(it){return !it.done});
 if(!items.length)return;
 hasAgenda=true;
 // Deduplicate multi-day items by id+type
@@ -3611,7 +3617,7 @@ if(_pwaPrompt){
 }
 h+='<div class="sc"><span class="sc-l">Developer</span></div>';
 h+=_setRow({ico:"debug",acc:"acc-ac",title:"Debug Mode "+(dbgOn?"ON":"OFF"),onclick:"dbgOn=!dbgOn;document.getElementById(\'dbg\').classList.toggle(\'hidden\',!dbgOn);ren()"});
-h+='<div style="margin-top:18px;text-align:center;font-size:11px;color:var(--ht);letter-spacing:.3px">Family HQ v8.30.4</div>';return h}
+h+='<div style="margin-top:18px;text-align:center;font-size:11px;color:var(--ht);letter-spacing:.3px">Family HQ v8.30.5</div>';return h}
 async function setTh(id){
   if(id==="custom"){
     // Tapping Custom in the picker opens the editor (saves happen there). Also apply right away.
