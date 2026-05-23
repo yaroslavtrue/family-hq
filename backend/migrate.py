@@ -568,6 +568,9 @@ def migrate(db_path):
             );
             CREATE INDEX IF NOT EXISTS idx_plant_photos_plant ON plant_photos(plant_id, taken_at DESC);
         """),
+        # v25: per-member UI language preference. Defaults to 'en'. Frontend reads from
+        # /api/family/status into a global `_lang` var; t(key) helper picks ru vs en strings.
+        lambda c: safe_add_col(c, "family_members", "lang", "TEXT DEFAULT 'en'"),
     ]
 
     for i, mig in enumerate(migrations):

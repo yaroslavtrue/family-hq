@@ -83,6 +83,87 @@ function aT(id){
 
 // ─── State ──────────────────────────────────────────────────
 let tab="home",cTheme="midnight",filt=null,fS=null,ex={},dbgOn=false,dbgLog=[];
+// ─── i18n (v8.32.0) ─────────────────────────────────────────────────
+// _lang is set from /api/family/status (per-member preference, schema v25).
+// t(key) returns the string for current lang, falling back to en, then to the key itself.
+// Keep dictionary keys flat + alphabet-prefixed by namespace (nav_, tt_, btn_, set_, ...).
+var _lang="en";
+var LANG={
+  en:{
+    // Nav
+    nav_home:"Home", nav_tasks:"Tasks", nav_words:"Words", nav_money:"Money", nav_profile:"Profile",
+    // Page headers (title + subtitle)
+    tt_home_t:"Family HQ", tt_home_s:"Everything at a glance",
+    tt_tasks_t:"Tasks", tt_tasks_s:"Manage & assign",
+    tt_shop_t:"Shopping", tt_shop_s:"Shared list",
+    tt_trainings_t:"Trainings", tt_trainings_s:"Workouts & progress",
+    tt_words_t:"Words", tt_words_s:"Vocabulary learning",
+    tt_plants_t:"Plants", tt_plants_s:"Care & watering",
+    tt_money_t:"Money", tt_money_s:"Budget & subs",
+    tt_profile_t:"Profile", tt_profile_s:"Personal stats",
+    tt_events_t:"Events", tt_events_s:"Schedule",
+    tt_birthdays_t:"Birthdays", tt_birthdays_s:"Never forget",
+    tt_clean_t:"Cleaning", tt_clean_s:"Apartment zones",
+    tt_settings_t:"Settings", tt_settings_s:"Customize",
+    tt_subs_t:"Subscriptions", tt_subs_s:"Monthly payments",
+    tt_recurring_t:"Recurring", tt_recurring_s:"Repeating tasks",
+    // Common buttons
+    btn_add:"Add", btn_save:"Save", btn_cancel:"Cancel", btn_delete:"Delete",
+    btn_edit:"Edit", btn_close:"Close", btn_done:"Done", btn_ok:"OK", btn_yes:"Yes", btn_no:"No",
+    btn_back:"Back", btn_next:"Next", btn_share:"Share",
+    // Settings sections
+    set_family:"Family", set_members:"Members", set_appearance:"Appearance",
+    set_theme:"Theme", set_language:"Language", set_notifications:"Notifications",
+    set_developer:"Developer", set_invite_code:"Invite Code",
+    set_share_invite:"Share invite", set_leave_family:"Leave Family",
+    set_share_hint:"Share this with new members",
+    // Generic
+    g_loading:"Loading…", g_today:"Today", g_yesterday:"Yesterday", g_tomorrow:"Tomorrow",
+    g_upcoming:"Upcoming", g_completed:"Completed", g_all:"All",
+  },
+  ru:{
+    nav_home:"Главная", nav_tasks:"Задачи", nav_words:"Слова", nav_money:"Финансы", nav_profile:"Профиль",
+    tt_home_t:"Family HQ", tt_home_s:"Всё в одном месте",
+    tt_tasks_t:"Задачи", tt_tasks_s:"Управление и назначение",
+    tt_shop_t:"Покупки", tt_shop_s:"Общий список",
+    tt_trainings_t:"Тренировки", tt_trainings_s:"Сессии и прогресс",
+    tt_words_t:"Слова", tt_words_s:"Изучение лексики",
+    tt_plants_t:"Растения", tt_plants_s:"Уход и полив",
+    tt_money_t:"Финансы", tt_money_s:"Бюджет и подписки",
+    tt_profile_t:"Профиль", tt_profile_s:"Личная статистика",
+    tt_events_t:"События", tt_events_s:"Расписание",
+    tt_birthdays_t:"Дни рождения", tt_birthdays_s:"Не забудь",
+    tt_clean_t:"Уборка", tt_clean_s:"Зоны квартиры",
+    tt_settings_t:"Настройки", tt_settings_s:"Кастомизация",
+    tt_subs_t:"Подписки", tt_subs_s:"Ежемесячные платежи",
+    tt_recurring_t:"Повторяющиеся", tt_recurring_s:"Повторяющиеся задачи",
+    btn_add:"Добавить", btn_save:"Сохранить", btn_cancel:"Отмена", btn_delete:"Удалить",
+    btn_edit:"Изменить", btn_close:"Закрыть", btn_done:"Готово", btn_ok:"OK", btn_yes:"Да", btn_no:"Нет",
+    btn_back:"Назад", btn_next:"Далее", btn_share:"Поделиться",
+    set_family:"Семья", set_members:"Участники", set_appearance:"Оформление",
+    set_theme:"Тема", set_language:"Язык", set_notifications:"Уведомления",
+    set_developer:"Разработчик", set_invite_code:"Код приглашения",
+    set_share_invite:"Поделиться приглашением", set_leave_family:"Покинуть семью",
+    set_share_hint:"Отправь этот код новым участникам",
+    g_loading:"Загрузка…", g_today:"Сегодня", g_yesterday:"Вчера", g_tomorrow:"Завтра",
+    g_upcoming:"Скоро", g_completed:"Выполнено", g_all:"Все",
+  }
+};
+function t(k){var d=LANG[_lang]||LANG.en;return (d&&d[k])||LANG.en[k]||k}
+// Persist language choice — POSTs to backend, updates _lang, re-renders nav + current tab.
+async function setLang(newLang){
+  if(newLang!=="en"&&newLang!=="ru")return;
+  if(newLang===_lang)return;
+  var r=await A("PATCH","/api/members/me/lang",{lang:newLang});
+  if(!r||!r.ok){toast("Save failed");return}
+  _lang=newLang;hp("ok");
+  // Re-render the bottom nav labels in place + current tab
+  document.querySelectorAll('#nv .ni').forEach(function(b){
+    var id=b.dataset.t;var lbl=b.querySelector('span:last-child');
+    if(lbl&&id)lbl.textContent=t('nav_'+id);
+  });
+  ren();
+}
 let taskTab="active",calTab="events",moneyTab="transactions",shopFold=null,searchQ="",searchOpen=false,menuOpen=false;
 let D={tasks:[],recurring:[],shopping:[],folders:[],events:[],birthdays:[],subs:[],dashboard:{},members:[],zones:[],settings:{},weather:null,categories:[],transactions:[],exercises:[],recentWorkouts:[],workoutTemplates:[],plants:[]};
 let allSubs={task:{},event:{}};
@@ -1392,21 +1473,22 @@ const NV=[
 ];
 const TT={home:{i:"home",t:"Family HQ",s:"Everything at a glance"},tasks:{i:"clipboard",t:"Tasks",s:"Manage & assign"},shop:{i:"cart",t:"Shopping",s:"Shared list"},trainings:{i:"dumbbell",t:"Trainings",s:"Workouts & progress"},words:{i:"book",t:"Words",s:"Vocabulary learning"},plants:{i:"flower",t:"Plants",s:"Care & watering"},money:{i:"dollar",t:"Money",s:"Budget & subs"},profile:{i:"user",t:"Profile",s:"Personal stats"},events:{i:"clock",t:"Events",s:"Schedule"},birthdays:{i:"cake",t:"Birthdays",s:"Never forget"},clean:{i:"broom",t:"Cleaning",s:"Apartment zones"},settings:{i:"cog",t:"Settings",s:"Customize"},subs:{i:"card",t:"Subscriptions",s:"Monthly payments"}};
 
-(function(){var n=document.getElementById("nv");NV.forEach(function(t){var b=document.createElement("button");b.className="ni"+(t.id==="home"?" a":"");b.dataset.t=t.id;b.innerHTML='<span class="nb hidden" id="b-'+t.id+'"></span>'+t.sv+'<span>'+t.l+'</span>';b.onclick=function(){go(t.id)};n.appendChild(b)})})();
+(function(){var n=document.getElementById("nv");NV.forEach(function(item){var b=document.createElement("button");b.className="ni"+(item.id==="home"?" a":"");b.dataset.t=item.id;b.innerHTML='<span class="nb hidden" id="b-'+item.id+'"></span>'+item.sv+'<span>'+t("nav_"+item.id)+'</span>';b.onclick=function(){go(item.id)};n.appendChild(b)})})();
 
-function go(t){tab=t;filt=null;searchQ="";menuOpen=false;
+function go(tabId){tab=tabId;filt=null;searchQ="";menuOpen=false;
 document.getElementById("menu-overlay").classList.remove("open");
 var si=document.getElementById("si");if(si)si.value="";
-document.querySelectorAll(".ni").forEach(function(e){e.classList.toggle("a",e.dataset.t===t)});
-var _tt=TT[t]||{i:"",t:"",s:""};
+document.querySelectorAll(".ni").forEach(function(e){e.classList.toggle("a",e.dataset.t===tabId)});
+var _tt=TT[tabId]||{i:""};
 document.getElementById("hi").innerHTML=_tt.i?icon(_tt.i,22,2.2):"";
-document.getElementById("ht").textContent=_tt.t;
-document.getElementById("hs").textContent=_tt.s;
+// Localized title + subtitle via t(). Falls back to the static TT entry if no key found.
+document.getElementById("ht").textContent=t("tt_"+tabId+"_t")||_tt.t||"";
+document.getElementById("hs").textContent=t("tt_"+tabId+"_s")||_tt.s||"";
 // When entering Tasks tab and the last-selected sub-tab isn't Active, override header to match the sub-tab
-if(t==="tasks"&&taskTab&&taskTab!=="active"){
+if(tabId==="tasks"&&taskTab&&taskTab!=="active"){
   var _hi=document.getElementById("hi");
-  if(taskTab==="events"){_hi.innerHTML=icon("clock",22,2.2);document.getElementById("ht").textContent="Events";document.getElementById("hs").textContent="Schedule";_evtsFirstRender=true}
-  else if(taskTab==="recurring"){_hi.innerHTML=icon("refresh",22,2.2);document.getElementById("ht").textContent="Recurring";document.getElementById("hs").textContent="Repeating tasks"}
+  if(taskTab==="events"){_hi.innerHTML=icon("clock",22,2.2);document.getElementById("ht").textContent=t("tt_events_t");document.getElementById("hs").textContent=t("tt_events_s");_evtsFirstRender=true}
+  else if(taskTab==="recurring"){_hi.innerHTML=icon("refresh",22,2.2);document.getElementById("ht").textContent=t("tt_recurring_t");document.getElementById("hs").textContent=t("tt_recurring_s")}
 }
 var noFab=["home","settings","clean","events","birthdays","subs","profile","trainings","words","plants"];
 var hideFab=noFab.indexOf(t)>=0||(t==="tasks"&&taskTab==="events");
@@ -1429,6 +1511,10 @@ function toggleMenu(){menuOpen=!menuOpen;document.getElementById("menu-overlay")
 async function init(){
 if(!iD && !_getSess()){rLogin();return}
 try{var r=await A("GET","/api/family/status");if(!r){if(!iD)rLogin();return}fS=r;
+// Restore user's preferred language so the first render is already localized.
+if(r.lang)_lang=r.lang;
+// Re-apply nav labels in case bottom nav was rendered with default 'en' labels at boot.
+document.querySelectorAll('#nv .ni').forEach(function(b){var id=b.dataset.t;var lbl=b.querySelector('span:last-child');if(lbl&&id)lbl.textContent=t('nav_'+id)});
 if(r.joined){document.querySelectorAll(".ni").forEach(function(e){e.style.opacity="1"});await load()}else rOnb()}catch(e){document.getElementById("ct").innerHTML='<pre style="color:red">'+e.message+'</pre>'}}
 
 // ─── Login screen with TWO methods: widget (web auth) + bot deep link ──────
@@ -3746,24 +3832,34 @@ function _setRow(opts){
   return '<div class="'+cls+'"'+ocl+(opts.id?' id="'+opts.id+'"':"")+(opts.style?' style="'+opts.style+'"':"")+'>'+iconHtml+'<div class="lc-bd"><div class="lc-tt">'+opts.title+'</div>'+sub+'</div>'+(opts.right||'')+(opts.onclick?'<span class="lc-chev">›</span>':"")+'</div>'
 }
 if(fS&&fS.joined){
-  h+='<div class="sc"><span class="sc-l">Family</span></div>';
-  h+=_setRow({ico:"user",acc:"acc-ok",title:es(fS.name||"My Family"),subtitle:"Family workspace"});
-  h+='<div class="invite-card"><div class="invite-lb">Invite Code</div><div class="invite-cd">'+(fS.invite_code||"...")+'</div><div class="invite-hint">Share this with new members</div></div>';
-  h+='<div class="sc"><span class="sc-l">Members<span class="sc-cnt">'+(fS.members||[]).length+'</span></span></div>';
+  h+='<div class="sc"><span class="sc-l">'+t("set_family")+'</span></div>';
+  h+=_setRow({ico:"user",acc:"acc-ok",title:es(fS.name||"My Family"),subtitle:t("set_family")});
+  h+='<div class="invite-card"><div class="invite-lb">'+t("set_invite_code")+'</div><div class="invite-cd">'+(fS.invite_code||"...")+'</div><div class="invite-hint">'+t("set_share_hint")+'</div></div>';
+  h+='<div class="sc"><span class="sc-l">'+t("set_members")+'<span class="sc-cnt">'+(fS.members||[]).length+'</span></span></div>';
   (fS.members||[]).forEach(function(m){
     var right='<button class="bi" onclick="edMe('+m.user_id+',\''+es(m.user_name)+'\',\''+m.emoji+'\',\''+m.color+'\')">'+I.ed+'</button>';
     h+='<div class="lc lc-mem">'+mAv(m.user_id,44)+'<div class="lc-bd"><div class="lc-tt">'+es(m.user_name)+'</div><div class="lc-mem-strip" style="background:'+m.color+'"></div></div>'+right+'</div>';
   });
-  h+='<div style="margin:14px 0 22px;display:flex;gap:8px"><button class="btn btn-s" style="font-size:13px;flex:1" onclick="if(confirm(\'Leave family?\'))leaveFam()">Leave Family</button>'+
+  h+='<div style="margin:14px 0 22px;display:flex;gap:8px"><button class="btn btn-s" style="font-size:13px;flex:1" onclick="if(confirm(\''+t("set_leave_family")+'?\'))leaveFam()">'+t("set_leave_family")+'</button>'+
   (!iD&&_getSess()?'<button class="btn btn-s" style="font-size:13px;flex:1;background:transparent;border:1.5px solid var(--bd);color:var(--tx)" onclick="_logoutPwa()">Log out</button>':'')+
   '</div>';
 }
+// ─── Language picker (per-member, v8.32.0) ─────────────────────────
+// Two big buttons EN/RU; current one filled with theme primary, the other outlined.
+h+='<div class="sc"><span class="sc-l">'+t("set_language")+'</span></div>';
+h+='<div style="display:flex;gap:8px;margin-bottom:18px">';
+['en','ru'].forEach(function(code){
+  var sel=(_lang===code);
+  var label=(code==='en'?'🇬🇧 English':'🇷🇺 Русский');
+  h+='<button class="btn btn-s" style="flex:1;font-size:14px;'+(sel?'':'background:transparent;border:1.5px solid var(--bd);color:var(--tx)')+'" onclick="setLang(\''+code+'\')">'+label+'</button>';
+});
+h+='</div>';
 var curTh=TH[cTheme]||TH.midnight;
-h+='<div class="sc"><span class="sc-l">Appearance</span></div>';
+h+='<div class="sc"><span class="sc-l">'+t("set_appearance")+'</span></div>';
 var thAcc=curTh.pr;
 var thStyle='background:linear-gradient(135deg,color-mix(in srgb,'+thAcc+' 38%,transparent),color-mix(in srgb,'+thAcc+' 10%,transparent));border-color:color-mix(in srgb,'+thAcc+' 48%,transparent);color:'+thAcc+';box-shadow:inset 0 1px 0 color-mix(in srgb,'+thAcc+' 20%,transparent),0 2px 12px color-mix(in srgb,'+thAcc+' 22%,transparent)';
 h+=_setRow({ico:"palette",iconStyle:thStyle,title:curTh.n,subtitle:"Tap to change · "+Object.keys(TH).length+" themes · "+curTh.e,onclick:"openThemePicker()"});
-h+='<div class="sc"><span class="sc-l">Notifications</span></div>';
+h+='<div class="sc"><span class="sc-l">'+t("set_notifications")+'</span></div>';
 h+=_setRow({ico:"bl",acc:"acc-wn",title:"Morning Digest",subtitle:"Time: "+(D.settings.digest_time||"09:00")+" · Sections & order",onclick:"openDigestCfg()"});
 var nExp=D.categories.filter(function(c){return c.type==="expense"}).length;
 var nInc=D.categories.filter(function(c){return c.type==="income"}).length;
@@ -3783,7 +3879,7 @@ if(_pwaPrompt){
 }
 h+='<div class="sc"><span class="sc-l">Developer</span></div>';
 h+=_setRow({ico:"debug",acc:"acc-ac",title:"Debug Mode "+(dbgOn?"ON":"OFF"),onclick:"dbgOn=!dbgOn;document.getElementById(\'dbg\').classList.toggle(\'hidden\',!dbgOn);ren()"});
-h+='<div style="margin-top:18px;text-align:center;font-size:11px;color:var(--ht);letter-spacing:.3px">Family HQ v8.31.1</div>';return h}
+h+='<div style="margin-top:18px;text-align:center;font-size:11px;color:var(--ht);letter-spacing:.3px">Family HQ v8.32.0</div>';return h}
 async function setTh(id){
   if(id==="custom"){
     // Tapping Custom in the picker opens the editor (saves happen there). Also apply right away.

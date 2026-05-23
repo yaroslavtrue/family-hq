@@ -459,10 +459,24 @@ def telegram_login(body: TelegramLoginPayload, db=Depends(get_db)):
 
 @app.get("/api/family/status")
 def family_status(user=Depends(get_user), db=Depends(get_db)):
-    row = db.execute("SELECT fm.family_id, f.name, f.invite_code FROM family_members fm JOIN families f ON f.id=fm.family_id WHERE fm.user_id=?", (user["id"],)).fetchone()
+    row = db.execute("SELECT fm.family_id, fm.lang, f.name, f.invite_code FROM family_members fm JOIN families f ON f.id=fm.family_id WHERE fm.user_id=?", (user["id"],)).fetchone()
     if not row: return {"joined": False}
     members = [dict(m) for m in db.execute("SELECT user_id, user_name, emoji, color, photo_url FROM family_members WHERE family_id=?", (row["family_id"],)).fetchall()]
-    return {"joined": True, "family_id": row["family_id"], "name": row["name"], "invite_code": row["invite_code"], "members": members, "my_id": user["id"]}
+    # lang: per-member UI language ('en'|'ru'), drives the t(key) helper in app.js.
+    return {"joined": True, "family_id": row["family_id"], "name": row["name"], "invite_code": row["invite_code"], "members": members, "my_id": user["id"], "lang": (row["lang"] or "en")}
+
+
+class LangUpdate(BaseModel):
+    lang: str  # 'en' | 'ru'
+
+@app.patch("/api/members/me/lang")
+def update_my_lang(body: LangUpdate, user=Depends(get_uf), db=Depends(get_db)):
+    if body.lang not in ("en", "ru"):
+        raise HTTPException(400, "Invalid language")
+    db.execute("UPDATE family_members SET lang=? WHERE user_id=?", (body.lang, user["id"]))
+    db.commit()
+    return {"ok": True, "lang": body.lang}
+
 
 @app.post("/api/family/create")
 def create_family(body: FamilyCreate, user=Depends(get_user), db=Depends(get_db)):
@@ -3101,7 +3115,7 @@ def serve_exercise_image(fn: str):
     return r
 
 # ─── Debug & Serve ───────────────────────────────────────────────────────
-APP_VERSION = "v8.31.1"
+APP_VERSION = "v8.32.0"
 
 @app.get("/api/debug/ping")
 def ping(): return {"ok": True, "version": APP_VERSION, "time": datetime.now(ZoneInfo(TIMEZONE)).isoformat()}
