@@ -553,6 +553,9 @@ def migrate(db_path):
                 cached_at TEXT DEFAULT (datetime('now'))
             );
         """),
+        # v23: per-plant voice overrides — JSON {ok, soon, thirsty} with any subset of
+        # custom speech-bubble phrases that take precedence over the static PLANT_VOICE bank.
+        lambda c: safe_add_col(c, "plants", "voice_overrides", "TEXT"),
     ]
 
     for i, mig in enumerate(migrations):

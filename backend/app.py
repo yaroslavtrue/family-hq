@@ -2702,6 +2702,10 @@ def _plant_view(p: dict) -> dict:
     if p.get("care_tips"):
         try: tips = _json_mod.loads(p["care_tips"])
         except Exception: tips = []
+    voice_ov = None
+    if p.get("voice_overrides"):
+        try: voice_ov = _json_mod.loads(p["voice_overrides"])
+        except Exception: voice_ov = None
     next_water = None
     if p.get("last_watered") and p.get("water_interval_days"):
         try:
@@ -2724,6 +2728,7 @@ def _plant_view(p: dict) -> dict:
         "added_by": p.get("added_by"),
         "status": _plant_status(p),
         "watered_today": _watered_today(p),
+        "voice_overrides": voice_ov,
         "has_image": os.path.isfile(os.path.join(PLANTS_IMG_DIR, f"{p['id']}.jpg")),
     }
 
@@ -2848,6 +2853,7 @@ class PlantEdit(BaseModel):
     light: str | None = None
     care_tips: list[str] | None = None
     notes: str | None = None
+    voice_overrides: dict | None = None  # {ok?, soon?, thirsty?} — any subset
 
 
 @app.patch("/api/plants/{pid}")
@@ -2858,6 +2864,11 @@ def plants_update(pid: int, body: PlantEdit, user=Depends(get_uf), db=Depends(ge
     payload = body.dict(exclude_unset=True)
     if "care_tips" in payload and payload["care_tips"] is not None:
         payload["care_tips"] = _json_mod.dumps(payload["care_tips"], ensure_ascii=False)
+    if "voice_overrides" in payload:
+        # Strip empties: if all three values are blank, store NULL so client falls back to bank
+        vo = payload["voice_overrides"] or {}
+        cleaned = {k: v.strip() for k, v in vo.items() if isinstance(v, str) and v.strip()}
+        payload["voice_overrides"] = _json_mod.dumps(cleaned, ensure_ascii=False) if cleaned else None
     interval_changed = "water_interval_days" in payload and payload["water_interval_days"] != row["water_interval_days"]
     if payload:
         sets, params = [], []
@@ -3012,7 +3023,7 @@ def serve_exercise_image(fn: str):
     return r
 
 # ─── Debug & Serve ───────────────────────────────────────────────────────
-APP_VERSION = "v8.30.5"
+APP_VERSION = "v8.31.0"
 
 @app.get("/api/debug/ping")
 def ping(): return {"ok": True, "version": APP_VERSION, "time": datetime.now(ZoneInfo(TIMEZONE)).isoformat()}

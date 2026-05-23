@@ -160,6 +160,45 @@ function icon(name,size,strokeW){return G[name]?_svg(G[name],size||16,strokeW||2
 
 // ─── Helpers ────────────────────────────────────────────────
 function es(s){const d=document.createElement("div");d.textContent=s||"";return d.innerHTML}
+
+// Client-side image downscale before upload. Modern phones shoot 5-12 MB JPEGs
+// at 12 MP which can exceed our backend 5 MB cap (esp. via Telegram WebView). Pass
+// any File/Blob; returns a File with the same name+type or a smaller JPEG version.
+// Skips work when input is already small. Uses canvas — supports HEIC if the browser
+// decodes it (iOS Safari does); otherwise the input passes through unchanged on error.
+async function _downscaleImage(file, maxDim, quality){
+  if(!file)return file;
+  maxDim=maxDim||1920;quality=quality||0.85;
+  // Skip if already small in both bytes and pixels (we can't check pixels w/o decoding,
+  // so use byte threshold as a fast path: <1.5 MB usually means no need to recompress)
+  if(file.size<=1.5*1024*1024)return file;
+  return new Promise(function(resolve){
+    var url;
+    try{url=URL.createObjectURL(file)}catch(e){resolve(file);return}
+    var img=new Image();
+    img.onload=function(){
+      try{
+        var w=img.naturalWidth,h=img.naturalHeight;
+        URL.revokeObjectURL(url);
+        var scale=Math.min(1,maxDim/Math.max(w,h));
+        var cw=Math.round(w*scale),ch=Math.round(h*scale);
+        var canvas=document.createElement('canvas');
+        canvas.width=cw;canvas.height=ch;
+        var ctx=canvas.getContext('2d');
+        ctx.drawImage(img,0,0,cw,ch);
+        canvas.toBlob(function(blob){
+          if(!blob){resolve(file);return}
+          // If downscale actually made it bigger (rare for already-compressed JPEGs that
+          // get re-encoded at higher quality), keep original.
+          if(blob.size>=file.size){resolve(file);return}
+          resolve(new File([blob],'photo.jpg',{type:'image/jpeg',lastModified:Date.now()}));
+        },'image/jpeg',quality);
+      }catch(e){resolve(file)}
+    };
+    img.onerror=function(){try{URL.revokeObjectURL(url)}catch(e){}resolve(file)};
+    img.src=url;
+  });
+}
 // hp(kind) — haptic feedback via Telegram WebApp API. Free, no visual cost.
 //   light/med/heavy → impactOccurred; ok/warn/err → notificationOccurred; sel → selectionChanged.
 function hp(k){try{var h=tg&&tg.HapticFeedback;
@@ -686,8 +725,9 @@ function _weEditorHtml(){
 }
 async function _weUpload(input){
   var f=input.files&&input.files[0];if(!f)return;
-  if(f.size>2*1024*1024){toast("Image > 2 MB");return}
+  if(f.size>15*1024*1024){toast("Image > 15 MB");return}
   hp("light");
+  f=await _downscaleImage(f);
   var fd=new FormData();fd.append("file",f);
   var headers={};
   if(iD)headers["X-Telegram-Init-Data"]=iD;
@@ -751,6 +791,10 @@ var PLANT_VOICE={
   ok:["Feeling great! ✨","Growing well 🌱","Thanks for the care","Loving the light here","All good — keep it up!"]
 };
 function _plVoice(p){
+  // Per-plant override wins. voice_overrides may have any subset of {ok,soon,thirsty}.
+  if(p.voice_overrides&&p.voice_overrides[p.status]){
+    return p.voice_overrides[p.status];
+  }
   var arr=PLANT_VOICE[p.status]||PLANT_VOICE.ok;
   var today=Math.floor(Date.now()/86400000);
   return arr[(Math.abs((p.id||0)+today))%arr.length];
@@ -919,7 +963,7 @@ function _plOpenAdd(){
 var _plPhotoData=null;
 function _plOnPhotoPicked(input){
   var f=input.files&&input.files[0];if(!f)return;
-  if(f.size>5*1024*1024){document.getElementById("pl-add-msg").textContent="Photo > 5 MB — pick a smaller one";return}
+  if(f.size>15*1024*1024){document.getElementById("pl-add-msg").textContent="Photo > 15 MB — pick a smaller one";return}
   _plPhotoData=f;
   // Preview
   var url=URL.createObjectURL(f);
@@ -933,7 +977,8 @@ async function _plDoAdd(){
   var msg=document.getElementById("pl-add-msg");
   if(msg)msg.textContent="🤖 Identifying plant…";
   var btn=document.getElementById("pl-add-go");if(btn){btn.disabled=true;btn.textContent="Working…"}
-  var fd=new FormData();fd.append("file",_plPhotoData);fd.append("custom_name",name.trim());
+  var __fdat=await _downscaleImage(_plPhotoData);
+  var fd=new FormData();fd.append("file",__fdat);fd.append("custom_name",name.trim());
   var headers={};
   if(iD)headers["X-Telegram-Init-Data"]=iD;
   var sess=_getSess();if(sess)headers["X-Session-Token"]=sess;
@@ -990,8 +1035,9 @@ async function _plPickCandidate(idx){
   hp("ok");
   // Show inline progress
   document.getElementById("mb").innerHTML='<div class="emp" style="padding:30px"><div class="emp-i">⏳</div><div>Adding…</div></div>';
+  var __fdat=await _downscaleImage(_plPhotoData);
   var fd=new FormData();
-  fd.append("file",_plPhotoData);
+  fd.append("file",__fdat);
   fd.append("candidate",JSON.stringify(cand));
   fd.append("custom_name",_plState._candCustomName||"");
   var headers={};
@@ -1078,6 +1124,13 @@ function _plOpenEdit(pid){
   h+='<div class="lb" style="margin-top:12px">Latin name</div><input class="inp" id="ple-latin" value="'+es(p.latin_name||"")+'">';
   h+='<div class="dr"><div><div class="dl">Water every (days)</div><input class="inp" type="number" min="1" max="60" id="ple-int" value="'+(p.water_interval_days||7)+'"></div><div><div class="dl">Light</div><input class="inp" id="ple-light" value="'+es(p.light||"")+'"></div></div>';
   h+='<div class="lb" style="margin-top:12px">Notes</div><input class="inp" id="ple-notes" value="'+es(p.notes||"")+'" placeholder="Personal reminders, anniversaries…">';
+  // Custom voice — speech bubble phrases per status. Any field left empty falls back to bank.
+  var vo=p.voice_overrides||{};
+  h+='<div class="lb" style="margin-top:14px">Personality (optional)</div>';
+  h+='<div style="font-size:11px;color:var(--ht);margin-bottom:8px;line-height:1.4">Override the speech bubble phrase for each status. Leave empty to use defaults.</div>';
+  h+='<div class="dl" style="margin-top:6px">🟢 When healthy</div><input class="inp" id="ple-v-ok" value="'+es(vo.ok||"")+'" placeholder="Feeling great! ✨" maxlength="120">';
+  h+='<div class="dl" style="margin-top:6px">🟡 When water due soon</div><input class="inp" id="ple-v-soon" value="'+es(vo.soon||"")+'" placeholder="Could use a drink soon…" maxlength="120">';
+  h+='<div class="dl" style="margin-top:6px">🔴 When thirsty</div><input class="inp" id="ple-v-thirsty" value="'+es(vo.thirsty||"")+'" placeholder="I’m getting thirsty 💧" maxlength="120">';
   h+='<button class="btn" style="margin-top:18px" onclick="_plSaveEdit('+pid+')">Save</button>';
   oMC("Edit plant",h,{ic:"flower"});
 }
@@ -1089,7 +1142,8 @@ async function _plSaveEdit(pid){
     latin_name:v("ple-latin").trim(),
     water_interval_days:parseInt(v("ple-int"))||7,
     light:v("ple-light").trim(),
-    notes:v("ple-notes").trim()
+    notes:v("ple-notes").trim(),
+    voice_overrides:{ok:v("ple-v-ok").trim(),soon:v("ple-v-soon").trim(),thirsty:v("ple-v-thirsty").trim()}
   };
   if(!body.species||!body.latin_name){toast("Species & Latin name required");return}
   var r=await A("PATCH","/api/plants/"+pid,body);
@@ -1105,8 +1159,9 @@ function _plReplacePhoto(pid){
   input.type="file";input.accept="image/*";input.capture="environment";
   input.onchange=async function(){
     var f=input.files&&input.files[0];if(!f)return;
-    if(f.size>5*1024*1024){toast("> 5 MB");return}
+    if(f.size>15*1024*1024){toast("> 15 MB");return}
     hp("light");
+    f=await _downscaleImage(f);
     var fd=new FormData();fd.append("file",f);
     var headers={};
     if(iD)headers["X-Telegram-Init-Data"]=iD;
@@ -1670,10 +1725,11 @@ if(filt)txs=txs.filter(function(x){return x.member_id===filt});
 var cats={};D.categories.forEach(function(c){cats[c.id]=c});
 // Tiles always use server-aggregated CURRENT-MONTH totals so the Transactions tab
 // agrees with Analytics. Frontend used to sum all 100 bundle rows (mixed months).
-// Separate cache _curMonthSummary so Analytics navigation to past months doesn't
-// disturb Transactions.
-if(!_curMonthSummary)_loadCurMonthSummary();
-var s=_curMonthSummary;
+// Reads from the shared _anaCache keyed by month — current month entry stays valid
+// regardless of where Analytics is navigated.
+var _curM=_curYM();
+if(!_anaCache[_curM])_loadCurMonthSummary();
+var s=_anaCache[_curM]||null;
 var loading=!s;
 var tInc=loading?null:s.income, tExp=loading?null:s.expense, bal=loading?null:s.balance;
 var monthLbl=s?new Date(s.month+"-01T00:00:00").toLocaleString("en-US",{month:"long",year:"numeric"}):"";
@@ -1714,12 +1770,12 @@ txs.forEach(function(tx){
 });
 return h}
 
-async function dlTx(id){hp();await A("DELETE","/api/transactions/"+id);_moneySummary=null;_curMonthSummary=null;_anaCache={};await load();toast("🗑 Deleted")}
+async function dlTx(id){hp();await A("DELETE","/api/transactions/"+id);_moneySummary=null;_anaCache={};await load();toast("🗑 Deleted")}
 function edTx(id){var tx=D.transactions.find(function(x){return x.id===id});if(!tx)return;_assign=tx.member_id||0;
 var catOpts=D.categories.filter(function(c){return c.type===tx.type}).map(function(c){return '<button class="ob '+(tx.category_id===c.id?"s":"")+'" onclick="window._txCat='+c.id+';this.parentNode.querySelectorAll(\'.ob\').forEach(function(b){b.classList.remove(\'s\')});this.classList.add(\'s\')">'+c.emoji+" "+es(c.name)+'</button>'}).join("");
 window._txCat=tx.category_id||0;window._txType=tx.type;
 oMC("Edit Transaction",'<div class="dr"><div><div class="dl">Amount</div><input class="inp" id="tx-a" type="number" step="0.01" value="'+tx.amount+'"></div><div><div class="dl">Currency</div><select id="tx-c"><option value="RSD"'+(tx.currency==="RSD"?" selected":"")+'>din. RSD</option><option value="EUR"'+(tx.currency==="EUR"?" selected":"")+'>€ EUR</option><option value="USD"'+(tx.currency==="USD"?" selected":"")+'>$ USD</option><option value="GBP"'+(tx.currency==="GBP"?" selected":"")+'>£ GBP</option><option value="RUB"'+(tx.currency==="RUB"?" selected":"")+'>₽ RUB</option></select></div></div><div class="lb">Description</div><input class="inp" id="tx-d" value="'+es(tx.description||"")+'"><div class="lb">Category</div><div class="or">'+catOpts+'</div><div class="lb">Date</div><input type="date" id="tx-dt" value="'+tx.date+'"><div class="lb">Who</div>'+assignPk("txm",tx.member_id)+'<button class="btn" onclick="svTx('+id+')">Save</button>',{ic:"wallet"})}
-async function svTx(id){var a=parseFloat(document.getElementById("tx-a").value);var c=document.getElementById("tx-c").value;var d=document.getElementById("tx-d").value.trim();var dt=document.getElementById("tx-dt").value;if(!a)return;await A("PUT","/api/transactions/"+id,{amount:a,currency:c,description:d,date:dt,category_id:window._txCat||null,member_id:_assign||null});cMo();hp();_moneySummary=null;_curMonthSummary=null;_anaCache={};await load()}
+async function svTx(id){var a=parseFloat(document.getElementById("tx-a").value);var c=document.getElementById("tx-c").value;var d=document.getElementById("tx-d").value.trim();var dt=document.getElementById("tx-dt").value;if(!a)return;await A("PUT","/api/transactions/"+id,{amount:a,currency:c,description:d,date:dt,category_id:window._txCat||null,member_id:_assign||null});cMo();hp();_moneySummary=null;_anaCache={};await load()}
 
 // ─── Digest config modal ─────────────────────────────────────
 var DIGEST_SECS=[
@@ -1899,14 +1955,17 @@ var _moneySummary=null,_anaMonth=null,_anaCache={};
 var _anaFirstScroll=true;
 // Separate cache for Transactions tab tiles (always current month, independent of
 // Analytics-tab navigation). Invalidated on every tx CRUD alongside _moneySummary.
-var _curMonthSummary=null,_curMonthLoading=false;
+// Fire-and-forget loader for the Transactions tab tiles. Writes into the shared
+// _anaCache so a single source of truth feeds both Analytics and Transactions.
+var _curMonthLoading=false;
 async function _loadCurMonthSummary(){
-  if(_curMonthSummary||_curMonthLoading)return;
+  var mk=_curYM();
+  if(_anaCache[mk]||_curMonthLoading)return;
   _curMonthLoading=true;
   var s=await A("GET","/api/money/summary"); // no month param → current
   _curMonthLoading=false;
   if(!s)return;
-  _curMonthSummary=s;
+  _anaCache[s.month]=s;
   if(tab==="money"&&moneyTab==="transactions")ren();
 }
 function _anaShift(delta){
@@ -1979,7 +2038,7 @@ function _anaExtrasHtml(){
       h+='<div class="cat-row"><div class="cat-row-h"><span class="nm"><span class="em">'+l.emoji+'</span>'+es(l.name)+'</span><span class="vl" style="color:'+(over?"var(--ac)":"var(--tx)")+'">€'+l.spent.toFixed(0)+' / €'+l.monthly_limit.toFixed(0)+'</span></div><div class="progress"><div class="progress-fill '+(over?"tone-ac":"tone-ok")+'" style="width:'+pct+'%"></div></div></div>';
     });
   }
-  h+='<button class="btn btn-s" style="margin-top:14px" onclick="_anaCache={};_curMonthSummary=null;_moneySummary=null;loadMoneySummary()">'+icon("refresh",13,2.2)+' Refresh Analytics</button>';
+  h+='<button class="btn btn-s" style="margin-top:14px" onclick="_anaCache={};_moneySummary=null;loadMoneySummary()">'+icon("refresh",13,2.2)+' Refresh Analytics</button>';
   return h;
 }
 // In-place innerHTML swap with retriggered fade animation
@@ -2288,8 +2347,9 @@ async function openTemplateDetail(tid){
 
 async function _trImgUpload(tid,input){
   var f=input.files&&input.files[0];if(!f)return;
-  if(f.size>5*1024*1024){toast("> 5 MB");return}
+  if(f.size>15*1024*1024){toast("> 15 MB");return}
   hp("light");
+  f=await _downscaleImage(f);
   var fd=new FormData();fd.append("file",f);
   var headers={};
   if(iD)headers["X-Telegram-Init-Data"]=iD;
@@ -3617,7 +3677,7 @@ if(_pwaPrompt){
 }
 h+='<div class="sc"><span class="sc-l">Developer</span></div>';
 h+=_setRow({ico:"debug",acc:"acc-ac",title:"Debug Mode "+(dbgOn?"ON":"OFF"),onclick:"dbgOn=!dbgOn;document.getElementById(\'dbg\').classList.toggle(\'hidden\',!dbgOn);ren()"});
-h+='<div style="margin-top:18px;text-align:center;font-size:11px;color:var(--ht);letter-spacing:.3px">Family HQ v8.30.5</div>';return h}
+h+='<div style="margin-top:18px;text-align:center;font-size:11px;color:var(--ht);letter-spacing:.3px">Family HQ v8.31.0</div>';return h}
 async function setTh(id){
   if(id==="custom"){
     // Tapping Custom in the picker opens the editor (saves happen there). Also apply right away.
@@ -3799,7 +3859,7 @@ cMo();hp();await load()}
 async function doEv(){var t=document.getElementById("f-t").value.trim();var d=document.getElementById("f-d").value;var tm=document.getElementById("f-tm").value||"12:00";if(!t||!d)return;var ed=document.getElementById("f-ed")?document.getElementById("f-ed").value:"";var et=document.getElementById("f-et")?document.getElementById("f-et").value:"";var end=ed?ed+" "+(et||tm):null;await A("POST","/api/events",{text:t,event_date:d+" "+tm,end_date:end});cMo();hp();await load()}
 async function doBd(){var n=document.getElementById("bd-n").value.trim();var e=document.getElementById("bd-e").value.trim()||"🎂";var d=document.getElementById("bd-d").value;if(!n||!d)return;await A("POST","/api/birthdays",{name:n,emoji:e,birth_date:d,reminders:_bdRems});cMo();hp();await load()}
 async function doNewSub(){var n=document.getElementById("su-n").value.trim();var e=document.getElementById("su-e").value.trim()||"💳";var a=parseFloat(document.getElementById("su-a").value);var c=document.getElementById("su-c").value;var d=parseInt(document.getElementById("su-d").value)||1;if(!n||!a)return;await A("POST","/api/subscriptions",{name:n,emoji:e,amount:a,currency:c,billing_day:d,assigned_to:_assign||null,reminders:_subRems});cMo();hp();await load()}
-async function doTx(){var a=parseFloat(document.getElementById("tx-a").value);if(!a)return;var c=document.getElementById("tx-c").value;var d=document.getElementById("tx-d").value.trim();var dt=document.getElementById("tx-dt").value;await A("POST","/api/transactions",{type:window._txType,amount:a,currency:c,description:d,date:dt,category_id:window._txCat||null,member_id:_assign||null});cMo();hp();_moneySummary=null;_curMonthSummary=null;_anaCache={};await load()}
+async function doTx(){var a=parseFloat(document.getElementById("tx-a").value);if(!a)return;var c=document.getElementById("tx-c").value;var d=document.getElementById("tx-d").value.trim();var dt=document.getElementById("tx-dt").value;await A("POST","/api/transactions",{type:window._txType,amount:a,currency:c,description:d,date:dt,category_id:window._txCat||null,member_id:_assign||null});cMo();hp();_moneySummary=null;_anaCache={};await load()}
 
 // ═══════════════════════════════════════════════════════════
 // VIEWPORT FIX
