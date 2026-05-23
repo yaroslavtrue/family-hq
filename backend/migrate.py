@@ -556,6 +556,18 @@ def migrate(db_path):
         # v23: per-plant voice overrides — JSON {ok, soon, thirsty} with any subset of
         # custom speech-bubble phrases that take precedence over the static PLANT_VOICE bank.
         lambda c: safe_add_col(c, "plants", "voice_overrides", "TEXT"),
+        # v24: plant growth timeline — multiple photos per plant with caption + taken_at.
+        # Files stored at /app/frontend/plants/timeline/<photo_id>.jpg; URL /static/plants/timeline/<id>.jpg
+        lambda c: c.executescript("""
+            CREATE TABLE IF NOT EXISTS plant_photos (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                plant_id INTEGER NOT NULL,
+                caption TEXT,
+                taken_at TEXT DEFAULT (datetime('now')),
+                added_by INTEGER
+            );
+            CREATE INDEX IF NOT EXISTS idx_plant_photos_plant ON plant_photos(plant_id, taken_at DESC);
+        """),
     ]
 
     for i, mig in enumerate(migrations):

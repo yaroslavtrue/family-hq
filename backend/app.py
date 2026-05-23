@@ -2992,15 +2992,93 @@ def plants_history(pid: int, days: int = 30, user=Depends(get_uf), db=Depends(ge
     }
 
 
-@app.delete("/api/plants/{pid}")
-def plants_delete(pid: int, user=Depends(get_uf), db=Depends(get_db)):
-    """Hard-delete plant + waterings + reminders + on-disk image."""
+# ─── Growth timeline (v8.31.1) ──────────────────────────────────────
+# Multiple dated photos per plant, stored at /app/frontend/plants/timeline/<id>.jpg
+PLANTS_TIMELINE_DIR = os.path.join(PLANTS_IMG_DIR, "timeline")
+
+@app.get("/api/plants/{pid}/photos")
+def plants_photos_list(pid: int, user=Depends(get_uf), db=Depends(get_db)):
+    """Chronological photos for one plant (newest first)."""
     row = db.execute("SELECT id FROM plants WHERE id=? AND family_id=?", (pid, user["family_id"])).fetchone()
     if not row: raise HTTPException(404)
+    rows = db.execute(
+        "SELECT id, caption, taken_at, added_by FROM plant_photos WHERE plant_id=? ORDER BY taken_at DESC, id DESC",
+        (pid,)).fetchall()
+    return {"photos": [dict(r) for r in rows]}
+
+
+@app.post("/api/plants/{pid}/photos")
+async def plants_photos_add(
+    pid: int,
+    file: UploadFile = File(...),
+    caption: str = Form(""),
+    user=Depends(get_uf), db=Depends(get_db),
+):
+    """Add a new timeline photo. Stored at /app/frontend/plants/timeline/<photo_id>.jpg."""
+    row = db.execute("SELECT id FROM plants WHERE id=? AND family_id=?", (pid, user["family_id"])).fetchone()
+    if not row: raise HTTPException(404)
+    if (file.content_type or "").split("/")[0] != "image":
+        raise HTTPException(400, "not an image")
+    data = await file.read()
+    if not data or len(data) > 5 * 1024 * 1024:
+        raise HTTPException(400, "empty or too large (max 5 MB)")
+    cur = db.execute(
+        "INSERT INTO plant_photos (plant_id, caption, added_by) VALUES (?, ?, ?)",
+        (pid, (caption or "").strip(), user["id"]))
+    photo_id = cur.lastrowid
+    os.makedirs(PLANTS_TIMELINE_DIR, exist_ok=True)
+    with open(os.path.join(PLANTS_TIMELINE_DIR, f"{photo_id}.jpg"), "wb") as f:
+        f.write(data)
+    db.commit()
+    fresh = db.execute("SELECT id, caption, taken_at, added_by FROM plant_photos WHERE id=?", (photo_id,)).fetchone()
+    return dict(fresh)
+
+
+@app.patch("/api/plants/photos/{photo_id}")
+def plants_photos_edit(photo_id: int, caption: str = Form(""), user=Depends(get_uf), db=Depends(get_db)):
+    """Edit caption only (photo file is immutable)."""
+    row = db.execute(
+        """SELECT pp.id FROM plant_photos pp JOIN plants p ON p.id=pp.plant_id
+           WHERE pp.id=? AND p.family_id=?""", (photo_id, user["family_id"])).fetchone()
+    if not row: raise HTTPException(404)
+    db.execute("UPDATE plant_photos SET caption=? WHERE id=?", ((caption or "").strip(), photo_id))
+    db.commit()
+    return {"ok": True}
+
+
+@app.delete("/api/plants/photos/{photo_id}")
+def plants_photos_delete(photo_id: int, user=Depends(get_uf), db=Depends(get_db)):
+    """Delete a timeline photo (row + file)."""
+    row = db.execute(
+        """SELECT pp.id FROM plant_photos pp JOIN plants p ON p.id=pp.plant_id
+           WHERE pp.id=? AND p.family_id=?""", (photo_id, user["family_id"])).fetchone()
+    if not row: raise HTTPException(404)
+    db.execute("DELETE FROM plant_photos WHERE id=?", (photo_id,))
+    db.commit()
+    fp = os.path.join(PLANTS_TIMELINE_DIR, f"{photo_id}.jpg")
+    if os.path.isfile(fp):
+        try: os.remove(fp)
+        except Exception as e: log.warning(f"plant timeline photo delete failed: {e}")
+    return {"ok": True}
+
+
+@app.delete("/api/plants/{pid}")
+def plants_delete(pid: int, user=Depends(get_uf), db=Depends(get_db)):
+    """Hard-delete plant + waterings + reminders + photos + on-disk images."""
+    row = db.execute("SELECT id FROM plants WHERE id=? AND family_id=?", (pid, user["family_id"])).fetchone()
+    if not row: raise HTTPException(404)
+    # Cascade-delete timeline photos (DB rows + files)
+    photo_ids = [r["id"] for r in db.execute("SELECT id FROM plant_photos WHERE plant_id=?", (pid,)).fetchall()]
+    db.execute("DELETE FROM plant_photos WHERE plant_id=?", (pid,))
     db.execute("DELETE FROM plant_reminders WHERE plant_id=?", (pid,))
     db.execute("DELETE FROM plant_waterings WHERE plant_id=?", (pid,))
     db.execute("DELETE FROM plants WHERE id=?", (pid,))
     db.commit()
+    for phid in photo_ids:
+        ph_fp = os.path.join(PLANTS_TIMELINE_DIR, f"{phid}.jpg")
+        if os.path.isfile(ph_fp):
+            try: os.remove(ph_fp)
+            except Exception: pass
     fp = os.path.join(PLANTS_IMG_DIR, f"{pid}.jpg")
     if os.path.isfile(fp):
         try: os.remove(fp)
@@ -3023,7 +3101,7 @@ def serve_exercise_image(fn: str):
     return r
 
 # ─── Debug & Serve ───────────────────────────────────────────────────────
-APP_VERSION = "v8.31.0"
+APP_VERSION = "v8.31.1"
 
 @app.get("/api/debug/ping")
 def ping(): return {"ok": True, "version": APP_VERSION, "time": datetime.now(ZoneInfo(TIMEZONE)).isoformat()}

@@ -781,7 +781,7 @@ async function _weSave(){
 }
 
 // ─── Plants — family-shared plant care with AI species identification ─────
-var _plState={selectedId:null,histCache:{}}; // histCache[plant_id] = {dates,water_days,count,avg_interval_days,target_interval_days}
+var _plState={selectedId:null,histCache:{},photosCache:{}}; // histCache[plant_id] = {dates,water_days,count,avg_interval_days,target_interval_days}; photosCache[plant_id] = [{id,caption,taken_at,url}]
 // Speech-bubble phrase bank, keyed to watering status. Selection is deterministic by
 // (plant.id + day-of-year) so the phrase stays stable for a whole day instead of
 // flickering on every re-render.
@@ -893,6 +893,7 @@ function rPlants(){
   setTimeout(function(){
     _plAttachSwipe();
     if(cur&&!_plState.histCache[cur.id])_plLoadHistory(cur.id);
+    if(cur&&!_plState.photosCache[cur.id])_plLoadPhotos(cur.id);
   },80);
   return h;
 }
@@ -915,6 +916,9 @@ function _rPlantInlineTips(cur){
   }else{
     h+='<div class="pl-hist-host"><div class="emp" style="padding:10px;font-size:11px;color:var(--ht)">Loading history…</div></div>';
   }
+  // Growth timeline — newest first horizontal scroll
+  h+='<div class="lb" style="margin-top:14px;display:flex;align-items:center;justify-content:space-between"><span>Growth timeline</span><span style="font-size:10px;color:var(--ht);font-weight:600;letter-spacing:.3px;text-transform:uppercase">'+((_plState.photosCache[cur.id]||[]).length)+' photos</span></div>';
+  h+=_plPhotoStripHtml(cur);
   // Tips list
   if(cur.care_tips&&cur.care_tips.length){
     h+='<div class="lb" style="margin-top:14px">Care tips</div>';
@@ -923,6 +927,108 @@ function _rPlantInlineTips(cur){
   if(cur.last_watered)h+='<div style="font-size:11px;color:var(--ht);margin-top:12px;text-align:center">Last watered '+_plDate(cur.last_watered)+'</div>';
   h+='</div>';
   return h;
+}
+
+function _plPhotoStripHtml(cur){
+  var photos=_plState.photosCache[cur.id];
+  if(photos===undefined){
+    return '<div class="pl-ph-strip"><button class="pl-ph-add" onclick="_plPhotoPick('+cur.id+')"><span style="font-size:22px;line-height:1">+</span><span style="font-size:10px;margin-top:4px">Add photo</span></button><div class="emp" style="padding:14px 8px;font-size:11px;color:var(--ht);flex:1">Loading…</div></div>';
+  }
+  var h='<div class="pl-ph-strip">';
+  h+='<button class="pl-ph-add" onclick="_plPhotoPick('+cur.id+')"><span style="font-size:22px;line-height:1">+</span><span style="font-size:10px;margin-top:4px;font-weight:600">Add photo</span></button>';
+  if(!photos.length){
+    h+='<div class="pl-ph-empty">No timeline photos yet. Snap one to track growth over time.</div>';
+  }else{
+    photos.forEach(function(p){
+      var d=p.taken_at?new Date(p.taken_at):null;
+      var dlbl=d?(d.getDate()+' '+["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"][d.getMonth()]+(d.getFullYear()!==new Date().getFullYear()?" '"+String(d.getFullYear()).slice(-2):"")):"";
+      h+='<button class="pl-ph-thumb" onclick="_plPhotoView('+p.id+','+cur.id+')"><img src="/static/plants/timeline/'+p.id+'.jpg" alt="" loading="lazy"><span class="pl-ph-date">'+es(dlbl)+'</span></button>';
+    });
+  }
+  h+='</div>';
+  return h;
+}
+
+async function _plLoadPhotos(pid){
+  if(_plState.photosCache[pid]!==undefined)return;
+  _plState.photosCache[pid]=null;
+  var d=await A("GET","/api/plants/"+pid+"/photos");
+  if(!d){delete _plState.photosCache[pid];return}
+  _plState.photosCache[pid]=d.photos||[];
+  if(tab==="plants"&&_plState.selectedId===pid)ren();
+}
+
+// Trigger file picker → POST timeline photo → reload + rerender
+function _plPhotoPick(pid){
+  hp("light");
+  var input=document.createElement("input");
+  input.type="file";input.accept="image/*";input.capture="environment";
+  input.onchange=async function(){
+    var f=input.files&&input.files[0];if(!f)return;
+    if(f.size>15*1024*1024){toast("> 15 MB");return}
+    f=await _downscaleImage(f);
+    var caption=prompt("Caption (optional, e.g. \"first leaves\"):","")||"";
+    var fd=new FormData();fd.append("file",f);fd.append("caption",caption.trim());
+    var headers={};
+    if(iD)headers["X-Telegram-Init-Data"]=iD;
+    var sess=_getSess();if(sess)headers["X-Session-Token"]=sess;
+    try{
+      var r=await fetch("/api/plants/"+pid+"/photos",{method:"POST",headers:headers,body:fd});
+      if(!r.ok){toast("Upload failed");return}
+      var p=await r.json();
+      hp("ok");toast("Photo added");
+      var arr=_plState.photosCache[pid]||[];
+      // Prepend (newest first)
+      arr.unshift(p);
+      _plState.photosCache[pid]=arr;
+      ren();
+    }catch(e){toast("Network error")}
+  };
+  input.click();
+}
+
+// Full-screen photo view modal — delete button + caption edit
+function _plPhotoView(photoId, plantId){
+  hp("light");
+  var photos=_plState.photosCache[plantId]||[];
+  var p=photos.find(function(x){return x.id===photoId});
+  if(!p)return;
+  var d=p.taken_at?new Date(p.taken_at):null;
+  var dlbl=d?d.toLocaleString("en-US",{day:"numeric",month:"long",year:"numeric"}):"";
+  var h='<div class="pl-pview"><img src="/static/plants/timeline/'+p.id+'.jpg" alt=""></div>';
+  h+='<div class="lb" style="margin-top:14px">Caption</div>';
+  h+='<input class="inp" id="plv-cap" value="'+es(p.caption||"")+'" placeholder="(optional)" maxlength="120">';
+  if(dlbl)h+='<div style="text-align:center;font-size:12px;color:var(--ht);margin-top:10px">📅 '+es(dlbl)+'</div>';
+  h+='<div style="display:flex;gap:8px;margin-top:18px">';
+  h+='<button class="btn btn-s" style="flex:1;background:transparent;color:var(--ac);border:1px solid color-mix(in srgb,var(--ac) 40%,transparent)" onclick="_plPhotoDelete('+p.id+','+plantId+')">🗑 Delete</button>';
+  h+='<button class="btn" style="flex:1.5" onclick="_plPhotoSaveCaption('+p.id+','+plantId+')">Save</button>';
+  h+='</div>';
+  oMC("Photo",h,{ic:"flower"});
+}
+
+async function _plPhotoSaveCaption(photoId, plantId){
+  var cap=(document.getElementById("plv-cap")||{}).value||"";
+  var fd=new FormData();fd.append("caption",cap.trim());
+  var headers={};
+  if(iD)headers["X-Telegram-Init-Data"]=iD;
+  var sess=_getSess();if(sess)headers["X-Session-Token"]=sess;
+  try{
+    var r=await fetch("/api/plants/photos/"+photoId,{method:"PATCH",headers:headers,body:fd});
+    if(!r.ok){toast("Save failed");return}
+    // Update in cache
+    var arr=_plState.photosCache[plantId]||[];
+    var ph=arr.find(function(x){return x.id===photoId});
+    if(ph)ph.caption=cap.trim();
+    cMo();hp("ok");toast("Caption saved");ren();
+  }catch(e){toast("Network error")}
+}
+
+async function _plPhotoDelete(photoId, plantId){
+  if(!confirm("Delete this photo?"))return;
+  var r=await A("DELETE","/api/plants/photos/"+photoId);
+  if(!r)return;
+  _plState.photosCache[plantId]=(_plState.photosCache[plantId]||[]).filter(function(x){return x.id!==photoId});
+  cMo();hp("ok");toast("Photo deleted");ren();
 }
 
 async function _plLoadHistory(pid){
@@ -3677,7 +3783,7 @@ if(_pwaPrompt){
 }
 h+='<div class="sc"><span class="sc-l">Developer</span></div>';
 h+=_setRow({ico:"debug",acc:"acc-ac",title:"Debug Mode "+(dbgOn?"ON":"OFF"),onclick:"dbgOn=!dbgOn;document.getElementById(\'dbg\').classList.toggle(\'hidden\',!dbgOn);ren()"});
-h+='<div style="margin-top:18px;text-align:center;font-size:11px;color:var(--ht);letter-spacing:.3px">Family HQ v8.31.0</div>';return h}
+h+='<div style="margin-top:18px;text-align:center;font-size:11px;color:var(--ht);letter-spacing:.3px">Family HQ v8.31.1</div>';return h}
 async function setTh(id){
   if(id==="custom"){
     // Tapping Custom in the picker opens the editor (saves happen there). Also apply right away.
