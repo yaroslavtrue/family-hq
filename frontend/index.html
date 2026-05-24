@@ -977,8 +977,10 @@ body.no-scroll .mx{touch-action:pan-y}
 <!-- Debug -->
 <div class="dbg hidden" id="dbg"><button class="dbg-cp" onclick="navigator.clipboard.writeText(dbgLog.join('\n'))">Copy</button></div>
 <!-- Load JS -->
-<!-- i18n dictionary loaded BEFORE app.js — app.js reads window.LANG from here -->
-<script src="/static/lang.js?v=191"></script>
-<script src="/static/app.js?v=191"></script>
+<!-- Load order: data (lang.js) → engines (theme.js) → main (app.js). All share globals; -->
+<!-- theme.js + lang.js use `var` declarations so they're true window-scope. -->
+<script src="/static/lang.js?v=192"></script>
+<script src="/static/theme.js?v=192"></script>
+<script src="/static/app.js?v=192"></script>
 </body>
 </html>
