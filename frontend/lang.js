@@ -217,6 +217,39 @@ window.LANG = {
     auth_bot_not_configured: "Bot not configured",
     set_theme_sub: "Tap to change",
     sh_in_stock: "In Stock",
+    sh_bought: "Bought", sh_clear: "Clear", sh_edit_item: "Edit Item",
+    mt_edit_sub: "Edit Subscription",
+    sh_edit_folder: "Edit Folder", sh_folder_none: "None", sh_total: "Total",
+    sh_delete_folder: "Delete Folder",
+    // Money widgets / receipts
+    m_balance_label: "Balance", m_monthly_total: "Monthly total",
+    m_monthly: "Monthly", m_edit_tx: "Edit Transaction",
+    m_item_name: "Item name", m_edit_receipt_item: "Edit Item",
+    // Subtasks
+    su_add_step: "Add step…", su_add: "Add",
+    // Cleaning add task
+    cl_add_task: "Add task…",
+    // Trainings
+    tr_create_template: "Create template", tr_empty_workout: "Empty workout",
+    tr_add: "Add", tr_statistics: "Statistics",
+    tr_no_template: "No template yet", tr_no_template_s: "Tap + to create one",
+    // Plant edit modal
+    pl_nickname: "Nickname", pl_species: "Species", pl_latin: "Latin name",
+    pl_water_every_days: "Water every (days)", pl_light: "Light",
+    pl_notes_placeholder: "Personal reminders, anniversaries…",
+    pl_nickname_placeholder: "e.g. Yuki",
+    pl_loading: "Loading…", pl_snap_photo: "Snap a photo",
+    pl_edit_details: "Edit details",
+    // Recurring edit
+    tk_edit_recur: "Edit Recurring", tk_status: "Status",
+    tk_active: "Active", tk_paused: "Paused",
+    // Misc
+    g_no_words_t: "No words available", g_no_words_s: "Catalog is empty",
+    g_no_matches: "No matches",
+    g_undo: "Undo",
+    g_quantity_hint: "e.g. 1kg", g_price_hint: "Price",
+    // Income/Expense labels (long form for stat tiles)
+    m_income_label: "Income", m_expense_label: "Expense",
   },
 
   ru: {
@@ -387,5 +420,30 @@ window.LANG = {
     auth_bot_not_configured: "Бот не настроен",
     set_theme_sub: "Нажми чтобы изменить",
     sh_in_stock: "В наличии",
+    sh_bought: "Куплено", sh_clear: "Очистить", sh_edit_item: "Изменить товар",
+    mt_edit_sub: "Изменить подписку",
+    sh_edit_folder: "Изменить папку", sh_folder_none: "Без папки", sh_total: "Итого",
+    sh_delete_folder: "Удалить папку",
+    m_balance_label: "Баланс", m_monthly_total: "В месяц",
+    m_monthly: "По месяцам", m_edit_tx: "Изменить транзакцию",
+    m_item_name: "Название", m_edit_receipt_item: "Изменить позицию",
+    su_add_step: "Добавить шаг…", su_add: "Добавить",
+    cl_add_task: "Добавить задачу…",
+    tr_create_template: "Создать шаблон", tr_empty_workout: "Пустая тренировка",
+    tr_add: "Добавить", tr_statistics: "Статистика",
+    tr_no_template: "Шаблонов пока нет", tr_no_template_s: "Нажми + чтобы создать",
+    pl_nickname: "Имя", pl_species: "Вид", pl_latin: "Латинское название",
+    pl_water_every_days: "Поливать каждые (дней)", pl_light: "Свет",
+    pl_notes_placeholder: "Личные напоминания, события…",
+    pl_nickname_placeholder: "напр. Юки",
+    pl_loading: "Загрузка…", pl_snap_photo: "Сфотографируй",
+    pl_edit_details: "Изменить детали",
+    tk_edit_recur: "Изменить повтор", tk_status: "Статус",
+    tk_active: "Активна", tk_paused: "На паузе",
+    g_no_words_t: "Слов нет", g_no_words_s: "Каталог пуст",
+    g_no_matches: "Ничего не найдено",
+    g_undo: "Отменить",
+    g_quantity_hint: "напр. 1кг", g_price_hint: "Цена",
+    m_income_label: "Доход", m_expense_label: "Расход",
   }
 };

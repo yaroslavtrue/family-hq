@@ -435,7 +435,7 @@ function rWords(){
   h+='</div>';
   // Loading
   if(_wordsState.loading||(_wordsState.queue.length===0&&_wordsFirstLoad===false&&stats.total===0)){h+='<div class="emp" style="padding-top:40px"><div class="emp-i" style="font-size:32px">⏳</div><div>Loading…</div></div>';return h}
-  if(_wordsState.queue.length===0){h+='<div class="emp" style="padding-top:40px">'+icon("book",48,1.8)+'<div class="emp-t">No words available</div><div>Catalog is empty</div></div>';return h}
+  if(_wordsState.queue.length===0){h+='<div class="emp" style="padding-top:40px">'+icon("book",48,1.8)+'<div class="emp-t">'+t("g_no_words_t")+'</div><div>'+t("g_no_words_s")+'</div></div>';return h}
   // Session complete
   if(_wordsState.cursor>=_wordsState.queue.length){
     h+='<div class="wd-done"><div class="wd-done-emoji">🎉</div><div class="wd-done-t">'+t("wd_session_complete")+'</div><div class="wd-done-s">'+t("wd_correct_of",{n:_wordsState.sessionCorrect,total:_wordsState.queue.length})+'</div><button class="btn" style="max-width:240px;margin-top:18px" onclick="loadWordsSession()">'+t("wd_next_session")+'</button></div>';
@@ -748,7 +748,7 @@ function _wmListHtml(){
   if(q){list=list.filter(function(w){return (w.en_word||"").toLowerCase().indexOf(q)>=0||(w.ru_word||"").toLowerCase().indexOf(q)>=0})}
   var h='<input class="inp" id="wm-q" placeholder="🔍 Search…" oninput="_wmSearch(this.value)" style="margin-bottom:14px" value="'+es(_wmState.query)+'">';
   h+='<div style="font-size:11px;color:var(--ht);text-align:center;margin-bottom:10px">'+list.length+' / '+_wmState.all.length+' words</div>';
-  if(!list.length){h+='<div class="emp" style="padding:24px">No matches</div>';return h}
+  if(!list.length){h+='<div class="emp" style="padding:24px">'+t("g_no_matches")+'</div>';return h}
   list.forEach(function(w){
     var imgHtml=w.image_key?'<img class="wm-thumb" src="/static/words/'+es(w.image_key)+'.jpg?t='+_wdImgVer+'" alt="" onerror="this.remove()">':'';
     h+='<div class="wm-row" onclick="openWordEdit('+w.idx+')">'+imgHtml+'<div class="wm-pair"><div class="wm-en">'+es(w.en_word||"—")+'</div><div class="wm-ru">'+es(w.ru_word||"—")+'</div></div><button class="bi" aria-label="Edit">'+I.ed+'</button></div>';
@@ -985,7 +985,7 @@ function _rPlantInlineTips(cur){
   // Meta row
   h+='<div class="pl-adv-meta" style="margin-bottom:12px">';
   h+='<div class="pl-adv-cell"><div class="pl-adv-cell-l">'+t("pl_water_every")+'</div><div class="pl-adv-cell-v">'+(cur.water_interval_days||7)+' '+t("pl_days_unit")+'</div></div>';
-  if(cur.light)h+='<div class="pl-adv-cell"><div class="pl-adv-cell-l">Light</div><div class="pl-adv-cell-v">'+es(cur.light)+'</div></div>';
+  if(cur.light)h+='<div class="pl-adv-cell"><div class="pl-adv-cell-l">'+t("pl_light")+'</div><div class="pl-adv-cell-v">'+es(cur.light)+'</div></div>';
   h+='</div>';
   // History graph
   h+='<div class="lb" style="margin-top:4px">Watering — last 30 days</div>';
@@ -1010,7 +1010,7 @@ function _rPlantInlineTips(cur){
 function _plPhotoStripHtml(cur){
   var photos=_plState.photosCache[cur.id];
   if(photos===undefined){
-    return '<div class="pl-ph-strip"><button class="pl-ph-add" onclick="_plPhotoPick('+cur.id+')"><span style="font-size:22px;line-height:1">+</span><span style="font-size:10px;margin-top:4px">Add photo</span></button><div class="emp" style="padding:14px 8px;font-size:11px;color:var(--ht);flex:1">Loading…</div></div>';
+    return '<div class="pl-ph-strip"><button class="pl-ph-add" onclick="_plPhotoPick('+cur.id+')"><span style="font-size:22px;line-height:1">+</span><span style="font-size:10px;margin-top:4px">'+t("pl_add_photo_short")+'</span></button><div class="emp" style="padding:14px 8px;font-size:11px;color:var(--ht);flex:1">'+t("g_loading")+'</div></div>';
   }
   var h='<div class="pl-ph-strip">';
   h+='<button class="pl-ph-add" onclick="_plPhotoPick('+cur.id+')"><span style="font-size:22px;line-height:1">+</span><span style="font-size:10px;margin-top:4px;font-weight:600">'+t("pl_add_photo_short")+'</span></button>';
@@ -1135,7 +1135,7 @@ function _plAttachSwipe(){
 // ─── Add flow: pick photo → upload → AI identify → server creates ──
 function _plOpenAdd(){
   hp("light");
-  var h='<div class="lb">Snap a photo</div>';
+  var h='<div class="lb">'+t("pl_snap_photo")+'</div>';
   h+='<div style="font-size:12px;color:var(--ht);margin-bottom:14px;line-height:1.4">AI will identify the plant, set a watering schedule, and write care tips. ~3 seconds.</div>';
   h+='<label class="pl-photo-pick" id="pl-photo-pick"><input type="file" id="pl-file" accept="image/*" capture="environment" style="display:none" onchange="_plOnPhotoPicked(this)"><div class="pl-photo-icon">📷</div><div class="pl-photo-l">'+t("pl_pick_photo")+'</div></label>';
   h+='<div class="lb" style="margin-top:14px">Nickname (optional)</div>';
@@ -1293,7 +1293,7 @@ function _plHistHtml(d,p){
 function _plMoreMenu(pid){
   hp("light");
   var p=(D.plants||[]).find(function(x){return x.id===pid});if(!p)return;
-  var h='<button class="menu-i" onclick="cMo();_plOpenEdit('+pid+')"><span class="mi-ico">'+I.ed+'</span><span class="mi-l">Edit details</span></button>';
+  var h='<button class="menu-i" onclick="cMo();_plOpenEdit('+pid+')"><span class="mi-ico">'+I.ed+'</span><span class="mi-l">'+t("pl_edit_details")+'</span></button>';
   h+='<button class="menu-i" onclick="cMo();_plReplacePhoto('+pid+')"><span class="mi-ico">📷</span><span class="mi-l">'+t("pl_replace_photo")+'</span></button>';
   h+='<div style="height:1px;background:var(--bd);margin:6px 0"></div>';
   h+='<button class="menu-i" onclick="cMo();_plDelete('+pid+')" style="color:var(--ac)"><span class="mi-ico">🗑</span><span class="mi-l">'+t("pl_delete_plant")+'</span></button>';
@@ -1303,11 +1303,11 @@ function _plMoreMenu(pid){
 function _plOpenEdit(pid){
   var p=(D.plants||[]).find(function(x){return x.id===pid});if(!p)return;
   hp("light");
-  var h='<div class="lb">Nickname</div><input class="inp" id="ple-name" value="'+es(p.custom_name||"")+'" placeholder="e.g. Yuki" maxlength="40">';
-  h+='<div class="lb" style="margin-top:12px">Species</div><input class="inp" id="ple-species" value="'+es(p.species||"")+'">';
-  h+='<div class="lb" style="margin-top:12px">Latin name</div><input class="inp" id="ple-latin" value="'+es(p.latin_name||"")+'">';
-  h+='<div class="dr"><div><div class="dl">Water every (days)</div><input class="inp" type="number" min="1" max="60" id="ple-int" value="'+(p.water_interval_days||7)+'"></div><div><div class="dl">Light</div><input class="inp" id="ple-light" value="'+es(p.light||"")+'"></div></div>';
-  h+='<div class="lb" style="margin-top:12px">Notes</div><input class="inp" id="ple-notes" value="'+es(p.notes||"")+'" placeholder="Personal reminders, anniversaries…">';
+  var h='<div class="lb">'+t("pl_nickname")+'</div><input class="inp" id="ple-name" value="'+es(p.custom_name||"")+'" placeholder="'+t("pl_nickname_placeholder")+'" maxlength="40">';
+  h+='<div class="lb" style="margin-top:12px">'+t("pl_species")+'</div><input class="inp" id="ple-species" value="'+es(p.species||"")+'">';
+  h+='<div class="lb" style="margin-top:12px">'+t("pl_latin")+'</div><input class="inp" id="ple-latin" value="'+es(p.latin_name||"")+'">';
+  h+='<div class="dr"><div><div class="dl">'+t("pl_water_every_days")+'</div><input class="inp" type="number" min="1" max="60" id="ple-int" value="'+(p.water_interval_days||7)+'"></div><div><div class="dl">'+t("pl_light")+'</div><input class="inp" id="ple-light" value="'+es(p.light||"")+'"></div></div>';
+  h+='<div class="lb" style="margin-top:12px">'+t("f_notes")+'</div><input class="inp" id="ple-notes" value="'+es(p.notes||"")+'" placeholder="'+t("pl_notes_placeholder")+'">';
   // Custom voice — speech bubble phrases per status. Any field left empty falls back to bank.
   var vo=p.voice_overrides||{};
   h+='<div class="lb" style="margin-top:14px">Personality (optional)</div>';
@@ -1404,7 +1404,7 @@ function matchQ(text){return !searchQ||(text||"").toLowerCase().indexOf(searchQ)
 // ─── Toast ──────────────────────────────────────────────────
 var _toastTimer=null;
 function toast(msg,undoFn){var el=document.getElementById("toast");if(_toastTimer)clearTimeout(_toastTimer);
-el.innerHTML=es(msg)+(undoFn?'<button class="toast-u" id="toast-undo">Undo</button>':"");el.classList.add("show");
+el.innerHTML=es(msg)+(undoFn?'<button class="toast-u" id="toast-undo">'+t("g_undo")+'</button>':"");el.classList.add("show");
 if(undoFn){document.getElementById("toast-undo").onclick=function(){undoFn();el.classList.remove("show")}}
 _toastTimer=setTimeout(function(){el.classList.remove("show")},undoFn?5000:2500)}
 
@@ -1452,7 +1452,7 @@ function zRemPk(){var h='';_zRems.forEach(function(r,i){var p=(r||"").split(" ")
 
 // ─── Subtask helpers ────────────────────────────────────────
 function sC(t,id){var s=allSubs[t]&&allSubs[t][id]?allSubs[t][id]:[];if(!s.length)return "";var d=s.filter(function(x){return x.done}).length;return '<span style="font-size:11px;color:'+(d===s.length?"var(--ok)":"var(--ht)")+';font-weight:600">'+d+'/'+s.length+'</span>'}
-function rSu(t,id){var k=t+"_"+id;if(!ex[k])return "";var s=allSubs[t]&&allSubs[t][id]?allSubs[t][id]:[];var h='<div class="sbs">';s.forEach(function(x){h+='<div class="si"><div class="cb cb-s '+(x.done?"cb-k":"cb-o")+'" onclick="tSu('+x.id+')">'+(x.done?I.ck:"")+'</div><span class="sx'+(x.done?" dn":"")+'">'+es(x.text)+'</span><button class="bi" onclick="dSu('+x.id+')">'+I.x+'</button></div>'});h+='</div><div class="sa"><input id="si-'+t+'-'+id+'" placeholder="Add step..." onkeydown="if(event.key===\'Enter\')aSu(\''+t+'\','+id+')"><button onclick="aSu(\''+t+'\','+id+')">Add</button></div>';return h}
+function rSu(t,id){var k=t+"_"+id;if(!ex[k])return "";var s=allSubs[t]&&allSubs[t][id]?allSubs[t][id]:[];var h='<div class="sbs">';s.forEach(function(x){h+='<div class="si"><div class="cb cb-s '+(x.done?"cb-k":"cb-o")+'" onclick="tSu('+x.id+')">'+(x.done?I.ck:"")+'</div><span class="sx'+(x.done?" dn":"")+'">'+es(x.text)+'</span><button class="bi" onclick="dSu('+x.id+')">'+I.x+'</button></div>'});h+='</div><div class="sa"><input id="si-'+t+'-'+id+'" placeholder="'+t("su_add_step")+'" onkeydown="if(event.key===\'Enter\')aSu(\''+t+'\','+id+')"><button onclick="aSu(\''+t+'\','+id+')">'+t("su_add")+'</button></div>';return h}
 function tX(t,id){ex[t+"_"+id]=!ex[t+"_"+id];ren()}
 async function tSu(sid){hp();await A("PATCH","/api/subtasks/"+sid+"/toggle");await load()}
 async function dSu(sid){hp();await A("DELETE","/api/subtasks/"+sid);await load()}
@@ -1840,9 +1840,9 @@ if(doing&&card){
 }}
 async function dlTk(id){var tk=D.tasks.find(function(x){return x.id===id});hp("warn");await A("DELETE","/api/tasks/"+id);await load();if(tk)toast("🗑 "+t("ts_deleted"),function(){A("POST","/api/tasks",{text:tk.text,assigned_to:tk.assigned_to,priority:tk.priority,due_date:tk.due_date}).then(load)})}
 async function dlRec(id){hp();await A("DELETE","/api/recurring/"+id);await load();toast("🗑 "+t("ts_deleted"))}
-function edTk(id){var t=D.tasks.find(function(x){return x.id===id});if(!t)return;_assign=t.assigned_to||0;_pri=t.priority;_rems=(t.reminders||[]).map(function(r){return r.remind_at});oMC("Edit Task",'<input class="inp" id="f-t" value="'+es(t.text)+'"><div class="lb">Assign to</div>'+assignPk("ap",t.assigned_to)+'<div class="lb">Priority</div><div class="or">'+["low","normal","high"].map(function(p){return '<button class="ob ob-pri-'+p+' '+(t.priority===p?"s":"")+'" onclick="_pri=\''+p+'\';this.parentNode.querySelectorAll(\'.ob\').forEach(function(b){b.classList.remove(\'s\')});this.classList.add(\'s\')">'+p[0].toUpperCase()+p.slice(1)+'</button>'}).join("")+'</div><div class="lb">Due Date</div><div class="dr"><div><input type="date" id="f-dd" value="'+(t.due_date?(t.due_date.split(" ")[0]):"")+'"></div></div><div class="lb">Reminders</div><div id="rw">'+remPk()+'</div><button class="btn" onclick="svTk('+id+')">Save</button>',{ic:"clipboard"})}
+function edTk(id){var t=D.tasks.find(function(x){return x.id===id});if(!t)return;_assign=t.assigned_to||0;_pri=t.priority;_rems=(t.reminders||[]).map(function(r){return r.remind_at});oMC(t("mt_edit_task"),'<input class="inp" id="f-t" value="'+es(t.text)+'"><div class="lb">'+t("g_assign_to")+'</div>'+assignPk("ap",t.assigned_to)+'<div class="lb">'+t("f_priority")+'</div><div class="or">'+["low","normal","high"].map(function(p){return '<button class="ob ob-pri-'+p+' '+(t.priority===p?"s":"")+'" onclick="_pri=\''+p+'\';this.parentNode.querySelectorAll(\'.ob\').forEach(function(b){b.classList.remove(\'s\')});this.classList.add(\'s\')">'+p[0].toUpperCase()+p.slice(1)+'</button>'}).join("")+'</div><div class="lb">'+t("g_due_date")+'</div><div class="dr"><div><input type="date" id="f-dd" value="'+(t.due_date?(t.due_date.split(" ")[0]):"")+'"></div></div><div class="lb">'+t("g_reminders")+'</div><div id="rw">'+remPk()+'</div><button class="btn" onclick="svTk('+id+')">Save</button>',{ic:"clipboard"})}
 async function svTk(id){var text=document.getElementById("f-t").value.trim();if(!text)return;var dd=document.getElementById("f-dd")?document.getElementById("f-dd").value:null;await A("PUT","/api/tasks/"+id,{text:text,assigned_to:_assign||null,priority:_pri,due_date:dd||null,reminders:_rems});cMo();hp();await load();if(_calEditCb){var cb=_calEditCb;_calEditCb=null;cb()}}
-function edRec(id){var r=D.recurring.find(function(x){return x.id===id});if(!r)return;_assign=r.assigned_to||0;oMC("Edit Recurring",'<input class="inp" id="f-t" value="'+es(r.text)+'"><div class="lb">Assign to</div>'+assignPk("ap",r.assigned_to)+'<div class="lb">Schedule</div><div class="or"><button class="ob '+(r.rrule==="daily"?"s":"")+'" onclick="document.getElementById(\'rr\').value=\'daily\';this.parentNode.querySelectorAll(\'.ob\').forEach(function(b){b.classList.remove(\'s\')});this.classList.add(\'s\');document.getElementById(\'wd\').classList.add(\'hidden\');document.getElementById(\'md\').classList.add(\'hidden\')">Daily</button><button class="ob '+(r.rrule.startsWith("weekly")?"s":"")+'" onclick="document.getElementById(\'rr\').value=\'weekly:\';this.parentNode.querySelectorAll(\'.ob\').forEach(function(b){b.classList.remove(\'s\')});this.classList.add(\'s\');document.getElementById(\'wd\').classList.remove(\'hidden\');document.getElementById(\'md\').classList.add(\'hidden\')">Weekly</button><button class="ob '+(r.rrule.startsWith("monthly")?"s":"")+'" onclick="document.getElementById(\'rr\').value=\'monthly:\';this.parentNode.querySelectorAll(\'.ob\').forEach(function(b){b.classList.remove(\'s\')});this.classList.add(\'s\');document.getElementById(\'md\').classList.remove(\'hidden\');document.getElementById(\'wd\').classList.add(\'hidden\')">Monthly</button></div><input type="hidden" id="rr" value="'+r.rrule+'"><div id="wd" class="'+(r.rrule.startsWith("weekly")?"":"hidden")+'"><div class="lb">Days</div><div class="or">'+["mon","tue","wed","thu","fri","sat","sun"].map(function(d){return '<button class="ob '+(r.rrule.indexOf(d)>=0?"s":"")+'" onclick="this.classList.toggle(\'s\')">'+d+'</button>'}).join("")+'</div></div><div id="md" class="'+(r.rrule.startsWith("monthly")?"":"hidden")+'"><div class="lb">Day of month</div><input class="inp" id="f-md" type="number" min="1" max="28" value="'+(r.rrule.startsWith("monthly:")?r.rrule.split(":")[1]:"1")+'"></div><div class="lb">Status</div><div class="or"><button class="ob '+(r.active?"s":"")+'" onclick="_recActive=1;this.parentNode.querySelectorAll(\'.ob\').forEach(function(b){b.classList.remove(\'s\')});this.classList.add(\'s\')">Active</button><button class="ob '+(!r.active?"s":"")+'" onclick="_recActive=0;this.parentNode.querySelectorAll(\'.ob\').forEach(function(b){b.classList.remove(\'s\')});this.classList.add(\'s\')">Paused</button></div><button class="btn" onclick="svRec('+id+')">Save</button>',{ic:"refresh"});window._recActive=r.active}
+function edRec(id){var r=D.recurring.find(function(x){return x.id===id});if(!r)return;_assign=r.assigned_to||0;oMC(t("tk_edit_recur"),'<input class="inp" id="f-t" value="'+es(r.text)+'"><div class="lb">'+t("g_assign_to")+'</div>'+assignPk("ap",r.assigned_to)+'<div class="lb">'+t("g_schedule")+'</div><div class="or"><button class="ob '+(r.rrule==="daily"?"s":"")+'" onclick="document.getElementById(\'rr\').value=\'daily\';this.parentNode.querySelectorAll(\'.ob\').forEach(function(b){b.classList.remove(\'s\')});this.classList.add(\'s\');document.getElementById(\'wd\').classList.add(\'hidden\');document.getElementById(\'md\').classList.add(\'hidden\')">Daily</button><button class="ob '+(r.rrule.startsWith("weekly")?"s":"")+'" onclick="document.getElementById(\'rr\').value=\'weekly:\';this.parentNode.querySelectorAll(\'.ob\').forEach(function(b){b.classList.remove(\'s\')});this.classList.add(\'s\');document.getElementById(\'wd\').classList.remove(\'hidden\');document.getElementById(\'md\').classList.add(\'hidden\')">Weekly</button><button class="ob '+(r.rrule.startsWith("monthly")?"s":"")+'" onclick="document.getElementById(\'rr\').value=\'monthly:\';this.parentNode.querySelectorAll(\'.ob\').forEach(function(b){b.classList.remove(\'s\')});this.classList.add(\'s\');document.getElementById(\'md\').classList.remove(\'hidden\');document.getElementById(\'wd\').classList.add(\'hidden\')">Monthly</button></div><input type="hidden" id="rr" value="'+r.rrule+'"><div id="wd" class="'+(r.rrule.startsWith("weekly")?"":"hidden")+'"><div class="lb">'+t("g_days")+'</div><div class="or">'+["mon","tue","wed","thu","fri","sat","sun"].map(function(d){return '<button class="ob '+(r.rrule.indexOf(d)>=0?"s":"")+'" onclick="this.classList.toggle(\'s\')">'+d+'</button>'}).join("")+'</div></div><div id="md" class="'+(r.rrule.startsWith("monthly")?"":"hidden")+'"><div class="lb">'+t("g_day_of_month")+'</div><input class="inp" id="f-md" type="number" min="1" max="28" value="'+(r.rrule.startsWith("monthly:")?r.rrule.split(":")[1]:"1")+'"></div><div class="lb">'+t("tk_status")+'</div><div class="or"><button class="ob '+(r.active?"s":"")+'" onclick="_recActive=1;this.parentNode.querySelectorAll(\'.ob\').forEach(function(b){b.classList.remove(\'s\')});this.classList.add(\'s\')">Active</button><button class="ob '+(!r.active?"s":"")+'" onclick="_recActive=0;this.parentNode.querySelectorAll(\'.ob\').forEach(function(b){b.classList.remove(\'s\')});this.classList.add(\'s\')">Paused</button></div><button class="btn" onclick="svRec('+id+')">Save</button>',{ic:"refresh"});window._recActive=r.active}
 async function svRec(id){var text=document.getElementById("f-t").value.trim();if(!text)return;var rr=document.getElementById("rr").value;if(rr==="weekly:"){var days=[];document.querySelectorAll("#wd .ob.s").forEach(function(b){days.push(b.textContent)});rr="weekly:"+days.join(",")}else if(rr==="monthly:"){rr="monthly:"+(document.getElementById("f-md")?document.getElementById("f-md").value:"1")}await A("PUT","/api/recurring/"+id,{text:text,assigned_to:_assign||null,rrule:rr,active:window._recActive});cMo();hp();await load();if(_calEditCb){var cb=_calEditCb;_calEditCb=null;cb()}}
 
 // ═══════════════════════════════════════════════════════════
@@ -1859,10 +1859,10 @@ else if(shopFold!==null)items=items.filter(function(x){return x.folder_id===shop
 else items=items.filter(function(x){return!x.bought});
 if(searchQ)items=items.filter(function(x){return matchQ(x.item)});
 var folderTotal=0;items.forEach(function(x){if(x.price&&(shopFold==="stock"||!x.bought))folderTotal+=x.price});
-if(folderTotal>0)h+='<div class="cat-row" style="margin-bottom:14px"><div class="cat-row-h"><span class="nm">Total</span><span class="vl" style="color:var(--wn)">'+folderTotal.toFixed(0)+' din.</span></div></div>';
+if(folderTotal>0)h+='<div class="cat-row" style="margin-bottom:14px"><div class="cat-row-h"><span class="nm">'+t("sh_total")+'</span><span class="vl" style="color:var(--wn)">'+folderTotal.toFixed(0)+' din.</span></div></div>';
 if(shopFold==="stock"){
   if(!items.length)return h+em(icon("cart",48,1.8),t("es_no_stock_t"),t("es_no_stock_s"));
-  h+=_scH3("ck","In Stock",items.length,'<button class="at" onclick="clSh()">Clear</button>',"var(--ok)");
+  h+=_scH3("ck",t("sh_in_stock"),items.length,'<button class="at" onclick="clSh()">'+t("sh_clear")+'</button>',"var(--ok)");
   var fMap={};D.folders.forEach(function(f){fMap[f.id]=f});var grps={};items.forEach(function(s){var k=s.folder_id||0;if(!grps[k])grps[k]=[];grps[k].push(s)});var ks=D.folders.map(function(f){return f.id}).filter(function(id){return grps[id]});if(grps[0])ks.push(0);var multi=ks.length>1||(ks.length===1&&ks[0]!==0);
   ks.forEach(function(k){var g=grps[k];if(multi){var label=k&&fMap[k]?(fMap[k].emoji+" "+es(fMap[k].name)):"Other";h+='<div class="sc" style="font-size:12px;margin-top:12px"><span class="sc-l">'+label+'<span class="sc-cnt">'+g.length+'</span></span></div>'}
   g.forEach(function(s){var qtyHtml=s.quantity?'<span class="qty">'+es(s.quantity)+'</span>':"";var prHtml=s.price?'<span style="font-size:11px;color:var(--wn);font-weight:600">'+s.price+' din.</span>':"";h+='<div class="c c-stk"><div class="cb cb-k" onclick="tgSh('+s.id+',this)">'+I.ck+'</div><div class="bd"><div class="tt">'+es(s.item)+" "+qtyHtml+'</div><div class="mt">'+es(s.added_by||"")+" "+prHtml+'</div></div><button class="bi" onclick="edShop('+s.id+')">'+I.ed+'</button><button class="bi" onclick="dSh('+s.id+')">'+I.tr+'</button></div>'})});
@@ -1872,7 +1872,7 @@ var p=items.filter(function(x){return!x.bought}),b=items.filter(function(x){retu
 if(!items.length)return h+em(icon("cart",48,1.8),t("es_no_shop_t"),t("es_no_shop_s"));
 if(p.length){h+=_scH3("cart","To Buy",p.length);
   p.forEach(function(s){var qtyHtml=s.quantity?'<span class="qty">'+es(s.quantity)+'</span>':"";var prHtml=s.price?'<span style="font-size:11px;color:var(--wn);font-weight:600">'+s.price+' din.</span>':"";h+='<div class="c"><div class="cb cb-o" onclick="tgSh('+s.id+',this)"></div><div class="bd"><div class="tt">'+es(s.item)+" "+qtyHtml+'</div><div class="mt">'+es(s.added_by||"")+" "+prHtml+'</div></div><button class="bi" onclick="edShop('+s.id+')">'+I.ed+'</button><button class="bi" onclick="dSh('+s.id+')">'+I.tr+'</button></div>'})}
-if(b.length){h+=_scH3("ck","Bought",b.length,'<button class="at" onclick="clSh()">Clear</button>',"var(--ok)");
+if(b.length){h+=_scH3("ck",t("sh_bought"),b.length,'<button class="at" onclick="clSh()">'+t("sh_clear")+'</button>',"var(--ok)");
   b.forEach(function(s){var qtyHtml=s.quantity?'<span class="qty">'+es(s.quantity)+'</span>':"";h+='<div class="c d"><div class="cb cb-k" onclick="tgSh('+s.id+',this)">'+I.ck+'</div><div class="bd"><div class="tt sk">'+es(s.item)+" "+qtyHtml+'</div></div><button class="bi" onclick="edShop('+s.id+')">'+I.ed+'</button></div>'})}
 return h}
 async function tgSh(id,cb){
@@ -1895,11 +1895,11 @@ if(doing&&card){
 }}
 async function dSh(id){hp("warn");await A("DELETE","/api/shopping/"+id);await load();toast("🗑 "+t("ts_deleted"))}
 async function clSh(){hp();await A("DELETE","/api/shopping/clear-bought");await load();toast("✓ Cleared")}
-function edShop(sid){var s=D.shopping.find(function(x){return x.id===sid});if(!s)return;var folderOpts='<button class="ob '+(!s.folder_id?"s":"")+'" onclick="window._sFold=0;this.parentNode.querySelectorAll(\'.ob\').forEach(function(b){b.classList.remove(\'s\')});this.classList.add(\'s\')">None</button>';D.folders.forEach(function(f){folderOpts+='<button class="ob '+(s.folder_id===f.id?"s":"")+'" onclick="window._sFold='+f.id+';this.parentNode.querySelectorAll(\'.ob\').forEach(function(b){b.classList.remove(\'s\')});this.classList.add(\'s\')">'+f.emoji+" "+es(f.name)+'</button>'});window._sFold=s.folder_id||0;oMC("Edit Item",'<input class="inp" id="se-n" value="'+es(s.item)+'"><div class="dr"><div><div class="dl">Quantity</div><input class="inp" id="se-q" value="'+(s.quantity||"")+'" placeholder="e.g. 1kg"></div><div><div class="dl">Price (din.)</div><input class="inp" id="se-p" type="number" value="'+(s.price||"")+'" placeholder="0"></div></div>'+(D.folders.length?'<div class="lb">Folder</div><div class="or">'+folderOpts+'</div>':'')+'<button class="btn" onclick="svShop('+sid+')">Save</button>',{ic:"cart"})}
+function edShop(sid){var s=D.shopping.find(function(x){return x.id===sid});if(!s)return;var folderOpts='<button class="ob '+(!s.folder_id?"s":"")+'" onclick="window._sFold=0;this.parentNode.querySelectorAll(\'.ob\').forEach(function(b){b.classList.remove(\'s\')});this.classList.add(\'s\')">None</button>';D.folders.forEach(function(f){folderOpts+='<button class="ob '+(s.folder_id===f.id?"s":"")+'" onclick="window._sFold='+f.id+';this.parentNode.querySelectorAll(\'.ob\').forEach(function(b){b.classList.remove(\'s\')});this.classList.add(\'s\')">'+f.emoji+" "+es(f.name)+'</button>'});window._sFold=s.folder_id||0;oMC(t("sh_edit_item"),'<input class="inp" id="se-n" value="'+es(s.item)+'"><div class="dr"><div><div class="dl">'+t("f_quantity")+'</div><input class="inp" id="se-q" value="'+(s.quantity||"")+'" placeholder="'+t("g_quantity_hint")+'"></div><div><div class="dl">Price (din.)</div><input class="inp" id="se-p" type="number" value="'+(s.price||"")+'" placeholder="0"></div></div>'+(D.folders.length?'<div class="lb">'+t("f_folder")+'</div><div class="or">'+folderOpts+'</div>':'')+'<button class="btn" onclick="svShop('+sid+')">Save</button>',{ic:"cart"})}
 async function svShop(sid){var n=document.getElementById("se-n").value.trim();var q=document.getElementById("se-q").value.trim();var p=parseFloat(document.getElementById("se-p").value)||null;if(!n)return;await A("PUT","/api/shopping/"+sid,{item:n,quantity:q||null,price:p,folder_id:window._sFold||null});cMo();hp();await load()}
 function shAddFolder(){oMC(t("mt_new_folder"),'<input class="inp" id="ff-n" placeholder="'+t("f_folder")+'"><input class="inp" id="ff-e" placeholder="📁" value="📁" style="width:80px"><button class="btn" onclick="doAddFolder()">'+t("btn_create")+'</button>',{ic:"list"})}
 async function doAddFolder(){var n=document.getElementById("ff-n").value.trim();var e=document.getElementById("ff-e").value.trim()||"📁";if(!n)return;await A("POST","/api/shopping/folders",{name:n,emoji:e});cMo();hp();await load()}
-function edFolder(fid){var f=D.folders.find(function(x){return x.id===fid});if(!f)return;oMC("Edit Folder",'<input class="inp" id="ef-n" value="'+es(f.name)+'"><input class="inp" id="ef-e" value="'+f.emoji+'" style="width:80px"><button class="btn" onclick="svFolder('+fid+')">Save</button><div style="margin-top:16px;padding-top:16px;border-top:1px solid var(--bd)"><button class="btn btn-s" style="color:var(--ac);font-size:13px" onclick="dlFolder('+fid+')">Delete Folder</button></div>',{ic:"list"})}
+function edFolder(fid){var f=D.folders.find(function(x){return x.id===fid});if(!f)return;oMC(t("sh_edit_folder"),'<input class="inp" id="ef-n" value="'+es(f.name)+'"><input class="inp" id="ef-e" value="'+f.emoji+'" style="width:80px"><button class="btn" onclick="svFolder('+fid+')">Save</button><div style="margin-top:16px;padding-top:16px;border-top:1px solid var(--bd)"><button class="btn btn-s" style="color:var(--ac);font-size:13px" onclick="dlFolder('+fid+')">'+t("sh_delete_folder")+'</button></div>',{ic:"list"})}
 async function svFolder(fid){var n=document.getElementById("ef-n").value.trim();var e=document.getElementById("ef-e").value.trim();if(!n)return;await A("PUT","/api/shopping/folders/"+fid,{name:n,emoji:e});cMo();hp();await load()}
 async function dlFolder(fid){await A("DELETE","/api/shopping/folders/"+fid);cMo();hp();shopFold=null;await load();toast("✓ Folder deleted")}
 
@@ -1930,9 +1930,9 @@ if(monthLbl)h+='<div style="text-align:center;font-size:10px;color:var(--ht);fon
 function _tv(v){return v===null?'<span style="opacity:.4">…</span>':'€'+v.toFixed(0)}
 function _bv(v){if(v===null)return _tv(null);return (v>=0?"+":"−")+'€'+Math.abs(v).toFixed(0)}
 h+='<div class="sts sts-3">';
-h+='<div class="st st-mn"><div class="st-ico tone-ok">'+icon("trendUp",16,2.2)+'</div><div class="st-lb">Income</div><div class="st-vl pos">'+_tv(tInc)+'</div></div>';
-h+='<div class="st st-mn"><div class="st-ico tone-ac">'+icon("trendDown",16,2.2)+'</div><div class="st-lb">Expense</div><div class="st-vl neg">'+_tv(tExp)+'</div></div>';
-h+='<div class="st st-mn"><div class="st-ico tone-pr">'+icon("wallet",16,2.2)+'</div><div class="st-lb">Balance</div><div class="st-vl '+(bal===null?"":(bal>=0?"pos":"neg"))+'">'+_bv(bal)+'</div></div>';
+h+='<div class="st st-mn"><div class="st-ico tone-ok">'+icon("trendUp",16,2.2)+'</div><div class="st-lb">'+t("m_income_label")+'</div><div class="st-vl pos">'+_tv(tInc)+'</div></div>';
+h+='<div class="st st-mn"><div class="st-ico tone-ac">'+icon("trendDown",16,2.2)+'</div><div class="st-lb">'+t("m_expense_label")+'</div><div class="st-vl neg">'+_tv(tExp)+'</div></div>';
+h+='<div class="st st-mn"><div class="st-ico tone-pr">'+icon("wallet",16,2.2)+'</div><div class="st-lb">'+t("m_balance_label")+'</div><div class="st-vl '+(bal===null?"":(bal>=0?"pos":"neg"))+'">'+_bv(bal)+'</div></div>';
 h+='</div>';
 if(!txs.length)return h+em(icon("wallet",48,1.8),t("es_no_txs_t"),t("es_no_txs_s"));
 // Member filter row
@@ -1966,7 +1966,7 @@ async function dlTx(id){hp();await A("DELETE","/api/transactions/"+id);_moneySum
 function edTx(id){var tx=D.transactions.find(function(x){return x.id===id});if(!tx)return;_assign=tx.member_id||0;
 var catOpts=D.categories.filter(function(c){return c.type===tx.type}).map(function(c){return '<button class="ob '+(tx.category_id===c.id?"s":"")+'" onclick="window._txCat='+c.id+';this.parentNode.querySelectorAll(\'.ob\').forEach(function(b){b.classList.remove(\'s\')});this.classList.add(\'s\')">'+c.emoji+" "+es(c.name)+'</button>'}).join("");
 window._txCat=tx.category_id||0;window._txType=tx.type;
-oMC("Edit Transaction",'<div class="dr"><div><div class="dl">Amount</div><input class="inp" id="tx-a" type="number" step="0.01" value="'+tx.amount+'"></div><div><div class="dl">Currency</div><select id="tx-c"><option value="RSD"'+(tx.currency==="RSD"?" selected":"")+'>din. RSD</option><option value="EUR"'+(tx.currency==="EUR"?" selected":"")+'>€ EUR</option><option value="USD"'+(tx.currency==="USD"?" selected":"")+'>$ USD</option><option value="GBP"'+(tx.currency==="GBP"?" selected":"")+'>£ GBP</option><option value="RUB"'+(tx.currency==="RUB"?" selected":"")+'>₽ RUB</option></select></div></div><div class="lb">Description</div><input class="inp" id="tx-d" value="'+es(tx.description||"")+'"><div class="lb">Category</div><div class="or">'+catOpts+'</div><div class="lb">Date</div><input type="date" id="tx-dt" value="'+tx.date+'"><div class="lb">Who</div>'+assignPk("txm",tx.member_id)+'<button class="btn" onclick="svTx('+id+')">Save</button>',{ic:"wallet"})}
+oMC(t("m_edit_tx"),'<div class="dr"><div><div class="dl">'+t("f_amount")+'</div><input class="inp" id="tx-a" type="number" step="0.01" value="'+tx.amount+'"></div><div><div class="dl">'+t("f_currency")+'</div><select id="tx-c"><option value="RSD"'+(tx.currency==="RSD"?" selected":"")+'>din. RSD</option><option value="EUR"'+(tx.currency==="EUR"?" selected":"")+'>€ EUR</option><option value="USD"'+(tx.currency==="USD"?" selected":"")+'>$ USD</option><option value="GBP"'+(tx.currency==="GBP"?" selected":"")+'>£ GBP</option><option value="RUB"'+(tx.currency==="RUB"?" selected":"")+'>₽ RUB</option></select></div></div><div class="lb">'+t("f_description")+'</div><input class="inp" id="tx-d" value="'+es(tx.description||"")+'"><div class="lb">'+t("f_category")+'</div><div class="or">'+catOpts+'</div><div class="lb">'+t("f_date")+'</div><input type="date" id="tx-dt" value="'+tx.date+'"><div class="lb">'+t("g_who")+'</div>'+assignPk("txm",tx.member_id)+'<button class="btn" onclick="svTx('+id+')">Save</button>',{ic:"wallet"})}
 async function svTx(id){var a=parseFloat(document.getElementById("tx-a").value);var c=document.getElementById("tx-c").value;var d=document.getElementById("tx-d").value.trim();var dt=document.getElementById("tx-dt").value;if(!a)return;await A("PUT","/api/transactions/"+id,{amount:a,currency:c,description:d,date:dt,category_id:window._txCat||null,member_id:_assign||null});cMo();hp();_moneySummary=null;_anaCache={};await load()}
 
 // ─── Digest config modal ─────────────────────────────────────
@@ -2097,7 +2097,7 @@ h+='</div>'});h+='</div>'}
 // Add form — 3 rows: Name, Qty+Price+Currency, Add
 h+='<div style="margin-top:14px;padding-top:14px;border-top:1px solid var(--bd)">';
 h+='<input class="inp" id="ri-name" placeholder="Item name" onkeydown="if(event.key===\'Enter\')document.getElementById(\'ri-qty\').focus()">';
-h+='<div class="dr"><div><div class="dl">Quantity</div><input class="inp" id="ri-qty" type="number" min="1" value="1" placeholder="1"></div><div><div class="dl">Price</div><input class="inp" id="ri-amt" type="number" step="0.01" placeholder="0.00" onkeydown="if(event.key===\'Enter\')addRi('+txId+')"></div><div><div class="dl">Currency</div>'+_curSel("ri-cur",tx.currency)+'</div></div>';
+h+='<div class="dr"><div><div class="dl">'+t("f_quantity")+'</div><input class="inp" id="ri-qty" type="number" min="1" value="1" placeholder="1"></div><div><div class="dl">'+t("g_price_hint")+'</div><input class="inp" id="ri-amt" type="number" step="0.01" placeholder="0.00" onkeydown="if(event.key===\'Enter\')addRi('+txId+')"></div><div><div class="dl">'+t("f_currency")+'</div>'+_curSel("ri-cur",tx.currency)+'</div></div>';
 h+='<button class="btn" onclick="addRi('+txId+')">Add</button>';
 h+='</div>';
 return h}
@@ -2115,7 +2115,7 @@ function edRi(iid,txId){
 var items=(D.txItems||{})[txId]||[];
 var it=items.find(function(x){return x.id===iid});if(!it)return;
 var tx=D.transactions.find(function(x){return x.id===txId});
-oMC("Edit Item",'<div class="dl">Item name</div><input class="inp" id="ei-name" value="'+es(it.name)+'"><div class="dr"><div><div class="dl">Quantity</div><input class="inp" id="ei-qty" type="number" min="1" value="'+(it.quantity||1)+'"></div><div><div class="dl">Price</div><input class="inp" id="ei-amt" type="number" step="0.01" value="'+it.amount+'"></div><div><div class="dl">Currency</div>'+_curSel("ei-cur",it.currency||(tx?tx.currency:"RSD"))+'</div></div><button class="btn" onclick="svRi('+iid+','+txId+')">Save</button>',{ic:"receipt"})}
+oMC(t("m_edit_receipt_item"),'<div class="dl">'+t("m_item_name")+'</div><input class="inp" id="ei-name" value="'+es(it.name)+'"><div class="dr"><div><div class="dl">'+t("f_quantity")+'</div><input class="inp" id="ei-qty" type="number" min="1" value="'+(it.quantity||1)+'"></div><div><div class="dl">'+t("g_price_hint")+'</div><input class="inp" id="ei-amt" type="number" step="0.01" value="'+it.amount+'"></div><div><div class="dl">'+t("f_currency")+'</div>'+_curSel("ei-cur",it.currency||(tx?tx.currency:"RSD"))+'</div></div><button class="btn" onclick="svRi('+iid+','+txId+')">Save</button>',{ic:"receipt"})}
 
 async function svRi(iid,txId){var n=document.getElementById("ei-name").value.trim();
 var q=parseInt(document.getElementById("ei-qty").value)||1;
@@ -2125,12 +2125,12 @@ cMo();await load();openReceipt(txId)}
 
 // Subs (moved from Calendar)
 function rSubAddBtn(){return '<button class="btn btn-s" style="margin-bottom:16px" onclick="oMoSub()">+ '+t("mt_add_sub")+'</button>'}
-function oMoSub(){_assign=0;_subRems=[{days_before:3,time:"09:00"},{days_before:0,time:"09:00"}];oMC("Add Subscription",'<input class="inp" id="su-n" placeholder="Subscription name"><input class="inp" id="su-e" value="💳" style="width:80px"><div class="dr"><div><div class="dl">Amount</div><input class="inp" id="su-a" type="number" step="0.01" placeholder="9.99"></div><div><div class="dl">Currency</div><select id="su-c"><option value="EUR">€</option><option value="USD">$</option><option value="GBP">£</option><option value="RUB">₽</option><option value="RSD">din.</option></select></div></div><div class="dr"><div><div class="dl">Billing day</div><input class="inp" id="su-d" type="number" min="1" max="28" value="1"></div></div><div class="lb">Assigned to</div>'+assignPk("sap",null)+'<div class="lb">Reminders</div><div id="srl">'+subRemPk()+'</div><button class="btn" onclick="doNewSub()">Add Subscription</button>',{ic:"card"})}
+function oMoSub(){_assign=0;_subRems=[{days_before:3,time:"09:00"},{days_before:0,time:"09:00"}];oMC("Add Subscription",'<input class="inp" id="su-n" placeholder="Subscription name"><input class="inp" id="su-e" value="💳" style="width:80px"><div class="dr"><div><div class="dl">'+t("f_amount")+'</div><input class="inp" id="su-a" type="number" step="0.01" placeholder="9.99"></div><div><div class="dl">'+t("f_currency")+'</div><select id="su-c"><option value="EUR">€</option><option value="USD">$</option><option value="GBP">£</option><option value="RUB">₽</option><option value="RSD">din.</option></select></div></div><div class="dr"><div><div class="dl">Billing day</div><input class="inp" id="su-d" type="number" min="1" max="28" value="1"></div></div><div class="lb">'+t("g_assigned_to")+'</div>'+assignPk("sap",null)+'<div class="lb">'+t("g_reminders")+'</div><div id="srl">'+subRemPk()+'</div><button class="btn" onclick="doNewSub()">Add Subscription</button>',{ic:"card"})}
 function rSubsList(){
 if(!D.subs.length)return em(icon("card",48,1.8),t("es_no_subs_t"),t("es_no_subs_s"))+rSubAddBtn();
 var items=D.subs;if(searchQ)items=items.filter(function(s){return matchQ(s.name)});
 var totalEur=0;items.forEach(function(s){totalEur+=(s.amount_eur||0)});
-var h=rSubAddBtn()+'<div class="c" style="border-left:3px solid var(--wn)"><div class="bd"><div class="tt" style="font-weight:700">Monthly total</div><div class="mt" style="font-size:16px;color:var(--wn);font-weight:800">€'+totalEur.toFixed(2)+'</div></div></div>';
+var h=rSubAddBtn()+'<div class="c" style="border-left:3px solid var(--wn)"><div class="bd"><div class="tt" style="font-weight:700">'+t("m_monthly_total")+'</div><div class="mt" style="font-size:16px;color:var(--wn);font-weight:800">€'+totalEur.toFixed(2)+'</div></div></div>';
 h+='<div class="fb2"><button class="fi '+(filt===null?"a":"")+'" onclick="filt=null;ren()">'+t("g_filter_all")+'</button>';D.members.forEach(function(m){h+='<button class="fi '+(filt===m.user_id?"a":"")+'" style="padding:3px 6px;display:inline-flex;align-items:center" onclick="filt='+m.user_id+';ren()">'+mAv(m.user_id,22)+'</button>'});h+='</div>';
 if(filt)items=items.filter(function(s){return s.assigned_to===filt});
 items.forEach(function(s){var daysTxt=s.days_until===0?"Today":s.days_until===1?"Tomorrow":"in "+s.days_until+"d";
@@ -2138,7 +2138,7 @@ var tone=s.days_until===0?"tone-ac":s.days_until<=2?"tone-wn":"";
 var amountTxt=s.amount+" "+s.currency+(s.currency!=="EUR"?" · €"+(s.amount_eur||0).toFixed(2):"");
 h+='<div class="lc"><div class="lc-i">'+s.emoji+'</div><div class="lc-bd"><div class="lc-tt">'+es(s.name)+'</div><div class="lc-mt">Day '+s.billing_day+' · '+amountTxt+'</div></div><span class="lc-rt '+tone+'">'+daysTxt+'</span><button class="bi" onclick="edSub('+s.id+')" style="margin-left:4px">'+I.ed+'</button><button class="bi" onclick="dlSub('+s.id+')">'+I.tr+'</button></div>'});return h}
 async function dlSub(id){hp();await A("DELETE","/api/subscriptions/"+id);await load();toast("🗑 "+t("ts_deleted"))}
-function edSub(id){var s=D.subs.find(function(x){return x.id===id});if(!s)return;_assign=s.assigned_to||0;_subRems=(s.reminders||[]).map(function(r){return{days_before:r.days_before,time:r.time||"09:00"}});oMC("Edit Subscription",'<input class="inp" id="su-n" value="'+es(s.name)+'"><input class="inp" id="su-e" value="'+s.emoji+'" style="width:80px"><div class="dr"><div><div class="dl">Amount</div><input class="inp" id="su-a" type="number" step="0.01" value="'+s.amount+'"></div><div><div class="dl">Currency</div><select id="su-c" style="width:100%"><option value="EUR"'+(s.currency==="EUR"?" selected":"")+'>€</option><option value="USD"'+(s.currency==="USD"?" selected":"")+'>$</option><option value="GBP"'+(s.currency==="GBP"?" selected":"")+'>£</option><option value="RUB"'+(s.currency==="RUB"?" selected":"")+'>₽</option><option value="RSD"'+(s.currency==="RSD"?" selected":"")+'>din.</option></select></div></div><div class="dr"><div><div class="dl">Billing day</div><input class="inp" id="su-d" type="number" min="1" max="28" value="'+s.billing_day+'"></div></div><div class="lb">Assigned to</div>'+assignPk("sap",s.assigned_to)+'<div class="lb">Reminders</div><div id="srl">'+subRemPk()+'</div><button class="btn" onclick="svSub('+id+')">Save</button>',{ic:"card"})}
+function edSub(id){var s=D.subs.find(function(x){return x.id===id});if(!s)return;_assign=s.assigned_to||0;_subRems=(s.reminders||[]).map(function(r){return{days_before:r.days_before,time:r.time||"09:00"}});oMC(t("mt_edit_sub"),'<input class="inp" id="su-n" value="'+es(s.name)+'"><input class="inp" id="su-e" value="'+s.emoji+'" style="width:80px"><div class="dr"><div><div class="dl">'+t("f_amount")+'</div><input class="inp" id="su-a" type="number" step="0.01" value="'+s.amount+'"></div><div><div class="dl">'+t("f_currency")+'</div><select id="su-c" style="width:100%"><option value="EUR"'+(s.currency==="EUR"?" selected":"")+'>€</option><option value="USD"'+(s.currency==="USD"?" selected":"")+'>$</option><option value="GBP"'+(s.currency==="GBP"?" selected":"")+'>£</option><option value="RUB"'+(s.currency==="RUB"?" selected":"")+'>₽</option><option value="RSD"'+(s.currency==="RSD"?" selected":"")+'>din.</option></select></div></div><div class="dr"><div><div class="dl">Billing day</div><input class="inp" id="su-d" type="number" min="1" max="28" value="'+s.billing_day+'"></div></div><div class="lb">'+t("g_assigned_to")+'</div>'+assignPk("sap",s.assigned_to)+'<div class="lb">'+t("g_reminders")+'</div><div id="srl">'+subRemPk()+'</div><button class="btn" onclick="svSub('+id+')">Save</button>',{ic:"card"})}
 async function svSub(id){var n=document.getElementById("su-n").value.trim();var e=document.getElementById("su-e").value.trim();var a=parseFloat(document.getElementById("su-a").value);var c=document.getElementById("su-c").value;var d=parseInt(document.getElementById("su-d").value)||1;if(!n||!a)return;await A("PUT","/api/subscriptions/"+id,{name:n,emoji:e,amount:a,currency:c,billing_day:d,assigned_to:_assign||null,reminders:_subRems});cMo();hp();await load()}
 
 // Analytics
@@ -2207,9 +2207,9 @@ function _anaHeaderHtml(){
 function _anaTilesHtml(){
   var s=_moneySummary;if(!s)return'';
   var h='<div class="sts sts-3">';
-  h+='<div class="st st-mn"><div class="st-ico tone-ok">'+icon("trendUp",16,2.2)+'</div><div class="st-lb">Income</div><div class="st-vl pos">€'+s.income.toFixed(0)+'</div></div>';
-  h+='<div class="st st-mn"><div class="st-ico tone-ac">'+icon("trendDown",16,2.2)+'</div><div class="st-lb">Expense</div><div class="st-vl neg">€'+s.expense.toFixed(0)+'</div></div>';
-  h+='<div class="st st-mn"><div class="st-ico tone-pr">'+icon("wallet",16,2.2)+'</div><div class="st-lb">Balance</div><div class="st-vl '+(s.balance>=0?"pos":"neg")+'">'+(s.balance>=0?"+":"−")+'€'+Math.abs(s.balance).toFixed(0)+'</div></div>';
+  h+='<div class="st st-mn"><div class="st-ico tone-ok">'+icon("trendUp",16,2.2)+'</div><div class="st-lb">'+t("m_income_label")+'</div><div class="st-vl pos">€'+s.income.toFixed(0)+'</div></div>';
+  h+='<div class="st st-mn"><div class="st-ico tone-ac">'+icon("trendDown",16,2.2)+'</div><div class="st-lb">'+t("m_expense_label")+'</div><div class="st-vl neg">€'+s.expense.toFixed(0)+'</div></div>';
+  h+='<div class="st st-mn"><div class="st-ico tone-pr">'+icon("wallet",16,2.2)+'</div><div class="st-lb">'+t("m_balance_label")+'</div><div class="st-vl '+(s.balance>=0?"pos":"neg")+'">'+(s.balance>=0?"+":"−")+'€'+Math.abs(s.balance).toFixed(0)+'</div></div>';
   h+='</div>';
   if(s.subs_eur)h+='<div class="cat-row" style="margin-bottom:14px;margin-top:6px"><div class="cat-row-h"><span class="nm">'+icon("card",14,2.2)+' Subscriptions this month</span><span class="vl" style="color:var(--pr)">€'+s.subs_eur.toFixed(0)+'</span></div></div>';
   return h;
@@ -2277,7 +2277,7 @@ h+='<div id="ana-tiles">'+_anaTilesHtml()+'</div>';
 // watermarks behind bars. Tap a bar to navigate to that month.
 if(s.months&&s.months.length){
 var maxM=1;s.months.forEach(function(m){maxM=Math.max(maxM,m.income,m.expense)});
-h+='<div class="sc"><span class="sc-l"><span class="sc-ico">'+icon("chart",12,2.4)+'</span>Monthly</span></div>';
+h+='<div class="sc"><span class="sc-l"><span class="sc-ico">'+icon("chart",12,2.4)+'</span>'+t("m_monthly")+'</span></div>';
 // Compute contiguous year groups (assumes months are sorted oldest → newest)
 var yGroups=[],curG=null;
 s.months.forEach(function(m,i){
@@ -2304,7 +2304,7 @@ s.months.forEach(function(m){
   h+='<div class="cbar'+sel+'" data-month="'+m.month+'" onclick="_anaSetMonth(\''+m.month+'\')"><div class="cbar-pair"><div class="cbar-b b-in" style="height:'+ih+'px"></div><div class="cbar-b b-ex" style="height:'+eh+'px"></div></div><div class="cbar-lb">'+lbl+'</div></div>';
 });
 h+='</div></div>';
-h+='<div class="chart-legend"><span><span class="dotk" style="background:var(--ok)"></span>Income</span><span><span class="dotk" style="background:var(--ac)"></span>Expense</span></div>';
+h+='<div class="chart-legend"><span><span class="dotk" style="background:var(--ok)"></span>'+t("m_income_label")+'</span><span><span class="dotk" style="background:var(--ac)"></span>'+t("m_expense_label")+'</span></div>';
 // Two-step scroll: instantly restore saved scroll (no jump to 0), then smoothly
 // animate to centered-on-selected. On first render _anaSavedScroll is null →
 // start centred immediately without animation.
@@ -2378,8 +2378,8 @@ h+='<div class="sc"><span class="sc-l"><span class="sc-ico">'+icon("dumbbell",12
    (myTpls.length?'<button class="at" onclick="openNewTemplate()">+ New</button>':'')+'</div>';
 
 if(myTpls.length===0){
-  h+='<div class="tr-tpl-row"><button class="tr-tpl-add" onclick="openNewTemplate()"><span style="font-size:32px;line-height:1">+</span><span style="font-size:11px;margin-top:8px">Create template</span></button>';
-  h+='<button class="tr-tpl-add" onclick="startBlankWorkout()" style="border-style:solid;border-color:color-mix(in srgb,var(--ok) 45%,transparent);background:color-mix(in srgb,var(--ok) 8%,var(--cd));color:var(--ok)"><span style="font-size:30px;line-height:1">▶</span><span style="font-size:11px;margin-top:8px">Empty workout</span></button>';
+  h+='<div class="tr-tpl-row"><button class="tr-tpl-add" onclick="openNewTemplate()"><span style="font-size:32px;line-height:1">+</span><span style="font-size:11px;margin-top:8px">'+t("tr_create_template")+'</span></button>';
+  h+='<button class="tr-tpl-add" onclick="startBlankWorkout()" style="border-style:solid;border-color:color-mix(in srgb,var(--ok) 45%,transparent);background:color-mix(in srgb,var(--ok) 8%,var(--cd));color:var(--ok)"><span style="font-size:30px;line-height:1">▶</span><span style="font-size:11px;margin-top:8px">'+t("tr_empty_workout")+'</span></button>';
   h+='</div>';
 }else{
   h+='<div class="tr-tpl-row">';
@@ -2389,7 +2389,7 @@ if(myTpls.length===0){
 }
 
 // ─── Statistics with period tabs ───────────────────
-h+='<div class="sc"><span class="sc-l"><span class="sc-ico">'+icon("chart",12,2.4)+'</span>Statistics</span>'+
+h+='<div class="sc"><span class="sc-l"><span class="sc-ico">'+icon("chart",12,2.4)+'</span>'+t("tr_statistics")+'</span>'+
    '<button class="at" onclick="openTrainStats()">Details ›</button></div>';
 h+=_trainStatsBlock();
 
@@ -2989,7 +2989,7 @@ function editWorkoutMeta(wid){
   var w=_curWorkout;if(!w)return;
   oMC(t("mt_edit_workout"),
     '<div class="lb">Name</div><input class="inp" id="ew-n" value="'+es(w.name||"")+'" placeholder="e.g. Push Day">'+
-    '<div class="lb">Date</div><input type="date" id="ew-d" value="'+w.date+'">'+
+    '<div class="lb">'+t("f_date")+'</div><input type="date" id="ew-d" value="'+w.date+'">'+
     '<div class="lb">Notes</div><input class="inp" id="ew-notes" value="'+es(w.notes||"")+'">'+
     '<button class="btn" onclick="svWorkoutMeta('+wid+')">Save</button>',{ic:"dumbbell"});
 }
@@ -3336,7 +3336,7 @@ if(!isOpen)return h+'</div>';
 h+='<div class="zn-tasks">';
 (z.tasks||[]).forEach(function(t){var resetInfo=t.reset_days?t.reset_days+"d":"7d";var daysInfo="";if(t.done&&t.last_done)daysInfo=" · "+fD(t.last_done).full;
 h+='<div class="zt"><div class="cb cb-s '+(t.done?"cb-k":"cb-o")+'" onclick="tgZT('+t.id+')">'+(t.done?I.ck:"")+'</div><span class="zt-t'+(t.done?" dn":"")+'">'+es(t.text)+'</span><span class="zt-mt">'+resetInfo+daysInfo+'</span>'+(t.assigned_to?mAv(t.assigned_to,20):"")+'<button class="bi" onclick="edZT('+t.id+')" style="padding:3px">'+I.ed+'</button><button class="bi" onclick="dZT('+t.id+')">'+I.x+'</button></div>'});
-h+='<div class="za"><input id="zti-'+z.id+'" placeholder="Add task..." onkeydown="if(event.key===\'Enter\')aZT('+z.id+')"><button onclick="aZT('+z.id+')">Add</button></div>';
+h+='<div class="za"><input id="zti-'+z.id+'" placeholder="'+t("cl_add_task")+'" onkeydown="if(event.key===\'Enter\')aZT('+z.id+')"><button onclick="aZT('+z.id+')">Add</button></div>';
 h+='</div>';
 h+='<button class="zn-del" onclick="dlZn('+z.id+')">Delete zone</button>';
 h+='</div>';return h}
@@ -3344,9 +3344,9 @@ async function tgZT(id){hp();await A("PATCH","/api/cleaning/tasks/"+id+"/toggle"
 async function dZT(id){hp();await A("DELETE","/api/cleaning/tasks/"+id);await load()}
 async function aZT(zid){var i=document.getElementById("zti-"+zid);if(!i||!i.value.trim())return;await A("POST","/api/cleaning/zones/"+zid+"/tasks",{text:i.value.trim()});hp();await load()}
 async function dlZn(id){if(!confirm("Delete zone?"))return;await A("DELETE","/api/cleaning/zones/"+id);hp();await load()}
-function edZn(zid){var z=D.zones.find(function(x){return x.id===zid});if(!z)return;_assign=z.assigned_to||0;_zRems=(z.reminders||[]).map(function(r){return r.remind_at});oMC("Edit Zone",'<input class="inp" id="ez-n" value="'+es(z.name)+'"><div class="dr"><div><div class="dl">Emoji</div><input class="inp" id="ez-i" value="'+z.icon+'" style="text-align:center;font-size:24px"></div></div><div class="lb">Assigned to</div>'+assignPk("ezap",z.assigned_to)+'<div class="lb">Reminders</div><div id="zrw">'+zRemPk()+'</div><button class="btn" onclick="svZn('+zid+')">Save</button>',{ic:"broom"})}
+function edZn(zid){var z=D.zones.find(function(x){return x.id===zid});if(!z)return;_assign=z.assigned_to||0;_zRems=(z.reminders||[]).map(function(r){return r.remind_at});oMC("Edit Zone",'<input class="inp" id="ez-n" value="'+es(z.name)+'"><div class="dr"><div><div class="dl">Emoji</div><input class="inp" id="ez-i" value="'+z.icon+'" style="text-align:center;font-size:24px"></div></div><div class="lb">'+t("g_assigned_to")+'</div>'+assignPk("ezap",z.assigned_to)+'<div class="lb">'+t("g_reminders")+'</div><div id="zrw">'+zRemPk()+'</div><button class="btn" onclick="svZn('+zid+')">Save</button>',{ic:"broom"})}
 async function svZn(zid){var n=document.getElementById("ez-n").value.trim();var i=document.getElementById("ez-i").value.trim();if(!n)return;await A("PUT","/api/cleaning/zones/"+zid,{name:n,icon:i,assigned_to:_assign||null,reminders:_zRems});cMo();hp();await load()}
-function edZT(tid){var t=null;D.zones.forEach(function(z){(z.tasks||[]).forEach(function(tk){if(tk.id===tid)t=tk})});if(!t)return;_assign=t.assigned_to||0;oMC("Edit Cleaning Task",'<input class="inp" id="zt-t" value="'+es(t.text)+'"><div class="dr"><div><div class="dl">Reset (days)</div><input class="inp" id="zt-d" type="number" value="'+(t.reset_days||7)+'" min="1" max="90"></div></div><div class="lb">Assigned to</div>'+assignPk("ztap",t.assigned_to)+'<button class="btn" onclick="svZT('+tid+')">Save</button>',{ic:"broom"})}
+function edZT(tid){var t=null;D.zones.forEach(function(z){(z.tasks||[]).forEach(function(tk){if(tk.id===tid)t=tk})});if(!t)return;_assign=t.assigned_to||0;oMC("Edit Cleaning Task",'<input class="inp" id="zt-t" value="'+es(t.text)+'"><div class="dr"><div><div class="dl">Reset (days)</div><input class="inp" id="zt-d" type="number" value="'+(t.reset_days||7)+'" min="1" max="90"></div></div><div class="lb">'+t("g_assigned_to")+'</div>'+assignPk("ztap",t.assigned_to)+'<button class="btn" onclick="svZT('+tid+')">Save</button>',{ic:"broom"})}
 async function svZT(tid){var text=document.getElementById("zt-t").value.trim();var rd=parseInt(document.getElementById("zt-d").value)||7;if(!text)return;await A("PUT","/api/cleaning/tasks/"+tid,{text:text,icon:"🧹",assigned_to:_assign||null,reset_days:rd});cMo();hp();await load()}
 function shAZ(){_assign=0;oMC(t("mt_add_zone"),'<input class="inp" id="zn" placeholder="'+t("f_name")+'"><input class="inp" id="zic" placeholder="🍳" style="width:80px"><div class="lb">'+t("f_assigned_to")+'</div>'+assignPk("zap",null)+'<button class="btn" onclick="doAZ()">'+t("btn_add")+'</button>',{ic:"broom"})}
 async function doAZ(){var n=document.getElementById("zn").value.trim();if(!n)return;var i=document.getElementById("zic").value.trim()||"🏠";await A("POST","/api/cleaning/zones",{name:n,icon:i,assigned_to:_assign||null});cMo();hp();await load()}
@@ -3788,12 +3788,12 @@ function _calRefresh(){var iso=_calDayIso;_calCache={};if(_calMonth)loadCalMonth
 // Add Task / Event from calendar day view (pre-fills the date)
 function oMoTkDay(iso){
 _assign=0;_pri="normal";_rems=[];
-oMC("New Task",'<input class="inp" id="f-t" placeholder="What needs to be done?"><div class="lb">Assign to</div>'+assignPk("ap",null)+'<div class="lb">Priority</div><div class="or">'+["low","normal","high"].map(function(p){return '<button class="ob ob-pri-'+p+' '+(p==="normal"?"s":"")+'" onclick="_pri=\''+p+'\';this.parentNode.querySelectorAll(\'.ob\').forEach(function(b){b.classList.remove(\'s\')});this.classList.add(\'s\')">'+p[0].toUpperCase()+p.slice(1)+'</button>'}).join("")+'</div><div class="lb">Due Date</div><div class="dr"><div><input type="date" id="f-dd" value="'+iso+'"></div></div><div class="lb">Reminders</div><div id="rw">'+remPk()+'</div><button class="btn" onclick="doTkCal()">Add Task</button>',{ic:"clipboard"});
+oMC("New Task",'<input class="inp" id="f-t" placeholder="What needs to be done?"><div class="lb">'+t("g_assign_to")+'</div>'+assignPk("ap",null)+'<div class="lb">'+t("f_priority")+'</div><div class="or">'+["low","normal","high"].map(function(p){return '<button class="ob ob-pri-'+p+' '+(p==="normal"?"s":"")+'" onclick="_pri=\''+p+'\';this.parentNode.querySelectorAll(\'.ob\').forEach(function(b){b.classList.remove(\'s\')});this.classList.add(\'s\')">'+p[0].toUpperCase()+p.slice(1)+'</button>'}).join("")+'</div><div class="lb">'+t("g_due_date")+'</div><div class="dr"><div><input type="date" id="f-dd" value="'+iso+'"></div></div><div class="lb">'+t("g_reminders")+'</div><div id="rw">'+remPk()+'</div><button class="btn" onclick="doTkCal()">Add Task</button>',{ic:"clipboard"});
 document.getElementById("mo").classList.add("op");
 setTimeout(function(){var i=document.querySelector("#mb input.inp");if(i)i.focus()},300)
 }
 function oMoEvtDay(iso){
-oMC("New Event",'<input class="inp" id="f-t" placeholder="Event name"><div class="lb">Start</div><div class="dr"><div><div class="dl">Date</div><input type="date" id="f-d" value="'+iso+'"></div><div><div class="dl">Time</div><input type="time" id="f-tm" value="12:00" step="60"></div></div><div class="lb">End <span style="color:var(--ht);font-weight:400;font-size:11px">(extend for multi-day events)</span></div><div class="dr"><div><input type="date" id="f-ed" value="'+iso+'"></div><div><input type="time" id="f-et" value="13:00" step="60"></div></div><button class="btn" onclick="doEvCal()">Add Event</button>',{ic:"clock"});
+oMC("New Event",'<input class="inp" id="f-t" placeholder="Event name"><div class="lb">Start</div><div class="dr"><div><div class="dl">'+t("f_date")+'</div><input type="date" id="f-d" value="'+iso+'"></div><div><div class="dl">'+t("g_time")+'</div><input type="time" id="f-tm" value="12:00" step="60"></div></div><div class="lb">End <span style="color:var(--ht);font-weight:400;font-size:11px">(extend for multi-day events)</span></div><div class="dr"><div><input type="date" id="f-ed" value="'+iso+'"></div><div><input type="time" id="f-et" value="13:00" step="60"></div></div><button class="btn" onclick="doEvCal()">Add Event</button>',{ic:"clock"});
 document.getElementById("mo").classList.add("op");
 setTimeout(function(){var i=document.querySelector("#mb input.inp");if(i)i.focus()},300)
 }
@@ -3807,7 +3807,7 @@ var e=(D.events||[]).find(function(x){return x.id===id});if(!e)return;
 var sd=(e.event_date||"").split(" "),ed=(e.end_date||"").split(" ");
 var sDate=sd[0]||"",sTime=((sd[1]||"12:00")+"").slice(0,5);
 var eDate=ed[0]||sDate,eTime=((ed[1]||sTime)+"").slice(0,5);
-oMC("Edit Event",'<input class="inp" id="f-t" value="'+es(e.text)+'"><div class="lb">Start</div><div class="dr"><div><div class="dl">Date</div><input type="date" id="f-d" value="'+sDate+'"></div><div><div class="dl">Time</div><input type="time" id="f-tm" value="'+sTime+'" step="60"></div></div><div class="lb">End <span style="color:var(--ht);font-weight:400;font-size:11px">(extend for multi-day)</span></div><div class="dr"><div><input type="date" id="f-ed" value="'+eDate+'"></div><div><input type="time" id="f-et" value="'+eTime+'" step="60"></div></div><button class="btn" onclick="svEv('+id+')">Save</button><div style="margin-top:16px;padding-top:16px;border-top:1px solid var(--bd)"><button class="btn btn-s" style="color:var(--ac);background:transparent;border:1.5px solid var(--bd)" onclick="dEv('+id+');cMo();if(_calEditCb){var cb=_calEditCb;_calEditCb=null;cb()}">Delete Event</button></div>',{ic:"clock"})
+oMC("Edit Event",'<input class="inp" id="f-t" value="'+es(e.text)+'"><div class="lb">Start</div><div class="dr"><div><div class="dl">'+t("f_date")+'</div><input type="date" id="f-d" value="'+sDate+'"></div><div><div class="dl">'+t("g_time")+'</div><input type="time" id="f-tm" value="'+sTime+'" step="60"></div></div><div class="lb">End <span style="color:var(--ht);font-weight:400;font-size:11px">(extend for multi-day)</span></div><div class="dr"><div><input type="date" id="f-ed" value="'+eDate+'"></div><div><input type="time" id="f-et" value="'+eTime+'" step="60"></div></div><button class="btn" onclick="svEv('+id+')">Save</button><div style="margin-top:16px;padding-top:16px;border-top:1px solid var(--bd)"><button class="btn btn-s" style="color:var(--ac);background:transparent;border:1.5px solid var(--bd)" onclick="dEv('+id+');cMo();if(_calEditCb){var cb=_calEditCb;_calEditCb=null;cb()}">Delete Event</button></div>',{ic:"clock"})
 }
 async function svEv(id){var t=document.getElementById("f-t").value.trim();var d=document.getElementById("f-d").value;var tm=document.getElementById("f-tm").value||"12:00";if(!t||!d)return;var ed=document.getElementById("f-ed")?document.getElementById("f-ed").value:"";var et=document.getElementById("f-et")?document.getElementById("f-et").value:"";var end=ed?ed+" "+(et||tm):null;await A("PUT","/api/events/"+id,{text:t,event_date:d+" "+tm,end_date:end});cMo();hp();await load();if(_calEditCb){var cb=_calEditCb;_calEditCb=null;cb()}}
 
