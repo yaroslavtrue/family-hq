@@ -891,13 +891,22 @@ def list_subs_all(pt: str, user=Depends(get_uf), db=Depends(get_db)):
 
 @app.post("/api/subtasks/{pt}/{pid}")
 async def create_subtask(pt: str, pid: int, body: SubCreate, user=Depends(get_uf), db=Depends(get_db)):
+    # ISOLATION FIX (v8.33.0): verify the parent task/event belongs to the caller's family
+    # before INSERT. Otherwise a forged pid would (a) pollute the caller's subtasks with
+    # a row pointing at another family's task and (b) leak the parent's text via the
+    # notify_all chat message that immediately follows.
+    parent_tbl = {"task": "tasks", "event": "events", "transaction": "transactions"}.get(pt)
+    if not parent_tbl: raise HTTPException(400, "Invalid parent type")
+    if pt == "transaction":
+        if not db.execute(f"SELECT 1 FROM {parent_tbl} WHERE id=? AND family_id=?", (pid, user["family_id"])).fetchone():
+            raise HTTPException(404, "Parent not found")
+        pn = ""
+    else:
+        parent = db.execute(f"SELECT text FROM {parent_tbl} WHERE id=? AND family_id=?", (pid, user["family_id"])).fetchone()
+        if not parent: raise HTTPException(404, "Parent not found")
+        pn = parent["text"]
     db.execute("INSERT INTO subtasks (parent_type,parent_id,family_id,text) VALUES (?,?,?,?)", (pt, pid, user["family_id"], body.text)); db.commit()
     if pt != "transaction":
-        tbl = {"task": "tasks", "event": "events"}.get(pt)
-        pn = ""
-        if tbl:
-            row = db.execute(f"SELECT text FROM {tbl} WHERE id=?", (pid,)).fetchone()
-            if row: pn = row["text"]
         await notify_all(user["family_id"], f"📝 *{user['first_name']}* added step _{body.text}_ to *{pn}*", db)
     return {"ok": True}
 
@@ -1494,7 +1503,11 @@ def edit_workout(wid: int, body: WorkoutEdit, user=Depends(get_uf), db=Depends(g
 
 @app.delete("/api/workouts/{wid}")
 def del_workout(wid: int, user=Depends(get_uf), db=Depends(get_db)):
-    # Cascade
+    # ISOLATION FIX (v8.33.0): pre-check ownership before cascade DELETEs touch children.
+    # Without this, a forged wid would let family A wipe family B's workout_sets +
+    # workout_exercises (only the workouts row itself was protected by the trailing AND family_id=?).
+    if not db.execute("SELECT 1 FROM workouts WHERE id=? AND family_id=?", (wid, user["family_id"])).fetchone():
+        raise HTTPException(404)
     db.execute("""DELETE FROM workout_sets WHERE workout_exercise_id IN
                    (SELECT id FROM workout_exercises WHERE workout_id=?)""", (wid,))
     db.execute("DELETE FROM workout_exercises WHERE workout_id=?", (wid,))
@@ -3115,7 +3128,7 @@ def serve_exercise_image(fn: str):
     return r
 
 # ─── Debug & Serve ───────────────────────────────────────────────────────
-APP_VERSION = "v8.32.3"
+APP_VERSION = "v8.33.0"
 
 @app.get("/api/debug/ping")
 def ping(): return {"ok": True, "version": APP_VERSION, "time": datetime.now(ZoneInfo(TIMEZONE)).isoformat()}
