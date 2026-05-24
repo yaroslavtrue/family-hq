@@ -1120,7 +1120,9 @@ async def create_transaction(body: TransactionCreate, user=Depends(get_uf), db=D
     # Notify
     cat = ""
     if body.category_id:
-        cr = db.execute("SELECT emoji, name FROM categories WHERE id=?", (body.category_id,)).fetchone()
+        # ISOLATION FIX (v8.33.1): scope by family_id so a forged category_id can't make us echo
+        # another family's category name to chat.
+        cr = db.execute("SELECT emoji, name FROM categories WHERE id=? AND family_id=?", (body.category_id, user["family_id"])).fetchone()
         if cr: cat = f" {cr['emoji']} {cr['name']}"
     sign = "💸" if body.type == "expense" else "💰"
     await notify_all(user["family_id"], f"{sign} *{user['first_name']}*: {body.amount} {body.currency}{cat}", db)
@@ -1375,7 +1377,16 @@ def edit_exercise(eid: int, body: ExerciseEdit, user=Depends(get_uf), db=Depends
 
 @app.delete("/api/exercises/{eid}")
 def del_exercise(eid: int, user=Depends(get_uf), db=Depends(get_db)):
-    used = db.execute("SELECT 1 FROM workout_exercises WHERE exercise_id=? LIMIT 1", (eid,)).fetchone()
+    # ISOLATION FIX (v8.33.1): ownership check first, then in-use check joined through workouts.
+    # The original "SELECT 1 FROM workout_exercises WHERE exercise_id=?" was an existence
+    # oracle — a forged eid would tell the caller "yes, that exercise is in use" even when
+    # the workouts belonged to another family.
+    if not db.execute("SELECT 1 FROM exercises WHERE id=? AND family_id=?", (eid, user["family_id"])).fetchone():
+        raise HTTPException(404)
+    used = db.execute("""SELECT 1 FROM workout_exercises we
+                          JOIN workouts w ON w.id=we.workout_id
+                          WHERE we.exercise_id=? AND w.family_id=? LIMIT 1""",
+                       (eid, user["family_id"])).fetchone()
     if used:
         raise HTTPException(400, "Exercise is used in workouts; remove those first")
     db.execute("DELETE FROM exercises WHERE id=? AND family_id=?", (eid, user["family_id"]))
@@ -2569,12 +2580,15 @@ def word_update(idx: int, body: WordEdit, user=Depends(get_uf), db=Depends(get_d
             vals = [idx] + list(payload.values()) + [user["id"]]
             db.execute(f"INSERT INTO word_overrides ({','.join(cols)}) VALUES ({','.join(['?']*len(vals))})", vals)
     else:
-        # Custom word
+        # Custom word — ISOLATION FIX (v8.33.1): scoped to caller's family so families
+        # can't rewrite each other's vocabulary by passing each other's idx.
+        if not db.execute("SELECT 1 FROM custom_words WHERE idx=? AND family_id=?", (idx, user["family_id"])).fetchone():
+            raise HTTPException(404, "word not found")
         sets, params = [], []
         for k, v in payload.items():
             sets.append(f"{k}=?"); params.append(v)
-        params.append(idx)
-        db.execute(f"UPDATE custom_words SET {','.join(sets)} WHERE idx=?", params)
+        params.extend([idx, user["family_id"]])
+        db.execute(f"UPDATE custom_words SET {','.join(sets)} WHERE idx=? AND family_id=?", params)
     db.commit()
     # Image rename on en_word change
     if "en_word" in payload and payload["en_word"] != old_en:
@@ -3128,7 +3142,7 @@ def serve_exercise_image(fn: str):
     return r
 
 # ─── Debug & Serve ───────────────────────────────────────────────────────
-APP_VERSION = "v8.33.0"
+APP_VERSION = "v8.33.1"
 
 @app.get("/api/debug/ping")
 def ping(): return {"ok": True, "version": APP_VERSION, "time": datetime.now(ZoneInfo(TIMEZONE)).isoformat()}
