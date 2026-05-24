@@ -958,6 +958,8 @@ body.no-scroll .mx{touch-action:pan-y}
 <!-- Debug -->
 <div class="dbg hidden" id="dbg"><button class="dbg-cp" onclick="navigator.clipboard.writeText(dbgLog.join('\n'))">Copy</button></div>
 <!-- Load JS -->
-<script src="/static/app.js?v=186"></script>
+<!-- i18n dictionary loaded BEFORE app.js — app.js reads window.LANG from here -->
+<script src="/static/lang.js?v=187"></script>
+<script src="/static/app.js?v=187"></script>
 </body>
 </html>

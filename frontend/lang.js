@@ -1,0 +1,278 @@
+// ═══════════════════════════════════════════════════════════════
+// 🏠 Family HQ — i18n dictionary (v8.34.0)
+// ═══════════════════════════════════════════════════════════════
+// Loaded BEFORE app.js via <script src="/static/lang.js?v=N"> in index.html.
+// app.js reads this via `window.LANG`.
+//
+// ── Key naming convention (flat, namespace-prefixed):
+//   nav_*      bottom-nav labels  (nav_home, nav_tasks, ...)
+//   tt_<id>_t  page title         (tt_home_t, tt_tasks_t, ...)
+//   tt_<id>_s  page subtitle      (tt_home_s, tt_tasks_s, ...)
+//   btn_*      common buttons     (btn_save, btn_cancel, ...)
+//   set_*      Settings labels    (set_family, set_language, ...)
+//   mt_*       modal titles       (mt_add_task, mt_edit_plant, ...)
+//   f_*        form field labels  (f_name, f_amount, ...)
+//   p_*        priority labels    (p_low, p_normal, p_high)
+//   m_*        Money-tab          (m_transactions, m_analytics, ...)
+//   pl_*       Plants-tab         (pl_thirsty, pl_water, ...)
+//   tk_*       Tasks sub-sections (tk_overdue, tk_caught_up, ...)
+//   ts_*       toasts             (ts_saved, ts_deleted, ...)
+//   es_*       empty states       (es_no_tasks_t, es_no_tasks_s, ...)
+//   cf_*       confirm prompts    (cf_delete_task, cf_leave_family, ...)
+//   g_*        generic / shared   (g_today, g_loading, g_done, ...)
+//
+// ── Pluralization (Intl.PluralRules):
+//   For count-dependent strings, define keys with suffixes _one, _few, _many,
+//   _other. Use the `tn(base_key, n)` helper in app.js — it picks the right
+//   form for the current locale automatically.
+//
+//   English needs: _one (n==1), _other (everything else)
+//   Russian needs: _one (1, 21, 31...), _few (2-4, 22-24...), _many (5-20, 25-30...), _other (fractional)
+//
+//   Example: `tn("g_in_days_full", 5)` → "5 дней" (ru/many) or "in 5 days" (en/other)
+
+window.LANG = {
+  en: {
+    // Nav
+    nav_home: "Home", nav_tasks: "Tasks", nav_words: "Words", nav_money: "Money", nav_profile: "Profile",
+    // Page headers (title + subtitle)
+    tt_home_t: "Family HQ", tt_home_s: "Everything at a glance",
+    tt_tasks_t: "Tasks", tt_tasks_s: "Manage & assign",
+    tt_shop_t: "Shopping", tt_shop_s: "Shared list",
+    tt_trainings_t: "Trainings", tt_trainings_s: "Workouts & progress",
+    tt_words_t: "Words", tt_words_s: "Vocabulary learning",
+    tt_plants_t: "Plants", tt_plants_s: "Care & watering",
+    tt_money_t: "Money", tt_money_s: "Budget & subs",
+    tt_profile_t: "Profile", tt_profile_s: "Personal stats",
+    tt_events_t: "Events", tt_events_s: "Schedule",
+    tt_birthdays_t: "Birthdays", tt_birthdays_s: "Never forget",
+    tt_clean_t: "Cleaning", tt_clean_s: "Apartment zones",
+    tt_settings_t: "Settings", tt_settings_s: "Customize",
+    tt_subs_t: "Subscriptions", tt_subs_s: "Monthly payments",
+    tt_recurring_t: "Recurring", tt_recurring_s: "Repeating tasks",
+    // Common buttons
+    btn_add: "Add", btn_save: "Save", btn_cancel: "Cancel", btn_delete: "Delete",
+    btn_edit: "Edit", btn_close: "Close", btn_done: "Done", btn_ok: "OK", btn_yes: "Yes", btn_no: "No",
+    btn_back: "Back", btn_next: "Next", btn_share: "Share",
+    btn_create: "Create", btn_update: "Update", btn_join: "Join",
+    btn_remove: "Remove", btn_set: "Set", btn_start: "Start",
+    btn_finish: "Finish", btn_apply: "Apply", btn_reset: "Reset",
+    btn_take_photo: "Take photo", btn_choose_photo: "Choose photo",
+    // Settings sections
+    set_family: "Family", set_members: "Members", set_appearance: "Appearance",
+    set_theme: "Theme", set_language: "Language", set_notifications: "Notifications",
+    set_developer: "Developer", set_invite_code: "Invite Code",
+    set_share_invite: "Share invite", set_leave_family: "Leave Family",
+    set_share_hint: "Share this with new members",
+    set_money: "Money", set_categories: "Categories", set_learning: "Learning",
+    set_integrations: "Integrations", set_learning_lang: "Learning language",
+    set_words_editor: "Words editor", set_reset_progress: "Reset my progress",
+    set_morning_digest: "Morning Digest", set_morning_digest_sub: "Sections & order",
+    set_trello_sync: "Trello Sync",
+    set_debug: "Debug Mode", set_words_editor_sub: "Edit cards · add images",
+    set_reset_progress_sub: "Wipe my learned/learning state",
+    // Generic
+    g_loading: "Loading…", g_today: "Today", g_yesterday: "Yesterday", g_tomorrow: "Tomorrow",
+    g_upcoming: "Upcoming", g_completed: "Completed", g_all: "All",
+    g_active: "Active", g_recurring: "Recurring", g_events: "Events",
+    g_calendar: "Calendar", g_upcoming_7: "Upcoming 7 Days",
+    g_tasks: "Tasks", g_subscriptions: "Subscriptions", g_birthdays: "Birthdays",
+    g_feels: "feels", g_today_bday: "Today! 🎉", g_no_items: "Nothing yet",
+    g_by_category: "By Category", g_limits: "Limits", g_menu: "Menu",
+    g_morning: "Morning", g_afternoon: "Afternoon", g_evening: "Evening",
+    g_enter_code: "Enter 6-character code",
+    g_reminders: "Reminders", g_date_of_birth: "Date of Birth",
+    g_assigned_to: "Assigned to", g_assign_to: "Assign to",
+    g_start: "Start", g_time: "Time", g_end_opt: "End (optional)",
+    g_schedule: "Schedule", g_daily: "Daily", g_weekly: "Weekly", g_monthly: "Monthly",
+    g_days: "Days", g_day_of_month: "Day of month", g_what_to_do: "What needs to be done?",
+    g_due_date: "Due Date", g_who: "Who",
+    g_every_day: "Every day", g_paused: "Paused", g_done: "Done", g_filter_all: "All",
+    // Pluralized — picked via tn() helper using Intl.PluralRules
+    g_in_days_short_one: "in {n}d", g_in_days_short_other: "in {n}d",
+    g_in_days_full_one: "in {n} day", g_in_days_full_other: "in {n} days",
+    // Money
+    m_transactions: "Transactions", m_analytics: "Analytics",
+    m_income: "Income", m_expense: "Expense", m_balance: "Balance",
+    m_this_month: "This Month",
+    // Plants
+    pl_thirsty: "Wants water", pl_soon: "Water soon", pl_healthy: "Healthy",
+    pl_water: "Water", pl_thanks: "Thank you!", pl_add: "Add",
+    pl_care_for: "Care for", pl_water_every: "Water every",
+    pl_growth_timeline: "Growth timeline", pl_care_tips: "Care tips",
+    // Modal titles
+    mt_add_task: "Add Task", mt_edit_task: "Edit Task",
+    mt_add_event: "Add Event", mt_edit_event: "Edit Event",
+    mt_add_expense: "Add Expense", mt_add_income: "Add Income",
+    mt_add_shop: "Add Item", mt_add_sub: "Add Subscription",
+    mt_add_bday: "Add Birthday", mt_add_recur: "Add Recurring",
+    mt_add_plant: "Add plant", mt_edit_plant: "Edit plant",
+    mt_more: "More", mt_photo: "Photo", mt_which_one: "Which one is it?",
+    mt_create_family: "Create Family", mt_join_family: "Join Family",
+    mt_new_folder: "New Folder", mt_categories: "Categories",
+    mt_choose_city: "Choose city", mt_stats: "Stats",
+    mt_morning_digest: "Morning Digest", mt_learning_lang: "Learning language",
+    mt_words: "Words", mt_edit_word: "Edit word",
+    mt_start_workout: "Start Workout", mt_new_template: "New Template",
+    mt_edit_template: "Edit Template", mt_edit_set: "Edit Set",
+    mt_edit_workout: "Edit Workout", mt_add_exercise: "Add exercise",
+    mt_progress: "Progress", mt_edit_bday: "Edit Birthday", mt_add_zone: "Add Zone",
+    mt_choose_theme: "Choose theme", mt_custom_theme: "Custom Theme",
+    mt_new_cat: "New Category", mt_edit_cat: "Edit Category",
+    mt_new_exercise: "New exercise", mt_workout: "Workout",
+    // Form fields
+    f_title: "Title", f_text: "Text", f_amount: "Amount", f_currency: "Currency",
+    f_category: "Category", f_description: "Description", f_date: "Date",
+    f_priority: "Priority", f_assigned_to: "Assigned to", f_when: "When",
+    f_repeat: "Repeat", f_emoji: "Emoji", f_name: "Name", f_quantity: "Quantity",
+    f_price: "Price", f_folder: "Folder", f_notes: "Notes", f_color: "Color",
+    f_image: "Image", f_caption: "Caption",
+    // Priorities
+    p_low: "Low", p_normal: "Normal", p_high: "High",
+    // Confirms
+    cf_delete_task: "Delete this task?", cf_delete_event: "Delete this event?",
+    cf_delete_transaction: "Delete this transaction?",
+    cf_delete_generic: "Delete?", cf_leave_family: "Leave family?",
+    // Tasks tab sections
+    tk_overdue: "Overdue", tk_high_pri: "High Priority", tk_this_week: "This Week",
+    tk_rest: "Rest", tk_caught_up: "All caught up! 🎉",
+    tk_no_recur_t: "No recurring tasks", tk_no_recur_s: "Tap + to create",
+    // Toasts
+    ts_saved: "Saved", ts_deleted: "Deleted", ts_error: "Error",
+    ts_network: "Network error", ts_copied: "Copied",
+    ts_save_failed: "Save failed", ts_upload_failed: "Upload failed",
+    ts_upload_error: "Upload error", ts_failed: "Failed",
+    ts_image_saved: "Image saved", ts_image_removed: "Image removed",
+    ts_photo_added: "Photo added", ts_photo_deleted: "Photo deleted",
+    ts_caption_saved: "Caption saved", ts_too_large: "Too large (>15 MB)",
+    ts_word_required: "Word required on both sides",
+    ts_watering_undone: "↩ Watering undone",
+    // Empty states (icon + title + subtitle)
+    es_no_tasks_t: "No tasks yet", es_no_tasks_s: "Tap + to add one",
+    es_no_events_t: "No events", es_no_events_s: "Tap + Add Event to start",
+    es_no_birthdays_t: "No birthdays", es_no_birthdays_s: "Add below",
+    es_no_subs_t: "No subscriptions", es_no_subs_s: "Add below",
+    es_no_zones_t: "No zones yet", es_no_zones_s: "Add zones below",
+    es_no_txs_t: "No transactions", es_no_txs_s: "Tap + to add",
+    es_no_shop_t: "List is empty", es_no_shop_s: "Tap + to add",
+    es_no_stock_t: "Nothing in stock", es_no_stock_s: "Buy items to see them here",
+    es_no_match_t: "No matches", es_no_match_s: "Try a different search",
+  },
+
+  ru: {
+    nav_home: "Главная", nav_tasks: "Задачи", nav_words: "Слова", nav_money: "Финансы", nav_profile: "Профиль",
+    tt_home_t: "Family HQ", tt_home_s: "Всё в одном месте",
+    tt_tasks_t: "Задачи", tt_tasks_s: "Управление и назначение",
+    tt_shop_t: "Покупки", tt_shop_s: "Общий список",
+    tt_trainings_t: "Тренировки", tt_trainings_s: "Сессии и прогресс",
+    tt_words_t: "Слова", tt_words_s: "Изучение лексики",
+    tt_plants_t: "Растения", tt_plants_s: "Уход и полив",
+    tt_money_t: "Финансы", tt_money_s: "Бюджет и подписки",
+    tt_profile_t: "Профиль", tt_profile_s: "Личная статистика",
+    tt_events_t: "События", tt_events_s: "Расписание",
+    tt_birthdays_t: "Дни рождения", tt_birthdays_s: "Не забудь",
+    tt_clean_t: "Уборка", tt_clean_s: "Зоны квартиры",
+    tt_settings_t: "Настройки", tt_settings_s: "Кастомизация",
+    tt_subs_t: "Подписки", tt_subs_s: "Ежемесячные платежи",
+    tt_recurring_t: "Повторяющиеся", tt_recurring_s: "Повторяющиеся задачи",
+    btn_add: "Добавить", btn_save: "Сохранить", btn_cancel: "Отмена", btn_delete: "Удалить",
+    btn_edit: "Изменить", btn_close: "Закрыть", btn_done: "Готово", btn_ok: "OK", btn_yes: "Да", btn_no: "Нет",
+    btn_back: "Назад", btn_next: "Далее", btn_share: "Поделиться",
+    btn_create: "Создать", btn_update: "Обновить", btn_join: "Войти",
+    btn_remove: "Убрать", btn_set: "Задать", btn_start: "Начать",
+    btn_finish: "Завершить", btn_apply: "Применить", btn_reset: "Сбросить",
+    btn_take_photo: "Сделать фото", btn_choose_photo: "Выбрать фото",
+    set_family: "Семья", set_members: "Участники", set_appearance: "Оформление",
+    set_theme: "Тема", set_language: "Язык", set_notifications: "Уведомления",
+    set_developer: "Разработчик", set_invite_code: "Код приглашения",
+    set_share_invite: "Поделиться приглашением", set_leave_family: "Покинуть семью",
+    set_share_hint: "Отправь этот код новым участникам",
+    set_money: "Финансы", set_categories: "Категории", set_learning: "Обучение",
+    set_integrations: "Интеграции", set_learning_lang: "Язык изучения",
+    set_words_editor: "Редактор слов", set_reset_progress: "Сбросить мой прогресс",
+    set_morning_digest: "Утренняя сводка", set_morning_digest_sub: "Разделы и порядок",
+    set_trello_sync: "Trello",
+    set_debug: "Режим отладки", set_words_editor_sub: "Карточки · картинки",
+    set_reset_progress_sub: "Очистить мои выученные слова",
+    g_loading: "Загрузка…", g_today: "Сегодня", g_yesterday: "Вчера", g_tomorrow: "Завтра",
+    g_upcoming: "Скоро", g_completed: "Выполнено", g_all: "Все",
+    g_active: "Активные", g_recurring: "Повторяющиеся", g_events: "События",
+    g_calendar: "Календарь", g_upcoming_7: "Ближайшие 7 дней",
+    g_tasks: "Задачи", g_subscriptions: "Подписки", g_birthdays: "Дни рождения",
+    g_feels: "ощущ.", g_today_bday: "Сегодня! 🎉", g_no_items: "Пока пусто",
+    g_by_category: "По категориям", g_limits: "Лимиты", g_menu: "Меню",
+    g_morning: "Утро", g_afternoon: "День", g_evening: "Вечер",
+    g_enter_code: "Введи 6-значный код",
+    g_reminders: "Напоминания", g_date_of_birth: "Дата рождения",
+    g_assigned_to: "Назначено", g_assign_to: "Назначить",
+    g_start: "Начало", g_time: "Время", g_end_opt: "Конец (опционально)",
+    g_schedule: "Расписание", g_daily: "Ежедневно", g_weekly: "Еженедельно", g_monthly: "Ежемесячно",
+    g_days: "Дни", g_day_of_month: "День месяца", g_what_to_do: "Что нужно сделать?",
+    g_due_date: "Срок", g_who: "Кто",
+    g_every_day: "Каждый день", g_paused: "На паузе", g_done: "Готово", g_filter_all: "Все",
+    // Pluralized — Russian needs one/few/many. tn() picks via Intl.PluralRules.
+    g_in_days_short_one: "через {n} д.", g_in_days_short_few: "через {n} д.",
+    g_in_days_short_many: "через {n} д.", g_in_days_short_other: "через {n} д.",
+    g_in_days_full_one: "через {n} день",      // 1, 21, 31, 41...
+    g_in_days_full_few: "через {n} дня",        // 2-4, 22-24, 32-34...
+    g_in_days_full_many: "через {n} дней",      // 5-20, 25-30, 35-40...
+    g_in_days_full_other: "через {n} дн",       // fallback (fractional)
+    m_transactions: "Транзакции", m_analytics: "Аналитика",
+    m_income: "Доход", m_expense: "Расход", m_balance: "Баланс",
+    m_this_month: "Этот месяц",
+    pl_thirsty: "Хочет пить", pl_soon: "Скоро полить", pl_healthy: "Здорово",
+    pl_water: "Полить", pl_thanks: "Спасибо!", pl_add: "Добавить",
+    pl_care_for: "Уход за", pl_water_every: "Поливать каждые",
+    pl_growth_timeline: "История роста", pl_care_tips: "Советы по уходу",
+    mt_add_task: "Новая задача", mt_edit_task: "Изменить задачу",
+    mt_add_event: "Новое событие", mt_edit_event: "Изменить событие",
+    mt_add_expense: "Расход", mt_add_income: "Доход",
+    mt_add_shop: "Новый товар", mt_add_sub: "Новая подписка",
+    mt_add_bday: "Новый день рождения", mt_add_recur: "Повторяющаяся задача",
+    mt_add_plant: "Новое растение", mt_edit_plant: "Изменить растение",
+    mt_more: "Ещё", mt_photo: "Фото", mt_which_one: "Какое именно?",
+    mt_create_family: "Создать семью", mt_join_family: "Присоединиться",
+    mt_new_folder: "Новая папка", mt_categories: "Категории",
+    mt_choose_city: "Выбрать город", mt_stats: "Статистика",
+    mt_morning_digest: "Утренняя сводка", mt_learning_lang: "Язык изучения",
+    mt_words: "Слова", mt_edit_word: "Изменить слово",
+    mt_start_workout: "Начать тренировку", mt_new_template: "Новый шаблон",
+    mt_edit_template: "Изменить шаблон", mt_edit_set: "Изменить подход",
+    mt_edit_workout: "Изменить тренировку", mt_add_exercise: "Добавить упражнение",
+    mt_progress: "Прогресс", mt_edit_bday: "Изменить день рождения", mt_add_zone: "Новая зона",
+    mt_choose_theme: "Выбрать тему", mt_custom_theme: "Своя тема",
+    mt_new_cat: "Новая категория", mt_edit_cat: "Изменить категорию",
+    mt_new_exercise: "Новое упражнение", mt_workout: "Тренировка",
+    f_title: "Название", f_text: "Текст", f_amount: "Сумма", f_currency: "Валюта",
+    f_category: "Категория", f_description: "Описание", f_date: "Дата",
+    f_priority: "Приоритет", f_assigned_to: "Назначено", f_when: "Когда",
+    f_repeat: "Повтор", f_emoji: "Эмодзи", f_name: "Имя", f_quantity: "Количество",
+    f_price: "Цена", f_folder: "Папка", f_notes: "Заметки", f_color: "Цвет",
+    f_image: "Картинка", f_caption: "Подпись",
+    p_low: "Низкий", p_normal: "Обычный", p_high: "Высокий",
+    cf_delete_task: "Удалить задачу?", cf_delete_event: "Удалить событие?",
+    cf_delete_transaction: "Удалить транзакцию?",
+    cf_delete_generic: "Удалить?", cf_leave_family: "Покинуть семью?",
+    tk_overdue: "Просрочено", tk_high_pri: "Высокий приоритет", tk_this_week: "На этой неделе",
+    tk_rest: "Остальные", tk_caught_up: "Всё под контролем! 🎉",
+    tk_no_recur_t: "Нет повторяющихся задач", tk_no_recur_s: "Нажми + чтобы создать",
+    ts_saved: "Сохранено", ts_deleted: "Удалено", ts_error: "Ошибка",
+    ts_network: "Ошибка сети", ts_copied: "Скопировано",
+    ts_save_failed: "Не сохранилось", ts_upload_failed: "Загрузка не удалась",
+    ts_upload_error: "Ошибка загрузки", ts_failed: "Ошибка",
+    ts_image_saved: "Картинка сохранена", ts_image_removed: "Картинка удалена",
+    ts_photo_added: "Фото добавлено", ts_photo_deleted: "Фото удалено",
+    ts_caption_saved: "Подпись сохранена", ts_too_large: "Слишком большой (>15 МБ)",
+    ts_word_required: "Слово нужно с обеих сторон",
+    ts_watering_undone: "↩ Полив отменён",
+    es_no_tasks_t: "Задач пока нет", es_no_tasks_s: "Нажми + чтобы добавить",
+    es_no_events_t: "Событий нет", es_no_events_s: "Нажми + чтобы добавить",
+    es_no_birthdays_t: "Дней рождения нет", es_no_birthdays_s: "Добавь ниже",
+    es_no_subs_t: "Подписок нет", es_no_subs_s: "Добавь ниже",
+    es_no_zones_t: "Зон пока нет", es_no_zones_s: "Добавь ниже",
+    es_no_txs_t: "Транзакций нет", es_no_txs_s: "Нажми + чтобы добавить",
+    es_no_shop_t: "Список пуст", es_no_shop_s: "Нажми + чтобы добавить",
+    es_no_stock_t: "Запасов нет", es_no_stock_s: "Покупки появятся здесь",
+    es_no_match_t: "Ничего не найдено", es_no_match_s: "Попробуй другой запрос",
+  }
+};
