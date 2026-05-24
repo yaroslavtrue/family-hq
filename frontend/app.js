@@ -191,9 +191,31 @@ var LANG={
     g_schedule:"Schedule", g_daily:"Daily", g_weekly:"Weekly", g_monthly:"Monthly",
     g_days:"Days", g_day_of_month:"Day of month", g_what_to_do:"What needs to be done?",
     g_due_date:"Due Date", g_who:"Who",
+    g_every_day:"Every day", g_paused:"Paused", g_done:"Done", g_filter_all:"All",
+    // Tasks tab sections
+    tk_overdue:"Overdue", tk_high_pri:"High Priority", tk_this_week:"This Week",
+    tk_rest:"Rest", tk_caught_up:"All caught up! 🎉",
+    tk_no_recur_t:"No recurring tasks", tk_no_recur_s:"Tap + to create",
     // Toasts (common)
     ts_saved:"Saved", ts_deleted:"Deleted", ts_error:"Error",
     ts_network:"Network error", ts_copied:"Copied",
+    ts_save_failed:"Save failed", ts_upload_failed:"Upload failed",
+    ts_upload_error:"Upload error", ts_failed:"Failed",
+    ts_image_saved:"Image saved", ts_image_removed:"Image removed",
+    ts_photo_added:"Photo added", ts_photo_deleted:"Photo deleted",
+    ts_caption_saved:"Caption saved", ts_too_large:"Too large (>15 MB)",
+    ts_word_required:"Word required on both sides",
+    ts_watering_undone:"↩ Watering undone",
+    // Empty states
+    es_no_tasks_t:"No tasks yet", es_no_tasks_s:"Tap + to add one",
+    es_no_events_t:"No events", es_no_events_s:"Tap + Add Event to start",
+    es_no_birthdays_t:"No birthdays", es_no_birthdays_s:"Add below",
+    es_no_subs_t:"No subscriptions", es_no_subs_s:"Add below",
+    es_no_zones_t:"No zones yet", es_no_zones_s:"Add zones below",
+    es_no_txs_t:"No transactions", es_no_txs_s:"Tap + to add",
+    es_no_shop_t:"List is empty", es_no_shop_s:"Tap + to add",
+    es_no_stock_t:"Nothing in stock", es_no_stock_s:"Buy items to see them here",
+    es_no_match_t:"No matches", es_no_match_s:"Try a different search",
   },
   ru:{
     nav_home:"Главная", nav_tasks:"Задачи", nav_words:"Слова", nav_money:"Финансы", nav_profile:"Профиль",
@@ -285,8 +307,28 @@ var LANG={
     g_schedule:"Расписание", g_daily:"Ежедневно", g_weekly:"Еженедельно", g_monthly:"Ежемесячно",
     g_days:"Дни", g_day_of_month:"День месяца", g_what_to_do:"Что нужно сделать?",
     g_due_date:"Срок", g_who:"Кто",
+    g_every_day:"Каждый день", g_paused:"На паузе", g_done:"Готово", g_filter_all:"Все",
+    tk_overdue:"Просрочено", tk_high_pri:"Высокий приоритет", tk_this_week:"На этой неделе",
+    tk_rest:"Остальные", tk_caught_up:"Всё под контролем! 🎉",
+    tk_no_recur_t:"Нет повторяющихся задач", tk_no_recur_s:"Нажми + чтобы создать",
     ts_saved:"Сохранено", ts_deleted:"Удалено", ts_error:"Ошибка",
     ts_network:"Ошибка сети", ts_copied:"Скопировано",
+    ts_save_failed:"Не сохранилось", ts_upload_failed:"Загрузка не удалась",
+    ts_upload_error:"Ошибка загрузки", ts_failed:"Ошибка",
+    ts_image_saved:"Картинка сохранена", ts_image_removed:"Картинка удалена",
+    ts_photo_added:"Фото добавлено", ts_photo_deleted:"Фото удалено",
+    ts_caption_saved:"Подпись сохранена", ts_too_large:"Слишком большой (>15 МБ)",
+    ts_word_required:"Слово нужно с обеих сторон",
+    ts_watering_undone:"↩ Полив отменён",
+    es_no_tasks_t:"Задач пока нет", es_no_tasks_s:"Нажми + чтобы добавить",
+    es_no_events_t:"Событий нет", es_no_events_s:"Нажми + чтобы добавить",
+    es_no_birthdays_t:"Дней рождения нет", es_no_birthdays_s:"Добавь ниже",
+    es_no_subs_t:"Подписок нет", es_no_subs_s:"Добавь ниже",
+    es_no_zones_t:"Зон пока нет", es_no_zones_s:"Добавь ниже",
+    es_no_txs_t:"Транзакций нет", es_no_txs_s:"Нажми + чтобы добавить",
+    es_no_shop_t:"Список пуст", es_no_shop_s:"Нажми + чтобы добавить",
+    es_no_stock_t:"Запасов нет", es_no_stock_s:"Покупки появятся здесь",
+    es_no_match_t:"Ничего не найдено", es_no_match_s:"Попробуй другой запрос",
   }
 };
 function t(k,vars){var d=LANG[_lang]||LANG.en;var s=(d&&d[k])||LANG.en[k]||k;
@@ -298,7 +340,7 @@ async function setLang(newLang){
   if(newLang!=="en"&&newLang!=="ru")return;
   if(newLang===_lang)return;
   var r=await A("PATCH","/api/members/me/lang",{lang:newLang});
-  if(!r||!r.ok){toast("Save failed");return}
+  if(!r||!r.ok){toast(t("ts_save_failed"));return}
   _lang=newLang;hp("ok");
   // Re-render the bottom nav labels in place + current tab
   document.querySelectorAll('#nv .ni').forEach(function(b){
@@ -949,7 +991,7 @@ function _weEditorHtml(){
 }
 async function _weUpload(input){
   var f=input.files&&input.files[0];if(!f)return;
-  if(f.size>15*1024*1024){toast("Image > 15 MB");return}
+  if(f.size>15*1024*1024){toast(t("ts_too_large"));return}
   hp("light");
   f=await _downscaleImage(f);
   var fd=new FormData();fd.append("file",f);
@@ -958,22 +1000,22 @@ async function _weUpload(input){
   var sess=_getSess();if(sess)headers["X-Session-Token"]=sess;
   try{
     var r=await fetch("/api/words/one/"+_weState.idx+"/image",{method:"POST",headers:headers,body:fd});
-    if(!r.ok){toast("Upload failed");return}
+    if(!r.ok){toast(t("ts_upload_failed"));return}
     var d=await r.json();
     _weState.data.image_key=d.image_key;
-    hp("ok");toast("Image saved");
+    hp("ok");toast(t("ts_image_saved"));
     // Refresh preview with cache-bust
     var prev=document.getElementById("we-img-prev");
     if(prev){prev.classList.remove("we-img-empty");prev.innerHTML='<img src="/static/words/'+es(d.image_key)+'.jpg?t='+Date.now()+'" alt="">'}
     // Bump global session-bust so card view also refreshes
     _wdImgVer=Date.now().toString(36).slice(-4);
-  }catch(e){toast("Upload error")}
+  }catch(e){toast(t("ts_upload_error"))}
 }
 async function _weDeleteImg(){
   if(!confirm("Remove image?"))return;
   var r=await A("DELETE","/api/words/one/"+_weState.idx+"/image");
-  if(!r){toast("Failed");return}
-  hp("ok");toast("Image removed");
+  if(!r){toast(t("ts_failed"));return}
+  hp("ok");toast(t("ts_image_removed"));
   var prev=document.getElementById("we-img-prev");
   if(prev){prev.classList.add("we-img-empty");prev.innerHTML='<span class="we-img-ph">'+es(_weState.data.emoji||"📖")+'</span>'}
   _wdImgVer=Date.now().toString(36).slice(-4);
@@ -991,11 +1033,11 @@ async function _weSave(){
     ru_example:v("we-ru-ex").trim(),
     emoji:v("we-emoji").trim()||"📖"
   };
-  if(!payload.en_word||!payload.ru_word){toast("Word required on both sides");return}
+  if(!payload.en_word||!payload.ru_word){toast(t("ts_word_required"));return}
   hp("light");
   var r=await A("PATCH","/api/words/one/"+_weState.idx,payload);
-  if(!r){toast("Save failed");return}
-  hp("ok");toast("Saved");
+  if(!r){toast(t("ts_save_failed"));return}
+  hp("ok");toast(t("ts_saved"));
   // Refresh the local list so en/ru changes show
   var found=_wmState.all.find(function(w){return w.idx===_weState.idx});
   if(found){found.en_word=payload.en_word;found.ru_word=payload.ru_word;if(r.image_key)found.image_key=r.image_key}
@@ -1189,7 +1231,7 @@ function _plPhotoPick(pid){
   input.type="file";input.accept="image/*";input.capture="environment";
   input.onchange=async function(){
     var f=input.files&&input.files[0];if(!f)return;
-    if(f.size>15*1024*1024){toast("> 15 MB");return}
+    if(f.size>15*1024*1024){toast(t("ts_too_large"));return}
     f=await _downscaleImage(f);
     var caption=prompt("Caption (optional, e.g. \"first leaves\"):","")||"";
     var fd=new FormData();fd.append("file",f);fd.append("caption",caption.trim());
@@ -1198,15 +1240,15 @@ function _plPhotoPick(pid){
     var sess=_getSess();if(sess)headers["X-Session-Token"]=sess;
     try{
       var r=await fetch("/api/plants/"+pid+"/photos",{method:"POST",headers:headers,body:fd});
-      if(!r.ok){toast("Upload failed");return}
+      if(!r.ok){toast(t("ts_upload_failed"));return}
       var p=await r.json();
-      hp("ok");toast("Photo added");
+      hp("ok");toast(t("ts_photo_added"));
       var arr=_plState.photosCache[pid]||[];
       // Prepend (newest first)
       arr.unshift(p);
       _plState.photosCache[pid]=arr;
       ren();
-    }catch(e){toast("Network error")}
+    }catch(e){toast(t("ts_network"))}
   };
   input.click();
 }
@@ -1238,13 +1280,13 @@ async function _plPhotoSaveCaption(photoId, plantId){
   var sess=_getSess();if(sess)headers["X-Session-Token"]=sess;
   try{
     var r=await fetch("/api/plants/photos/"+photoId,{method:"PATCH",headers:headers,body:fd});
-    if(!r.ok){toast("Save failed");return}
+    if(!r.ok){toast(t("ts_save_failed"));return}
     // Update in cache
     var arr=_plState.photosCache[plantId]||[];
     var ph=arr.find(function(x){return x.id===photoId});
     if(ph)ph.caption=cap.trim();
-    cMo();hp("ok");toast("Caption saved");ren();
-  }catch(e){toast("Network error")}
+    cMo();hp("ok");toast(t("ts_caption_saved"));ren();
+  }catch(e){toast(t("ts_network"))}
 }
 
 async function _plPhotoDelete(photoId, plantId){
@@ -1252,7 +1294,7 @@ async function _plPhotoDelete(photoId, plantId){
   var r=await A("DELETE","/api/plants/photos/"+photoId);
   if(!r)return;
   _plState.photosCache[plantId]=(_plState.photosCache[plantId]||[]).filter(function(x){return x.id!==photoId});
-  cMo();hp("ok");toast("Photo deleted");ren();
+  cMo();hp("ok");toast(t("ts_photo_deleted"));ren();
 }
 
 async function _plLoadHistory(pid){
@@ -1404,7 +1446,7 @@ async function _plWater(pid){
   if(r.watered_today){
     toast("💧 Watered "+(r.custom_name||r.species||"plant"));
   }else{
-    toast("↩ Watering undone");
+    toast(t("ts_watering_undone"));
   }
   // History cache is stale after watering — drop so it reloads
   delete _plState.histCache[pid];
@@ -1480,7 +1522,7 @@ async function _plSaveEdit(pid){
   if(!r)return;
   var i=(D.plants||[]).findIndex(function(p){return p.id===pid});
   if(i>=0)D.plants[i]=r;
-  cMo();hp("ok");toast("Saved");ren();
+  cMo();hp("ok");toast(t("ts_saved"));ren();
 }
 
 function _plReplacePhoto(pid){
@@ -1489,7 +1531,7 @@ function _plReplacePhoto(pid){
   input.type="file";input.accept="image/*";input.capture="environment";
   input.onchange=async function(){
     var f=input.files&&input.files[0];if(!f)return;
-    if(f.size>15*1024*1024){toast("> 15 MB");return}
+    if(f.size>15*1024*1024){toast(t("ts_too_large"));return}
     hp("light");
     f=await _downscaleImage(f);
     var fd=new FormData();fd.append("file",f);
@@ -1498,13 +1540,13 @@ function _plReplacePhoto(pid){
     var sess=_getSess();if(sess)headers["X-Session-Token"]=sess;
     try{
       var r=await fetch("/api/plants/"+pid+"/image",{method:"POST",headers:headers,body:fd});
-      if(!r.ok){toast("Upload failed");return}
+      if(!r.ok){toast(t("ts_upload_failed"));return}
       hp("ok");toast("Photo updated");
       // Mark has_image true and force re-render
       var i=(D.plants||[]).findIndex(function(p){return p.id===pid});
       if(i>=0)D.plants[i].has_image=true;
       ren();
-    }catch(e){toast("Network error")}
+    }catch(e){toast(t("ts_network"))}
   };
   input.click();
 }
@@ -1943,27 +1985,27 @@ D.members.forEach(function(m){h+='<button class="fi '+(filt===m.user_id?"a":"")+
 var all=D.tasks;if(filt)all=all.filter(function(x){return x.assigned_to===filt});
 if(searchQ)all=all.filter(function(x){return matchQ(x.text)});
 var pend=all.filter(function(x){return!x.done}),done=all.filter(function(x){return x.done});
-if(!all.length)return h+em(icon("clipboard",48,1.8),"No tasks yet","Tap + to add one");
+if(!all.length)return h+em(icon("clipboard",48,1.8),t("es_no_tasks_t"),t("es_no_tasks_s"));
 // Group pending tasks into sections
 var todayStr=td();var _7d=new Date();_7d.setDate(_7d.getDate()+7);var weekStr=_7d.getFullYear()+"-"+String(_7d.getMonth()+1).padStart(2,"0")+"-"+String(_7d.getDate()).padStart(2,"0");
 var overdue=[],high=[],week=[],rest=[];
 pend.forEach(function(t){var dd=(t.due_date||"").split(" ")[0];if(dd&&dd<todayStr){overdue.push(t)}else if(t.priority==="high"){high.push(t)}else if(dd&&dd<=weekStr){week.push(t)}else{rest.push(t)}});
-function _tkCard(t,overdueDate){var rmC=t.reminders&&t.reminders.length?'<span class="pdate">'+icon("bl",10,2)+t.reminders.length+'</span>':"";
-var priLabel=t.priority==="high"?"High":t.priority==="low"?"Low":"Normal";
-var priCls=t.priority==="high"?"hi":t.priority==="low"?"lo":"md";
+function _tkCard(tk,overdueDate){var rmC=tk.reminders&&tk.reminders.length?'<span class="pdate">'+icon("bl",10,2)+tk.reminders.length+'</span>':"";
+var priLabel=tk.priority==="high"?t("p_high"):tk.priority==="low"?t("p_low"):t("p_normal");
+var priCls=tk.priority==="high"?"hi":tk.priority==="low"?"lo":"md";
 var priPill='<span class="ppri '+priCls+'">'+icon("fl",10,2.4)+priLabel+'</span>';
 var dateTone=overdueDate?"tone-ac":"";
-var datePill=t.due_date?'<span class="pdate '+dateTone+'">'+icon("calendar",10,2.2)+fD(t.due_date).full+'</span>':"";
-return '<div style="margin-bottom:10px"><div class="c" style="margin-bottom:0"><div class="cb cb-o" onclick="tgTk('+t.id+',this)"></div><div class="bd"><div class="tt">'+es(t.text)+'</div><div class="mt">'+mChip(t.assigned_to,true)+" "+priPill+" "+datePill+" "+rmC+" "+sC("task",t.id)+' <button class="xb" onclick="tX(\'task\','+t.id+')">'+(ex["task_"+t.id]?"▾":"▸")+'</button></div></div><button class="bi" onclick="edTk('+t.id+')">'+I.ed+'</button><button class="bi" onclick="dlTk('+t.id+')">'+I.tr+'</button></div>'+rSu("task",t.id)+'</div>'}
+var datePill=tk.due_date?'<span class="pdate '+dateTone+'">'+icon("calendar",10,2.2)+fD(tk.due_date).full+'</span>':"";
+return '<div style="margin-bottom:10px"><div class="c" style="margin-bottom:0"><div class="cb cb-o" onclick="tgTk('+tk.id+',this)"></div><div class="bd"><div class="tt">'+es(tk.text)+'</div><div class="mt">'+mChip(tk.assigned_to,true)+" "+priPill+" "+datePill+" "+rmC+" "+sC("task",tk.id)+' <button class="xb" onclick="tX(\'task\','+tk.id+')">'+(ex["task_"+tk.id]?"▾":"▸")+'</button></div></div><button class="bi" onclick="edTk('+tk.id+')">'+I.ed+'</button><button class="bi" onclick="dlTk('+tk.id+')">'+I.tr+'</button></div>'+rSu("task",tk.id)+'</div>'}
 function _scH(ico,label,cnt,color){var iconHtml=ico?'<span class="sc-ico"'+(color?' style="color:'+color+'"':'')+'>'+icon(ico,12,2.4)+'</span>':'';return '<div class="sc"'+(color?' style="color:'+color+'"':'')+'><span class="sc-l">'+iconHtml+label+'<span class="sc-cnt"'+(color?' style="background:color-mix(in srgb,'+color+' 16%,transparent);color:'+color+'"':'')+'>'+cnt+'</span></span></div>'}
-if(overdue.length){h+=_scH("dot","Overdue",overdue.length,"var(--ac)");overdue.forEach(function(t){h+=_tkCard(t,true)})}
-if(high.length){h+=_scH("bolt","High Priority",high.length,"var(--wn)");high.forEach(function(t){h+=_tkCard(t)})}
-if(week.length){h+=_scH("calendar","This Week",week.length);week.forEach(function(t){h+=_tkCard(t)})}
-if(rest.length){h+=_scH("list","Rest",rest.length);rest.forEach(function(t){h+=_tkCard(t)})}
-if(!pend.length)h+='<div style="text-align:center;padding:20px;color:var(--ht);font-size:13px">All caught up! 🎉</div>';
-if(done.length){h+=_scH("ck","Done",done.length,"var(--ok)");done.forEach(function(t){h+='<div class="c d"><div class="cb cb-k" onclick="tgTk('+t.id+',this)">'+I.ck+'</div><div class="bd"><div class="tt sk">'+es(t.text)+'</div></div><button class="bi" onclick="dlTk('+t.id+')">'+I.tr+'</button></div>'})}
+if(overdue.length){h+=_scH("dot",t("tk_overdue"),overdue.length,"var(--ac)");overdue.forEach(function(tk){h+=_tkCard(tk,true)})}
+if(high.length){h+=_scH("bolt",t("tk_high_pri"),high.length,"var(--wn)");high.forEach(function(tk){h+=_tkCard(tk)})}
+if(week.length){h+=_scH("calendar",t("tk_this_week"),week.length);week.forEach(function(tk){h+=_tkCard(tk)})}
+if(rest.length){h+=_scH("list",t("tk_rest"),rest.length);rest.forEach(function(tk){h+=_tkCard(tk)})}
+if(!pend.length)h+='<div style="text-align:center;padding:20px;color:var(--ht);font-size:13px">'+t("tk_caught_up")+'</div>';
+if(done.length){h+=_scH("ck",t("g_done"),done.length,"var(--ok)");done.forEach(function(tk){h+='<div class="c d"><div class="cb cb-k" onclick="tgTk('+tk.id+',this)">'+I.ck+'</div><div class="bd"><div class="tt sk">'+es(tk.text)+'</div></div><button class="bi" onclick="dlTk('+tk.id+')">'+I.tr+'</button></div>'})}
 return h}
-function rRecur(){if(!D.recurring.length)return em(icon("refresh",48,1.8),"No recurring tasks","Tap + to create");var h='';D.recurring.forEach(function(r){if(searchQ&&!matchQ(r.text))return;var rrDesc=r.rrule==="daily"?"Every day":r.rrule.startsWith("weekly:")?"Weekly: "+r.rrule.split(":")[1]:"Monthly: "+r.rrule.split(":")[1]+"th";var pausedPill=r.active?'':' <span class="pdate tone-ac">Paused</span>';h+='<div class="c"><div class="bd"><div class="tt">'+es(r.text)+'</div><div class="mt">'+mChip(r.assigned_to,true)+' <span class="pdate" style="background:color-mix(in srgb,var(--pr) 14%,transparent);color:var(--pr)">'+icon("refresh",10,2.2)+rrDesc+'</span>'+pausedPill+'</div></div><button class="bi" onclick="edRec('+r.id+')">'+I.ed+'</button><button class="bi" onclick="dlRec('+r.id+')">'+I.tr+'</button></div>'});return h}
+function rRecur(){if(!D.recurring.length)return em(icon("refresh",48,1.8),t("tk_no_recur_t"),t("tk_no_recur_s"));var h='';D.recurring.forEach(function(r){if(searchQ&&!matchQ(r.text))return;var rrDesc=r.rrule==="daily"?t("g_every_day"):r.rrule.startsWith("weekly:")?t("g_weekly")+": "+r.rrule.split(":")[1]:t("g_monthly")+": "+r.rrule.split(":")[1];var pausedPill=r.active?'':' <span class="pdate tone-ac">'+t("g_paused")+'</span>';h+='<div class="c"><div class="bd"><div class="tt">'+es(r.text)+'</div><div class="mt">'+mChip(r.assigned_to,true)+' <span class="pdate" style="background:color-mix(in srgb,var(--pr) 14%,transparent);color:var(--pr)">'+icon("refresh",10,2.2)+rrDesc+'</span>'+pausedPill+'</div></div><button class="bi" onclick="edRec('+r.id+')">'+I.ed+'</button><button class="bi" onclick="dlRec('+r.id+')">'+I.tr+'</button></div>'});return h}
 
 async function tgTk(id,cb){
 var t=D.tasks.find(function(x){return x.id===id});
@@ -1984,8 +2026,8 @@ if(doing&&card){
   await A("PATCH","/api/tasks/"+id+"/toggle");
   await load();
 }}
-async function dlTk(id){var t=D.tasks.find(function(x){return x.id===id});hp("warn");await A("DELETE","/api/tasks/"+id);await load();if(t)toast("🗑 Deleted",function(){A("POST","/api/tasks",{text:t.text,assigned_to:t.assigned_to,priority:t.priority,due_date:t.due_date}).then(load)})}
-async function dlRec(id){hp();await A("DELETE","/api/recurring/"+id);await load();toast("🗑 Deleted")}
+async function dlTk(id){var tk=D.tasks.find(function(x){return x.id===id});hp("warn");await A("DELETE","/api/tasks/"+id);await load();if(tk)toast("🗑 "+t("ts_deleted"),function(){A("POST","/api/tasks",{text:tk.text,assigned_to:tk.assigned_to,priority:tk.priority,due_date:tk.due_date}).then(load)})}
+async function dlRec(id){hp();await A("DELETE","/api/recurring/"+id);await load();toast("🗑 "+t("ts_deleted"))}
 function edTk(id){var t=D.tasks.find(function(x){return x.id===id});if(!t)return;_assign=t.assigned_to||0;_pri=t.priority;_rems=(t.reminders||[]).map(function(r){return r.remind_at});oMC("Edit Task",'<input class="inp" id="f-t" value="'+es(t.text)+'"><div class="lb">Assign to</div>'+assignPk("ap",t.assigned_to)+'<div class="lb">Priority</div><div class="or">'+["low","normal","high"].map(function(p){return '<button class="ob ob-pri-'+p+' '+(t.priority===p?"s":"")+'" onclick="_pri=\''+p+'\';this.parentNode.querySelectorAll(\'.ob\').forEach(function(b){b.classList.remove(\'s\')});this.classList.add(\'s\')">'+p[0].toUpperCase()+p.slice(1)+'</button>'}).join("")+'</div><div class="lb">Due Date</div><div class="dr"><div><input type="date" id="f-dd" value="'+(t.due_date?(t.due_date.split(" ")[0]):"")+'"></div></div><div class="lb">Reminders</div><div id="rw">'+remPk()+'</div><button class="btn" onclick="svTk('+id+')">Save</button>',{ic:"clipboard"})}
 async function svTk(id){var text=document.getElementById("f-t").value.trim();if(!text)return;var dd=document.getElementById("f-dd")?document.getElementById("f-dd").value:null;await A("PUT","/api/tasks/"+id,{text:text,assigned_to:_assign||null,priority:_pri,due_date:dd||null,reminders:_rems});cMo();hp();await load();if(_calEditCb){var cb=_calEditCb;_calEditCb=null;cb()}}
 function edRec(id){var r=D.recurring.find(function(x){return x.id===id});if(!r)return;_assign=r.assigned_to||0;oMC("Edit Recurring",'<input class="inp" id="f-t" value="'+es(r.text)+'"><div class="lb">Assign to</div>'+assignPk("ap",r.assigned_to)+'<div class="lb">Schedule</div><div class="or"><button class="ob '+(r.rrule==="daily"?"s":"")+'" onclick="document.getElementById(\'rr\').value=\'daily\';this.parentNode.querySelectorAll(\'.ob\').forEach(function(b){b.classList.remove(\'s\')});this.classList.add(\'s\');document.getElementById(\'wd\').classList.add(\'hidden\');document.getElementById(\'md\').classList.add(\'hidden\')">Daily</button><button class="ob '+(r.rrule.startsWith("weekly")?"s":"")+'" onclick="document.getElementById(\'rr\').value=\'weekly:\';this.parentNode.querySelectorAll(\'.ob\').forEach(function(b){b.classList.remove(\'s\')});this.classList.add(\'s\');document.getElementById(\'wd\').classList.remove(\'hidden\');document.getElementById(\'md\').classList.add(\'hidden\')">Weekly</button><button class="ob '+(r.rrule.startsWith("monthly")?"s":"")+'" onclick="document.getElementById(\'rr\').value=\'monthly:\';this.parentNode.querySelectorAll(\'.ob\').forEach(function(b){b.classList.remove(\'s\')});this.classList.add(\'s\');document.getElementById(\'md\').classList.remove(\'hidden\');document.getElementById(\'wd\').classList.add(\'hidden\')">Monthly</button></div><input type="hidden" id="rr" value="'+r.rrule+'"><div id="wd" class="'+(r.rrule.startsWith("weekly")?"":"hidden")+'"><div class="lb">Days</div><div class="or">'+["mon","tue","wed","thu","fri","sat","sun"].map(function(d){return '<button class="ob '+(r.rrule.indexOf(d)>=0?"s":"")+'" onclick="this.classList.toggle(\'s\')">'+d+'</button>'}).join("")+'</div></div><div id="md" class="'+(r.rrule.startsWith("monthly")?"":"hidden")+'"><div class="lb">Day of month</div><input class="inp" id="f-md" type="number" min="1" max="28" value="'+(r.rrule.startsWith("monthly:")?r.rrule.split(":")[1]:"1")+'"></div><div class="lb">Status</div><div class="or"><button class="ob '+(r.active?"s":"")+'" onclick="_recActive=1;this.parentNode.querySelectorAll(\'.ob\').forEach(function(b){b.classList.remove(\'s\')});this.classList.add(\'s\')">Active</button><button class="ob '+(!r.active?"s":"")+'" onclick="_recActive=0;this.parentNode.querySelectorAll(\'.ob\').forEach(function(b){b.classList.remove(\'s\')});this.classList.add(\'s\')">Paused</button></div><button class="btn" onclick="svRec('+id+')">Save</button>',{ic:"refresh"});window._recActive=r.active}
@@ -2007,7 +2049,7 @@ if(searchQ)items=items.filter(function(x){return matchQ(x.item)});
 var folderTotal=0;items.forEach(function(x){if(x.price&&(shopFold==="stock"||!x.bought))folderTotal+=x.price});
 if(folderTotal>0)h+='<div class="cat-row" style="margin-bottom:14px"><div class="cat-row-h"><span class="nm">Total</span><span class="vl" style="color:var(--wn)">'+folderTotal.toFixed(0)+' din.</span></div></div>';
 if(shopFold==="stock"){
-  if(!items.length)return h+em(icon("cart",48,1.8),"Nothing in stock","Buy items to see them here");
+  if(!items.length)return h+em(icon("cart",48,1.8),t("es_no_stock_t"),t("es_no_stock_s"));
   h+=_scH3("ck","In Stock",items.length,'<button class="at" onclick="clSh()">Clear</button>',"var(--ok)");
   var fMap={};D.folders.forEach(function(f){fMap[f.id]=f});var grps={};items.forEach(function(s){var k=s.folder_id||0;if(!grps[k])grps[k]=[];grps[k].push(s)});var ks=D.folders.map(function(f){return f.id}).filter(function(id){return grps[id]});if(grps[0])ks.push(0);var multi=ks.length>1||(ks.length===1&&ks[0]!==0);
   ks.forEach(function(k){var g=grps[k];if(multi){var label=k&&fMap[k]?(fMap[k].emoji+" "+es(fMap[k].name)):"Other";h+='<div class="sc" style="font-size:12px;margin-top:12px"><span class="sc-l">'+label+'<span class="sc-cnt">'+g.length+'</span></span></div>'}
@@ -2015,7 +2057,7 @@ if(shopFold==="stock"){
   return h
 }
 var p=items.filter(function(x){return!x.bought}),b=items.filter(function(x){return x.bought});
-if(!items.length)return h+em(icon("cart",48,1.8),"List is empty","Tap + to add");
+if(!items.length)return h+em(icon("cart",48,1.8),t("es_no_shop_t"),t("es_no_shop_s"));
 if(p.length){h+=_scH3("cart","To Buy",p.length);
   p.forEach(function(s){var qtyHtml=s.quantity?'<span class="qty">'+es(s.quantity)+'</span>':"";var prHtml=s.price?'<span style="font-size:11px;color:var(--wn);font-weight:600">'+s.price+' din.</span>':"";h+='<div class="c"><div class="cb cb-o" onclick="tgSh('+s.id+',this)"></div><div class="bd"><div class="tt">'+es(s.item)+" "+qtyHtml+'</div><div class="mt">'+es(s.added_by||"")+" "+prHtml+'</div></div><button class="bi" onclick="edShop('+s.id+')">'+I.ed+'</button><button class="bi" onclick="dSh('+s.id+')">'+I.tr+'</button></div>'})}
 if(b.length){h+=_scH3("ck","Bought",b.length,'<button class="at" onclick="clSh()">Clear</button>',"var(--ok)");
@@ -2039,7 +2081,7 @@ if(doing&&card){
   await A("PATCH","/api/shopping/"+id+"/toggle");
   await load();
 }}
-async function dSh(id){hp("warn");await A("DELETE","/api/shopping/"+id);await load();toast("🗑 Deleted")}
+async function dSh(id){hp("warn");await A("DELETE","/api/shopping/"+id);await load();toast("🗑 "+t("ts_deleted"))}
 async function clSh(){hp();await A("DELETE","/api/shopping/clear-bought");await load();toast("✓ Cleared")}
 function edShop(sid){var s=D.shopping.find(function(x){return x.id===sid});if(!s)return;var folderOpts='<button class="ob '+(!s.folder_id?"s":"")+'" onclick="window._sFold=0;this.parentNode.querySelectorAll(\'.ob\').forEach(function(b){b.classList.remove(\'s\')});this.classList.add(\'s\')">None</button>';D.folders.forEach(function(f){folderOpts+='<button class="ob '+(s.folder_id===f.id?"s":"")+'" onclick="window._sFold='+f.id+';this.parentNode.querySelectorAll(\'.ob\').forEach(function(b){b.classList.remove(\'s\')});this.classList.add(\'s\')">'+f.emoji+" "+es(f.name)+'</button>'});window._sFold=s.folder_id||0;oMC("Edit Item",'<input class="inp" id="se-n" value="'+es(s.item)+'"><div class="dr"><div><div class="dl">Quantity</div><input class="inp" id="se-q" value="'+(s.quantity||"")+'" placeholder="e.g. 1kg"></div><div><div class="dl">Price (din.)</div><input class="inp" id="se-p" type="number" value="'+(s.price||"")+'" placeholder="0"></div></div>'+(D.folders.length?'<div class="lb">Folder</div><div class="or">'+folderOpts+'</div>':'')+'<button class="btn" onclick="svShop('+sid+')">Save</button>',{ic:"cart"})}
 async function svShop(sid){var n=document.getElementById("se-n").value.trim();var q=document.getElementById("se-q").value.trim();var p=parseFloat(document.getElementById("se-p").value)||null;if(!n)return;await A("PUT","/api/shopping/"+sid,{item:n,quantity:q||null,price:p,folder_id:window._sFold||null});cMo();hp();await load()}
@@ -2080,7 +2122,7 @@ h+='<div class="st st-mn"><div class="st-ico tone-ok">'+icon("trendUp",16,2.2)+'
 h+='<div class="st st-mn"><div class="st-ico tone-ac">'+icon("trendDown",16,2.2)+'</div><div class="st-lb">Expense</div><div class="st-vl neg">'+_tv(tExp)+'</div></div>';
 h+='<div class="st st-mn"><div class="st-ico tone-pr">'+icon("wallet",16,2.2)+'</div><div class="st-lb">Balance</div><div class="st-vl '+(bal===null?"":(bal>=0?"pos":"neg"))+'">'+_bv(bal)+'</div></div>';
 h+='</div>';
-if(!txs.length)return h+em(icon("wallet",48,1.8),"No transactions","Tap + to add");
+if(!txs.length)return h+em(icon("wallet",48,1.8),t("es_no_txs_t"),t("es_no_txs_s"));
 // Member filter row
 h+='<div class="fb2"><button class="fi '+(!filt?"a":"")+'" onclick="filt=null;ren()">All</button>';
 D.members.forEach(function(m){h+='<button class="fi '+(filt===m.user_id?"a":"")+'" style="padding:3px 6px;display:inline-flex;align-items:center" onclick="filt='+m.user_id+';ren()">'+mAv(m.user_id,22)+'</button>'});h+='</div>';
@@ -2108,7 +2150,7 @@ txs.forEach(function(tx){
 });
 return h}
 
-async function dlTx(id){hp();await A("DELETE","/api/transactions/"+id);_moneySummary=null;_anaCache={};await load();toast("🗑 Deleted")}
+async function dlTx(id){hp();await A("DELETE","/api/transactions/"+id);_moneySummary=null;_anaCache={};await load();toast("🗑 "+t("ts_deleted"))}
 function edTx(id){var tx=D.transactions.find(function(x){return x.id===id});if(!tx)return;_assign=tx.member_id||0;
 var catOpts=D.categories.filter(function(c){return c.type===tx.type}).map(function(c){return '<button class="ob '+(tx.category_id===c.id?"s":"")+'" onclick="window._txCat='+c.id+';this.parentNode.querySelectorAll(\'.ob\').forEach(function(b){b.classList.remove(\'s\')});this.classList.add(\'s\')">'+c.emoji+" "+es(c.name)+'</button>'}).join("");
 window._txCat=tx.category_id||0;window._txType=tx.type;
@@ -2270,10 +2312,10 @@ if(!n)return;await A("PUT","/api/transactions/items/"+iid,{name:n,quantity:q,amo
 cMo();await load();openReceipt(txId)}
 
 // Subs (moved from Calendar)
-function rSubAddBtn(){return '<button class="btn btn-s" style="margin-bottom:16px" onclick="oMoSub()">+ Add Subscription</button>'}
+function rSubAddBtn(){return '<button class="btn btn-s" style="margin-bottom:16px" onclick="oMoSub()">+ '+t("mt_add_sub")+'</button>'}
 function oMoSub(){_assign=0;_subRems=[{days_before:3,time:"09:00"},{days_before:0,time:"09:00"}];oMC("Add Subscription",'<input class="inp" id="su-n" placeholder="Subscription name"><input class="inp" id="su-e" value="💳" style="width:80px"><div class="dr"><div><div class="dl">Amount</div><input class="inp" id="su-a" type="number" step="0.01" placeholder="9.99"></div><div><div class="dl">Currency</div><select id="su-c"><option value="EUR">€</option><option value="USD">$</option><option value="GBP">£</option><option value="RUB">₽</option><option value="RSD">din.</option></select></div></div><div class="dr"><div><div class="dl">Billing day</div><input class="inp" id="su-d" type="number" min="1" max="28" value="1"></div></div><div class="lb">Assigned to</div>'+assignPk("sap",null)+'<div class="lb">Reminders</div><div id="srl">'+subRemPk()+'</div><button class="btn" onclick="doNewSub()">Add Subscription</button>',{ic:"card"})}
 function rSubsList(){
-if(!D.subs.length)return em(icon("card",48,1.8),"No subscriptions","Add below")+rSubAddBtn();
+if(!D.subs.length)return em(icon("card",48,1.8),t("es_no_subs_t"),t("es_no_subs_s"))+rSubAddBtn();
 var items=D.subs;if(searchQ)items=items.filter(function(s){return matchQ(s.name)});
 var totalEur=0;items.forEach(function(s){totalEur+=(s.amount_eur||0)});
 var h=rSubAddBtn()+'<div class="c" style="border-left:3px solid var(--wn)"><div class="bd"><div class="tt" style="font-weight:700">Monthly total</div><div class="mt" style="font-size:16px;color:var(--wn);font-weight:800">€'+totalEur.toFixed(2)+'</div></div></div>';
@@ -2283,7 +2325,7 @@ items.forEach(function(s){var daysTxt=s.days_until===0?"Today":s.days_until===1?
 var tone=s.days_until===0?"tone-ac":s.days_until<=2?"tone-wn":"";
 var amountTxt=s.amount+" "+s.currency+(s.currency!=="EUR"?" · €"+(s.amount_eur||0).toFixed(2):"");
 h+='<div class="lc"><div class="lc-i">'+s.emoji+'</div><div class="lc-bd"><div class="lc-tt">'+es(s.name)+'</div><div class="lc-mt">Day '+s.billing_day+' · '+amountTxt+'</div></div><span class="lc-rt '+tone+'">'+daysTxt+'</span><button class="bi" onclick="edSub('+s.id+')" style="margin-left:4px">'+I.ed+'</button><button class="bi" onclick="dlSub('+s.id+')">'+I.tr+'</button></div>'});return h}
-async function dlSub(id){hp();await A("DELETE","/api/subscriptions/"+id);await load();toast("🗑 Deleted")}
+async function dlSub(id){hp();await A("DELETE","/api/subscriptions/"+id);await load();toast("🗑 "+t("ts_deleted"))}
 function edSub(id){var s=D.subs.find(function(x){return x.id===id});if(!s)return;_assign=s.assigned_to||0;_subRems=(s.reminders||[]).map(function(r){return{days_before:r.days_before,time:r.time||"09:00"}});oMC("Edit Subscription",'<input class="inp" id="su-n" value="'+es(s.name)+'"><input class="inp" id="su-e" value="'+s.emoji+'" style="width:80px"><div class="dr"><div><div class="dl">Amount</div><input class="inp" id="su-a" type="number" step="0.01" value="'+s.amount+'"></div><div><div class="dl">Currency</div><select id="su-c" style="width:100%"><option value="EUR"'+(s.currency==="EUR"?" selected":"")+'>€</option><option value="USD"'+(s.currency==="USD"?" selected":"")+'>$</option><option value="GBP"'+(s.currency==="GBP"?" selected":"")+'>£</option><option value="RUB"'+(s.currency==="RUB"?" selected":"")+'>₽</option><option value="RSD"'+(s.currency==="RSD"?" selected":"")+'>din.</option></select></div></div><div class="dr"><div><div class="dl">Billing day</div><input class="inp" id="su-d" type="number" min="1" max="28" value="'+s.billing_day+'"></div></div><div class="lb">Assigned to</div>'+assignPk("sap",s.assigned_to)+'<div class="lb">Reminders</div><div id="srl">'+subRemPk()+'</div><button class="btn" onclick="svSub('+id+')">Save</button>',{ic:"card"})}
 async function svSub(id){var n=document.getElementById("su-n").value.trim();var e=document.getElementById("su-e").value.trim();var a=parseFloat(document.getElementById("su-a").value);var c=document.getElementById("su-c").value;var d=parseInt(document.getElementById("su-d").value)||1;if(!n||!a)return;await A("PUT","/api/subscriptions/"+id,{name:n,emoji:e,amount:a,currency:c,billing_day:d,assigned_to:_assign||null,reminders:_subRems});cMo();hp();await load()}
 
@@ -2685,7 +2727,7 @@ async function openTemplateDetail(tid){
 
 async function _trImgUpload(tid,input){
   var f=input.files&&input.files[0];if(!f)return;
-  if(f.size>15*1024*1024){toast("> 15 MB");return}
+  if(f.size>15*1024*1024){toast(t("ts_too_large"));return}
   hp("light");
   f=await _downscaleImage(f);
   var fd=new FormData();fd.append("file",f);
@@ -2694,17 +2736,17 @@ async function _trImgUpload(tid,input){
   var sess=_getSess();if(sess)headers["X-Session-Token"]=sess;
   try{
     var r=await fetch("/api/workout-templates/"+tid+"/image",{method:"POST",headers:headers,body:fd});
-    if(!r.ok){toast("Upload failed");return}
-    hp("ok");toast("Image saved");
+    if(!r.ok){toast(t("ts_upload_failed"));return}
+    hp("ok");toast(t("ts_image_saved"));
     await load();
     cMo();openTemplateDetail(tid);
-  }catch(e){toast("Network error")}
+  }catch(e){toast(t("ts_network"))}
 }
 async function _trImgDelete(tid){
   if(!confirm("Remove image?"))return;
   var r=await A("DELETE","/api/workout-templates/"+tid+"/image");
   if(!r)return;
-  hp("ok");toast("Image removed");
+  hp("ok");toast(t("ts_image_removed"));
   await load();
   cMo();openTemplateDetail(tid);
 }
@@ -3198,7 +3240,7 @@ async function svNewExercise(wid){
   var img=document.getElementById("ne-img").value.trim()||null;
   var rs=parseInt(document.getElementById("ne-rs").value)||90;
   var r=await A("POST","/api/exercises",{name:n,emoji:emoji,muscle_group:mg,image_url:img,rest_seconds:rs});
-  if(!r||!r.id){toast("Failed");return}
+  if(!r||!r.id){toast(t("ts_failed"));return}
   // Reload bundle to get new exercise into D.exercises
   await load();
   // Then add it to workout
@@ -3377,9 +3419,9 @@ function _evtCountdown(ev, todayStr){
 }
 
 function rEvts(){
-if(!D.events.length)return em(icon("clock",48,1.8),"No events","Tap + Add Event to start")+rEvtAddBtn();
+if(!D.events.length)return em(icon("clock",48,1.8),t("es_no_events_t"),t("es_no_events_s"))+rEvtAddBtn();
 var evts=D.events;if(searchQ)evts=evts.filter(function(e){return matchQ(e.text)});
-if(!evts.length)return rEvtAddBtn()+em(icon("clock",48,1.8),"No matches","Try a different search");
+if(!evts.length)return rEvtAddBtn()+em(icon("clock",48,1.8),t("es_no_match_t"),t("es_no_match_s"));
 // Categorize: ongoing (today between start and end), upcoming (start > today), past (end < today)
 var todayStr=td();
 var current=[],future=[],past=[];
@@ -3435,29 +3477,29 @@ if(_evtsFirstRender&&highId&&!searchQ){
   });
 }
 return h}
-function rEvtAddBtn(){return '<button class="btn btn-s" style="margin:3px 0 16px" onclick="oMoEvt()">+ Add Event</button>'}
-async function dEv(id){hp();await A("DELETE","/api/events/"+id);await load();toast("🗑 Deleted")}
+function rEvtAddBtn(){return '<button class="btn btn-s" style="margin:3px 0 16px" onclick="oMoEvt()">+ '+t("mt_add_event")+'</button>'}
+async function dEv(id){hp();await A("DELETE","/api/events/"+id);await load();toast("🗑 "+t("ts_deleted"))}
 
 // ═══════════════════════════════════════════════════════════
 // BIRTHDAYS (hamburger page)
 // ═══════════════════════════════════════════════════════════
 function rBdays(){
-if(!D.birthdays.length)return em(icon("cake",48,1.8),"No birthdays","Add below")+rBdAddBtn();
+if(!D.birthdays.length)return em(icon("cake",48,1.8),t("es_no_birthdays_t"),t("es_no_birthdays_s"))+rBdAddBtn();
 var bdays=D.birthdays;if(searchQ)bdays=bdays.filter(function(b){return matchQ(b.name)});
 var h=rBdAddBtn();bdays.forEach(function(b){
 var rightTxt=b.days_until===0?"Today! 🎉":b.days_until===1?"Tomorrow":"in "+b.days_until+"d";
 var tone=b.days_until===0?"tone-ok":b.days_until<=7?"tone-wn":"";
 var dateTxt=b.birth_date.split("-").slice(1).reverse().join(".");
 h+='<div class="lc"><div class="lc-i acc-wn">'+b.emoji+'</div><div class="lc-bd"><div class="lc-tt">'+es(b.name)+'</div><div class="lc-mt">🎂 '+dateTxt+'</div></div><span class="lc-rt '+tone+'">'+rightTxt+'</span><button class="bi" onclick="edBd('+b.id+')" style="margin-left:4px">'+I.ed+'</button><button class="bi" onclick="dlBd('+b.id+')">'+I.tr+'</button></div>'});return h}
-function rBdAddBtn(){return '<button class="btn btn-s" style="margin-bottom:16px" onclick="oMoBd()">+ Add Birthday</button>'}
-async function dlBd(id){hp();await A("DELETE","/api/birthdays/"+id);await load();toast("🗑 Deleted")}
+function rBdAddBtn(){return '<button class="btn btn-s" style="margin-bottom:16px" onclick="oMoBd()">+ '+t("mt_add_bday")+'</button>'}
+async function dlBd(id){hp();await A("DELETE","/api/birthdays/"+id);await load();toast("🗑 "+t("ts_deleted"))}
 function edBd(id){var b=D.birthdays.find(function(x){return x.id===id});if(!b)return;_bdRems=(b.reminders||[]).map(function(r){return{days_before:r.days_before,time:r.time||"09:00"}});oMC(t("mt_edit_bday"),'<input class="inp" id="bd-n" value="'+es(b.name)+'"><input class="inp" id="bd-e" value="'+b.emoji+'" style="width:80px"><div class="lb">'+t("g_reminders")+'</div><div id="brl">'+bdRemPk()+'</div><button class="btn" onclick="svBd('+id+')">'+t("btn_save")+'</button>',{ic:"cake"})}
 async function svBd(id){var n=document.getElementById("bd-n").value.trim();var e=document.getElementById("bd-e").value.trim();if(!n)return;await A("PUT","/api/birthdays/"+id,{name:n,emoji:e,reminders:_bdRems});cMo();hp();await load()}
 
 // ═══════════════════════════════════════════════════════════
 // CLEANING (hamburger page)
 // ═══════════════════════════════════════════════════════════
-function rC(){if(!D.zones.length)return em(icon("broom",48,1.8),"No zones yet","Add zones below")+'<button class="btn" onclick="shAZ()">+ Add Zone</button>';
+function rC(){if(!D.zones.length)return em(icon("broom",48,1.8),t("es_no_zones_t"),t("es_no_zones_s"))+'<button class="btn" onclick="shAZ()">+ '+t("mt_add_zone")+'</button>';
 var dirty=D.zones.filter(function(z){return z.dirty}),clean=D.zones.filter(function(z){return!z.dirty});
 if(searchQ){dirty=dirty.filter(function(z){return matchQ(z.name)});clean=clean.filter(function(z){return matchQ(z.name)})}
 var h="";
@@ -4025,7 +4067,7 @@ if(_pwaPrompt){
 }
 h+='<div class="sc"><span class="sc-l">'+t("set_developer")+'</span></div>';
 h+=_setRow({ico:"debug",acc:"acc-ac",title:t("set_debug")+" "+(dbgOn?"ON":"OFF"),onclick:"dbgOn=!dbgOn;document.getElementById(\'dbg\').classList.toggle(\'hidden\',!dbgOn);ren()"});
-h+='<div style="margin-top:18px;text-align:center;font-size:11px;color:var(--ht);letter-spacing:.3px">Family HQ v8.32.2</div>';return h}
+h+='<div style="margin-top:18px;text-align:center;font-size:11px;color:var(--ht);letter-spacing:.3px">Family HQ v8.32.3</div>';return h}
 async function setTh(id){
   if(id==="custom"){
     // Tapping Custom in the picker opens the editor (saves happen there). Also apply right away.
