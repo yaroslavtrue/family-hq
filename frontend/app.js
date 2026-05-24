@@ -2586,7 +2586,7 @@ function _weekStartISO(){var d=new Date();var dow=d.getDay();var off=(dow===0)?-
 function setTrainMember(uid){_trainMember=uid;_trainStats=null;_trainStatsData=null;_trainStatsLoading=false;hp("sel");ren()}
 
 function _workoutCard(w,emphasized){
-  var dateLbl=w.date===td()?"Today":fD(w.date).full;
+  var dateLbl=w.date===td()?t("g_today"):fD(w.date).full;
   var nameTxt=w.name?es(w.name):"Workout";
   var acc=emphasized?"acc-pr":"";
   var extraStyle=emphasized?'style="border-color:color-mix(in srgb,var(--pr) 40%,var(--bd));box-shadow:0 4px 18px color-mix(in srgb,var(--pr) 16%,transparent),var(--shadow-1)"':"";
@@ -2821,43 +2821,43 @@ async function deleteTemplate(tid){
 
 function _workoutDetailHtml(w){
   var memberName=mName(w.member_id);
-  var dateLbl=w.date===td()?"Today":fD(w.date).full;
+  var dateLbl=w.date===td()?t("g_today"):fD(w.date).full;
   var inProgress=w.started_at&&!w.finished_at;
   var h='<div class="cday-overlay">';
   h+='<div class="cday-panel" style="padding-bottom:80px">';
   h+='<div class="cday-hd"><button class="cday-back" onclick="closeWorkout()">←</button>'+
-    '<div class="cday-title">💪 '+(w.name?es(w.name):"Workout")+'</div>'+
+    '<div class="cday-title">💪 '+(w.name?es(w.name):t("mt_workout"))+'</div>'+
     '<button class="bi" onclick="editWorkoutMeta('+w.id+')" style="padding:4px;color:var(--ht)">'+I.ed+'</button>'+
     '</div>';
   // Live timer (if in progress)
   if(inProgress){
-    h+='<div id="wk-timer" style="background:var(--pg);color:var(--pr);padding:8px 16px;text-align:center;font-weight:700;font-size:18px;border-bottom:1px solid var(--bd)">⏱ <span id="wk-elapsed">0:00</span> · in progress</div>';
+    h+='<div id="wk-timer" style="background:var(--pg);color:var(--pr);padding:8px 16px;text-align:center;font-weight:700;font-size:18px;border-bottom:1px solid var(--bd)">⏱ <span id="wk-elapsed">0:00</span> · '+t("wx_in_progress")+'</div>';
   }else if(w.finished_at){
     var dur=_durationStr(w.started_at,w.finished_at);
-    h+='<div style="background:color-mix(in srgb,var(--ok) 15%,transparent);color:var(--ok);padding:8px 16px;text-align:center;font-weight:700;font-size:14px;border-bottom:1px solid var(--bd)">✓ Completed · '+dur+'</div>';
+    h+='<div style="background:color-mix(in srgb,var(--ok) 15%,transparent);color:var(--ok);padding:8px 16px;text-align:center;font-weight:700;font-size:14px;border-bottom:1px solid var(--bd)">✓ '+t("wx_completed")+' · '+dur+'</div>';
   }
   // Summary card
   h+='<div style="padding:8px 16px"><div class="c" style="margin-bottom:8px"><div class="bd">'+
     '<div style="font-size:12px;color:var(--ht)">'+dateLbl+' · '+es(memberName)+'</div>'+
     '<div style="font-size:18px;font-weight:800;color:var(--pr);margin-top:4px">'+_fmtTon(w.tonnage||0)+'</div>'+
-    '<div style="font-size:11px;color:var(--ht)">'+(w.exercises||0)+' exercises · '+(w.sets||0)+' sets</div>'+
+    '<div style="font-size:11px;color:var(--ht)">'+(w.exercises||0)+' '+t("wx_exercises")+' · '+(w.sets||0)+' '+t("wx_sets")+'</div>'+
     '</div></div></div>';
   // Exercises list
   h+='<div style="padding:0 16px">';
   (w.exercises_list||[]).forEach(function(wx){h+=_exerciseBlock(wx)});
-  h+='<button class="btn btn-s" style="margin-top:8px;background:transparent;border:1.5px solid var(--bd);color:var(--tx)" onclick="openExercisePicker('+w.id+')">+ Add exercise</button>';
+  h+='<button class="btn btn-s" style="margin-top:8px;background:transparent;border:1.5px solid var(--bd);color:var(--tx)" onclick="openExercisePicker('+w.id+')">+ '+t("mt_add_exercise")+'</button>';
   // Finish (if in progress) or Re-open
   if(inProgress){
-    h+='<button class="btn" style="margin-top:16px;background:var(--ok);color:#fff" onclick="finishWorkout('+w.id+')">✓ Finish Workout</button>';
+    h+='<button class="btn" style="margin-top:16px;background:var(--ok);color:#fff" onclick="finishWorkout('+w.id+')">✓ '+t("wx_finish")+'</button>';
   }else if(w.finished_at){
-    h+='<button class="btn btn-s" style="margin-top:16px;background:transparent;border:1.5px solid var(--bd);color:var(--tx)" onclick="reopenWorkout('+w.id+')">↺ Reopen workout</button>';
+    h+='<button class="btn btn-s" style="margin-top:16px;background:transparent;border:1.5px solid var(--bd);color:var(--tx)" onclick="reopenWorkout('+w.id+')">↺ '+t("wx_reopen")+'</button>';
   }else{
     // Workout exists but not yet started
-    h+='<button class="btn" style="margin-top:16px;background:var(--ok);color:#fff" onclick="startThisWorkout('+w.id+')">▶ Start Workout</button>';
+    h+='<button class="btn" style="margin-top:16px;background:var(--ok);color:#fff" onclick="startThisWorkout('+w.id+')">▶ '+t("mt_start_workout")+'</button>';
   }
   // Delete workout button at bottom
   h+='<div style="margin-top:24px;padding-top:16px;border-top:1px solid var(--bd)">'+
-    '<button class="btn btn-s" style="color:var(--ac);background:transparent;border:1.5px solid var(--bd)" onclick="deleteWorkout('+w.id+')">Delete workout</button>'+
+    '<button class="btn btn-s" style="color:var(--ac);background:transparent;border:1.5px solid var(--bd)" onclick="deleteWorkout('+w.id+')">'+t("wx_delete_workout")+'</button>'+
     '</div>';
   h+='</div>';
   // Rest timer overlay (initially hidden)
@@ -2928,19 +2928,46 @@ function _exerciseBlock(wx){
     lastReps=sets[sets.length-1].reps;lastWeight=sets[sets.length-1].weight;
   }else if(wx.last_session){
     lastReps=wx.last_session.reps;lastWeight=wx.last_session.weight;
-    prefillHint='<div style="font-size:10px;color:var(--ht);margin-bottom:4px">Last time ('+(fD(wx.last_session.date).date||"")+'): '+wx.last_session.reps+' × '+wx.last_session.weight+' kg</div>';
+    prefillHint='<div class="wx-last-hint">'+t("wx_last_time")+' ('+(fD(wx.last_session.date).date||"")+'): '+wx.last_session.reps+' × '+wx.last_session.weight+' kg</div>';
   }else{
     lastReps=8;lastWeight=0;
   }
-  h+=prefillHint;
-  h+='<div style="display:flex;gap:6px;align-items:center">';
-  h+='<input class="inp" type="number" min="1" id="set-reps-'+wx.id+'" value="'+lastReps+'" placeholder="reps" style="flex:1;padding:8px;font-size:13px">';
-  h+='<span style="color:var(--ht);font-size:11px">×</span>';
-  h+='<input class="inp" type="number" step="0.5" id="set-weight-'+wx.id+'" value="'+lastWeight+'" placeholder="kg" style="flex:1;padding:8px;font-size:13px">';
-  h+='<button class="btn btn-s" style="padding:8px 14px;width:auto" onclick="addSet('+wx.id+','+(wx.rest_seconds||90)+')">+</button>';
+  // Big tap-friendly steppers + primary Add Set button (v8.35.0).
+  // IDs preserved (set-reps-X / set-weight-X) — addSet() reads them by ID.
+  if(prefillHint)h+=prefillHint;
+  h+='<div class="wx-stp-wrap">';
+  h+='<div class="wx-stp-row"><div class="wx-stp-lbl">'+t("wx_reps")+'</div>';
+  h+='<div class="wx-stp">';
+  h+='<button class="wx-stp-b" onclick="_stpAdj(\'set-reps-'+wx.id+'\',-1,1)" aria-label="−1">−</button>';
+  h+='<input class="wx-stp-v" type="number" inputmode="numeric" min="1" id="set-reps-'+wx.id+'" value="'+lastReps+'">';
+  h+='<button class="wx-stp-b" onclick="_stpAdj(\'set-reps-'+wx.id+'\',1,1)" aria-label="+1">+</button>';
+  h+='</div></div>';
+  h+='<div class="wx-stp-row"><div class="wx-stp-lbl">'+t("wx_weight")+'</div>';
+  h+='<div class="wx-stp">';
+  h+='<button class="wx-stp-b" onclick="_stpAdj(\'set-weight-'+wx.id+'\',-2.5,1)" aria-label="−2.5">−</button>';
+  h+='<input class="wx-stp-v" type="number" inputmode="decimal" step="0.5" id="set-weight-'+wx.id+'" value="'+lastWeight+'">';
+  h+='<button class="wx-stp-b" onclick="_stpAdj(\'set-weight-'+wx.id+'\',2.5,1)" aria-label="+2.5">+</button>';
+  h+='</div><div class="wx-stp-unit">kg</div></div>';
+  h+='<button class="wx-stp-add" onclick="addSet('+wx.id+','+(wx.rest_seconds||90)+')">'+t("wx_add_set")+'</button>';
   h+='</div>';
   h+='</div>';
   return h;
+}
+
+// Stepper adjustment helper — clamps reps to >=1, weight to >=0. `decimals`
+// determines display precision (1 for weight, 0 for reps). Called from inline
+// onclick in the active-workout stepper buttons.
+function _stpAdj(inputId, delta, decimals){
+  var el=document.getElementById(inputId);if(!el)return;
+  var v=parseFloat(el.value)||0;
+  v=Math.round((v+delta)*100)/100;
+  // Reps must stay positive; weight can be 0
+  var isReps=inputId.indexOf("set-reps-")===0;
+  if(isReps&&v<1)v=1;
+  if(!isReps&&v<0)v=0;
+  el.value=decimals?String(v):String(Math.round(v));
+  // Subtle haptic on adjust (Telegram WebApp API)
+  try{if(window.tg&&tg.HapticFeedback)tg.HapticFeedback.selectionChanged()}catch(e){}
 }
 
 async function addSet(wxid,restSec){
@@ -2954,16 +2981,16 @@ async function addSet(wxid,restSec){
 }
 
 async function deleteSet(sid){
-  if(!confirm("Delete set?"))return;
+  if(!confirm(t("wx_delete_set_confirm")))return;
   await A("DELETE","/api/workout-sets/"+sid);hp("warn");
   if(_curWorkout)await _refreshWorkoutView(_curWorkout.id);
 }
 
 function editSet(sid,wxid,reps,weight,unit){
   oMC(t("mt_edit_set"),
-    '<div class="dr"><div><div class="dl">Reps</div><input class="inp" id="es-r" type="number" min="1" value="'+reps+'"></div>'+
-    '<div><div class="dl">Weight</div><input class="inp" id="es-w" type="number" step="0.5" value="'+weight+'"></div></div>'+
-    '<button class="btn" onclick="svSet('+sid+')">Save</button>',{ic:"dumbbell"});
+    '<div class="dr"><div><div class="dl">'+t("wx_reps")+'</div><input class="inp" id="es-r" type="number" min="1" value="'+reps+'"></div>'+
+    '<div><div class="dl">'+t("wx_weight")+'</div><input class="inp" id="es-w" type="number" step="0.5" value="'+weight+'"></div></div>'+
+    '<button class="btn" onclick="svSet('+sid+')">'+t("btn_save")+'</button>',{ic:"dumbbell"});
 }
 async function svSet(sid){
   var r=parseInt(document.getElementById("es-r").value)||0;
@@ -3067,14 +3094,14 @@ function startRestTimer(seconds){
   el.style.display="flex";
   function tick(){
     if(remaining<=0){
-      el.innerHTML='<span>✓ Rest complete!</span><button onclick="_clearRestTimer()" style="background:rgba(255,255,255,.2);color:#fff;border:none;padding:4px 12px;border-radius:8px;cursor:pointer;font-weight:700">×</button>';
+      el.innerHTML='<span>✓ '+t("wx_rest_done")+'</span><button onclick="_clearRestTimer()" style="background:rgba(255,255,255,.2);color:#fff;border:none;padding:4px 12px;border-radius:8px;cursor:pointer;font-weight:700">×</button>';
       hp("ok");
       setTimeout(_clearRestTimer,3000);
       return;
     }
     var mm=Math.floor(remaining/60),ss=remaining%60;
     var time=mm+":"+String(ss).padStart(2,"0");
-    el.innerHTML='<span>⏱ Rest: '+time+'</span><button onclick="_clearRestTimer()" style="background:rgba(255,255,255,.2);color:#fff;border:none;padding:4px 12px;border-radius:8px;cursor:pointer;font-weight:700">Skip</button>';
+    el.innerHTML='<span>⏱ '+t("wx_rest")+': '+time+'</span><button onclick="_clearRestTimer()" style="background:rgba(255,255,255,.2);color:#fff;border:none;padding:4px 12px;border-radius:8px;cursor:pointer;font-weight:700">'+t("wx_skip")+'</button>';
     remaining--;
   }
   tick();
@@ -3879,7 +3906,7 @@ if(_pwaPrompt){
 }
 h+='<div class="sc"><span class="sc-l">'+t("set_developer")+'</span></div>';
 h+=_setRow({ico:"debug",acc:"acc-ac",title:t("set_debug")+" "+(dbgOn?"ON":"OFF"),onclick:"dbgOn=!dbgOn;document.getElementById(\'dbg\').classList.toggle(\'hidden\',!dbgOn);ren()"});
-h+='<div style="margin-top:18px;text-align:center;font-size:11px;color:var(--ht);letter-spacing:.3px">Family HQ v8.34.2</div>';return h}
+h+='<div style="margin-top:18px;text-align:center;font-size:11px;color:var(--ht);letter-spacing:.3px">Family HQ v8.35.0</div>';return h}
 async function setTh(id){
   if(id==="custom"){
     // Tapping Custom in the picker opens the editor (saves happen there). Also apply right away.

@@ -517,6 +517,25 @@ body.words-mode .ct{padding-top:max(10px, calc(env(safe-area-inset-top, 0px) + 6
 .pl-ph-date{position:relative;z-index:1;background:linear-gradient(180deg,transparent,rgba(0,0,0,.78));color:#fff;font-size:10px;font-weight:700;letter-spacing:.3px;padding:14px 6px 5px;text-align:center;text-shadow:0 1px 2px rgba(0,0,0,.5)}
 .pl-ph-empty{flex:1;display:flex;align-items:center;font-size:11px;color:var(--ht);padding:0 12px;font-style:italic}
 .pl-pview{width:100%;max-height:70vh;border-radius:14px;overflow:hidden;background:var(--bg);display:flex;align-items:center;justify-content:center}
+
+/* ─── Workout set entry (v8.35.0 polish): big tap-friendly steppers ─── */
+/* Two-row grid: [Reps row] [Weight row] [Add Set button]. Each row has a label, − number +, unit. */
+.wx-stp-wrap{display:flex;flex-direction:column;gap:8px;background:color-mix(in srgb,var(--pr) 5%,var(--cd));border:1px solid color-mix(in srgb,var(--pr) 18%,var(--bd));border-radius:14px;padding:10px;margin-top:8px}
+.wx-stp-row{display:flex;align-items:center;gap:8px}
+.wx-stp-lbl{font-size:11px;font-weight:700;color:var(--ht);text-transform:uppercase;letter-spacing:.4px;width:48px;flex-shrink:0}
+.wx-stp{flex:1;display:flex;align-items:center;background:var(--bg);border:1px solid var(--bd);border-radius:12px;overflow:hidden;height:44px}
+.wx-stp-b{flex:0 0 44px;height:44px;border:none;background:transparent;color:var(--pr);font-size:22px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;-webkit-tap-highlight-color:transparent;user-select:none;transition:background .12s}
+.wx-stp-b:active{background:color-mix(in srgb,var(--pr) 14%,transparent);transform:scale(.92)}
+.wx-stp-v{flex:1;border:none;background:transparent;color:var(--tx);font-size:18px;font-weight:700;text-align:center;padding:0;font-family:inherit;outline:none;min-width:0}
+.wx-stp-v::-webkit-outer-spin-button,.wx-stp-v::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
+.wx-stp-v[type=number]{-moz-appearance:textfield}
+.wx-stp-unit{flex:0 0 30px;font-size:12px;font-weight:600;color:var(--ht);text-align:center}
+.wx-stp-add{width:100%;background:var(--pr);color:#fff;border:none;border-radius:12px;padding:13px 16px;font-size:15px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;-webkit-tap-highlight-color:transparent;transition:transform .12s,filter .15s}
+.wx-stp-add:active{transform:scale(.97);filter:brightness(.92)}
+.wx-stp-add::before{content:"+";font-size:22px;line-height:1;font-weight:700}
+.wx-last-hint{font-size:11px;color:var(--ht);text-align:center;margin-bottom:4px;font-weight:500}
+/* Better rest banner — bigger text, centered timer */
+#rest-banner{font-size:16px !important}
 .pl-pview img{max-width:100%;max-height:70vh;object-fit:contain;display:block}
 
 /* Word editor */
@@ -959,7 +978,7 @@ body.no-scroll .mx{touch-action:pan-y}
 <div class="dbg hidden" id="dbg"><button class="dbg-cp" onclick="navigator.clipboard.writeText(dbgLog.join('\n'))">Copy</button></div>
 <!-- Load JS -->
 <!-- i18n dictionary loaded BEFORE app.js — app.js reads window.LANG from here -->
-<script src="/static/lang.js?v=189"></script>
-<script src="/static/app.js?v=189"></script>
+<script src="/static/lang.js?v=190"></script>
+<script src="/static/app.js?v=190"></script>
 </body>
 </html>
