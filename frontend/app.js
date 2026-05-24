@@ -25,20 +25,20 @@ let tab="home",filt=null,ex={},dbgOn=false,dbgLog=[];
 // ─── i18n (v8.34.0) ─────────────────────────────────────────────────
 // _lang set from /api/family/status (per-member preference, schema v25).
 // Dictionary lives in /static/lang.js (loaded before app.js); we read it via window.LANG
-// here. Fallback empty objects keep t() safe even if lang.js failed to load (worst case:
+// here. Fallback empty objects keep tr() safe even if lang.js failed to load (worst case:
 // keys show through; app still renders).
 var _lang = "en";
 var LANG = (typeof window !== "undefined" && window.LANG) ? window.LANG : { en: {}, ru: {} };
-// Intl.PluralRules — drives the tn(key, n) helper for count-dependent strings.
+// Intl.PluralRules — drives the trn(key, n) helper for count-dependent strings.
 // English: "one" (n==1) | "other"; Russian: "one" | "few" | "many" | "other".
 var _pluralRules = {
   en: (typeof Intl !== "undefined" && Intl.PluralRules) ? new Intl.PluralRules("en-US") : null,
   ru: (typeof Intl !== "undefined" && Intl.PluralRules) ? new Intl.PluralRules("ru-RU") : null
 };
 
-// t(key, vars) — plain string lookup with {var} substitution. Falls back lang→en→key.
+// tr(key, vars) — plain string lookup with {var} substitution. Falls back lang→en→key.
 // Logs missing keys to console when Debug Mode (dbgOn) is on — helps find untranslated strings.
-function t(k, vars) {
+function tr(k, vars) {
   var d = LANG[_lang] || LANG.en;
   var s = (d && d[k]);
   if (s === undefined) {
@@ -52,13 +52,13 @@ function t(k, vars) {
   return s;
 }
 
-// tn(base_key, n, vars) — count-aware lookup. Selects <base>_one / _few / _many / _other
+// trn(base_key, n, vars) — count-aware lookup. Selects <base>_one / _few / _many / _other
 // based on Intl.PluralRules for the current locale. `n` is auto-substituted into {n}.
 //
-// Example: tn("g_in_days_full", 5)
+// Example: trn("g_in_days_full", 5)
 //   - Russian → looks up "g_in_days_full_many" → "через 5 дней"
 //   - English → looks up "g_in_days_full_other" → "in 5 days"
-function tn(k, n, vars) {
+function trn(k, n, vars) {
   var rules = _pluralRules[_lang] || _pluralRules.en;
   var form = rules ? rules.select(Math.abs(n)) : (Math.abs(n) === 1 ? "one" : "other");
   var d = LANG[_lang] || LANG.en;
@@ -80,12 +80,12 @@ async function setLang(newLang){
   if(newLang!=="en"&&newLang!=="ru")return;
   if(newLang===_lang)return;
   var r=await A("PATCH","/api/members/me/lang",{lang:newLang});
-  if(!r||!r.ok){toast(t("ts_save_failed"));return}
+  if(!r||!r.ok){toast(tr("ts_save_failed"));return}
   _lang=newLang;_rebuildLocaleArrays();hp("ok");
   // Re-render the bottom nav labels in place + current tab
   document.querySelectorAll('#nv .ni').forEach(function(b){
     var id=b.dataset.t;var lbl=b.querySelector('span:last-child');
-    if(lbl&&id)lbl.textContent=t('nav_'+id);
+    if(lbl&&id)lbl.textContent=tr('nav_'+id);
   });
   ren();
 }
@@ -257,10 +257,10 @@ function td(){const d=new Date();return d.getFullYear()+"-"+String(d.getMonth()+
 var dN, dF, mN, mNS;
 function _rebuildLocaleArrays(){
   var dKeys=["sun","mon","tue","wed","thu","fri","sat"];
-  dN=dKeys.map(function(k){return t("dow_short_"+k)});
-  dF=dKeys.map(function(k){return t("dow_full_"+k)});
+  dN=dKeys.map(function(k){return tr("dow_short_"+k)});
+  dF=dKeys.map(function(k){return tr("dow_full_"+k)});
   mN=[]; mNS=[];
-  for(var i=1;i<=12;i++){mN.push(t("mo_full_"+i));mNS.push(t("mo_short_"+i))}
+  for(var i=1;i<=12;i++){mN.push(tr("mo_full_"+i));mNS.push(tr("mo_short_"+i))}
 }
 _rebuildLocaleArrays();
 function fD(ds){const p=(ds||"").split(" ")[0].split("-").map(Number);if(!p[0]||!p[1]||!p[2])return{day:"?",date:"?",full:"?"};const dt=new Date(p[0],p[1]-1,p[2]);return{day:dN[dt.getDay()],date:p[2]+" "+mNS[p[1]-1],full:dN[dt.getDay()]+" "+p[2]+" "+mNS[p[1]-1]}}
@@ -292,7 +292,7 @@ function _plDate(iso){
     return d.toLocaleDateString();
   }catch(e){return""}
 }
-function _plStatusLabel(s){return s==="thirsty"?t("pl_thirsty"):(s==="soon"?t("pl_soon"):t("pl_healthy"))}
+function _plStatusLabel(s){return s==="thirsty"?tr("pl_thirsty"):(s==="soon"?tr("pl_soon"):tr("pl_healthy"))}
 function _plStatusColor(s){return s==="thirsty"?"var(--ac)":(s==="soon"?"var(--wn)":"var(--ok)")}
 
 function _rPlantsWidget(){
@@ -328,7 +328,7 @@ function rPlants(){
   var h='<div class="pl-wrap">';
   // ─── Avatar carousel ─────────────────────────────
   h+='<div class="pl-avatars">';
-  h+='<button class="pl-av pl-av-add" onclick="_plOpenAdd()" aria-label="Add plant"><div class="pl-av-pic pl-av-plus">'+icon("pl",22,2.5)+'</div><div class="pl-av-l">'+t("pl_add")+'</div></button>';
+  h+='<button class="pl-av pl-av-add" onclick="_plOpenAdd()" aria-label="Add plant"><div class="pl-av-pic pl-av-plus">'+icon("pl",22,2.5)+'</div><div class="pl-av-l">'+tr("pl_add")+'</div></button>';
   list.forEach(function(p){
     var sel=(p.id===_plState.selectedId)?"s":"";
     var img=p.has_image?'<img src="/static/plants/'+p.id+'.jpg?t='+(p.last_watered?Date.parse(p.last_watered)||"":"x")+'" alt="" onerror="this.remove()">':'';
@@ -338,7 +338,7 @@ function rPlants(){
   h+='</div>';
   // ─── Main card ────────────────────────────────────
   if(!cur){
-    h+='<div class="emp" style="padding:50px 14px"><div class="emp-i" style="font-size:46px">🪴</div><div class="emp-t">'+t("pl_no_plants_t")+'</div><div style="font-size:13px;color:var(--ht);margin-top:6px">'+t("pl_no_plants_s")+'</div></div>';
+    h+='<div class="emp" style="padding:50px 14px"><div class="emp-i" style="font-size:46px">🪴</div><div class="emp-t">'+tr("pl_no_plants_t")+'</div><div style="font-size:13px;color:var(--ht);margin-top:6px">'+tr("pl_no_plants_s")+'</div></div>';
   }else{
     var imgUrl=cur.has_image?'/static/plants/'+cur.id+'.jpg?t='+(cur.last_watered?Date.parse(cur.last_watered)||"":"x"):'';
     h+='<div class="pl-card">';
@@ -355,9 +355,9 @@ function rPlants(){
     // Re-tapping undoes (in case of accidental press).
     h+='<div class="pl-actions">';
     if(cur.watered_today){
-      h+='<button class="pl-btn pl-btn-thanks" onclick="_plWater('+cur.id+')" title="Tap to undo">💚 '+t("pl_thanks")+'</button>';
+      h+='<button class="pl-btn pl-btn-thanks" onclick="_plWater('+cur.id+')" title="Tap to undo">💚 '+tr("pl_thanks")+'</button>';
     }else{
-      h+='<button class="pl-btn pl-btn-primary" onclick="_plWater('+cur.id+')">💧 '+t("pl_water")+'</button>';
+      h+='<button class="pl-btn pl-btn-primary" onclick="_plWater('+cur.id+')">💧 '+tr("pl_water")+'</button>';
     }
     h+='<button class="pl-btn pl-btn-more" onclick="_plMoreMenu('+cur.id+')" aria-label="More">⋯</button>';
     h+='</div>';
@@ -389,11 +389,11 @@ function _rPlantInlineTips(cur){
   var hist=_plState.histCache[cur.id];
   var h='<div class="pl-inline">';
   // Header
-  h+='<div class="pl-inline-h">'+t("pl_care_for")+' <strong>'+es(cur.custom_name||cur.species||"plant")+'</strong></div>';
+  h+='<div class="pl-inline-h">'+tr("pl_care_for")+' <strong>'+es(cur.custom_name||cur.species||"plant")+'</strong></div>';
   // Meta row
   h+='<div class="pl-adv-meta" style="margin-bottom:12px">';
-  h+='<div class="pl-adv-cell"><div class="pl-adv-cell-l">'+t("pl_water_every")+'</div><div class="pl-adv-cell-v">'+(cur.water_interval_days||7)+' '+t("pl_days_unit")+'</div></div>';
-  if(cur.light)h+='<div class="pl-adv-cell"><div class="pl-adv-cell-l">'+t("pl_light")+'</div><div class="pl-adv-cell-v">'+es(cur.light)+'</div></div>';
+  h+='<div class="pl-adv-cell"><div class="pl-adv-cell-l">'+tr("pl_water_every")+'</div><div class="pl-adv-cell-v">'+(cur.water_interval_days||7)+' '+tr("pl_days_unit")+'</div></div>';
+  if(cur.light)h+='<div class="pl-adv-cell"><div class="pl-adv-cell-l">'+tr("pl_light")+'</div><div class="pl-adv-cell-v">'+es(cur.light)+'</div></div>';
   h+='</div>';
   // History graph
   h+='<div class="lb" style="margin-top:4px">Watering — last 30 days</div>';
@@ -403,11 +403,11 @@ function _rPlantInlineTips(cur){
     h+='<div class="pl-hist-host"><div class="emp" style="padding:10px;font-size:11px;color:var(--ht)">Loading history…</div></div>';
   }
   // Growth timeline — newest first horizontal scroll
-  h+='<div class="lb" style="margin-top:14px;display:flex;align-items:center;justify-content:space-between"><span>'+t("pl_growth_timeline")+'</span><span style="font-size:10px;color:var(--ht);font-weight:600;letter-spacing:.3px;text-transform:uppercase">'+((_plState.photosCache[cur.id]||[]).length)+'</span></div>';
+  h+='<div class="lb" style="margin-top:14px;display:flex;align-items:center;justify-content:space-between"><span>'+tr("pl_growth_timeline")+'</span><span style="font-size:10px;color:var(--ht);font-weight:600;letter-spacing:.3px;text-transform:uppercase">'+((_plState.photosCache[cur.id]||[]).length)+'</span></div>';
   h+=_plPhotoStripHtml(cur);
   // Tips list
   if(cur.care_tips&&cur.care_tips.length){
-    h+='<div class="lb" style="margin-top:14px">'+t("pl_care_tips")+'</div>';
+    h+='<div class="lb" style="margin-top:14px">'+tr("pl_care_tips")+'</div>';
     cur.care_tips.forEach(function(t){h+='<div class="pl-tip">• '+es(t)+'</div>'});
   }
   if(cur.last_watered)h+='<div style="font-size:11px;color:var(--ht);margin-top:12px;text-align:center">Last watered '+_plDate(cur.last_watered)+'</div>';
@@ -418,10 +418,10 @@ function _rPlantInlineTips(cur){
 function _plPhotoStripHtml(cur){
   var photos=_plState.photosCache[cur.id];
   if(photos===undefined){
-    return '<div class="pl-ph-strip"><button class="pl-ph-add" onclick="_plPhotoPick('+cur.id+')"><span style="font-size:22px;line-height:1">+</span><span style="font-size:10px;margin-top:4px">'+t("pl_add_photo_short")+'</span></button><div class="emp" style="padding:14px 8px;font-size:11px;color:var(--ht);flex:1">'+t("g_loading")+'</div></div>';
+    return '<div class="pl-ph-strip"><button class="pl-ph-add" onclick="_plPhotoPick('+cur.id+')"><span style="font-size:22px;line-height:1">+</span><span style="font-size:10px;margin-top:4px">'+tr("pl_add_photo_short")+'</span></button><div class="emp" style="padding:14px 8px;font-size:11px;color:var(--ht);flex:1">'+tr("g_loading")+'</div></div>';
   }
   var h='<div class="pl-ph-strip">';
-  h+='<button class="pl-ph-add" onclick="_plPhotoPick('+cur.id+')"><span style="font-size:22px;line-height:1">+</span><span style="font-size:10px;margin-top:4px;font-weight:600">'+t("pl_add_photo_short")+'</span></button>';
+  h+='<button class="pl-ph-add" onclick="_plPhotoPick('+cur.id+')"><span style="font-size:22px;line-height:1">+</span><span style="font-size:10px;margin-top:4px;font-weight:600">'+tr("pl_add_photo_short")+'</span></button>';
   if(!photos.length){
     h+='<div class="pl-ph-empty">No timeline photos yet. Snap one to track growth over time.</div>';
   }else{
@@ -451,7 +451,7 @@ function _plPhotoPick(pid){
   input.type="file";input.accept="image/*";input.capture="environment";
   input.onchange=async function(){
     var f=input.files&&input.files[0];if(!f)return;
-    if(f.size>15*1024*1024){toast(t("ts_too_large"));return}
+    if(f.size>15*1024*1024){toast(tr("ts_too_large"));return}
     f=await _downscaleImage(f);
     var caption=prompt("Caption (optional, e.g. \"first leaves\"):","")||"";
     var fd=new FormData();fd.append("file",f);fd.append("caption",caption.trim());
@@ -460,15 +460,15 @@ function _plPhotoPick(pid){
     var sess=_getSess();if(sess)headers["X-Session-Token"]=sess;
     try{
       var r=await fetch("/api/plants/"+pid+"/photos",{method:"POST",headers:headers,body:fd});
-      if(!r.ok){toast(t("ts_upload_failed"));return}
+      if(!r.ok){toast(tr("ts_upload_failed"));return}
       var p=await r.json();
-      hp("ok");toast(t("ts_photo_added"));
+      hp("ok");toast(tr("ts_photo_added"));
       var arr=_plState.photosCache[pid]||[];
       // Prepend (newest first)
       arr.unshift(p);
       _plState.photosCache[pid]=arr;
       ren();
-    }catch(e){toast(t("ts_network"))}
+    }catch(e){toast(tr("ts_network"))}
   };
   input.click();
 }
@@ -482,14 +482,14 @@ function _plPhotoView(photoId, plantId){
   var d=p.taken_at?new Date(p.taken_at):null;
   var dlbl=d?d.toLocaleString("en-US",{day:"numeric",month:"long",year:"numeric"}):"";
   var h='<div class="pl-pview"><img src="/static/plants/timeline/'+p.id+'.jpg" alt=""></div>';
-  h+='<div class="lb" style="margin-top:14px">'+t("pl_caption")+'</div>';
+  h+='<div class="lb" style="margin-top:14px">'+tr("pl_caption")+'</div>';
   h+='<input class="inp" id="plv-cap" value="'+es(p.caption||"")+'" placeholder="(optional)" maxlength="120">';
   if(dlbl)h+='<div style="text-align:center;font-size:12px;color:var(--ht);margin-top:10px">📅 '+es(dlbl)+'</div>';
   h+='<div style="display:flex;gap:8px;margin-top:18px">';
   h+='<button class="btn btn-s" style="flex:1;background:transparent;color:var(--ac);border:1px solid color-mix(in srgb,var(--ac) 40%,transparent)" onclick="_plPhotoDelete('+p.id+','+plantId+')">🗑 Delete</button>';
-  h+='<button class="btn" style="flex:1.5" onclick="_plPhotoSaveCaption('+p.id+','+plantId+')">'+t("btn_save")+'</button>';
+  h+='<button class="btn" style="flex:1.5" onclick="_plPhotoSaveCaption('+p.id+','+plantId+')">'+tr("btn_save")+'</button>';
   h+='</div>';
-  oMC(t("mt_photo"),h,{ic:"flower"});
+  oMC(tr("mt_photo"),h,{ic:"flower"});
 }
 
 async function _plPhotoSaveCaption(photoId, plantId){
@@ -500,21 +500,21 @@ async function _plPhotoSaveCaption(photoId, plantId){
   var sess=_getSess();if(sess)headers["X-Session-Token"]=sess;
   try{
     var r=await fetch("/api/plants/photos/"+photoId,{method:"PATCH",headers:headers,body:fd});
-    if(!r.ok){toast(t("ts_save_failed"));return}
+    if(!r.ok){toast(tr("ts_save_failed"));return}
     // Update in cache
     var arr=_plState.photosCache[plantId]||[];
     var ph=arr.find(function(x){return x.id===photoId});
     if(ph)ph.caption=cap.trim();
-    cMo();hp("ok");toast(t("ts_caption_saved"));ren();
-  }catch(e){toast(t("ts_network"))}
+    cMo();hp("ok");toast(tr("ts_caption_saved"));ren();
+  }catch(e){toast(tr("ts_network"))}
 }
 
 async function _plPhotoDelete(photoId, plantId){
-  if(!confirm(t("pl_delete_photo_confirm")))return;
+  if(!confirm(tr("pl_delete_photo_confirm")))return;
   var r=await A("DELETE","/api/plants/photos/"+photoId);
   if(!r)return;
   _plState.photosCache[plantId]=(_plState.photosCache[plantId]||[]).filter(function(x){return x.id!==photoId});
-  cMo();hp("ok");toast(t("ts_photo_deleted"));ren();
+  cMo();hp("ok");toast(tr("ts_photo_deleted"));ren();
 }
 
 async function _plLoadHistory(pid){
@@ -543,14 +543,14 @@ function _plAttachSwipe(){
 // ─── Add flow: pick photo → upload → AI identify → server creates ──
 function _plOpenAdd(){
   hp("light");
-  var h='<div class="lb">'+t("pl_snap_photo")+'</div>';
+  var h='<div class="lb">'+tr("pl_snap_photo")+'</div>';
   h+='<div style="font-size:12px;color:var(--ht);margin-bottom:14px;line-height:1.4">AI will identify the plant, set a watering schedule, and write care tips. ~3 seconds.</div>';
-  h+='<label class="pl-photo-pick" id="pl-photo-pick"><input type="file" id="pl-file" accept="image/*" capture="environment" style="display:none" onchange="_plOnPhotoPicked(this)"><div class="pl-photo-icon">📷</div><div class="pl-photo-l">'+t("pl_pick_photo")+'</div></label>';
+  h+='<label class="pl-photo-pick" id="pl-photo-pick"><input type="file" id="pl-file" accept="image/*" capture="environment" style="display:none" onchange="_plOnPhotoPicked(this)"><div class="pl-photo-icon">📷</div><div class="pl-photo-l">'+tr("pl_pick_photo")+'</div></label>';
   h+='<div class="lb" style="margin-top:14px">Nickname (optional)</div>';
   h+='<input class="inp" id="pl-name" placeholder="e.g. Yuki, Momi, Hana…" maxlength="40">';
   h+='<div id="pl-add-msg" style="margin-top:10px;font-size:12px;color:var(--ht);text-align:center;min-height:18px"></div>';
   h+='<button class="btn" id="pl-add-go" onclick="_plDoAdd()" disabled style="opacity:.5">Identify & add</button>';
-  oMC(t("mt_add_plant"),h,{ic:"flower"});
+  oMC(tr("mt_add_plant"),h,{ic:"flower"});
 }
 var _plPhotoData=null;
 function _plOnPhotoPicked(input){
@@ -560,7 +560,7 @@ function _plOnPhotoPicked(input){
   // Preview
   var url=URL.createObjectURL(f);
   var p=document.getElementById("pl-photo-pick");
-  if(p){p.style.backgroundImage='url('+url+')';p.classList.add("pl-photo-set");p.querySelector(".pl-photo-icon").style.opacity=0;p.querySelector(".pl-photo-l").textContent=t("pl_tap_to_change")}
+  if(p){p.style.backgroundImage='url('+url+')';p.classList.add("pl-photo-set");p.querySelector(".pl-photo-icon").style.opacity=0;p.querySelector(".pl-photo-l").textContent=tr("pl_tap_to_change")}
   var go=document.getElementById("pl-add-go");if(go){go.disabled=false;go.style.opacity=1}
 }
 async function _plDoAdd(){
@@ -614,11 +614,11 @@ function _plShowCandidates(candidates,customName){
     h+='<div class="pl-cand-c">'+pct+'%</div>';
     h+='</button>';
   });
-  h+='<button class="btn btn-s" style="margin-top:14px;background:transparent;color:var(--ht);border:1px solid var(--bd)" onclick="cMo()">'+t("btn_cancel")+'</button>';
+  h+='<button class="btn btn-s" style="margin-top:14px;background:transparent;color:var(--ht);border:1px solid var(--bd)" onclick="cMo()">'+tr("btn_cancel")+'</button>';
   // Stash for picker
   _plState._candidates=candidates;
   _plState._candCustomName=customName||"";
-  oMC(t("mt_which_one"),h,{ic:"flower"});
+  oMC(tr("mt_which_one"),h,{ic:"flower"});
 }
 
 async function _plPickCandidate(idx){
@@ -666,7 +666,7 @@ async function _plWater(pid){
   if(r.watered_today){
     toast("💧 Watered "+(r.custom_name||r.species||"plant"));
   }else{
-    toast(t("ts_watering_undone"));
+    toast(tr("ts_watering_undone"));
   }
   // History cache is stale after watering — drop so it reloads
   delete _plState.histCache[pid];
@@ -693,7 +693,7 @@ function _plHistHtml(d,p){
     var avgPart=d.avg_interval_days?' · avg every '+d.avg_interval_days+'d':'';
     stats='<div class="pl-hist-stats">'+d.count+' waterings'+avgPart+' · target '+d.target_interval_days+'d</div>';
   }else{
-    stats='<div class="pl-hist-stats">'+t("pl_no_waterings_window")+'</div>';
+    stats='<div class="pl-hist-stats">'+tr("pl_no_waterings_window")+'</div>';
   }
   return '<div class="pl-hist-bars">'+bars+'</div>'+stats;
 }
@@ -701,21 +701,21 @@ function _plHistHtml(d,p){
 function _plMoreMenu(pid){
   hp("light");
   var p=(D.plants||[]).find(function(x){return x.id===pid});if(!p)return;
-  var h='<button class="menu-i" onclick="cMo();_plOpenEdit('+pid+')"><span class="mi-ico">'+I.ed+'</span><span class="mi-l">'+t("pl_edit_details")+'</span></button>';
-  h+='<button class="menu-i" onclick="cMo();_plReplacePhoto('+pid+')"><span class="mi-ico">📷</span><span class="mi-l">'+t("pl_replace_photo")+'</span></button>';
+  var h='<button class="menu-i" onclick="cMo();_plOpenEdit('+pid+')"><span class="mi-ico">'+I.ed+'</span><span class="mi-l">'+tr("pl_edit_details")+'</span></button>';
+  h+='<button class="menu-i" onclick="cMo();_plReplacePhoto('+pid+')"><span class="mi-ico">📷</span><span class="mi-l">'+tr("pl_replace_photo")+'</span></button>';
   h+='<div style="height:1px;background:var(--bd);margin:6px 0"></div>';
-  h+='<button class="menu-i" onclick="cMo();_plDelete('+pid+')" style="color:var(--ac)"><span class="mi-ico">🗑</span><span class="mi-l">'+t("pl_delete_plant")+'</span></button>';
-  oMC(t("mt_more"),h,{ic:"flower"});
+  h+='<button class="menu-i" onclick="cMo();_plDelete('+pid+')" style="color:var(--ac)"><span class="mi-ico">🗑</span><span class="mi-l">'+tr("pl_delete_plant")+'</span></button>';
+  oMC(tr("mt_more"),h,{ic:"flower"});
 }
 
 function _plOpenEdit(pid){
   var p=(D.plants||[]).find(function(x){return x.id===pid});if(!p)return;
   hp("light");
-  var h='<div class="lb">'+t("pl_nickname")+'</div><input class="inp" id="ple-name" value="'+es(p.custom_name||"")+'" placeholder="'+t("pl_nickname_placeholder")+'" maxlength="40">';
-  h+='<div class="lb" style="margin-top:12px">'+t("pl_species")+'</div><input class="inp" id="ple-species" value="'+es(p.species||"")+'">';
-  h+='<div class="lb" style="margin-top:12px">'+t("pl_latin")+'</div><input class="inp" id="ple-latin" value="'+es(p.latin_name||"")+'">';
-  h+='<div class="dr"><div><div class="dl">'+t("pl_water_every_days")+'</div><input class="inp" type="number" min="1" max="60" id="ple-int" value="'+(p.water_interval_days||7)+'"></div><div><div class="dl">'+t("pl_light")+'</div><input class="inp" id="ple-light" value="'+es(p.light||"")+'"></div></div>';
-  h+='<div class="lb" style="margin-top:12px">'+t("f_notes")+'</div><input class="inp" id="ple-notes" value="'+es(p.notes||"")+'" placeholder="'+t("pl_notes_placeholder")+'">';
+  var h='<div class="lb">'+tr("pl_nickname")+'</div><input class="inp" id="ple-name" value="'+es(p.custom_name||"")+'" placeholder="'+tr("pl_nickname_placeholder")+'" maxlength="40">';
+  h+='<div class="lb" style="margin-top:12px">'+tr("pl_species")+'</div><input class="inp" id="ple-species" value="'+es(p.species||"")+'">';
+  h+='<div class="lb" style="margin-top:12px">'+tr("pl_latin")+'</div><input class="inp" id="ple-latin" value="'+es(p.latin_name||"")+'">';
+  h+='<div class="dr"><div><div class="dl">'+tr("pl_water_every_days")+'</div><input class="inp" type="number" min="1" max="60" id="ple-int" value="'+(p.water_interval_days||7)+'"></div><div><div class="dl">'+tr("pl_light")+'</div><input class="inp" id="ple-light" value="'+es(p.light||"")+'"></div></div>';
+  h+='<div class="lb" style="margin-top:12px">'+tr("f_notes")+'</div><input class="inp" id="ple-notes" value="'+es(p.notes||"")+'" placeholder="'+tr("pl_notes_placeholder")+'">';
   // Custom voice — speech bubble phrases per status. Any field left empty falls back to bank.
   var vo=p.voice_overrides||{};
   h+='<div class="lb" style="margin-top:14px">Personality (optional)</div>';
@@ -723,8 +723,8 @@ function _plOpenEdit(pid){
   h+='<div class="dl" style="margin-top:6px">🟢 When healthy</div><input class="inp" id="ple-v-ok" value="'+es(vo.ok||"")+'" placeholder="Feeling great! ✨" maxlength="120">';
   h+='<div class="dl" style="margin-top:6px">🟡 When water due soon</div><input class="inp" id="ple-v-soon" value="'+es(vo.soon||"")+'" placeholder="Could use a drink soon…" maxlength="120">';
   h+='<div class="dl" style="margin-top:6px">🔴 When thirsty</div><input class="inp" id="ple-v-thirsty" value="'+es(vo.thirsty||"")+'" placeholder="I’m getting thirsty 💧" maxlength="120">';
-  h+='<button class="btn" style="margin-top:18px" onclick="_plSaveEdit('+pid+')">'+t("btn_save")+'</button>';
-  oMC(t("mt_edit_plant"),h,{ic:"flower"});
+  h+='<button class="btn" style="margin-top:18px" onclick="_plSaveEdit('+pid+')">'+tr("btn_save")+'</button>';
+  oMC(tr("mt_edit_plant"),h,{ic:"flower"});
 }
 async function _plSaveEdit(pid){
   var v=function(id){return (document.getElementById(id)||{}).value||""};
@@ -742,7 +742,7 @@ async function _plSaveEdit(pid){
   if(!r)return;
   var i=(D.plants||[]).findIndex(function(p){return p.id===pid});
   if(i>=0)D.plants[i]=r;
-  cMo();hp("ok");toast(t("ts_saved"));ren();
+  cMo();hp("ok");toast(tr("ts_saved"));ren();
 }
 
 function _plReplacePhoto(pid){
@@ -751,7 +751,7 @@ function _plReplacePhoto(pid){
   input.type="file";input.accept="image/*";input.capture="environment";
   input.onchange=async function(){
     var f=input.files&&input.files[0];if(!f)return;
-    if(f.size>15*1024*1024){toast(t("ts_too_large"));return}
+    if(f.size>15*1024*1024){toast(tr("ts_too_large"));return}
     hp("light");
     f=await _downscaleImage(f);
     var fd=new FormData();fd.append("file",f);
@@ -760,20 +760,20 @@ function _plReplacePhoto(pid){
     var sess=_getSess();if(sess)headers["X-Session-Token"]=sess;
     try{
       var r=await fetch("/api/plants/"+pid+"/image",{method:"POST",headers:headers,body:fd});
-      if(!r.ok){toast(t("ts_upload_failed"));return}
+      if(!r.ok){toast(tr("ts_upload_failed"));return}
       hp("ok");toast("Photo updated");
       // Mark has_image true and force re-render
       var i=(D.plants||[]).findIndex(function(p){return p.id===pid});
       if(i>=0)D.plants[i].has_image=true;
       ren();
-    }catch(e){toast(t("ts_network"))}
+    }catch(e){toast(tr("ts_network"))}
   };
   input.click();
 }
 
 async function _plDelete(pid){
   var p=(D.plants||[]).find(function(x){return x.id===pid});if(!p)return;
-  if(!confirm(t("pl_delete_plant_confirm",{name:(p.custom_name||p.species||"plant")})))return;
+  if(!confirm(tr("pl_delete_plant_confirm",{name:(p.custom_name||p.species||"plant")})))return;
   var r=await A("DELETE","/api/plants/"+pid);
   if(!r)return;
   hp("ok");toast("Deleted");
@@ -787,7 +787,7 @@ function matchQ(text){return !searchQ||(text||"").toLowerCase().indexOf(searchQ)
 // ─── Toast ──────────────────────────────────────────────────
 var _toastTimer=null;
 function toast(msg,undoFn){var el=document.getElementById("toast");if(_toastTimer)clearTimeout(_toastTimer);
-el.innerHTML=es(msg)+(undoFn?'<button class="toast-u" id="toast-undo">'+t("g_undo")+'</button>':"");el.classList.add("show");
+el.innerHTML=es(msg)+(undoFn?'<button class="toast-u" id="toast-undo">'+tr("g_undo")+'</button>':"");el.classList.add("show");
 if(undoFn){document.getElementById("toast-undo").onclick=function(){undoFn();el.classList.remove("show")}}
 _toastTimer=setTimeout(function(){el.classList.remove("show")},undoFn?5000:2500)}
 
@@ -836,8 +836,8 @@ function zRemPk(){var h='';_zRems.forEach(function(r,i){var p=(r||"").split(" ")
 // ─── Subtask helpers ────────────────────────────────────────
 function sC(t,id){var s=allSubs[t]&&allSubs[t][id]?allSubs[t][id]:[];if(!s.length)return "";var d=s.filter(function(x){return x.done}).length;return '<span style="font-size:11px;color:'+(d===s.length?"var(--ok)":"var(--ht)")+';font-weight:600">'+d+'/'+s.length+'</span>'}
 // BUGFIX (v8.39.1): renamed param `t` -> `pt` (parent_type). Inside the body we call
-// t("su_add_step") + t("su_add") for i18n — with a `t` param that would shadow the helper.
-function rSu(pt,id){var k=pt+"_"+id;if(!ex[k])return "";var s=allSubs[pt]&&allSubs[pt][id]?allSubs[pt][id]:[];var h='<div class="sbs">';s.forEach(function(x){h+='<div class="si"><div class="cb cb-s '+(x.done?"cb-k":"cb-o")+'" onclick="tSu('+x.id+')">'+(x.done?I.ck:"")+'</div><span class="sx'+(x.done?" dn":"")+'">'+es(x.text)+'</span><button class="bi" onclick="dSu('+x.id+')">'+I.x+'</button></div>'});h+='</div><div class="sa"><input id="si-'+pt+'-'+id+'" placeholder="'+t("su_add_step")+'" onkeydown="if(event.key===\'Enter\')aSu(\''+pt+'\','+id+')"><button onclick="aSu(\''+pt+'\','+id+')">'+t("su_add")+'</button></div>';return h}
+// tr("su_add_step") + tr("su_add") for i18n — with a `t` param that would shadow the helper.
+function rSu(pt,id){var k=pt+"_"+id;if(!ex[k])return "";var s=allSubs[pt]&&allSubs[pt][id]?allSubs[pt][id]:[];var h='<div class="sbs">';s.forEach(function(x){h+='<div class="si"><div class="cb cb-s '+(x.done?"cb-k":"cb-o")+'" onclick="tSu('+x.id+')">'+(x.done?I.ck:"")+'</div><span class="sx'+(x.done?" dn":"")+'">'+es(x.text)+'</span><button class="bi" onclick="dSu('+x.id+')">'+I.x+'</button></div>'});h+='</div><div class="sa"><input id="si-'+pt+'-'+id+'" placeholder="'+tr("su_add_step")+'" onkeydown="if(event.key===\'Enter\')aSu(\''+pt+'\','+id+')"><button onclick="aSu(\''+pt+'\','+id+')">'+tr("su_add")+'</button></div>';return h}
 function tX(t,id){ex[t+"_"+id]=!ex[t+"_"+id];ren()}
 async function tSu(sid){hp();await A("PATCH","/api/subtasks/"+sid+"/toggle");await load()}
 async function dSu(sid){hp();await A("DELETE","/api/subtasks/"+sid);await load()}
@@ -855,7 +855,7 @@ const NV=[
 ];
 const TT={home:{i:"home",t:"Family HQ",s:"Everything at a glance"},tasks:{i:"clipboard",t:"Tasks",s:"Manage & assign"},shop:{i:"cart",t:"Shopping",s:"Shared list"},trainings:{i:"dumbbell",t:"Trainings",s:"Workouts & progress"},words:{i:"book",t:"Words",s:"Vocabulary learning"},plants:{i:"flower",t:"Plants",s:"Care & watering"},money:{i:"dollar",t:"Money",s:"Budget & subs"},profile:{i:"user",t:"Profile",s:"Personal stats"},events:{i:"clock",t:"Events",s:"Schedule"},birthdays:{i:"cake",t:"Birthdays",s:"Never forget"},clean:{i:"broom",t:"Cleaning",s:"Apartment zones"},settings:{i:"cog",t:"Settings",s:"Customize"},subs:{i:"card",t:"Subscriptions",s:"Monthly payments"}};
 
-(function(){var n=document.getElementById("nv");NV.forEach(function(item){var b=document.createElement("button");b.className="ni"+(item.id==="home"?" a":"");b.dataset.t=item.id;b.innerHTML='<span class="nb hidden" id="b-'+item.id+'"></span>'+item.sv+'<span>'+t("nav_"+item.id)+'</span>';b.onclick=function(){go(item.id)};n.appendChild(b)})})();
+(function(){var n=document.getElementById("nv");NV.forEach(function(item){var b=document.createElement("button");b.className="ni"+(item.id==="home"?" a":"");b.dataset.t=item.id;b.innerHTML='<span class="nb hidden" id="b-'+item.id+'"></span>'+item.sv+'<span>'+tr("nav_"+item.id)+'</span>';b.onclick=function(){go(item.id)};n.appendChild(b)})})();
 
 function go(tabId){tab=tabId;filt=null;searchQ="";menuOpen=false;
 document.getElementById("menu-overlay").classList.remove("open");
@@ -863,14 +863,14 @@ var si=document.getElementById("si");if(si)si.value="";
 document.querySelectorAll(".ni").forEach(function(e){e.classList.toggle("a",e.dataset.t===tabId)});
 var _tt=TT[tabId]||{i:""};
 document.getElementById("hi").innerHTML=_tt.i?icon(_tt.i,22,2.2):"";
-// Localized title + subtitle via t(). Falls back to the static TT entry if no key found.
-document.getElementById("ht").textContent=t("tt_"+tabId+"_t")||_tt.t||"";
-document.getElementById("hs").textContent=t("tt_"+tabId+"_s")||_tt.s||"";
+// Localized title + subtitle via tr(). Falls back to the static TT entry if no key found.
+document.getElementById("ht").textContent=tr("tt_"+tabId+"_t")||_tt.t||"";
+document.getElementById("hs").textContent=tr("tt_"+tabId+"_s")||_tt.s||"";
 // When entering Tasks tab and the last-selected sub-tab isn't Active, override header to match the sub-tab
 if(tabId==="tasks"&&taskTab&&taskTab!=="active"){
   var _hi=document.getElementById("hi");
-  if(taskTab==="events"){_hi.innerHTML=icon("clock",22,2.2);document.getElementById("ht").textContent=t("tt_events_t");document.getElementById("hs").textContent=t("tt_events_s");_evtsFirstRender=true}
-  else if(taskTab==="recurring"){_hi.innerHTML=icon("refresh",22,2.2);document.getElementById("ht").textContent=t("tt_recurring_t");document.getElementById("hs").textContent=t("tt_recurring_s")}
+  if(taskTab==="events"){_hi.innerHTML=icon("clock",22,2.2);document.getElementById("ht").textContent=tr("tt_events_t");document.getElementById("hs").textContent=tr("tt_events_s");_evtsFirstRender=true}
+  else if(taskTab==="recurring"){_hi.innerHTML=icon("refresh",22,2.2);document.getElementById("ht").textContent=tr("tt_recurring_t");document.getElementById("hs").textContent=tr("tt_recurring_s")}
 }
 // BUGFIX (v8.39.1): these used to reference `t` when the function was `go(t)`.
 // During the i18n rename to `go(tabId)`, these stayed as `t` — which now silently
@@ -901,7 +901,7 @@ try{var r=await A("GET","/api/family/status");if(!r){if(!iD)rLogin();return}fS=r
 // Restore user's preferred language so the first render is already localized.
 if(r.lang){_lang=r.lang;_rebuildLocaleArrays()}
 // Re-apply nav labels in case bottom nav was rendered with default 'en' labels at boot.
-document.querySelectorAll('#nv .ni').forEach(function(b){var id=b.dataset.t;var lbl=b.querySelector('span:last-child');if(lbl&&id)lbl.textContent=t('nav_'+id)});
+document.querySelectorAll('#nv .ni').forEach(function(b){var id=b.dataset.t;var lbl=b.querySelector('span:last-child');if(lbl&&id)lbl.textContent=tr('nav_'+id)});
 if(r.joined){document.querySelectorAll(".ni").forEach(function(e){e.style.opacity="1"});await load()}else rOnb()}catch(e){document.getElementById("ct").innerHTML='<pre style="color:red">'+e.message+'</pre>'}}
 
 
@@ -943,7 +943,7 @@ function sB(t,n){var e=document.getElementById("b-"+t);if(!e)return;if(n>0){e.te
 function rMenuItems(){
 var el=document.getElementById("menu-items");if(!el)return;
 // Also localize the menu header ("Menu" / "Меню") — DOM-driven from index.html
-var mh=document.querySelector('.menu-h');if(mh)mh.textContent=t("g_menu");
+var mh=document.querySelector('.menu-h');if(mh)mh.textContent=tr("g_menu");
 // Compute "active" counts per section
 var cnt={
 shop: (D.shopping||[]).filter(function(s){return!s.bought}).length,
@@ -952,7 +952,7 @@ birthdays: (D.birthdays||[]).filter(function(b){return b.days_until!=null&&b.day
 clean: (D.zones||[]).filter(function(z){return z.dirty}).length,
 subs: (D.subs||[]).filter(function(s){return s.days_until!=null&&s.days_until>=0&&s.days_until<=5}).length,
 };
-// Labels read through t("tt_<id>_t") so they share keys with the page-header dict (single source of truth).
+// Labels read through tr("tt_<id>_t") so they share keys with the page-header dict (single source of truth).
 var items=[
 {id:"shop",ic:"cart",cnt:cnt.shop},
 {id:"trainings",ic:"dumbbell",cnt:0},
@@ -964,10 +964,10 @@ var items=[
 var h='';
 items.forEach(function(it){
 var b=it.cnt>0?'<span class="mi-cnt">'+it.cnt+'</span>':'';
-h+='<button class="menu-i" onclick="go(\''+it.id+'\')"><span class="mi-ico">'+icon(it.ic,20,2)+'</span><span class="mi-l">'+t("tt_"+it.id+"_t")+'</span>'+b+'</button>';
+h+='<button class="menu-i" onclick="go(\''+it.id+'\')"><span class="mi-ico">'+icon(it.ic,20,2)+'</span><span class="mi-l">'+tr("tt_"+it.id+"_t")+'</span>'+b+'</button>';
 });
 h+='<div style="height:1px;background:var(--bd);margin:8px 0"></div>';
-h+='<button class="menu-i" onclick="go(\'settings\')"><span class="mi-ico">'+icon("cog",20,2)+'</span><span class="mi-l">'+t("tt_settings_t")+'</span></button>';
+h+='<button class="menu-i" onclick="go(\'settings\')"><span class="mi-ico">'+icon("cog",20,2)+'</span><span class="mi-l">'+tr("tt_settings_t")+'</span></button>';
 el.innerHTML=h;
 // Show dot on hamburger icon if any section has active items
 var totalActive=Object.values(cnt).reduce(function(a,b){return a+b},0);
@@ -993,13 +993,13 @@ h+='<div class="wbg wbg-'+cat+'" onclick="openWeatherPage()" style="cursor:point
     '<div style="flex:1;min-width:0">'+
       '<div style="font-size:30px;font-weight:800;color:#fff;line-height:1.05">'+w.now+'°</div>'+
       '<div style="font-size:13px;color:rgba(255,255,255,.88);font-weight:600;margin-top:3px;letter-spacing:.2px;display:flex;align-items:center;gap:4px">'+icon("pin",11,2)+es(_city)+'</div>'+
-      '<div style="font-size:11px;color:rgba(255,255,255,.55);margin-top:1px">'+t("g_feels")+' '+w.feels+'°</div>'+
+      '<div style="font-size:11px;color:rgba(255,255,255,.55);margin-top:1px">'+tr("g_feels")+' '+w.feels+'°</div>'+
     '</div>'+
     '<div style="display:flex;gap:8px;align-self:flex-start">';
-_next.forEach(function(dy,i){var lbl=i===0?t("g_tomorrow"):wDayName(dy.date);h+='<div style="text-align:center;min-width:40px"><div style="font-size:9px;color:rgba(255,255,255,.65);font-weight:600">'+lbl+'</div><div style="margin:2px auto;filter:drop-shadow(0 1px 2px rgba(0,0,0,.3));display:flex;justify-content:center">'+wIconAnim(dy.label,24,false)+'</div><div style="font-size:11px;font-weight:700;color:#fff">'+dy.max+'°</div><div style="font-size:9px;color:rgba(255,255,255,.55)">'+dy.min+'°</div></div>'});
+_next.forEach(function(dy,i){var lbl=i===0?tr("g_tomorrow"):wDayName(dy.date);h+='<div style="text-align:center;min-width:40px"><div style="font-size:9px;color:rgba(255,255,255,.65);font-weight:600">'+lbl+'</div><div style="margin:2px auto;filter:drop-shadow(0 1px 2px rgba(0,0,0,.3));display:flex;justify-content:center">'+wIconAnim(dy.label,24,false)+'</div><div style="font-size:11px;font-weight:700;color:#fff">'+dy.max+'°</div><div style="font-size:9px;color:rgba(255,255,255,.55)">'+dy.min+'°</div></div>'});
 h+='</div></div></div>'}else h+='<div style="margin-bottom:16px"></div>';
 // Calendar strip
-h+='<div class="sc">'+t("g_calendar")+'</div>';
+h+='<div class="sc">'+tr("g_calendar")+'</div>';
 h+='<div class="cal-strip" onclick="openCalModal()" id="cal-strip"></div>';
 setTimeout(function(){loadCalStrip()},0);
 // Plants widget — horizontal scroll of plants with status. Only renders if any exist.
@@ -1025,15 +1025,15 @@ D.subs.forEach(function(s){
   if(s.days_until>=0&&s.days_until<=7) upSubs.push({days:s.days_until,icon:s.emoji,title:es(s.name),sub:s.amount+" "+s.currency,accClass:""});
 });
 D.birthdays.forEach(function(b){
-  if(b.days_until>=0&&b.days_until<=7) upBdays.push({days:b.days_until,icon:b.emoji,title:es(b.name),sub:b.days_until===0?t("g_today_bday"):tn("g_in_days_full",b.days_until),accClass:"acc-wn"});
+  if(b.days_until>=0&&b.days_until<=7) upBdays.push({days:b.days_until,icon:b.emoji,title:es(b.name),sub:b.days_until===0?tr("g_today_bday"):trn("g_in_days_full",b.days_until),accClass:"acc-wn"});
 });
 [upTasks,upEvents,upSubs,upBdays].forEach(function(arr){arr.sort(function(a,b){return a.days-b.days})});
 var totalUp=upTasks.length+upEvents.length+upSubs.length+upBdays.length;
 function _upRow(u){
   var _ud=new Date(Date.now()+u.days*86400000);
-  var dayLabel=u.days===0?t("g_today"):u.days===1?t("g_tomorrow"):dN[_ud.getDay()]+" "+_ud.getDate()+" "+mNS[_ud.getMonth()];
+  var dayLabel=u.days===0?tr("g_today"):u.days===1?tr("g_tomorrow"):dN[_ud.getDay()]+" "+_ud.getDate()+" "+mNS[_ud.getMonth()];
   var tone=u.days===0?"tone-ac":u.days<=2?"tone-wn":"tone-ok";
-  var rightPill=u.days===0?'<span class="lc-rt '+tone+'">'+t("g_today")+'</span>':'<span class="lc-rt '+tone+'">'+tn("g_in_days_short",u.days)+'</span>';
+  var rightPill=u.days===0?'<span class="lc-rt '+tone+'">'+tr("g_today")+'</span>':'<span class="lc-rt '+tone+'">'+trn("g_in_days_short",u.days)+'</span>';
   return '<div class="lc"><div class="lc-i '+(u.accClass||"")+'">'+u.icon+'</div><div class="lc-bd"><div class="lc-tt">'+u.title+'</div><div class="lc-mt">'+dayLabel+' · '+u.sub+'</div></div>'+rightPill+'</div>';
 }
 function _upGroup(label,color,arr){
@@ -1043,46 +1043,46 @@ function _upGroup(label,color,arr){
   return out;
 }
 if(totalUp){
-  h+='<div class="sc"><span class="sc-l">'+t("g_upcoming_7")+'<span class="sc-cnt">'+totalUp+'</span></span></div>';
-  h+=_upGroup('📋 '+t("g_tasks"),'var(--pr)',upTasks);
-  h+=_upGroup('📅 '+t("g_events"),'var(--ok)',upEvents);
-  h+=_upGroup('💳 '+t("g_subscriptions"),'var(--pr)',upSubs);
-  h+=_upGroup('🎂 '+t("g_birthdays"),'var(--wn)',upBdays);
+  h+='<div class="sc"><span class="sc-l">'+tr("g_upcoming_7")+'<span class="sc-cnt">'+totalUp+'</span></span></div>';
+  h+=_upGroup('📋 '+tr("g_tasks"),'var(--pr)',upTasks);
+  h+=_upGroup('📅 '+tr("g_events"),'var(--ok)',upEvents);
+  h+=_upGroup('💳 '+tr("g_subscriptions"),'var(--pr)',upSubs);
+  h+=_upGroup('🎂 '+tr("g_birthdays"),'var(--wn)',upBdays);
 }
 return h}
 
 // ═══════════════════════════════════════════════════════════
 // TASKS
 // ═══════════════════════════════════════════════════════════
-function rT(){var h='<div class="tabs"><button class="tab '+(taskTab==="active"?"a":"")+'" onclick="taskTabSet(\'active\')"><span style="display:inline-flex;align-items:center;gap:6px">'+icon("clipboard",13,2.2)+t("g_active")+'</span></button><button class="tab '+(taskTab==="recurring"?"a":"")+'" onclick="taskTabSet(\'recurring\')"><span style="display:inline-flex;align-items:center;gap:6px">'+icon("refresh",13,2.2)+t("g_recurring")+'</span></button><button class="tab '+(taskTab==="events"?"a":"")+'" onclick="taskTabSet(\'events\')"><span style="display:inline-flex;align-items:center;gap:6px">'+icon("clock",13,2.2)+t("g_events")+'</span></button></div>';
+function rT(){var h='<div class="tabs"><button class="tab '+(taskTab==="active"?"a":"")+'" onclick="taskTabSet(\'active\')"><span style="display:inline-flex;align-items:center;gap:6px">'+icon("clipboard",13,2.2)+tr("g_active")+'</span></button><button class="tab '+(taskTab==="recurring"?"a":"")+'" onclick="taskTabSet(\'recurring\')"><span style="display:inline-flex;align-items:center;gap:6px">'+icon("refresh",13,2.2)+tr("g_recurring")+'</span></button><button class="tab '+(taskTab==="events"?"a":"")+'" onclick="taskTabSet(\'events\')"><span style="display:inline-flex;align-items:center;gap:6px">'+icon("clock",13,2.2)+tr("g_events")+'</span></button></div>';
 if(taskTab==="recurring")return h+rRecur();
 if(taskTab==="events")return h+rEvts();
-h+='<div class="fb2"><button class="fi '+(!filt?"a":"")+'" onclick="filt=null;ren()">'+t("g_filter_all")+'</button>';
+h+='<div class="fb2"><button class="fi '+(!filt?"a":"")+'" onclick="filt=null;ren()">'+tr("g_filter_all")+'</button>';
 D.members.forEach(function(m){h+='<button class="fi '+(filt===m.user_id?"a":"")+'" style="padding:3px 6px;display:inline-flex;align-items:center" onclick="filt='+m.user_id+';ren()">'+mAv(m.user_id,22)+'</button>'});h+='</div>';
 var all=D.tasks;if(filt)all=all.filter(function(x){return x.assigned_to===filt});
 if(searchQ)all=all.filter(function(x){return matchQ(x.text)});
 var pend=all.filter(function(x){return!x.done}),done=all.filter(function(x){return x.done});
-if(!all.length)return h+em(icon("clipboard",48,1.8),t("es_no_tasks_t"),t("es_no_tasks_s"));
+if(!all.length)return h+em(icon("clipboard",48,1.8),tr("es_no_tasks_t"),tr("es_no_tasks_s"));
 // Group pending tasks into sections
 var todayStr=td();var _7d=new Date();_7d.setDate(_7d.getDate()+7);var weekStr=_7d.getFullYear()+"-"+String(_7d.getMonth()+1).padStart(2,"0")+"-"+String(_7d.getDate()).padStart(2,"0");
 var overdue=[],high=[],week=[],rest=[];
 pend.forEach(function(t){var dd=(t.due_date||"").split(" ")[0];if(dd&&dd<todayStr){overdue.push(t)}else if(t.priority==="high"){high.push(t)}else if(dd&&dd<=weekStr){week.push(t)}else{rest.push(t)}});
 function _tkCard(tk,overdueDate){var rmC=tk.reminders&&tk.reminders.length?'<span class="pdate">'+icon("bl",10,2)+tk.reminders.length+'</span>':"";
-var priLabel=tk.priority==="high"?t("p_high"):tk.priority==="low"?t("p_low"):t("p_normal");
+var priLabel=tk.priority==="high"?tr("p_high"):tk.priority==="low"?tr("p_low"):tr("p_normal");
 var priCls=tk.priority==="high"?"hi":tk.priority==="low"?"lo":"md";
 var priPill='<span class="ppri '+priCls+'">'+icon("fl",10,2.4)+priLabel+'</span>';
 var dateTone=overdueDate?"tone-ac":"";
 var datePill=tk.due_date?'<span class="pdate '+dateTone+'">'+icon("calendar",10,2.2)+fD(tk.due_date).full+'</span>':"";
 return '<div style="margin-bottom:10px"><div class="c" style="margin-bottom:0"><div class="cb cb-o" onclick="tgTk('+tk.id+',this)"></div><div class="bd"><div class="tt">'+es(tk.text)+'</div><div class="mt">'+mChip(tk.assigned_to,true)+" "+priPill+" "+datePill+" "+rmC+" "+sC("task",tk.id)+' <button class="xb" onclick="tX(\'task\','+tk.id+')">'+(ex["task_"+tk.id]?"▾":"▸")+'</button></div></div><button class="bi" onclick="edTk('+tk.id+')">'+I.ed+'</button><button class="bi" onclick="dlTk('+tk.id+')">'+I.tr+'</button></div>'+rSu("task",tk.id)+'</div>'}
 function _scH(ico,label,cnt,color){var iconHtml=ico?'<span class="sc-ico"'+(color?' style="color:'+color+'"':'')+'>'+icon(ico,12,2.4)+'</span>':'';return '<div class="sc"'+(color?' style="color:'+color+'"':'')+'><span class="sc-l">'+iconHtml+label+'<span class="sc-cnt"'+(color?' style="background:color-mix(in srgb,'+color+' 16%,transparent);color:'+color+'"':'')+'>'+cnt+'</span></span></div>'}
-if(overdue.length){h+=_scH("dot",t("tk_overdue"),overdue.length,"var(--ac)");overdue.forEach(function(tk){h+=_tkCard(tk,true)})}
-if(high.length){h+=_scH("bolt",t("tk_high_pri"),high.length,"var(--wn)");high.forEach(function(tk){h+=_tkCard(tk)})}
-if(week.length){h+=_scH("calendar",t("tk_this_week"),week.length);week.forEach(function(tk){h+=_tkCard(tk)})}
-if(rest.length){h+=_scH("list",t("tk_rest"),rest.length);rest.forEach(function(tk){h+=_tkCard(tk)})}
-if(!pend.length)h+='<div style="text-align:center;padding:20px;color:var(--ht);font-size:13px">'+t("tk_caught_up")+'</div>';
-if(done.length){h+=_scH("ck",t("g_done"),done.length,"var(--ok)");done.forEach(function(tk){h+='<div class="c d"><div class="cb cb-k" onclick="tgTk('+tk.id+',this)">'+I.ck+'</div><div class="bd"><div class="tt sk">'+es(tk.text)+'</div></div><button class="bi" onclick="dlTk('+tk.id+')">'+I.tr+'</button></div>'})}
+if(overdue.length){h+=_scH("dot",tr("tk_overdue"),overdue.length,"var(--ac)");overdue.forEach(function(tk){h+=_tkCard(tk,true)})}
+if(high.length){h+=_scH("bolt",tr("tk_high_pri"),high.length,"var(--wn)");high.forEach(function(tk){h+=_tkCard(tk)})}
+if(week.length){h+=_scH("calendar",tr("tk_this_week"),week.length);week.forEach(function(tk){h+=_tkCard(tk)})}
+if(rest.length){h+=_scH("list",tr("tk_rest"),rest.length);rest.forEach(function(tk){h+=_tkCard(tk)})}
+if(!pend.length)h+='<div style="text-align:center;padding:20px;color:var(--ht);font-size:13px">'+tr("tk_caught_up")+'</div>';
+if(done.length){h+=_scH("ck",tr("g_done"),done.length,"var(--ok)");done.forEach(function(tk){h+='<div class="c d"><div class="cb cb-k" onclick="tgTk('+tk.id+',this)">'+I.ck+'</div><div class="bd"><div class="tt sk">'+es(tk.text)+'</div></div><button class="bi" onclick="dlTk('+tk.id+')">'+I.tr+'</button></div>'})}
 return h}
-function rRecur(){if(!D.recurring.length)return em(icon("refresh",48,1.8),t("tk_no_recur_t"),t("tk_no_recur_s"));var h='';D.recurring.forEach(function(r){if(searchQ&&!matchQ(r.text))return;var rrDesc=r.rrule==="daily"?t("g_every_day"):r.rrule.startsWith("weekly:")?t("g_weekly")+": "+r.rrule.split(":")[1]:t("g_monthly")+": "+r.rrule.split(":")[1];var pausedPill=r.active?'':' <span class="pdate tone-ac">'+t("g_paused")+'</span>';h+='<div class="c"><div class="bd"><div class="tt">'+es(r.text)+'</div><div class="mt">'+mChip(r.assigned_to,true)+' <span class="pdate" style="background:color-mix(in srgb,var(--pr) 14%,transparent);color:var(--pr)">'+icon("refresh",10,2.2)+rrDesc+'</span>'+pausedPill+'</div></div><button class="bi" onclick="edRec('+r.id+')">'+I.ed+'</button><button class="bi" onclick="dlRec('+r.id+')">'+I.tr+'</button></div>'});return h}
+function rRecur(){if(!D.recurring.length)return em(icon("refresh",48,1.8),tr("tk_no_recur_t"),tr("tk_no_recur_s"));var h='';D.recurring.forEach(function(r){if(searchQ&&!matchQ(r.text))return;var rrDesc=r.rrule==="daily"?tr("g_every_day"):r.rrule.startsWith("weekly:")?tr("g_weekly")+": "+r.rrule.split(":")[1]:tr("g_monthly")+": "+r.rrule.split(":")[1];var pausedPill=r.active?'':' <span class="pdate tone-ac">'+tr("g_paused")+'</span>';h+='<div class="c"><div class="bd"><div class="tt">'+es(r.text)+'</div><div class="mt">'+mChip(r.assigned_to,true)+' <span class="pdate" style="background:color-mix(in srgb,var(--pr) 14%,transparent);color:var(--pr)">'+icon("refresh",10,2.2)+rrDesc+'</span>'+pausedPill+'</div></div><button class="bi" onclick="edRec('+r.id+')">'+I.ed+'</button><button class="bi" onclick="dlRec('+r.id+')">'+I.tr+'</button></div>'});return h}
 
 async function tgTk(id,cb){
 var t=D.tasks.find(function(x){return x.id===id});
@@ -1103,18 +1103,18 @@ if(doing&&card){
   await A("PATCH","/api/tasks/"+id+"/toggle");
   await load();
 }}
-async function dlTk(id){var tk=D.tasks.find(function(x){return x.id===id});hp("warn");await A("DELETE","/api/tasks/"+id);await load();if(tk)toast("🗑 "+t("ts_deleted"),function(){A("POST","/api/tasks",{text:tk.text,assigned_to:tk.assigned_to,priority:tk.priority,due_date:tk.due_date}).then(load)})}
-async function dlRec(id){hp();await A("DELETE","/api/recurring/"+id);await load();toast("🗑 "+t("ts_deleted"))}
-function edTk(id){var tk=D.tasks.find(function(x){return x.id===id});if(!tk)return;_assign=tk.assigned_to||0;_pri=tk.priority;_rems=(tk.reminders||[]).map(function(r){return r.remind_at});oMC(t("mt_edit_task"),'<input class="inp" id="f-t" value="'+es(tk.text)+'"><div class="lb">'+t("g_assign_to")+'</div>'+assignPk("ap",tk.assigned_to)+'<div class="lb">'+t("f_priority")+'</div><div class="or">'+["low","normal","high"].map(function(p){return '<button class="ob ob-pri-'+p+' '+(tk.priority===p?"s":"")+'" onclick="_pri=\''+p+'\';this.parentNode.querySelectorAll(\'.ob\').forEach(function(b){b.classList.remove(\'s\')});this.classList.add(\'s\')">'+t("p_"+p)+'</button>'}).join("")+'</div><div class="lb">'+t("g_due_date")+'</div><div class="dr"><div><input type="date" id="f-dd" value="'+(tk.due_date?(tk.due_date.split(" ")[0]):"")+'"></div></div><div class="lb">'+t("g_reminders")+'</div><div id="rw">'+remPk()+'</div><button class="btn" onclick="svTk('+id+')">'+t("btn_save")+'</button>',{ic:"clipboard"})}
+async function dlTk(id){var tk=D.tasks.find(function(x){return x.id===id});hp("warn");await A("DELETE","/api/tasks/"+id);await load();if(tk)toast("🗑 "+tr("ts_deleted"),function(){A("POST","/api/tasks",{text:tk.text,assigned_to:tk.assigned_to,priority:tk.priority,due_date:tk.due_date}).then(load)})}
+async function dlRec(id){hp();await A("DELETE","/api/recurring/"+id);await load();toast("🗑 "+tr("ts_deleted"))}
+function edTk(id){var tk=D.tasks.find(function(x){return x.id===id});if(!tk)return;_assign=tk.assigned_to||0;_pri=tk.priority;_rems=(tk.reminders||[]).map(function(r){return r.remind_at});oMC(tr("mt_edit_task"),'<input class="inp" id="f-t" value="'+es(tk.text)+'"><div class="lb">'+tr("g_assign_to")+'</div>'+assignPk("ap",tk.assigned_to)+'<div class="lb">'+tr("f_priority")+'</div><div class="or">'+["low","normal","high"].map(function(p){return '<button class="ob ob-pri-'+p+' '+(tk.priority===p?"s":"")+'" onclick="_pri=\''+p+'\';this.parentNode.querySelectorAll(\'.ob\').forEach(function(b){b.classList.remove(\'s\')});this.classList.add(\'s\')">'+tr("p_"+p)+'</button>'}).join("")+'</div><div class="lb">'+tr("g_due_date")+'</div><div class="dr"><div><input type="date" id="f-dd" value="'+(tk.due_date?(tk.due_date.split(" ")[0]):"")+'"></div></div><div class="lb">'+tr("g_reminders")+'</div><div id="rw">'+remPk()+'</div><button class="btn" onclick="svTk('+id+')">'+tr("btn_save")+'</button>',{ic:"clipboard"})}
 async function svTk(id){var text=document.getElementById("f-t").value.trim();if(!text)return;var dd=document.getElementById("f-dd")?document.getElementById("f-dd").value:null;await A("PUT","/api/tasks/"+id,{text:text,assigned_to:_assign||null,priority:_pri,due_date:dd||null,reminders:_rems});cMo();hp();await load();if(_calEditCb){var cb=_calEditCb;_calEditCb=null;cb()}}
-function edRec(id){var r=D.recurring.find(function(x){return x.id===id});if(!r)return;_assign=r.assigned_to||0;oMC(t("tk_edit_recur"),'<input class="inp" id="f-t" value="'+es(r.text)+'"><div class="lb">'+t("g_assign_to")+'</div>'+assignPk("ap",r.assigned_to)+'<div class="lb">'+t("g_schedule")+'</div><div class="or"><button class="ob '+(r.rrule==="daily"?"s":"")+'" onclick="document.getElementById(\'rr\').value=\'daily\';this.parentNode.querySelectorAll(\'.ob\').forEach(function(b){b.classList.remove(\'s\')});this.classList.add(\'s\');document.getElementById(\'wd\').classList.add(\'hidden\');document.getElementById(\'md\').classList.add(\'hidden\')">'+t("g_daily")+'</button><button class="ob '+(r.rrule.startsWith("weekly")?"s":"")+'" onclick="document.getElementById(\'rr\').value=\'weekly:\';this.parentNode.querySelectorAll(\'.ob\').forEach(function(b){b.classList.remove(\'s\')});this.classList.add(\'s\');document.getElementById(\'wd\').classList.remove(\'hidden\');document.getElementById(\'md\').classList.add(\'hidden\')">'+t("g_weekly")+'</button><button class="ob '+(r.rrule.startsWith("monthly")?"s":"")+'" onclick="document.getElementById(\'rr\').value=\'monthly:\';this.parentNode.querySelectorAll(\'.ob\').forEach(function(b){b.classList.remove(\'s\')});this.classList.add(\'s\');document.getElementById(\'md\').classList.remove(\'hidden\');document.getElementById(\'wd\').classList.add(\'hidden\')">'+t("g_monthly")+'</button></div><input type="hidden" id="rr" value="'+r.rrule+'"><div id="wd" class="'+(r.rrule.startsWith("weekly")?"":"hidden")+'"><div class="lb">'+t("g_days")+'</div><div class="or">'+["mon","tue","wed","thu","fri","sat","sun"].map(function(d){return '<button class="ob '+(r.rrule.indexOf(d)>=0?"s":"")+'" onclick="this.classList.toggle(\'s\')">'+d+'</button>'}).join("")+'</div></div><div id="md" class="'+(r.rrule.startsWith("monthly")?"":"hidden")+'"><div class="lb">'+t("g_day_of_month")+'</div><input class="inp" id="f-md" type="number" min="1" max="28" value="'+(r.rrule.startsWith("monthly:")?r.rrule.split(":")[1]:"1")+'"></div><div class="lb">'+t("tk_status")+'</div><div class="or"><button class="ob '+(r.active?"s":"")+'" onclick="_recActive=1;this.parentNode.querySelectorAll(\'.ob\').forEach(function(b){b.classList.remove(\'s\')});this.classList.add(\'s\')">'+t("tk_active")+'</button><button class="ob '+(!r.active?"s":"")+'" onclick="_recActive=0;this.parentNode.querySelectorAll(\'.ob\').forEach(function(b){b.classList.remove(\'s\')});this.classList.add(\'s\')">'+t("tk_paused")+'</button></div><button class="btn" onclick="svRec('+id+')">'+t("btn_save")+'</button>',{ic:"refresh"});window._recActive=r.active}
+function edRec(id){var r=D.recurring.find(function(x){return x.id===id});if(!r)return;_assign=r.assigned_to||0;oMC(tr("tk_edit_recur"),'<input class="inp" id="f-t" value="'+es(r.text)+'"><div class="lb">'+tr("g_assign_to")+'</div>'+assignPk("ap",r.assigned_to)+'<div class="lb">'+tr("g_schedule")+'</div><div class="or"><button class="ob '+(r.rrule==="daily"?"s":"")+'" onclick="document.getElementById(\'rr\').value=\'daily\';this.parentNode.querySelectorAll(\'.ob\').forEach(function(b){b.classList.remove(\'s\')});this.classList.add(\'s\');document.getElementById(\'wd\').classList.add(\'hidden\');document.getElementById(\'md\').classList.add(\'hidden\')">'+tr("g_daily")+'</button><button class="ob '+(r.rrule.startsWith("weekly")?"s":"")+'" onclick="document.getElementById(\'rr\').value=\'weekly:\';this.parentNode.querySelectorAll(\'.ob\').forEach(function(b){b.classList.remove(\'s\')});this.classList.add(\'s\');document.getElementById(\'wd\').classList.remove(\'hidden\');document.getElementById(\'md\').classList.add(\'hidden\')">'+tr("g_weekly")+'</button><button class="ob '+(r.rrule.startsWith("monthly")?"s":"")+'" onclick="document.getElementById(\'rr\').value=\'monthly:\';this.parentNode.querySelectorAll(\'.ob\').forEach(function(b){b.classList.remove(\'s\')});this.classList.add(\'s\');document.getElementById(\'md\').classList.remove(\'hidden\');document.getElementById(\'wd\').classList.add(\'hidden\')">'+tr("g_monthly")+'</button></div><input type="hidden" id="rr" value="'+r.rrule+'"><div id="wd" class="'+(r.rrule.startsWith("weekly")?"":"hidden")+'"><div class="lb">'+tr("g_days")+'</div><div class="or">'+["mon","tue","wed","thu","fri","sat","sun"].map(function(d){return '<button class="ob '+(r.rrule.indexOf(d)>=0?"s":"")+'" onclick="this.classList.toggle(\'s\')">'+d+'</button>'}).join("")+'</div></div><div id="md" class="'+(r.rrule.startsWith("monthly")?"":"hidden")+'"><div class="lb">'+tr("g_day_of_month")+'</div><input class="inp" id="f-md" type="number" min="1" max="28" value="'+(r.rrule.startsWith("monthly:")?r.rrule.split(":")[1]:"1")+'"></div><div class="lb">'+tr("tk_status")+'</div><div class="or"><button class="ob '+(r.active?"s":"")+'" onclick="_recActive=1;this.parentNode.querySelectorAll(\'.ob\').forEach(function(b){b.classList.remove(\'s\')});this.classList.add(\'s\')">'+tr("tk_active")+'</button><button class="ob '+(!r.active?"s":"")+'" onclick="_recActive=0;this.parentNode.querySelectorAll(\'.ob\').forEach(function(b){b.classList.remove(\'s\')});this.classList.add(\'s\')">'+tr("tk_paused")+'</button></div><button class="btn" onclick="svRec('+id+')">'+tr("btn_save")+'</button>',{ic:"refresh"});window._recActive=r.active}
 async function svRec(id){var text=document.getElementById("f-t").value.trim();if(!text)return;var rr=document.getElementById("rr").value;if(rr==="weekly:"){var days=[];document.querySelectorAll("#wd .ob.s").forEach(function(b){days.push(b.textContent)});rr="weekly:"+days.join(",")}else if(rr==="monthly:"){rr="monthly:"+(document.getElementById("f-md")?document.getElementById("f-md").value:"1")}await A("PUT","/api/recurring/"+id,{text:text,assigned_to:_assign||null,rrule:rr,active:window._recActive});cMo();hp();await load();if(_calEditCb){var cb=_calEditCb;_calEditCb=null;cb()}}
 
 // ═══════════════════════════════════════════════════════════
 // SHOPPING — enhanced add flow
 // ═══════════════════════════════════════════════════════════
 function rSh(){
-var h='<div class="fb2"><button class="fi '+(shopFold===null?"a":"")+'" onclick="shopFold=null;ren()">'+t("g_filter_all")+'</button><button class="fi '+(shopFold==="stock"?"a":"")+'" onclick="shopFold=\'stock\';ren()"><span style="display:inline-flex;align-items:center;gap:4px">📦 '+t("sh_in_stock")+'</span></button>';
+var h='<div class="fb2"><button class="fi '+(shopFold===null?"a":"")+'" onclick="shopFold=null;ren()">'+tr("g_filter_all")+'</button><button class="fi '+(shopFold==="stock"?"a":"")+'" onclick="shopFold=\'stock\';ren()"><span style="display:inline-flex;align-items:center;gap:4px">📦 '+tr("sh_in_stock")+'</span></button>';
 D.folders.forEach(function(f){h+='<button class="fi '+(shopFold===f.id?"a":"")+'" onclick="shopFold='+f.id+';ren()"><span style="display:inline-flex;align-items:center;gap:4px">'+f.emoji+es(f.name)+'</span></button><button class="bi" onclick="edFolder('+f.id+')" style="padding:2px;margin-left:-6px">'+I.ed+'</button>'});
 h+='<button class="fi" onclick="shAddFolder()"><span style="display:inline-flex;align-items:center;gap:4px">'+I.pl+'Folder</span></button></div>';
 function _scH3(ico,label,cnt,extra,color){var iconHtml=ico?'<span class="sc-ico"'+(color?' style="color:'+color+'"':'')+'>'+icon(ico,12,2.4)+'</span>':'';return '<div class="sc"'+(color?' style="color:'+color+'"':'')+'><span class="sc-l">'+iconHtml+label+(cnt?'<span class="sc-cnt"'+(color?' style="background:color-mix(in srgb,'+color+' 16%,transparent);color:'+color+'"':'')+'>'+cnt+'</span>':"")+'</span>'+(extra||'')+'</div>'}
@@ -1124,20 +1124,20 @@ else if(shopFold!==null)items=items.filter(function(x){return x.folder_id===shop
 else items=items.filter(function(x){return!x.bought});
 if(searchQ)items=items.filter(function(x){return matchQ(x.item)});
 var folderTotal=0;items.forEach(function(x){if(x.price&&(shopFold==="stock"||!x.bought))folderTotal+=x.price});
-if(folderTotal>0)h+='<div class="cat-row" style="margin-bottom:14px"><div class="cat-row-h"><span class="nm">'+t("sh_total")+'</span><span class="vl" style="color:var(--wn)">'+folderTotal.toFixed(0)+' din.</span></div></div>';
+if(folderTotal>0)h+='<div class="cat-row" style="margin-bottom:14px"><div class="cat-row-h"><span class="nm">'+tr("sh_total")+'</span><span class="vl" style="color:var(--wn)">'+folderTotal.toFixed(0)+' din.</span></div></div>';
 if(shopFold==="stock"){
-  if(!items.length)return h+em(icon("cart",48,1.8),t("es_no_stock_t"),t("es_no_stock_s"));
-  h+=_scH3("ck",t("sh_in_stock"),items.length,'<button class="at" onclick="clSh()">'+t("sh_clear")+'</button>',"var(--ok)");
+  if(!items.length)return h+em(icon("cart",48,1.8),tr("es_no_stock_t"),tr("es_no_stock_s"));
+  h+=_scH3("ck",tr("sh_in_stock"),items.length,'<button class="at" onclick="clSh()">'+tr("sh_clear")+'</button>',"var(--ok)");
   var fMap={};D.folders.forEach(function(f){fMap[f.id]=f});var grps={};items.forEach(function(s){var k=s.folder_id||0;if(!grps[k])grps[k]=[];grps[k].push(s)});var ks=D.folders.map(function(f){return f.id}).filter(function(id){return grps[id]});if(grps[0])ks.push(0);var multi=ks.length>1||(ks.length===1&&ks[0]!==0);
   ks.forEach(function(k){var g=grps[k];if(multi){var label=k&&fMap[k]?(fMap[k].emoji+" "+es(fMap[k].name)):"Other";h+='<div class="sc" style="font-size:12px;margin-top:12px"><span class="sc-l">'+label+'<span class="sc-cnt">'+g.length+'</span></span></div>'}
   g.forEach(function(s){var qtyHtml=s.quantity?'<span class="qty">'+es(s.quantity)+'</span>':"";var prHtml=s.price?'<span style="font-size:11px;color:var(--wn);font-weight:600">'+s.price+' din.</span>':"";h+='<div class="c c-stk"><div class="cb cb-k" onclick="tgSh('+s.id+',this)">'+I.ck+'</div><div class="bd"><div class="tt">'+es(s.item)+" "+qtyHtml+'</div><div class="mt">'+es(s.added_by||"")+" "+prHtml+'</div></div><button class="bi" onclick="edShop('+s.id+')">'+I.ed+'</button><button class="bi" onclick="dSh('+s.id+')">'+I.tr+'</button></div>'})});
   return h
 }
 var p=items.filter(function(x){return!x.bought}),b=items.filter(function(x){return x.bought});
-if(!items.length)return h+em(icon("cart",48,1.8),t("es_no_shop_t"),t("es_no_shop_s"));
+if(!items.length)return h+em(icon("cart",48,1.8),tr("es_no_shop_t"),tr("es_no_shop_s"));
 if(p.length){h+=_scH3("cart","To Buy",p.length);
   p.forEach(function(s){var qtyHtml=s.quantity?'<span class="qty">'+es(s.quantity)+'</span>':"";var prHtml=s.price?'<span style="font-size:11px;color:var(--wn);font-weight:600">'+s.price+' din.</span>':"";h+='<div class="c"><div class="cb cb-o" onclick="tgSh('+s.id+',this)"></div><div class="bd"><div class="tt">'+es(s.item)+" "+qtyHtml+'</div><div class="mt">'+es(s.added_by||"")+" "+prHtml+'</div></div><button class="bi" onclick="edShop('+s.id+')">'+I.ed+'</button><button class="bi" onclick="dSh('+s.id+')">'+I.tr+'</button></div>'})}
-if(b.length){h+=_scH3("ck",t("sh_bought"),b.length,'<button class="at" onclick="clSh()">'+t("sh_clear")+'</button>',"var(--ok)");
+if(b.length){h+=_scH3("ck",tr("sh_bought"),b.length,'<button class="at" onclick="clSh()">'+tr("sh_clear")+'</button>',"var(--ok)");
   b.forEach(function(s){var qtyHtml=s.quantity?'<span class="qty">'+es(s.quantity)+'</span>':"";h+='<div class="c d"><div class="cb cb-k" onclick="tgSh('+s.id+',this)">'+I.ck+'</div><div class="bd"><div class="tt sk">'+es(s.item)+" "+qtyHtml+'</div></div><button class="bi" onclick="edShop('+s.id+')">'+I.ed+'</button></div>'})}
 return h}
 async function tgSh(id,cb){
@@ -1158,13 +1158,13 @@ if(doing&&card){
   await A("PATCH","/api/shopping/"+id+"/toggle");
   await load();
 }}
-async function dSh(id){hp("warn");await A("DELETE","/api/shopping/"+id);await load();toast("🗑 "+t("ts_deleted"))}
+async function dSh(id){hp("warn");await A("DELETE","/api/shopping/"+id);await load();toast("🗑 "+tr("ts_deleted"))}
 async function clSh(){hp();await A("DELETE","/api/shopping/clear-bought");await load();toast("✓ Cleared")}
-function edShop(sid){var s=D.shopping.find(function(x){return x.id===sid});if(!s)return;var folderOpts='<button class="ob '+(!s.folder_id?"s":"")+'" onclick="window._sFold=0;this.parentNode.querySelectorAll(\'.ob\').forEach(function(b){b.classList.remove(\'s\')});this.classList.add(\'s\')">None</button>';D.folders.forEach(function(f){folderOpts+='<button class="ob '+(s.folder_id===f.id?"s":"")+'" onclick="window._sFold='+f.id+';this.parentNode.querySelectorAll(\'.ob\').forEach(function(b){b.classList.remove(\'s\')});this.classList.add(\'s\')">'+f.emoji+" "+es(f.name)+'</button>'});window._sFold=s.folder_id||0;oMC(t("sh_edit_item"),'<input class="inp" id="se-n" value="'+es(s.item)+'"><div class="dr"><div><div class="dl">'+t("f_quantity")+'</div><input class="inp" id="se-q" value="'+(s.quantity||"")+'" placeholder="'+t("g_quantity_hint")+'"></div><div><div class="dl">Price (din.)</div><input class="inp" id="se-p" type="number" value="'+(s.price||"")+'" placeholder="0"></div></div>'+(D.folders.length?'<div class="lb">'+t("f_folder")+'</div><div class="or">'+folderOpts+'</div>':'')+'<button class="btn" onclick="svShop('+sid+')">Save</button>',{ic:"cart"})}
+function edShop(sid){var s=D.shopping.find(function(x){return x.id===sid});if(!s)return;var folderOpts='<button class="ob '+(!s.folder_id?"s":"")+'" onclick="window._sFold=0;this.parentNode.querySelectorAll(\'.ob\').forEach(function(b){b.classList.remove(\'s\')});this.classList.add(\'s\')">None</button>';D.folders.forEach(function(f){folderOpts+='<button class="ob '+(s.folder_id===f.id?"s":"")+'" onclick="window._sFold='+f.id+';this.parentNode.querySelectorAll(\'.ob\').forEach(function(b){b.classList.remove(\'s\')});this.classList.add(\'s\')">'+f.emoji+" "+es(f.name)+'</button>'});window._sFold=s.folder_id||0;oMC(tr("sh_edit_item"),'<input class="inp" id="se-n" value="'+es(s.item)+'"><div class="dr"><div><div class="dl">'+tr("f_quantity")+'</div><input class="inp" id="se-q" value="'+(s.quantity||"")+'" placeholder="'+tr("g_quantity_hint")+'"></div><div><div class="dl">Price (din.)</div><input class="inp" id="se-p" type="number" value="'+(s.price||"")+'" placeholder="0"></div></div>'+(D.folders.length?'<div class="lb">'+tr("f_folder")+'</div><div class="or">'+folderOpts+'</div>':'')+'<button class="btn" onclick="svShop('+sid+')">Save</button>',{ic:"cart"})}
 async function svShop(sid){var n=document.getElementById("se-n").value.trim();var q=document.getElementById("se-q").value.trim();var p=parseFloat(document.getElementById("se-p").value)||null;if(!n)return;await A("PUT","/api/shopping/"+sid,{item:n,quantity:q||null,price:p,folder_id:window._sFold||null});cMo();hp();await load()}
-function shAddFolder(){oMC(t("mt_new_folder"),'<input class="inp" id="ff-n" placeholder="'+t("f_folder")+'"><input class="inp" id="ff-e" placeholder="📁" value="📁" style="width:80px"><button class="btn" onclick="doAddFolder()">'+t("btn_create")+'</button>',{ic:"list"})}
+function shAddFolder(){oMC(tr("mt_new_folder"),'<input class="inp" id="ff-n" placeholder="'+tr("f_folder")+'"><input class="inp" id="ff-e" placeholder="📁" value="📁" style="width:80px"><button class="btn" onclick="doAddFolder()">'+tr("btn_create")+'</button>',{ic:"list"})}
 async function doAddFolder(){var n=document.getElementById("ff-n").value.trim();var e=document.getElementById("ff-e").value.trim()||"📁";if(!n)return;await A("POST","/api/shopping/folders",{name:n,emoji:e});cMo();hp();await load()}
-function edFolder(fid){var f=D.folders.find(function(x){return x.id===fid});if(!f)return;oMC(t("sh_edit_folder"),'<input class="inp" id="ef-n" value="'+es(f.name)+'"><input class="inp" id="ef-e" value="'+f.emoji+'" style="width:80px"><button class="btn" onclick="svFolder('+fid+')">Save</button><div style="margin-top:16px;padding-top:16px;border-top:1px solid var(--bd)"><button class="btn btn-s" style="color:var(--ac);font-size:13px" onclick="dlFolder('+fid+')">'+t("sh_delete_folder")+'</button></div>',{ic:"list"})}
+function edFolder(fid){var f=D.folders.find(function(x){return x.id===fid});if(!f)return;oMC(tr("sh_edit_folder"),'<input class="inp" id="ef-n" value="'+es(f.name)+'"><input class="inp" id="ef-e" value="'+f.emoji+'" style="width:80px"><button class="btn" onclick="svFolder('+fid+')">Save</button><div style="margin-top:16px;padding-top:16px;border-top:1px solid var(--bd)"><button class="btn btn-s" style="color:var(--ac);font-size:13px" onclick="dlFolder('+fid+')">'+tr("sh_delete_folder")+'</button></div>',{ic:"list"})}
 async function svFolder(fid){var n=document.getElementById("ef-n").value.trim();var e=document.getElementById("ef-e").value.trim();if(!n)return;await A("PUT","/api/shopping/folders/"+fid,{name:n,emoji:e});cMo();hp();await load()}
 async function dlFolder(fid){await A("DELETE","/api/shopping/folders/"+fid);cMo();hp();shopFold=null;await load();toast("✓ Folder deleted")}
 
@@ -1172,7 +1172,7 @@ async function dlFolder(fid){await A("DELETE","/api/shopping/folders/"+fid);cMo(
 // MONEY — Transactions | Subs | Analytics
 // ═══════════════════════════════════════════════════════════
 function rMoney(){
-var h='<div class="tabs"><button class="tab '+(moneyTab==="transactions"?"a":"")+'" onclick="moneyTab=\'transactions\';ren()"><span style="display:inline-flex;align-items:center;gap:6px">'+icon("arrowUpDown",13,2.2)+t("m_transactions")+'</span></button><button class="tab '+(moneyTab==="analytics"?"a":"")+'" onclick="moneyTab=\'analytics\';ren()"><span style="display:inline-flex;align-items:center;gap:6px">'+icon("chart",13,2.2)+t("m_analytics")+'</span></button></div>';
+var h='<div class="tabs"><button class="tab '+(moneyTab==="transactions"?"a":"")+'" onclick="moneyTab=\'transactions\';ren()"><span style="display:inline-flex;align-items:center;gap:6px">'+icon("arrowUpDown",13,2.2)+tr("m_transactions")+'</span></button><button class="tab '+(moneyTab==="analytics"?"a":"")+'" onclick="moneyTab=\'analytics\';ren()"><span style="display:inline-flex;align-items:center;gap:6px">'+icon("chart",13,2.2)+tr("m_analytics")+'</span></button></div>';
 if(moneyTab==="analytics")return h+rAnalytics();
 return h+rTransactions()}
 
@@ -1195,13 +1195,13 @@ if(monthLbl)h+='<div style="text-align:center;font-size:10px;color:var(--ht);fon
 function _tv(v){return v===null?'<span style="opacity:.4">…</span>':'€'+v.toFixed(0)}
 function _bv(v){if(v===null)return _tv(null);return (v>=0?"+":"−")+'€'+Math.abs(v).toFixed(0)}
 h+='<div class="sts sts-3">';
-h+='<div class="st st-mn"><div class="st-ico tone-ok">'+icon("trendUp",16,2.2)+'</div><div class="st-lb">'+t("m_income_label")+'</div><div class="st-vl pos">'+_tv(tInc)+'</div></div>';
-h+='<div class="st st-mn"><div class="st-ico tone-ac">'+icon("trendDown",16,2.2)+'</div><div class="st-lb">'+t("m_expense_label")+'</div><div class="st-vl neg">'+_tv(tExp)+'</div></div>';
-h+='<div class="st st-mn"><div class="st-ico tone-pr">'+icon("wallet",16,2.2)+'</div><div class="st-lb">'+t("m_balance_label")+'</div><div class="st-vl '+(bal===null?"":(bal>=0?"pos":"neg"))+'">'+_bv(bal)+'</div></div>';
+h+='<div class="st st-mn"><div class="st-ico tone-ok">'+icon("trendUp",16,2.2)+'</div><div class="st-lb">'+tr("m_income_label")+'</div><div class="st-vl pos">'+_tv(tInc)+'</div></div>';
+h+='<div class="st st-mn"><div class="st-ico tone-ac">'+icon("trendDown",16,2.2)+'</div><div class="st-lb">'+tr("m_expense_label")+'</div><div class="st-vl neg">'+_tv(tExp)+'</div></div>';
+h+='<div class="st st-mn"><div class="st-ico tone-pr">'+icon("wallet",16,2.2)+'</div><div class="st-lb">'+tr("m_balance_label")+'</div><div class="st-vl '+(bal===null?"":(bal>=0?"pos":"neg"))+'">'+_bv(bal)+'</div></div>';
 h+='</div>';
-if(!txs.length)return h+em(icon("wallet",48,1.8),t("es_no_txs_t"),t("es_no_txs_s"));
+if(!txs.length)return h+em(icon("wallet",48,1.8),tr("es_no_txs_t"),tr("es_no_txs_s"));
 // Member filter row
-h+='<div class="fb2"><button class="fi '+(!filt?"a":"")+'" onclick="filt=null;ren()">'+t("g_filter_all")+'</button>';
+h+='<div class="fb2"><button class="fi '+(!filt?"a":"")+'" onclick="filt=null;ren()">'+tr("g_filter_all")+'</button>';
 D.members.forEach(function(m){h+='<button class="fi '+(filt===m.user_id?"a":"")+'" style="padding:3px 6px;display:inline-flex;align-items:center" onclick="filt='+m.user_id+';ren()">'+mAv(m.user_id,22)+'</button>'});h+='</div>';
 // Transaction rows as .lc cards: category emoji on tinted gradient (green for income, coral for expense), description as title, date + member as meta, signed amount pill on the right
 txs.forEach(function(tx){
@@ -1227,11 +1227,11 @@ txs.forEach(function(tx){
 });
 return h}
 
-async function dlTx(id){hp();await A("DELETE","/api/transactions/"+id);_moneySummary=null;_anaCache={};await load();toast("🗑 "+t("ts_deleted"))}
+async function dlTx(id){hp();await A("DELETE","/api/transactions/"+id);_moneySummary=null;_anaCache={};await load();toast("🗑 "+tr("ts_deleted"))}
 function edTx(id){var tx=D.transactions.find(function(x){return x.id===id});if(!tx)return;_assign=tx.member_id||0;
 var catOpts=D.categories.filter(function(c){return c.type===tx.type}).map(function(c){return '<button class="ob '+(tx.category_id===c.id?"s":"")+'" onclick="window._txCat='+c.id+';this.parentNode.querySelectorAll(\'.ob\').forEach(function(b){b.classList.remove(\'s\')});this.classList.add(\'s\')">'+c.emoji+" "+es(c.name)+'</button>'}).join("");
 window._txCat=tx.category_id||0;window._txType=tx.type;
-oMC(t("m_edit_tx"),'<div class="dr"><div><div class="dl">'+t("f_amount")+'</div><input class="inp" id="tx-a" type="number" step="0.01" value="'+tx.amount+'"></div><div><div class="dl">'+t("f_currency")+'</div><select id="tx-c"><option value="RSD"'+(tx.currency==="RSD"?" selected":"")+'>din. RSD</option><option value="EUR"'+(tx.currency==="EUR"?" selected":"")+'>€ EUR</option><option value="USD"'+(tx.currency==="USD"?" selected":"")+'>$ USD</option><option value="GBP"'+(tx.currency==="GBP"?" selected":"")+'>£ GBP</option><option value="RUB"'+(tx.currency==="RUB"?" selected":"")+'>₽ RUB</option></select></div></div><div class="lb">'+t("f_description")+'</div><input class="inp" id="tx-d" value="'+es(tx.description||"")+'"><div class="lb">'+t("f_category")+'</div><div class="or">'+catOpts+'</div><div class="lb">'+t("f_date")+'</div><input type="date" id="tx-dt" value="'+tx.date+'"><div class="lb">'+t("g_who")+'</div>'+assignPk("txm",tx.member_id)+'<button class="btn" onclick="svTx('+id+')">Save</button>',{ic:"wallet"})}
+oMC(tr("m_edit_tx"),'<div class="dr"><div><div class="dl">'+tr("f_amount")+'</div><input class="inp" id="tx-a" type="number" step="0.01" value="'+tx.amount+'"></div><div><div class="dl">'+tr("f_currency")+'</div><select id="tx-c"><option value="RSD"'+(tx.currency==="RSD"?" selected":"")+'>din. RSD</option><option value="EUR"'+(tx.currency==="EUR"?" selected":"")+'>€ EUR</option><option value="USD"'+(tx.currency==="USD"?" selected":"")+'>$ USD</option><option value="GBP"'+(tx.currency==="GBP"?" selected":"")+'>£ GBP</option><option value="RUB"'+(tx.currency==="RUB"?" selected":"")+'>₽ RUB</option></select></div></div><div class="lb">'+tr("f_description")+'</div><input class="inp" id="tx-d" value="'+es(tx.description||"")+'"><div class="lb">'+tr("f_category")+'</div><div class="or">'+catOpts+'</div><div class="lb">'+tr("f_date")+'</div><input type="date" id="tx-dt" value="'+tx.date+'"><div class="lb">'+tr("g_who")+'</div>'+assignPk("txm",tx.member_id)+'<button class="btn" onclick="svTx('+id+')">Save</button>',{ic:"wallet"})}
 async function svTx(id){var a=parseFloat(document.getElementById("tx-a").value);var c=document.getElementById("tx-c").value;var d=document.getElementById("tx-d").value.trim();var dt=document.getElementById("tx-dt").value;if(!a)return;await A("PUT","/api/transactions/"+id,{amount:a,currency:c,description:d,date:dt,category_id:window._txCat||null,member_id:_assign||null});cMo();hp();_moneySummary=null;_anaCache={};await load()}
 
 // ─── Digest config modal ─────────────────────────────────────
@@ -1273,7 +1273,7 @@ return _dgOrder}
 function openDigestCfg(){
 // Deep copy so toggling/reordering inside the modal doesn't mutate the cached order before Save
 _dgOrder=_getDigestOrder().map(function(o){return{id:o.id,enabled:o.enabled}});
-oMC(t("mt_morning_digest"),digestCfgHtml(),{ic:"bl"})}
+oMC(tr("mt_morning_digest"),digestCfgHtml(),{ic:"bl"})}
 
 function digestCfgHtml(){
 var h='<div class="lb">Delivery Time</div><input type="time" id="dg-time" value="'+(D.settings.digest_time||"09:00")+'" step="60" style="margin-bottom:16px">';
@@ -1362,7 +1362,7 @@ h+='</div>'});h+='</div>'}
 // Add form — 3 rows: Name, Qty+Price+Currency, Add
 h+='<div style="margin-top:14px;padding-top:14px;border-top:1px solid var(--bd)">';
 h+='<input class="inp" id="ri-name" placeholder="Item name" onkeydown="if(event.key===\'Enter\')document.getElementById(\'ri-qty\').focus()">';
-h+='<div class="dr"><div><div class="dl">'+t("f_quantity")+'</div><input class="inp" id="ri-qty" type="number" min="1" value="1" placeholder="1"></div><div><div class="dl">'+t("g_price_hint")+'</div><input class="inp" id="ri-amt" type="number" step="0.01" placeholder="0.00" onkeydown="if(event.key===\'Enter\')addRi('+txId+')"></div><div><div class="dl">'+t("f_currency")+'</div>'+_curSel("ri-cur",tx.currency)+'</div></div>';
+h+='<div class="dr"><div><div class="dl">'+tr("f_quantity")+'</div><input class="inp" id="ri-qty" type="number" min="1" value="1" placeholder="1"></div><div><div class="dl">'+tr("g_price_hint")+'</div><input class="inp" id="ri-amt" type="number" step="0.01" placeholder="0.00" onkeydown="if(event.key===\'Enter\')addRi('+txId+')"></div><div><div class="dl">'+tr("f_currency")+'</div>'+_curSel("ri-cur",tx.currency)+'</div></div>';
 h+='<button class="btn" onclick="addRi('+txId+')">Add</button>';
 h+='</div>';
 return h}
@@ -1380,7 +1380,7 @@ function edRi(iid,txId){
 var items=(D.txItems||{})[txId]||[];
 var it=items.find(function(x){return x.id===iid});if(!it)return;
 var tx=D.transactions.find(function(x){return x.id===txId});
-oMC(t("m_edit_receipt_item"),'<div class="dl">'+t("m_item_name")+'</div><input class="inp" id="ei-name" value="'+es(it.name)+'"><div class="dr"><div><div class="dl">'+t("f_quantity")+'</div><input class="inp" id="ei-qty" type="number" min="1" value="'+(it.quantity||1)+'"></div><div><div class="dl">'+t("g_price_hint")+'</div><input class="inp" id="ei-amt" type="number" step="0.01" value="'+it.amount+'"></div><div><div class="dl">'+t("f_currency")+'</div>'+_curSel("ei-cur",it.currency||(tx?tx.currency:"RSD"))+'</div></div><button class="btn" onclick="svRi('+iid+','+txId+')">Save</button>',{ic:"receipt"})}
+oMC(tr("m_edit_receipt_item"),'<div class="dl">'+tr("m_item_name")+'</div><input class="inp" id="ei-name" value="'+es(it.name)+'"><div class="dr"><div><div class="dl">'+tr("f_quantity")+'</div><input class="inp" id="ei-qty" type="number" min="1" value="'+(it.quantity||1)+'"></div><div><div class="dl">'+tr("g_price_hint")+'</div><input class="inp" id="ei-amt" type="number" step="0.01" value="'+it.amount+'"></div><div><div class="dl">'+tr("f_currency")+'</div>'+_curSel("ei-cur",it.currency||(tx?tx.currency:"RSD"))+'</div></div><button class="btn" onclick="svRi('+iid+','+txId+')">Save</button>',{ic:"receipt"})}
 
 async function svRi(iid,txId){var n=document.getElementById("ei-name").value.trim();
 var q=parseInt(document.getElementById("ei-qty").value)||1;
@@ -1389,21 +1389,21 @@ if(!n)return;await A("PUT","/api/transactions/items/"+iid,{name:n,quantity:q,amo
 cMo();await load();openReceipt(txId)}
 
 // Subs (moved from Calendar)
-function rSubAddBtn(){return '<button class="btn btn-s" style="margin-bottom:16px" onclick="oMoSub()">+ '+t("mt_add_sub")+'</button>'}
-function oMoSub(){_assign=0;_subRems=[{days_before:3,time:"09:00"},{days_before:0,time:"09:00"}];oMC("Add Subscription",'<input class="inp" id="su-n" placeholder="Subscription name"><input class="inp" id="su-e" value="💳" style="width:80px"><div class="dr"><div><div class="dl">'+t("f_amount")+'</div><input class="inp" id="su-a" type="number" step="0.01" placeholder="9.99"></div><div><div class="dl">'+t("f_currency")+'</div><select id="su-c"><option value="EUR">€</option><option value="USD">$</option><option value="GBP">£</option><option value="RUB">₽</option><option value="RSD">din.</option></select></div></div><div class="dr"><div><div class="dl">Billing day</div><input class="inp" id="su-d" type="number" min="1" max="28" value="1"></div></div><div class="lb">'+t("g_assigned_to")+'</div>'+assignPk("sap",null)+'<div class="lb">'+t("g_reminders")+'</div><div id="srl">'+subRemPk()+'</div><button class="btn" onclick="doNewSub()">Add Subscription</button>',{ic:"card"})}
+function rSubAddBtn(){return '<button class="btn btn-s" style="margin-bottom:16px" onclick="oMoSub()">+ '+tr("mt_add_sub")+'</button>'}
+function oMoSub(){_assign=0;_subRems=[{days_before:3,time:"09:00"},{days_before:0,time:"09:00"}];oMC("Add Subscription",'<input class="inp" id="su-n" placeholder="Subscription name"><input class="inp" id="su-e" value="💳" style="width:80px"><div class="dr"><div><div class="dl">'+tr("f_amount")+'</div><input class="inp" id="su-a" type="number" step="0.01" placeholder="9.99"></div><div><div class="dl">'+tr("f_currency")+'</div><select id="su-c"><option value="EUR">€</option><option value="USD">$</option><option value="GBP">£</option><option value="RUB">₽</option><option value="RSD">din.</option></select></div></div><div class="dr"><div><div class="dl">Billing day</div><input class="inp" id="su-d" type="number" min="1" max="28" value="1"></div></div><div class="lb">'+tr("g_assigned_to")+'</div>'+assignPk("sap",null)+'<div class="lb">'+tr("g_reminders")+'</div><div id="srl">'+subRemPk()+'</div><button class="btn" onclick="doNewSub()">Add Subscription</button>',{ic:"card"})}
 function rSubsList(){
-if(!D.subs.length)return em(icon("card",48,1.8),t("es_no_subs_t"),t("es_no_subs_s"))+rSubAddBtn();
+if(!D.subs.length)return em(icon("card",48,1.8),tr("es_no_subs_t"),tr("es_no_subs_s"))+rSubAddBtn();
 var items=D.subs;if(searchQ)items=items.filter(function(s){return matchQ(s.name)});
 var totalEur=0;items.forEach(function(s){totalEur+=(s.amount_eur||0)});
-var h=rSubAddBtn()+'<div class="c" style="border-left:3px solid var(--wn)"><div class="bd"><div class="tt" style="font-weight:700">'+t("m_monthly_total")+'</div><div class="mt" style="font-size:16px;color:var(--wn);font-weight:800">€'+totalEur.toFixed(2)+'</div></div></div>';
-h+='<div class="fb2"><button class="fi '+(filt===null?"a":"")+'" onclick="filt=null;ren()">'+t("g_filter_all")+'</button>';D.members.forEach(function(m){h+='<button class="fi '+(filt===m.user_id?"a":"")+'" style="padding:3px 6px;display:inline-flex;align-items:center" onclick="filt='+m.user_id+';ren()">'+mAv(m.user_id,22)+'</button>'});h+='</div>';
+var h=rSubAddBtn()+'<div class="c" style="border-left:3px solid var(--wn)"><div class="bd"><div class="tt" style="font-weight:700">'+tr("m_monthly_total")+'</div><div class="mt" style="font-size:16px;color:var(--wn);font-weight:800">€'+totalEur.toFixed(2)+'</div></div></div>';
+h+='<div class="fb2"><button class="fi '+(filt===null?"a":"")+'" onclick="filt=null;ren()">'+tr("g_filter_all")+'</button>';D.members.forEach(function(m){h+='<button class="fi '+(filt===m.user_id?"a":"")+'" style="padding:3px 6px;display:inline-flex;align-items:center" onclick="filt='+m.user_id+';ren()">'+mAv(m.user_id,22)+'</button>'});h+='</div>';
 if(filt)items=items.filter(function(s){return s.assigned_to===filt});
 items.forEach(function(s){var daysTxt=s.days_until===0?"Today":s.days_until===1?"Tomorrow":"in "+s.days_until+"d";
 var tone=s.days_until===0?"tone-ac":s.days_until<=2?"tone-wn":"";
 var amountTxt=s.amount+" "+s.currency+(s.currency!=="EUR"?" · €"+(s.amount_eur||0).toFixed(2):"");
 h+='<div class="lc"><div class="lc-i">'+s.emoji+'</div><div class="lc-bd"><div class="lc-tt">'+es(s.name)+'</div><div class="lc-mt">Day '+s.billing_day+' · '+amountTxt+'</div></div><span class="lc-rt '+tone+'">'+daysTxt+'</span><button class="bi" onclick="edSub('+s.id+')" style="margin-left:4px">'+I.ed+'</button><button class="bi" onclick="dlSub('+s.id+')">'+I.tr+'</button></div>'});return h}
-async function dlSub(id){hp();await A("DELETE","/api/subscriptions/"+id);await load();toast("🗑 "+t("ts_deleted"))}
-function edSub(id){var s=D.subs.find(function(x){return x.id===id});if(!s)return;_assign=s.assigned_to||0;_subRems=(s.reminders||[]).map(function(r){return{days_before:r.days_before,time:r.time||"09:00"}});oMC(t("mt_edit_sub"),'<input class="inp" id="su-n" value="'+es(s.name)+'"><input class="inp" id="su-e" value="'+s.emoji+'" style="width:80px"><div class="dr"><div><div class="dl">'+t("f_amount")+'</div><input class="inp" id="su-a" type="number" step="0.01" value="'+s.amount+'"></div><div><div class="dl">'+t("f_currency")+'</div><select id="su-c" style="width:100%"><option value="EUR"'+(s.currency==="EUR"?" selected":"")+'>€</option><option value="USD"'+(s.currency==="USD"?" selected":"")+'>$</option><option value="GBP"'+(s.currency==="GBP"?" selected":"")+'>£</option><option value="RUB"'+(s.currency==="RUB"?" selected":"")+'>₽</option><option value="RSD"'+(s.currency==="RSD"?" selected":"")+'>din.</option></select></div></div><div class="dr"><div><div class="dl">Billing day</div><input class="inp" id="su-d" type="number" min="1" max="28" value="'+s.billing_day+'"></div></div><div class="lb">'+t("g_assigned_to")+'</div>'+assignPk("sap",s.assigned_to)+'<div class="lb">'+t("g_reminders")+'</div><div id="srl">'+subRemPk()+'</div><button class="btn" onclick="svSub('+id+')">Save</button>',{ic:"card"})}
+async function dlSub(id){hp();await A("DELETE","/api/subscriptions/"+id);await load();toast("🗑 "+tr("ts_deleted"))}
+function edSub(id){var s=D.subs.find(function(x){return x.id===id});if(!s)return;_assign=s.assigned_to||0;_subRems=(s.reminders||[]).map(function(r){return{days_before:r.days_before,time:r.time||"09:00"}});oMC(tr("mt_edit_sub"),'<input class="inp" id="su-n" value="'+es(s.name)+'"><input class="inp" id="su-e" value="'+s.emoji+'" style="width:80px"><div class="dr"><div><div class="dl">'+tr("f_amount")+'</div><input class="inp" id="su-a" type="number" step="0.01" value="'+s.amount+'"></div><div><div class="dl">'+tr("f_currency")+'</div><select id="su-c" style="width:100%"><option value="EUR"'+(s.currency==="EUR"?" selected":"")+'>€</option><option value="USD"'+(s.currency==="USD"?" selected":"")+'>$</option><option value="GBP"'+(s.currency==="GBP"?" selected":"")+'>£</option><option value="RUB"'+(s.currency==="RUB"?" selected":"")+'>₽</option><option value="RSD"'+(s.currency==="RSD"?" selected":"")+'>din.</option></select></div></div><div class="dr"><div><div class="dl">Billing day</div><input class="inp" id="su-d" type="number" min="1" max="28" value="'+s.billing_day+'"></div></div><div class="lb">'+tr("g_assigned_to")+'</div>'+assignPk("sap",s.assigned_to)+'<div class="lb">'+tr("g_reminders")+'</div><div id="srl">'+subRemPk()+'</div><button class="btn" onclick="svSub('+id+')">Save</button>',{ic:"card"})}
 async function svSub(id){var n=document.getElementById("su-n").value.trim();var e=document.getElementById("su-e").value.trim();var a=parseFloat(document.getElementById("su-a").value);var c=document.getElementById("su-c").value;var d=parseInt(document.getElementById("su-d").value)||1;if(!n||!a)return;await A("PUT","/api/subscriptions/"+id,{name:n,emoji:e,amount:a,currency:c,billing_day:d,assigned_to:_assign||null,reminders:_subRems});cMo();hp();await load()}
 
 // Analytics
@@ -1472,9 +1472,9 @@ function _anaHeaderHtml(){
 function _anaTilesHtml(){
   var s=_moneySummary;if(!s)return'';
   var h='<div class="sts sts-3">';
-  h+='<div class="st st-mn"><div class="st-ico tone-ok">'+icon("trendUp",16,2.2)+'</div><div class="st-lb">'+t("m_income_label")+'</div><div class="st-vl pos">€'+s.income.toFixed(0)+'</div></div>';
-  h+='<div class="st st-mn"><div class="st-ico tone-ac">'+icon("trendDown",16,2.2)+'</div><div class="st-lb">'+t("m_expense_label")+'</div><div class="st-vl neg">€'+s.expense.toFixed(0)+'</div></div>';
-  h+='<div class="st st-mn"><div class="st-ico tone-pr">'+icon("wallet",16,2.2)+'</div><div class="st-lb">'+t("m_balance_label")+'</div><div class="st-vl '+(s.balance>=0?"pos":"neg")+'">'+(s.balance>=0?"+":"−")+'€'+Math.abs(s.balance).toFixed(0)+'</div></div>';
+  h+='<div class="st st-mn"><div class="st-ico tone-ok">'+icon("trendUp",16,2.2)+'</div><div class="st-lb">'+tr("m_income_label")+'</div><div class="st-vl pos">€'+s.income.toFixed(0)+'</div></div>';
+  h+='<div class="st st-mn"><div class="st-ico tone-ac">'+icon("trendDown",16,2.2)+'</div><div class="st-lb">'+tr("m_expense_label")+'</div><div class="st-vl neg">€'+s.expense.toFixed(0)+'</div></div>';
+  h+='<div class="st st-mn"><div class="st-ico tone-pr">'+icon("wallet",16,2.2)+'</div><div class="st-lb">'+tr("m_balance_label")+'</div><div class="st-vl '+(s.balance>=0?"pos":"neg")+'">'+(s.balance>=0?"+":"−")+'€'+Math.abs(s.balance).toFixed(0)+'</div></div>';
   h+='</div>';
   if(s.subs_eur)h+='<div class="cat-row" style="margin-bottom:14px;margin-top:6px"><div class="cat-row-h"><span class="nm">'+icon("card",14,2.2)+' Subscriptions this month</span><span class="vl" style="color:var(--pr)">€'+s.subs_eur.toFixed(0)+'</span></div></div>';
   return h;
@@ -1484,13 +1484,13 @@ function _anaExtrasHtml(){
   var h='';
   if(s.by_category&&s.by_category.length){
     var maxC=s.by_category[0]?s.by_category[0].total:1;
-    h+='<div class="sc"><span class="sc-l">'+t("g_by_category")+'</span></div>';
+    h+='<div class="sc"><span class="sc-l">'+tr("g_by_category")+'</span></div>';
     s.by_category.forEach(function(c){if(!c.total)return;var pct=Math.max(2,c.total/maxC*100);
       h+='<div class="cat-row"><div class="cat-row-h"><span class="nm"><span class="em">'+c.emoji+'</span>'+es(c.name)+'</span><span class="vl">€'+c.total.toFixed(0)+'</span></div><div class="progress"><div class="progress-fill" style="width:'+pct+'%"></div></div></div>';
     });
   }
   if(s.limits&&s.limits.length){
-    h+='<div class="sc" style="margin-top:12px"><span class="sc-l">'+t("g_limits")+'</span></div>';
+    h+='<div class="sc" style="margin-top:12px"><span class="sc-l">'+tr("g_limits")+'</span></div>';
     s.limits.forEach(function(l){var pct=Math.min(100,l.spent/l.monthly_limit*100);var over=l.spent>l.monthly_limit;
       h+='<div class="cat-row"><div class="cat-row-h"><span class="nm"><span class="em">'+l.emoji+'</span>'+es(l.name)+'</span><span class="vl" style="color:'+(over?"var(--ac)":"var(--tx)")+'">€'+l.spent.toFixed(0)+' / €'+l.monthly_limit.toFixed(0)+'</span></div><div class="progress"><div class="progress-fill '+(over?"tone-ac":"tone-ok")+'" style="width:'+pct+'%"></div></div></div>';
     });
@@ -1542,7 +1542,7 @@ h+='<div id="ana-tiles">'+_anaTilesHtml()+'</div>';
 // watermarks behind bars. Tap a bar to navigate to that month.
 if(s.months&&s.months.length){
 var maxM=1;s.months.forEach(function(m){maxM=Math.max(maxM,m.income,m.expense)});
-h+='<div class="sc"><span class="sc-l"><span class="sc-ico">'+icon("chart",12,2.4)+'</span>'+t("m_monthly")+'</span></div>';
+h+='<div class="sc"><span class="sc-l"><span class="sc-ico">'+icon("chart",12,2.4)+'</span>'+tr("m_monthly")+'</span></div>';
 // Compute contiguous year groups (assumes months are sorted oldest → newest)
 var yGroups=[],curG=null;
 s.months.forEach(function(m,i){
@@ -1569,7 +1569,7 @@ s.months.forEach(function(m){
   h+='<div class="cbar'+sel+'" data-month="'+m.month+'" onclick="_anaSetMonth(\''+m.month+'\')"><div class="cbar-pair"><div class="cbar-b b-in" style="height:'+ih+'px"></div><div class="cbar-b b-ex" style="height:'+eh+'px"></div></div><div class="cbar-lb">'+lbl+'</div></div>';
 });
 h+='</div></div>';
-h+='<div class="chart-legend"><span><span class="dotk" style="background:var(--ok)"></span>'+t("m_income_label")+'</span><span><span class="dotk" style="background:var(--ac)"></span>'+t("m_expense_label")+'</span></div>';
+h+='<div class="chart-legend"><span><span class="dotk" style="background:var(--ok)"></span>'+tr("m_income_label")+'</span><span><span class="dotk" style="background:var(--ac)"></span>'+tr("m_expense_label")+'</span></div>';
 // Two-step scroll: instantly restore saved scroll (no jump to 0), then smoothly
 // animate to centered-on-selected. On first render _anaSavedScroll is null →
 // start centred immediately without animation.
@@ -1643,8 +1643,8 @@ h+='<div class="sc"><span class="sc-l"><span class="sc-ico">'+icon("dumbbell",12
    (myTpls.length?'<button class="at" onclick="openNewTemplate()">+ New</button>':'')+'</div>';
 
 if(myTpls.length===0){
-  h+='<div class="tr-tpl-row"><button class="tr-tpl-add" onclick="openNewTemplate()"><span style="font-size:32px;line-height:1">+</span><span style="font-size:11px;margin-top:8px">'+t("tr_create_template")+'</span></button>';
-  h+='<button class="tr-tpl-add" onclick="startBlankWorkout()" style="border-style:solid;border-color:color-mix(in srgb,var(--ok) 45%,transparent);background:color-mix(in srgb,var(--ok) 8%,var(--cd));color:var(--ok)"><span style="font-size:30px;line-height:1">▶</span><span style="font-size:11px;margin-top:8px">'+t("tr_empty_workout")+'</span></button>';
+  h+='<div class="tr-tpl-row"><button class="tr-tpl-add" onclick="openNewTemplate()"><span style="font-size:32px;line-height:1">+</span><span style="font-size:11px;margin-top:8px">'+tr("tr_create_template")+'</span></button>';
+  h+='<button class="tr-tpl-add" onclick="startBlankWorkout()" style="border-style:solid;border-color:color-mix(in srgb,var(--ok) 45%,transparent);background:color-mix(in srgb,var(--ok) 8%,var(--cd));color:var(--ok)"><span style="font-size:30px;line-height:1">▶</span><span style="font-size:11px;margin-top:8px">'+tr("tr_empty_workout")+'</span></button>';
   h+='</div>';
 }else{
   h+='<div class="tr-tpl-row">';
@@ -1654,7 +1654,7 @@ if(myTpls.length===0){
 }
 
 // ─── Statistics with period tabs ───────────────────
-h+='<div class="sc"><span class="sc-l"><span class="sc-ico">'+icon("chart",12,2.4)+'</span>'+t("tr_statistics")+'</span>'+
+h+='<div class="sc"><span class="sc-l"><span class="sc-ico">'+icon("chart",12,2.4)+'</span>'+tr("tr_statistics")+'</span>'+
    '<button class="at" onclick="openTrainStats()">Details ›</button></div>';
 h+=_trainStatsBlock();
 
@@ -1804,7 +1804,7 @@ async function openTemplateDetail(tid){
 
 async function _trImgUpload(tid,input){
   var f=input.files&&input.files[0];if(!f)return;
-  if(f.size>15*1024*1024){toast(t("ts_too_large"));return}
+  if(f.size>15*1024*1024){toast(tr("ts_too_large"));return}
   hp("light");
   f=await _downscaleImage(f);
   var fd=new FormData();fd.append("file",f);
@@ -1813,17 +1813,17 @@ async function _trImgUpload(tid,input){
   var sess=_getSess();if(sess)headers["X-Session-Token"]=sess;
   try{
     var r=await fetch("/api/workout-templates/"+tid+"/image",{method:"POST",headers:headers,body:fd});
-    if(!r.ok){toast(t("ts_upload_failed"));return}
-    hp("ok");toast(t("ts_image_saved"));
+    if(!r.ok){toast(tr("ts_upload_failed"));return}
+    hp("ok");toast(tr("ts_image_saved"));
     await load();
     cMo();openTemplateDetail(tid);
-  }catch(e){toast(t("ts_network"))}
+  }catch(e){toast(tr("ts_network"))}
 }
 async function _trImgDelete(tid){
-  if(!confirm(t("g_remove_image_confirm")))return;
+  if(!confirm(tr("g_remove_image_confirm")))return;
   var r=await A("DELETE","/api/workout-templates/"+tid+"/image");
   if(!r)return;
-  hp("ok");toast(t("ts_image_removed"));
+  hp("ok");toast(tr("ts_image_removed"));
   await load();
   cMo();openTemplateDetail(tid);
 }
@@ -1851,7 +1851,7 @@ function _weekStartISO(){var d=new Date();var dow=d.getDay();var off=(dow===0)?-
 function setTrainMember(uid){_trainMember=uid;_trainStats=null;_trainStatsData=null;_trainStatsLoading=false;hp("sel");ren()}
 
 function _workoutCard(w,emphasized){
-  var dateLbl=w.date===td()?t("g_today"):fD(w.date).full;
+  var dateLbl=w.date===td()?tr("g_today"):fD(w.date).full;
   var nameTxt=w.name?es(w.name):"Workout";
   var acc=emphasized?"acc-pr":"";
   var extraStyle=emphasized?'style="border-color:color-mix(in srgb,var(--pr) 40%,var(--bd));box-shadow:0 4px 18px color-mix(in srgb,var(--pr) 16%,transparent),var(--shadow-1)"':"";
@@ -1966,7 +1966,7 @@ function openStartWorkoutPicker(){
   }
   h+='<div style="margin-top:14px;padding-top:14px;border-top:1px solid var(--bd)">'+
     '<button class="btn btn-s" style="background:transparent;border:1.5px solid var(--bd);color:var(--tx)" onclick="cMo();startBlankWorkout()">+ Empty workout (no template)</button></div>';
-  oMC(t("mt_start_workout"),h,{ic:"dumbbell"});
+  oMC(tr("mt_start_workout"),h,{ic:"dumbbell"});
 }
 
 async function startFromTemplate(tid){
@@ -1999,13 +1999,13 @@ var _tplDraft=null; // {id?, name, exercise_ids: []}
 
 function openNewTemplate(){
   _tplDraft={id:null,name:"",exercise_ids:[]};
-  oMC(t("mt_new_template"),_tplEditorHtml(),{ic:"list"});
+  oMC(tr("mt_new_template"),_tplEditorHtml(),{ic:"list"});
 }
 function editTemplate(tid){
   var tpl=(D.workoutTemplates||[]).find(function(x){return x.id===tid});
   if(!tpl)return;
   _tplDraft={id:tid,name:tpl.name,exercise_ids:(tpl.exercises_list||[]).map(function(e){return e.exercise_id})};
-  oMC(t("mt_edit_template"),_tplEditorHtml(),{ic:"list"});
+  oMC(tr("mt_edit_template"),_tplEditorHtml(),{ic:"list"});
 }
 function _tplEditorHtml(){
   var t=_tplDraft;
@@ -2059,12 +2059,12 @@ function _tplPickExercise(){
     h+='</div>';
   });
   h+='</div>';
-  oMC(t("mt_add_exercise"),h,{ic:"dumbbell"});
+  oMC(tr("mt_add_exercise"),h,{ic:"dumbbell"});
 }
 function _tplAddEx(eid){
   _tplDraft.exercise_ids.push(eid);
   // Re-open editor (cMo + new modal)
-  oMC(_tplDraft.id?t("mt_edit_template"):t("mt_new_template"),_tplEditorHtml(),{ic:"list"});
+  oMC(_tplDraft.id?tr("mt_edit_template"):tr("mt_new_template"),_tplEditorHtml(),{ic:"list"});
 }
 async function saveTemplate(){
   var nameI=document.getElementById("tpl-n");
@@ -2086,43 +2086,43 @@ async function deleteTemplate(tid){
 
 function _workoutDetailHtml(w){
   var memberName=mName(w.member_id);
-  var dateLbl=w.date===td()?t("g_today"):fD(w.date).full;
+  var dateLbl=w.date===td()?tr("g_today"):fD(w.date).full;
   var inProgress=w.started_at&&!w.finished_at;
   var h='<div class="cday-overlay">';
   h+='<div class="cday-panel" style="padding-bottom:80px">';
   h+='<div class="cday-hd"><button class="cday-back" onclick="closeWorkout()">←</button>'+
-    '<div class="cday-title">💪 '+(w.name?es(w.name):t("mt_workout"))+'</div>'+
+    '<div class="cday-title">💪 '+(w.name?es(w.name):tr("mt_workout"))+'</div>'+
     '<button class="bi" onclick="editWorkoutMeta('+w.id+')" style="padding:4px;color:var(--ht)">'+I.ed+'</button>'+
     '</div>';
   // Live timer (if in progress)
   if(inProgress){
-    h+='<div id="wk-timer" style="background:var(--pg);color:var(--pr);padding:8px 16px;text-align:center;font-weight:700;font-size:18px;border-bottom:1px solid var(--bd)">⏱ <span id="wk-elapsed">0:00</span> · '+t("wx_in_progress")+'</div>';
+    h+='<div id="wk-timer" style="background:var(--pg);color:var(--pr);padding:8px 16px;text-align:center;font-weight:700;font-size:18px;border-bottom:1px solid var(--bd)">⏱ <span id="wk-elapsed">0:00</span> · '+tr("wx_in_progress")+'</div>';
   }else if(w.finished_at){
     var dur=_durationStr(w.started_at,w.finished_at);
-    h+='<div style="background:color-mix(in srgb,var(--ok) 15%,transparent);color:var(--ok);padding:8px 16px;text-align:center;font-weight:700;font-size:14px;border-bottom:1px solid var(--bd)">✓ '+t("wx_completed")+' · '+dur+'</div>';
+    h+='<div style="background:color-mix(in srgb,var(--ok) 15%,transparent);color:var(--ok);padding:8px 16px;text-align:center;font-weight:700;font-size:14px;border-bottom:1px solid var(--bd)">✓ '+tr("wx_completed")+' · '+dur+'</div>';
   }
   // Summary card
   h+='<div style="padding:8px 16px"><div class="c" style="margin-bottom:8px"><div class="bd">'+
     '<div style="font-size:12px;color:var(--ht)">'+dateLbl+' · '+es(memberName)+'</div>'+
     '<div style="font-size:18px;font-weight:800;color:var(--pr);margin-top:4px">'+_fmtTon(w.tonnage||0)+'</div>'+
-    '<div style="font-size:11px;color:var(--ht)">'+(w.exercises||0)+' '+t("wx_exercises")+' · '+(w.sets||0)+' '+t("wx_sets")+'</div>'+
+    '<div style="font-size:11px;color:var(--ht)">'+(w.exercises||0)+' '+tr("wx_exercises")+' · '+(w.sets||0)+' '+tr("wx_sets")+'</div>'+
     '</div></div></div>';
   // Exercises list
   h+='<div style="padding:0 16px">';
   (w.exercises_list||[]).forEach(function(wx){h+=_exerciseBlock(wx)});
-  h+='<button class="btn btn-s" style="margin-top:8px;background:transparent;border:1.5px solid var(--bd);color:var(--tx)" onclick="openExercisePicker('+w.id+')">+ '+t("mt_add_exercise")+'</button>';
+  h+='<button class="btn btn-s" style="margin-top:8px;background:transparent;border:1.5px solid var(--bd);color:var(--tx)" onclick="openExercisePicker('+w.id+')">+ '+tr("mt_add_exercise")+'</button>';
   // Finish (if in progress) or Re-open
   if(inProgress){
-    h+='<button class="btn" style="margin-top:16px;background:var(--ok);color:#fff" onclick="finishWorkout('+w.id+')">✓ '+t("wx_finish")+'</button>';
+    h+='<button class="btn" style="margin-top:16px;background:var(--ok);color:#fff" onclick="finishWorkout('+w.id+')">✓ '+tr("wx_finish")+'</button>';
   }else if(w.finished_at){
-    h+='<button class="btn btn-s" style="margin-top:16px;background:transparent;border:1.5px solid var(--bd);color:var(--tx)" onclick="reopenWorkout('+w.id+')">↺ '+t("wx_reopen")+'</button>';
+    h+='<button class="btn btn-s" style="margin-top:16px;background:transparent;border:1.5px solid var(--bd);color:var(--tx)" onclick="reopenWorkout('+w.id+')">↺ '+tr("wx_reopen")+'</button>';
   }else{
     // Workout exists but not yet started
-    h+='<button class="btn" style="margin-top:16px;background:var(--ok);color:#fff" onclick="startThisWorkout('+w.id+')">▶ '+t("mt_start_workout")+'</button>';
+    h+='<button class="btn" style="margin-top:16px;background:var(--ok);color:#fff" onclick="startThisWorkout('+w.id+')">▶ '+tr("mt_start_workout")+'</button>';
   }
   // Delete workout button at bottom
   h+='<div style="margin-top:24px;padding-top:16px;border-top:1px solid var(--bd)">'+
-    '<button class="btn btn-s" style="color:var(--ac);background:transparent;border:1.5px solid var(--bd)" onclick="deleteWorkout('+w.id+')">'+t("wx_delete_workout")+'</button>'+
+    '<button class="btn btn-s" style="color:var(--ac);background:transparent;border:1.5px solid var(--bd)" onclick="deleteWorkout('+w.id+')">'+tr("wx_delete_workout")+'</button>'+
     '</div>';
   h+='</div>';
   // Rest timer overlay (initially hidden)
@@ -2193,7 +2193,7 @@ function _exerciseBlock(wx){
     lastReps=sets[sets.length-1].reps;lastWeight=sets[sets.length-1].weight;
   }else if(wx.last_session){
     lastReps=wx.last_session.reps;lastWeight=wx.last_session.weight;
-    prefillHint='<div class="wx-last-hint">'+t("wx_last_time")+' ('+(fD(wx.last_session.date).date||"")+'): '+wx.last_session.reps+' × '+wx.last_session.weight+' kg</div>';
+    prefillHint='<div class="wx-last-hint">'+tr("wx_last_time")+' ('+(fD(wx.last_session.date).date||"")+'): '+wx.last_session.reps+' × '+wx.last_session.weight+' kg</div>';
   }else{
     lastReps=8;lastWeight=0;
   }
@@ -2201,19 +2201,19 @@ function _exerciseBlock(wx){
   // IDs preserved (set-reps-X / set-weight-X) — addSet() reads them by ID.
   if(prefillHint)h+=prefillHint;
   h+='<div class="wx-stp-wrap">';
-  h+='<div class="wx-stp-row"><div class="wx-stp-lbl">'+t("wx_reps")+'</div>';
+  h+='<div class="wx-stp-row"><div class="wx-stp-lbl">'+tr("wx_reps")+'</div>';
   h+='<div class="wx-stp">';
   h+='<button class="wx-stp-b" onclick="_stpAdj(\'set-reps-'+wx.id+'\',-1,1)" aria-label="−1">−</button>';
   h+='<input class="wx-stp-v" type="number" inputmode="numeric" min="1" id="set-reps-'+wx.id+'" value="'+lastReps+'">';
   h+='<button class="wx-stp-b" onclick="_stpAdj(\'set-reps-'+wx.id+'\',1,1)" aria-label="+1">+</button>';
   h+='</div></div>';
-  h+='<div class="wx-stp-row"><div class="wx-stp-lbl">'+t("wx_weight")+'</div>';
+  h+='<div class="wx-stp-row"><div class="wx-stp-lbl">'+tr("wx_weight")+'</div>';
   h+='<div class="wx-stp">';
   h+='<button class="wx-stp-b" onclick="_stpAdj(\'set-weight-'+wx.id+'\',-2.5,1)" aria-label="−2.5">−</button>';
   h+='<input class="wx-stp-v" type="number" inputmode="decimal" step="0.5" id="set-weight-'+wx.id+'" value="'+lastWeight+'">';
   h+='<button class="wx-stp-b" onclick="_stpAdj(\'set-weight-'+wx.id+'\',2.5,1)" aria-label="+2.5">+</button>';
   h+='</div><div class="wx-stp-unit">kg</div></div>';
-  h+='<button class="wx-stp-add" onclick="addSet('+wx.id+','+(wx.rest_seconds||90)+')">'+t("wx_add_set")+'</button>';
+  h+='<button class="wx-stp-add" onclick="addSet('+wx.id+','+(wx.rest_seconds||90)+')">'+tr("wx_add_set")+'</button>';
   h+='</div>';
   h+='</div>';
   return h;
@@ -2246,16 +2246,16 @@ async function addSet(wxid,restSec){
 }
 
 async function deleteSet(sid){
-  if(!confirm(t("wx_delete_set_confirm")))return;
+  if(!confirm(tr("wx_delete_set_confirm")))return;
   await A("DELETE","/api/workout-sets/"+sid);hp("warn");
   if(_curWorkout)await _refreshWorkoutView(_curWorkout.id);
 }
 
 function editSet(sid,wxid,reps,weight,unit){
-  oMC(t("mt_edit_set"),
-    '<div class="dr"><div><div class="dl">'+t("wx_reps")+'</div><input class="inp" id="es-r" type="number" min="1" value="'+reps+'"></div>'+
-    '<div><div class="dl">'+t("wx_weight")+'</div><input class="inp" id="es-w" type="number" step="0.5" value="'+weight+'"></div></div>'+
-    '<button class="btn" onclick="svSet('+sid+')">'+t("btn_save")+'</button>',{ic:"dumbbell"});
+  oMC(tr("mt_edit_set"),
+    '<div class="dr"><div><div class="dl">'+tr("wx_reps")+'</div><input class="inp" id="es-r" type="number" min="1" value="'+reps+'"></div>'+
+    '<div><div class="dl">'+tr("wx_weight")+'</div><input class="inp" id="es-w" type="number" step="0.5" value="'+weight+'"></div></div>'+
+    '<button class="btn" onclick="svSet('+sid+')">'+tr("btn_save")+'</button>',{ic:"dumbbell"});
 }
 async function svSet(sid){
   var r=parseInt(document.getElementById("es-r").value)||0;
@@ -2279,9 +2279,9 @@ async function deleteWorkout(wid){
 
 function editWorkoutMeta(wid){
   var w=_curWorkout;if(!w)return;
-  oMC(t("mt_edit_workout"),
+  oMC(tr("mt_edit_workout"),
     '<div class="lb">Name</div><input class="inp" id="ew-n" value="'+es(w.name||"")+'" placeholder="e.g. Push Day">'+
-    '<div class="lb">'+t("f_date")+'</div><input type="date" id="ew-d" value="'+w.date+'">'+
+    '<div class="lb">'+tr("f_date")+'</div><input type="date" id="ew-d" value="'+w.date+'">'+
     '<div class="lb">Notes</div><input class="inp" id="ew-notes" value="'+es(w.notes||"")+'">'+
     '<button class="btn" onclick="svWorkoutMeta('+wid+')">Save</button>',{ic:"dumbbell"});
 }
@@ -2314,7 +2314,7 @@ function openExercisePicker(wid){
   h+='</div>';
   h+='<div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--bd)">'+
     '<button class="btn btn-s" onclick="newExercise('+wid+')">+ New exercise</button></div>';
-  oMC(t("mt_add_exercise"),h,{ic:"dumbbell"});
+  oMC(tr("mt_add_exercise"),h,{ic:"dumbbell"});
 }
 function _filterExercises(q){
   q=q.toLowerCase().trim();
@@ -2329,7 +2329,7 @@ async function addExToWorkout(wid,exId){
   await _refreshWorkoutView(wid);
 }
 function newExercise(wid){
-  oMC(t("mt_new_exercise"),
+  oMC(tr("mt_new_exercise"),
     '<div class="lb">Name</div><input class="inp" id="ne-n" placeholder="e.g. Lateral Raise">'+
     '<div class="dr"><div><div class="dl">Emoji</div><input class="inp" id="ne-e" value="💪" style="text-align:center;font-size:20px"></div>'+
     '<div><div class="dl">Muscle</div><select id="ne-mg" class="inp"><option value="chest">Chest</option><option value="back">Back</option><option value="legs">Legs</option><option value="shoulders">Shoulders</option><option value="arms">Arms</option><option value="core">Core</option><option value="other">Other</option></select></div></div>'+
@@ -2344,7 +2344,7 @@ async function svNewExercise(wid){
   var img=document.getElementById("ne-img").value.trim()||null;
   var rs=parseInt(document.getElementById("ne-rs").value)||90;
   var r=await A("POST","/api/exercises",{name:n,emoji:emoji,muscle_group:mg,image_url:img,rest_seconds:rs});
-  if(!r||!r.id){toast(t("ts_failed"));return}
+  if(!r||!r.id){toast(tr("ts_failed"));return}
   // Reload bundle to get new exercise into D.exercises
   await load();
   // Then add it to workout
@@ -2359,14 +2359,14 @@ function startRestTimer(seconds){
   el.style.display="flex";
   function tick(){
     if(remaining<=0){
-      el.innerHTML='<span>✓ '+t("wx_rest_done")+'</span><button onclick="_clearRestTimer()" style="background:rgba(255,255,255,.2);color:#fff;border:none;padding:4px 12px;border-radius:8px;cursor:pointer;font-weight:700">×</button>';
+      el.innerHTML='<span>✓ '+tr("wx_rest_done")+'</span><button onclick="_clearRestTimer()" style="background:rgba(255,255,255,.2);color:#fff;border:none;padding:4px 12px;border-radius:8px;cursor:pointer;font-weight:700">×</button>';
       hp("ok");
       setTimeout(_clearRestTimer,3000);
       return;
     }
     var mm=Math.floor(remaining/60),ss=remaining%60;
     var time=mm+":"+String(ss).padStart(2,"0");
-    el.innerHTML='<span>⏱ '+t("wx_rest")+': '+time+'</span><button onclick="_clearRestTimer()" style="background:rgba(255,255,255,.2);color:#fff;border:none;padding:4px 12px;border-radius:8px;cursor:pointer;font-weight:700">'+t("wx_skip")+'</button>';
+    el.innerHTML='<span>⏱ '+tr("wx_rest")+': '+time+'</span><button onclick="_clearRestTimer()" style="background:rgba(255,255,255,.2);color:#fff;border:none;padding:4px 12px;border-radius:8px;cursor:pointer;font-weight:700">'+tr("wx_skip")+'</button>';
     remaining--;
   }
   tick();
@@ -2417,7 +2417,7 @@ async function openTrainStats(){
       h+='<div class="c"><span style="font-size:24px">'+p.emoji+'</span><div class="bd"><div class="tt" style="font-weight:600">'+es(p.name)+'</div><div class="mt">'+p.weight+'kg × '+p.reps+' · <span style="color:var(--ht)">est 1RM '+oneRm+'kg</span> · '+fD(p.date).date+'</div></div></div>';
     });
   }
-  oMC(t("mt_progress"),h,{ic:"chart"});
+  oMC(tr("mt_progress"),h,{ic:"chart"});
 }
 
 // Per-exercise progression chart
@@ -2523,9 +2523,9 @@ function _evtCountdown(ev, todayStr){
 }
 
 function rEvts(){
-if(!D.events.length)return em(icon("clock",48,1.8),t("es_no_events_t"),t("es_no_events_s"))+rEvtAddBtn();
+if(!D.events.length)return em(icon("clock",48,1.8),tr("es_no_events_t"),tr("es_no_events_s"))+rEvtAddBtn();
 var evts=D.events;if(searchQ)evts=evts.filter(function(e){return matchQ(e.text)});
-if(!evts.length)return rEvtAddBtn()+em(icon("clock",48,1.8),t("es_no_match_t"),t("es_no_match_s"));
+if(!evts.length)return rEvtAddBtn()+em(icon("clock",48,1.8),tr("es_no_match_t"),tr("es_no_match_s"));
 // Categorize: ongoing (today between start and end), upcoming (start > today), past (end < today)
 var todayStr=td();
 var current=[],future=[],past=[];
@@ -2581,29 +2581,29 @@ if(_evtsFirstRender&&highId&&!searchQ){
   });
 }
 return h}
-function rEvtAddBtn(){return '<button class="btn btn-s" style="margin:3px 0 16px" onclick="oMoEvt()">+ '+t("mt_add_event")+'</button>'}
-async function dEv(id){hp();await A("DELETE","/api/events/"+id);await load();toast("🗑 "+t("ts_deleted"))}
+function rEvtAddBtn(){return '<button class="btn btn-s" style="margin:3px 0 16px" onclick="oMoEvt()">+ '+tr("mt_add_event")+'</button>'}
+async function dEv(id){hp();await A("DELETE","/api/events/"+id);await load();toast("🗑 "+tr("ts_deleted"))}
 
 // ═══════════════════════════════════════════════════════════
 // BIRTHDAYS (hamburger page)
 // ═══════════════════════════════════════════════════════════
 function rBdays(){
-if(!D.birthdays.length)return em(icon("cake",48,1.8),t("es_no_birthdays_t"),t("es_no_birthdays_s"))+rBdAddBtn();
+if(!D.birthdays.length)return em(icon("cake",48,1.8),tr("es_no_birthdays_t"),tr("es_no_birthdays_s"))+rBdAddBtn();
 var bdays=D.birthdays;if(searchQ)bdays=bdays.filter(function(b){return matchQ(b.name)});
 var h=rBdAddBtn();bdays.forEach(function(b){
 var rightTxt=b.days_until===0?"Today! 🎉":b.days_until===1?"Tomorrow":"in "+b.days_until+"d";
 var tone=b.days_until===0?"tone-ok":b.days_until<=7?"tone-wn":"";
 var dateTxt=b.birth_date.split("-").slice(1).reverse().join(".");
 h+='<div class="lc"><div class="lc-i acc-wn">'+b.emoji+'</div><div class="lc-bd"><div class="lc-tt">'+es(b.name)+'</div><div class="lc-mt">🎂 '+dateTxt+'</div></div><span class="lc-rt '+tone+'">'+rightTxt+'</span><button class="bi" onclick="edBd('+b.id+')" style="margin-left:4px">'+I.ed+'</button><button class="bi" onclick="dlBd('+b.id+')">'+I.tr+'</button></div>'});return h}
-function rBdAddBtn(){return '<button class="btn btn-s" style="margin-bottom:16px" onclick="oMoBd()">+ '+t("mt_add_bday")+'</button>'}
-async function dlBd(id){hp();await A("DELETE","/api/birthdays/"+id);await load();toast("🗑 "+t("ts_deleted"))}
-function edBd(id){var b=D.birthdays.find(function(x){return x.id===id});if(!b)return;_bdRems=(b.reminders||[]).map(function(r){return{days_before:r.days_before,time:r.time||"09:00"}});oMC(t("mt_edit_bday"),'<input class="inp" id="bd-n" value="'+es(b.name)+'"><input class="inp" id="bd-e" value="'+b.emoji+'" style="width:80px"><div class="lb">'+t("g_reminders")+'</div><div id="brl">'+bdRemPk()+'</div><button class="btn" onclick="svBd('+id+')">'+t("btn_save")+'</button>',{ic:"cake"})}
+function rBdAddBtn(){return '<button class="btn btn-s" style="margin-bottom:16px" onclick="oMoBd()">+ '+tr("mt_add_bday")+'</button>'}
+async function dlBd(id){hp();await A("DELETE","/api/birthdays/"+id);await load();toast("🗑 "+tr("ts_deleted"))}
+function edBd(id){var b=D.birthdays.find(function(x){return x.id===id});if(!b)return;_bdRems=(b.reminders||[]).map(function(r){return{days_before:r.days_before,time:r.time||"09:00"}});oMC(tr("mt_edit_bday"),'<input class="inp" id="bd-n" value="'+es(b.name)+'"><input class="inp" id="bd-e" value="'+b.emoji+'" style="width:80px"><div class="lb">'+tr("g_reminders")+'</div><div id="brl">'+bdRemPk()+'</div><button class="btn" onclick="svBd('+id+')">'+tr("btn_save")+'</button>',{ic:"cake"})}
 async function svBd(id){var n=document.getElementById("bd-n").value.trim();var e=document.getElementById("bd-e").value.trim();if(!n)return;await A("PUT","/api/birthdays/"+id,{name:n,emoji:e,reminders:_bdRems});cMo();hp();await load()}
 
 // ═══════════════════════════════════════════════════════════
 // CLEANING (hamburger page)
 // ═══════════════════════════════════════════════════════════
-function rC(){if(!D.zones.length)return em(icon("broom",48,1.8),t("es_no_zones_t"),t("es_no_zones_s"))+'<button class="btn" onclick="shAZ()">+ '+t("mt_add_zone")+'</button>';
+function rC(){if(!D.zones.length)return em(icon("broom",48,1.8),tr("es_no_zones_t"),tr("es_no_zones_s"))+'<button class="btn" onclick="shAZ()">+ '+tr("mt_add_zone")+'</button>';
 var dirty=D.zones.filter(function(z){return z.dirty}),clean=D.zones.filter(function(z){return!z.dirty});
 if(searchQ){dirty=dirty.filter(function(z){return matchQ(z.name)});clean=clean.filter(function(z){return matchQ(z.name)})}
 var h="";
@@ -2628,7 +2628,7 @@ if(!isOpen)return h+'</div>';
 h+='<div class="zn-tasks">';
 (z.tasks||[]).forEach(function(t){var resetInfo=t.reset_days?t.reset_days+"d":"7d";var daysInfo="";if(t.done&&t.last_done)daysInfo=" · "+fD(t.last_done).full;
 h+='<div class="zt"><div class="cb cb-s '+(t.done?"cb-k":"cb-o")+'" onclick="tgZT('+t.id+')">'+(t.done?I.ck:"")+'</div><span class="zt-t'+(t.done?" dn":"")+'">'+es(t.text)+'</span><span class="zt-mt">'+resetInfo+daysInfo+'</span>'+(t.assigned_to?mAv(t.assigned_to,20):"")+'<button class="bi" onclick="edZT('+t.id+')" style="padding:3px">'+I.ed+'</button><button class="bi" onclick="dZT('+t.id+')">'+I.x+'</button></div>'});
-h+='<div class="za"><input id="zti-'+z.id+'" placeholder="'+t("cl_add_task")+'" onkeydown="if(event.key===\'Enter\')aZT('+z.id+')"><button onclick="aZT('+z.id+')">Add</button></div>';
+h+='<div class="za"><input id="zti-'+z.id+'" placeholder="'+tr("cl_add_task")+'" onkeydown="if(event.key===\'Enter\')aZT('+z.id+')"><button onclick="aZT('+z.id+')">Add</button></div>';
 h+='</div>';
 h+='<button class="zn-del" onclick="dlZn('+z.id+')">Delete zone</button>';
 h+='</div>';return h}
@@ -2636,11 +2636,11 @@ async function tgZT(id){hp();await A("PATCH","/api/cleaning/tasks/"+id+"/toggle"
 async function dZT(id){hp();await A("DELETE","/api/cleaning/tasks/"+id);await load()}
 async function aZT(zid){var i=document.getElementById("zti-"+zid);if(!i||!i.value.trim())return;await A("POST","/api/cleaning/zones/"+zid+"/tasks",{text:i.value.trim()});hp();await load()}
 async function dlZn(id){if(!confirm("Delete zone?"))return;await A("DELETE","/api/cleaning/zones/"+id);hp();await load()}
-function edZn(zid){var z=D.zones.find(function(x){return x.id===zid});if(!z)return;_assign=z.assigned_to||0;_zRems=(z.reminders||[]).map(function(r){return r.remind_at});oMC("Edit Zone",'<input class="inp" id="ez-n" value="'+es(z.name)+'"><div class="dr"><div><div class="dl">Emoji</div><input class="inp" id="ez-i" value="'+z.icon+'" style="text-align:center;font-size:24px"></div></div><div class="lb">'+t("g_assigned_to")+'</div>'+assignPk("ezap",z.assigned_to)+'<div class="lb">'+t("g_reminders")+'</div><div id="zrw">'+zRemPk()+'</div><button class="btn" onclick="svZn('+zid+')">Save</button>',{ic:"broom"})}
+function edZn(zid){var z=D.zones.find(function(x){return x.id===zid});if(!z)return;_assign=z.assigned_to||0;_zRems=(z.reminders||[]).map(function(r){return r.remind_at});oMC("Edit Zone",'<input class="inp" id="ez-n" value="'+es(z.name)+'"><div class="dr"><div><div class="dl">Emoji</div><input class="inp" id="ez-i" value="'+z.icon+'" style="text-align:center;font-size:24px"></div></div><div class="lb">'+tr("g_assigned_to")+'</div>'+assignPk("ezap",z.assigned_to)+'<div class="lb">'+tr("g_reminders")+'</div><div id="zrw">'+zRemPk()+'</div><button class="btn" onclick="svZn('+zid+')">Save</button>',{ic:"broom"})}
 async function svZn(zid){var n=document.getElementById("ez-n").value.trim();var i=document.getElementById("ez-i").value.trim();if(!n)return;await A("PUT","/api/cleaning/zones/"+zid,{name:n,icon:i,assigned_to:_assign||null,reminders:_zRems});cMo();hp();await load()}
-function edZT(tid){var zt=null;D.zones.forEach(function(z){(z.tasks||[]).forEach(function(x){if(x.id===tid)zt=x})});if(!zt)return;_assign=zt.assigned_to||0;oMC(t("mt_edit_zone_task"),'<input class="inp" id="zt-t" value="'+es(zt.text)+'"><div class="dr"><div><div class="dl">'+t("cl_reset_days")+'</div><input class="inp" id="zt-d" type="number" value="'+(zt.reset_days||7)+'" min="1" max="90"></div></div><div class="lb">'+t("g_assigned_to")+'</div>'+assignPk("ztap",zt.assigned_to)+'<button class="btn" onclick="svZT('+tid+')">'+t("btn_save")+'</button>',{ic:"broom"})}
+function edZT(tid){var zt=null;D.zones.forEach(function(z){(z.tasks||[]).forEach(function(x){if(x.id===tid)zt=x})});if(!zt)return;_assign=zt.assigned_to||0;oMC(tr("mt_edit_zone_task"),'<input class="inp" id="zt-t" value="'+es(zt.text)+'"><div class="dr"><div><div class="dl">'+tr("cl_reset_days")+'</div><input class="inp" id="zt-d" type="number" value="'+(zt.reset_days||7)+'" min="1" max="90"></div></div><div class="lb">'+tr("g_assigned_to")+'</div>'+assignPk("ztap",zt.assigned_to)+'<button class="btn" onclick="svZT('+tid+')">'+tr("btn_save")+'</button>',{ic:"broom"})}
 async function svZT(tid){var text=document.getElementById("zt-t").value.trim();var rd=parseInt(document.getElementById("zt-d").value)||7;if(!text)return;await A("PUT","/api/cleaning/tasks/"+tid,{text:text,icon:"🧹",assigned_to:_assign||null,reset_days:rd});cMo();hp();await load()}
-function shAZ(){_assign=0;oMC(t("mt_add_zone"),'<input class="inp" id="zn" placeholder="'+t("f_name")+'"><input class="inp" id="zic" placeholder="🍳" style="width:80px"><div class="lb">'+t("f_assigned_to")+'</div>'+assignPk("zap",null)+'<button class="btn" onclick="doAZ()">'+t("btn_add")+'</button>',{ic:"broom"})}
+function shAZ(){_assign=0;oMC(tr("mt_add_zone"),'<input class="inp" id="zn" placeholder="'+tr("f_name")+'"><input class="inp" id="zic" placeholder="🍳" style="width:80px"><div class="lb">'+tr("f_assigned_to")+'</div>'+assignPk("zap",null)+'<button class="btn" onclick="doAZ()">'+tr("btn_add")+'</button>',{ic:"broom"})}
 async function doAZ(){var n=document.getElementById("zn").value.trim();if(!n)return;var i=document.getElementById("zic").value.trim()||"🏠";await A("POST","/api/cleaning/zones",{name:n,icon:i,assigned_to:_assign||null});cMo();hp();await load()}
 
 // ═══════════════════════════════════════════════════════════
@@ -3080,12 +3080,12 @@ function _calRefresh(){var iso=_calDayIso;_calCache={};if(_calMonth)loadCalMonth
 // Add Task / Event from calendar day view (pre-fills the date)
 function oMoTkDay(iso){
 _assign=0;_pri="normal";_rems=[];
-oMC("New Task",'<input class="inp" id="f-t" placeholder="What needs to be done?"><div class="lb">'+t("g_assign_to")+'</div>'+assignPk("ap",null)+'<div class="lb">'+t("f_priority")+'</div><div class="or">'+["low","normal","high"].map(function(p){return '<button class="ob ob-pri-'+p+' '+(p==="normal"?"s":"")+'" onclick="_pri=\''+p+'\';this.parentNode.querySelectorAll(\'.ob\').forEach(function(b){b.classList.remove(\'s\')});this.classList.add(\'s\')">'+p[0].toUpperCase()+p.slice(1)+'</button>'}).join("")+'</div><div class="lb">'+t("g_due_date")+'</div><div class="dr"><div><input type="date" id="f-dd" value="'+iso+'"></div></div><div class="lb">'+t("g_reminders")+'</div><div id="rw">'+remPk()+'</div><button class="btn" onclick="doTkCal()">Add Task</button>',{ic:"clipboard"});
+oMC("New Task",'<input class="inp" id="f-t" placeholder="What needs to be done?"><div class="lb">'+tr("g_assign_to")+'</div>'+assignPk("ap",null)+'<div class="lb">'+tr("f_priority")+'</div><div class="or">'+["low","normal","high"].map(function(p){return '<button class="ob ob-pri-'+p+' '+(p==="normal"?"s":"")+'" onclick="_pri=\''+p+'\';this.parentNode.querySelectorAll(\'.ob\').forEach(function(b){b.classList.remove(\'s\')});this.classList.add(\'s\')">'+p[0].toUpperCase()+p.slice(1)+'</button>'}).join("")+'</div><div class="lb">'+tr("g_due_date")+'</div><div class="dr"><div><input type="date" id="f-dd" value="'+iso+'"></div></div><div class="lb">'+tr("g_reminders")+'</div><div id="rw">'+remPk()+'</div><button class="btn" onclick="doTkCal()">Add Task</button>',{ic:"clipboard"});
 document.getElementById("mo").classList.add("op");
 setTimeout(function(){var i=document.querySelector("#mb input.inp");if(i)i.focus()},300)
 }
 function oMoEvtDay(iso){
-oMC("New Event",'<input class="inp" id="f-t" placeholder="Event name"><div class="lb">Start</div><div class="dr"><div><div class="dl">'+t("f_date")+'</div><input type="date" id="f-d" value="'+iso+'"></div><div><div class="dl">'+t("g_time")+'</div><input type="time" id="f-tm" value="12:00" step="60"></div></div><div class="lb">End <span style="color:var(--ht);font-weight:400;font-size:11px">(extend for multi-day events)</span></div><div class="dr"><div><input type="date" id="f-ed" value="'+iso+'"></div><div><input type="time" id="f-et" value="13:00" step="60"></div></div><button class="btn" onclick="doEvCal()">Add Event</button>',{ic:"clock"});
+oMC("New Event",'<input class="inp" id="f-t" placeholder="Event name"><div class="lb">Start</div><div class="dr"><div><div class="dl">'+tr("f_date")+'</div><input type="date" id="f-d" value="'+iso+'"></div><div><div class="dl">'+tr("g_time")+'</div><input type="time" id="f-tm" value="12:00" step="60"></div></div><div class="lb">End <span style="color:var(--ht);font-weight:400;font-size:11px">(extend for multi-day events)</span></div><div class="dr"><div><input type="date" id="f-ed" value="'+iso+'"></div><div><input type="time" id="f-et" value="13:00" step="60"></div></div><button class="btn" onclick="doEvCal()">Add Event</button>',{ic:"clock"});
 document.getElementById("mo").classList.add("op");
 setTimeout(function(){var i=document.querySelector("#mb input.inp");if(i)i.focus()},300)
 }
@@ -3099,7 +3099,7 @@ var e=(D.events||[]).find(function(x){return x.id===id});if(!e)return;
 var sd=(e.event_date||"").split(" "),ed=(e.end_date||"").split(" ");
 var sDate=sd[0]||"",sTime=((sd[1]||"12:00")+"").slice(0,5);
 var eDate=ed[0]||sDate,eTime=((ed[1]||sTime)+"").slice(0,5);
-oMC("Edit Event",'<input class="inp" id="f-t" value="'+es(e.text)+'"><div class="lb">Start</div><div class="dr"><div><div class="dl">'+t("f_date")+'</div><input type="date" id="f-d" value="'+sDate+'"></div><div><div class="dl">'+t("g_time")+'</div><input type="time" id="f-tm" value="'+sTime+'" step="60"></div></div><div class="lb">End <span style="color:var(--ht);font-weight:400;font-size:11px">(extend for multi-day)</span></div><div class="dr"><div><input type="date" id="f-ed" value="'+eDate+'"></div><div><input type="time" id="f-et" value="'+eTime+'" step="60"></div></div><button class="btn" onclick="svEv('+id+')">Save</button><div style="margin-top:16px;padding-top:16px;border-top:1px solid var(--bd)"><button class="btn btn-s" style="color:var(--ac);background:transparent;border:1.5px solid var(--bd)" onclick="dEv('+id+');cMo();if(_calEditCb){var cb=_calEditCb;_calEditCb=null;cb()}">Delete Event</button></div>',{ic:"clock"})
+oMC("Edit Event",'<input class="inp" id="f-t" value="'+es(e.text)+'"><div class="lb">Start</div><div class="dr"><div><div class="dl">'+tr("f_date")+'</div><input type="date" id="f-d" value="'+sDate+'"></div><div><div class="dl">'+tr("g_time")+'</div><input type="time" id="f-tm" value="'+sTime+'" step="60"></div></div><div class="lb">End <span style="color:var(--ht);font-weight:400;font-size:11px">(extend for multi-day)</span></div><div class="dr"><div><input type="date" id="f-ed" value="'+eDate+'"></div><div><input type="time" id="f-et" value="'+eTime+'" step="60"></div></div><button class="btn" onclick="svEv('+id+')">Save</button><div style="margin-top:16px;padding-top:16px;border-top:1px solid var(--bd)"><button class="btn btn-s" style="color:var(--ac);background:transparent;border:1.5px solid var(--bd)" onclick="dEv('+id+');cMo();if(_calEditCb){var cb=_calEditCb;_calEditCb=null;cb()}">Delete Event</button></div>',{ic:"clock"})
 }
 async function svEv(id){var t=document.getElementById("f-t").value.trim();var d=document.getElementById("f-d").value;var tm=document.getElementById("f-tm").value||"12:00";if(!t||!d)return;var ed=document.getElementById("f-ed")?document.getElementById("f-ed").value:"";var et=document.getElementById("f-et")?document.getElementById("f-et").value:"";var end=ed?ed+" "+(et||tm):null;await A("PUT","/api/events/"+id,{text:t,event_date:d+" "+tm,end_date:end});cMo();hp();await load();if(_calEditCb){var cb=_calEditCb;_calEditCb=null;cb()}}
 
@@ -3124,21 +3124,21 @@ function _setRow(opts){
   return '<div class="'+cls+'"'+ocl+(opts.id?' id="'+opts.id+'"':"")+(opts.style?' style="'+opts.style+'"':"")+'>'+iconHtml+'<div class="lc-bd"><div class="lc-tt">'+opts.title+'</div>'+sub+'</div>'+(opts.right||'')+(opts.onclick?'<span class="lc-chev">›</span>':"")+'</div>'
 }
 if(fS&&fS.joined){
-  h+='<div class="sc"><span class="sc-l">'+t("set_family")+'</span></div>';
-  h+=_setRow({ico:"user",acc:"acc-ok",title:es(fS.name||"My Family"),subtitle:t("set_family")});
-  h+='<div class="invite-card"><div class="invite-lb">'+t("set_invite_code")+'</div><div class="invite-cd">'+(fS.invite_code||"...")+'</div><div class="invite-hint">'+t("set_share_hint")+'</div></div>';
-  h+='<div class="sc"><span class="sc-l">'+t("set_members")+'<span class="sc-cnt">'+(fS.members||[]).length+'</span></span></div>';
+  h+='<div class="sc"><span class="sc-l">'+tr("set_family")+'</span></div>';
+  h+=_setRow({ico:"user",acc:"acc-ok",title:es(fS.name||"My Family"),subtitle:tr("set_family")});
+  h+='<div class="invite-card"><div class="invite-lb">'+tr("set_invite_code")+'</div><div class="invite-cd">'+(fS.invite_code||"...")+'</div><div class="invite-hint">'+tr("set_share_hint")+'</div></div>';
+  h+='<div class="sc"><span class="sc-l">'+tr("set_members")+'<span class="sc-cnt">'+(fS.members||[]).length+'</span></span></div>';
   (fS.members||[]).forEach(function(m){
     var right='<button class="bi" onclick="edMe('+m.user_id+',\''+es(m.user_name)+'\',\''+m.emoji+'\',\''+m.color+'\')">'+I.ed+'</button>';
     h+='<div class="lc lc-mem">'+mAv(m.user_id,44)+'<div class="lc-bd"><div class="lc-tt">'+es(m.user_name)+'</div><div class="lc-mem-strip" style="background:'+m.color+'"></div></div>'+right+'</div>';
   });
-  h+='<div style="margin:14px 0 22px;display:flex;gap:8px"><button class="btn btn-s" style="font-size:13px;flex:1" onclick="if(confirm(\''+t("set_leave_family")+'?\'))leaveFam()">'+t("set_leave_family")+'</button>'+
+  h+='<div style="margin:14px 0 22px;display:flex;gap:8px"><button class="btn btn-s" style="font-size:13px;flex:1" onclick="if(confirm(\''+tr("set_leave_family")+'?\'))leaveFam()">'+tr("set_leave_family")+'</button>'+
   (!iD&&_getSess()?'<button class="btn btn-s" style="font-size:13px;flex:1;background:transparent;border:1.5px solid var(--bd);color:var(--tx)" onclick="_logoutPwa()">Log out</button>':'')+
   '</div>';
 }
 // ─── Language picker (per-member, v8.32.0) ─────────────────────────
 // Two big buttons EN/RU; current one filled with theme primary, the other outlined.
-h+='<div class="sc"><span class="sc-l">'+t("set_language")+'</span></div>';
+h+='<div class="sc"><span class="sc-l">'+tr("set_language")+'</span></div>';
 h+='<div style="display:flex;gap:8px;margin-bottom:18px">';
 ['en','ru'].forEach(function(code){
   var sel=(_lang===code);
@@ -3147,30 +3147,30 @@ h+='<div style="display:flex;gap:8px;margin-bottom:18px">';
 });
 h+='</div>';
 var curTh=TH[cTheme]||TH.midnight;
-h+='<div class="sc"><span class="sc-l">'+t("set_appearance")+'</span></div>';
+h+='<div class="sc"><span class="sc-l">'+tr("set_appearance")+'</span></div>';
 var thAcc=curTh.pr;
 var thStyle='background:linear-gradient(135deg,color-mix(in srgb,'+thAcc+' 38%,transparent),color-mix(in srgb,'+thAcc+' 10%,transparent));border-color:color-mix(in srgb,'+thAcc+' 48%,transparent);color:'+thAcc+';box-shadow:inset 0 1px 0 color-mix(in srgb,'+thAcc+' 20%,transparent),0 2px 12px color-mix(in srgb,'+thAcc+' 22%,transparent)';
-h+=_setRow({ico:"palette",iconStyle:thStyle,title:t("th_"+cTheme)||curTh.n,subtitle:t("set_theme_sub")+" · "+Object.keys(TH).length+" · "+curTh.e,onclick:"openThemePicker()"});
-h+='<div class="sc"><span class="sc-l">'+t("set_notifications")+'</span></div>';
-h+=_setRow({ico:"bl",acc:"acc-wn",title:t("set_morning_digest"),subtitle:(D.settings.digest_time||"09:00")+" · "+t("set_morning_digest_sub"),onclick:"openDigestCfg()"});
+h+=_setRow({ico:"palette",iconStyle:thStyle,title:tr("th_"+cTheme)||curTh.n,subtitle:tr("set_theme_sub")+" · "+Object.keys(TH).length+" · "+curTh.e,onclick:"openThemePicker()"});
+h+='<div class="sc"><span class="sc-l">'+tr("set_notifications")+'</span></div>';
+h+=_setRow({ico:"bl",acc:"acc-wn",title:tr("set_morning_digest"),subtitle:(D.settings.digest_time||"09:00")+" · "+tr("set_morning_digest_sub"),onclick:"openDigestCfg()"});
 var nExp=D.categories.filter(function(c){return c.type==="expense"}).length;
 var nInc=D.categories.filter(function(c){return c.type==="income"}).length;
-h+='<div class="sc"><span class="sc-l">'+t("set_money")+'</span></div>';
-h+=_setRow({ico:"list",acc:"acc-pr",title:t("set_categories"),subtitle:nExp+" expense · "+nInc+" income",onclick:"openCatMgr()"});
-h+='<div class="sc"><span class="sc-l">'+t("set_learning")+'</span></div>';
+h+='<div class="sc"><span class="sc-l">'+tr("set_money")+'</span></div>';
+h+=_setRow({ico:"list",acc:"acc-pr",title:tr("set_categories"),subtitle:nExp+" expense · "+nInc+" income",onclick:"openCatMgr()"});
+h+='<div class="sc"><span class="sc-l">'+tr("set_learning")+'</span></div>';
 var _curLearn=_wordsState&&_wordsState.mode==="ru"?"🇷🇺 Russian":"🇬🇧 English";
-h+=_setRow({iconCustom:'<span style="font-size:22px">🎓</span>',acc:"acc-pr",title:t("set_learning_lang"),subtitle:_curLearn,onclick:"openLearnModePicker()"});
-h+=_setRow({ico:"book",acc:"acc-pr",title:t("set_words_editor"),subtitle:t("set_words_editor_sub"),onclick:"openWordsMgr()"});
-h+=_setRow({iconCustom:'<span style="font-size:22px">🔄</span>',acc:"acc-ac",title:t("set_reset_progress"),subtitle:t("set_reset_progress_sub"),onclick:"_resetWordsProgress()"});
-h+='<div class="sc"><span class="sc-l">'+t("set_integrations")+'</span></div>';
+h+=_setRow({iconCustom:'<span style="font-size:22px">🎓</span>',acc:"acc-pr",title:tr("set_learning_lang"),subtitle:_curLearn,onclick:"openLearnModePicker()"});
+h+=_setRow({ico:"book",acc:"acc-pr",title:tr("set_words_editor"),subtitle:tr("set_words_editor_sub"),onclick:"openWordsMgr()"});
+h+=_setRow({iconCustom:'<span style="font-size:22px">🔄</span>',acc:"acc-ac",title:tr("set_reset_progress"),subtitle:tr("set_reset_progress_sub"),onclick:"_resetWordsProgress()"});
+h+='<div class="sc"><span class="sc-l">'+tr("set_integrations")+'</span></div>';
 h+=_setRow({iconCustom:'<span style="font-size:22px">🔵</span>',acc:"",title:"Trello Sync",subtitle:"Board: Работа",onclick:"syncTrello()",right:'<span id="trello-btn" class="lc-rt" style="background:color-mix(in srgb,var(--pr) 16%,transparent);color:var(--pr)">Sync Now</span>'});
 if(_pwaPrompt){
   h+=_setRow({iconCustom:'<span style="font-size:22px">📱</span>',acc:"",title:"Install App",subtitle:"Add to home screen — works offline",onclick:"installPWA()",right:'<span class="lc-rt" style="background:color-mix(in srgb,var(--pr) 16%,transparent);color:var(--pr)">Install</span>'});
 }else if(!iD && /iPhone|iPad|iPod/.test(navigator.userAgent||"")){
   h+='<div class="lc"><div class="lc-i acc-pr"><span style="font-size:22px">📱</span></div><div class="lc-bd"><div class="lc-tt">Install on iOS</div><div class="lc-mt">Tap <b>Share</b> ⬆ → <b>Add to Home Screen</b></div></div></div>';
 }
-h+='<div class="sc"><span class="sc-l">'+t("set_developer")+'</span></div>';
-h+=_setRow({ico:"debug",acc:"acc-ac",title:t("set_debug")+" "+(dbgOn?"ON":"OFF"),onclick:"dbgOn=!dbgOn;document.getElementById(\'dbg\').classList.toggle(\'hidden\',!dbgOn);ren()"});
+h+='<div class="sc"><span class="sc-l">'+tr("set_developer")+'</span></div>';
+h+=_setRow({ico:"debug",acc:"acc-ac",title:tr("set_debug")+" "+(dbgOn?"ON":"OFF"),onclick:"dbgOn=!dbgOn;document.getElementById(\'dbg\').classList.toggle(\'hidden\',!dbgOn);ren()"});
 h+='<div style="margin-top:18px;text-align:center;font-size:11px;color:var(--ht);letter-spacing:.3px">Family HQ v8.39.1</div>';return h}
 async function setTh(id){
   if(id==="custom"){
@@ -3190,11 +3190,11 @@ function openThemePicker(){
   h+='<div class="tc" onclick="setTh(\'custom\')" style="background:'+dt.cd+';border:2px solid '+(sel?dt.pr:dt.bd)+'"><div class="te" style="color:'+dt.pr+'">'+icon("palette",24,2.2)+'</div><div class="tn" style="color:'+dt.tx+'">Custom</div><div class="td">'+[dt.pr,dt.ac,dt.ok,dt.wn].map(function(c){return '<div class="tdd" style="background:'+c+'"></div>'}).join("")+'</div></div>';
   Object.keys(TH).forEach(function(id){
     if(id==="custom")return; // already rendered above
-    var th=TH[id];var sl=cTheme===id;var thName=t("th_"+id)||th.n;
+    var th=TH[id];var sl=cTheme===id;var thName=tr("th_"+id)||th.n;
     h+='<div class="tc" onclick="setTh(\''+id+'\');cMo()" style="background:'+th.cd+';border:2px solid '+(sl?th.pr:th.bd)+'"><div class="te">'+th.e+'</div><div class="tn" style="color:'+th.tx+'">'+thName+'</div><div class="td">'+[th.pr,th.ac,th.ok,th.wn].map(function(c){return '<div class="tdd" style="background:'+c+'"></div>'}).join("")+'</div></div>'
   });
   h+='</div>';
-  oMC(t("mt_choose_theme"),h,{ic:"palette"})
+  oMC(tr("mt_choose_theme"),h,{ic:"palette"})
 }
 
 // ─── Custom theme editor ─────────────────────────────────────────
@@ -3207,7 +3207,7 @@ function openCustomThemeEditor(){
   _customDraft=_getMyCustomPalette()||_seedCustomFromTheme(seedFrom);
   // Apply draft immediately so user sees live preview
   aT("custom");
-  oMC(t("mt_custom_theme"),_customEditorHtml(),{ic:"palette"})
+  oMC(tr("mt_custom_theme"),_customEditorHtml(),{ic:"palette"})
 }
 function _customEditorHtml(){
   var p=_customDraft;
@@ -3281,7 +3281,7 @@ async function _saveCustomTheme(){
 }
 async function setDg(v){await A("PATCH","/api/settings",{digest_time:v});hp()}
 var _catTab="expense";
-function openCatMgr(){_catTab="expense";oMC(t("mt_categories"),catMgrHtml(),{ic:"list"})}
+function openCatMgr(){_catTab="expense";oMC(tr("mt_categories"),catMgrHtml(),{ic:"list"})}
 function catMgrHtml(){
 var h='<div class="tabs" style="margin-bottom:16px"><button class="tab '+(_catTab==="expense"?"a":"")+'" onclick="_catTab=\'expense\';document.getElementById(\'mb\').innerHTML=catMgrHtml()">💸 Expense</button><button class="tab '+(_catTab==="income"?"a":"")+'" onclick="_catTab=\'income\';document.getElementById(\'mb\').innerHTML=catMgrHtml()">💰 Income</button></div>';
 D.categories.filter(function(c){return c.type===_catTab}).forEach(function(c){
@@ -3298,11 +3298,11 @@ async function svMe(uid){var n=document.getElementById("me-n").value.trim();var 
 // MODAL
 // ═══════════════════════════════════════════════════════════
 function txCatRefresh(){var el=document.getElementById("tx-cats");if(!el)return;var cats=D.categories.filter(function(c){return c.type===window._txType});var h="";cats.forEach(function(c){h+='<button class="ob'+(window._txCat===c.id?" s":"")+'" onclick="window._txCat='+c.id+';this.parentNode.querySelectorAll(\'.ob\').forEach(function(b){b.classList.remove(\'s\')});this.classList.add(\'s\')">'+c.emoji+" "+es(c.name)+"</button>"});h+='<button class="ob" onclick="addCatInline()" style="border:1.5px dashed var(--ht)">+ New</button>';el.innerHTML=h;window._txCat=0}
-function addCatInline(){var ty=window._txType;oMC(t("mt_new_cat"),'<input class="inp" id="nc-n" placeholder="'+t("f_name")+'"><input class="inp" id="nc-e" placeholder="📦" value="📦" style="width:80px"><button class="btn" onclick="doAddCatInline(\''+ty+'\')">'+t("btn_create")+'</button>',{ic:"list"})}
+function addCatInline(){var ty=window._txType;oMC(tr("mt_new_cat"),'<input class="inp" id="nc-n" placeholder="'+tr("f_name")+'"><input class="inp" id="nc-e" placeholder="📦" value="📦" style="width:80px"><button class="btn" onclick="doAddCatInline(\''+ty+'\')">'+tr("btn_create")+'</button>',{ic:"list"})}
 async function doAddCatInline(type){var n=document.getElementById("nc-n").value.trim();var e=document.getElementById("nc-e").value.trim()||"📦";if(!n)return;await A("POST","/api/categories",{name:n,emoji:e,type:type});cMo();hp();await load();go("money");oMo()}
-function addCat(type){oMC(t("mt_new_cat"),'<input class="inp" id="nc-n" placeholder="'+t("f_name")+'"><input class="inp" id="nc-e" placeholder="📦" value="📦" style="width:80px"><button class="btn" onclick="doAddCat(\''+type+'\')">'+t("btn_create")+'</button>',{ic:"list"})}
+function addCat(type){oMC(tr("mt_new_cat"),'<input class="inp" id="nc-n" placeholder="'+tr("f_name")+'"><input class="inp" id="nc-e" placeholder="📦" value="📦" style="width:80px"><button class="btn" onclick="doAddCat(\''+type+'\')">'+tr("btn_create")+'</button>',{ic:"list"})}
 async function doAddCat(type){var n=document.getElementById("nc-n").value.trim();var e=document.getElementById("nc-e").value.trim()||"📦";if(!n)return;await A("POST","/api/categories",{name:n,emoji:e,type:type});cMo();hp();await load()}
-function edCat(cid){var c=D.categories.find(function(x){return x.id===cid});if(!c)return;oMC(t("mt_edit_cat"),'<input class="inp" id="ec-n" value="'+es(c.name)+'"><input class="inp" id="ec-e" value="'+c.emoji+'" style="width:80px"><button class="btn" onclick="svCat('+cid+')">'+t("btn_save")+'</button>',{ic:"list"})}
+function edCat(cid){var c=D.categories.find(function(x){return x.id===cid});if(!c)return;oMC(tr("mt_edit_cat"),'<input class="inp" id="ec-n" value="'+es(c.name)+'"><input class="inp" id="ec-e" value="'+c.emoji+'" style="width:80px"><button class="btn" onclick="svCat('+cid+')">'+tr("btn_save")+'</button>',{ic:"list"})}
 async function svCat(cid){var n=document.getElementById("ec-n").value.trim();var e=document.getElementById("ec-e").value.trim();if(!n)return;await A("PUT","/api/categories/"+cid,{name:n,emoji:e});cMo();hp();await load()}
 async function dlCat(cid){if(!confirm("Delete category?"))return;await A("DELETE","/api/categories/"+cid);hp();await load();toast("Deleted")}
 // oMC(title, body, opts?) — opts.ic = icon name to show in a tinted square left of the title
@@ -3322,24 +3322,24 @@ function cMo(){
 }
 
 // Event/Birthday add modals (from hamburger pages)
-function oMoEvt(){var dy=td();oMC(t("mt_add_event"),'<input class="inp" id="f-t" placeholder="'+t("f_name")+'"><div class="lb">'+t("g_start")+'</div><div class="dr"><div><div class="dl">'+t("f_date")+'</div><input type="date" id="f-d" value="'+dy+'" min="'+dy+'"></div><div><div class="dl">'+t("g_time")+'</div><input type="time" id="f-tm" value="12:00" step="60"></div></div><div class="lb">'+t("g_end_opt")+'</div><div class="dr"><div><input type="date" id="f-ed"></div><div><input type="time" id="f-et" step="60"></div></div><button class="btn" onclick="doEv()">'+t("btn_add")+'</button>',{ic:"clock"})}
-function oMoBd(){_bdRems=[{days_before:1,time:"09:00"},{days_before:0,time:"09:00"}];oMC(t("mt_add_bday"),'<input class="inp" id="bd-n" placeholder="'+t("f_name")+'"><input class="inp" id="bd-e" value="🎂" style="width:80px"><div class="lb">'+t("g_date_of_birth")+'</div><div class="dr"><div><input type="date" id="bd-d"></div></div><div class="lb">'+t("g_reminders")+'</div><div id="brl">'+bdRemPk()+'</div><button class="btn" onclick="doBd()">'+t("btn_add")+'</button>',{ic:"cake"})}
+function oMoEvt(){var dy=td();oMC(tr("mt_add_event"),'<input class="inp" id="f-t" placeholder="'+tr("f_name")+'"><div class="lb">'+tr("g_start")+'</div><div class="dr"><div><div class="dl">'+tr("f_date")+'</div><input type="date" id="f-d" value="'+dy+'" min="'+dy+'"></div><div><div class="dl">'+tr("g_time")+'</div><input type="time" id="f-tm" value="12:00" step="60"></div></div><div class="lb">'+tr("g_end_opt")+'</div><div class="dr"><div><input type="date" id="f-ed"></div><div><input type="time" id="f-et" step="60"></div></div><button class="btn" onclick="doEv()">'+tr("btn_add")+'</button>',{ic:"clock"})}
+function oMoBd(){_bdRems=[{days_before:1,time:"09:00"},{days_before:0,time:"09:00"}];oMC(tr("mt_add_bday"),'<input class="inp" id="bd-n" placeholder="'+tr("f_name")+'"><input class="inp" id="bd-e" value="🎂" style="width:80px"><div class="lb">'+tr("g_date_of_birth")+'</div><div class="dr"><div><input type="date" id="bd-d"></div></div><div class="lb">'+tr("g_reminders")+'</div><div id="brl">'+bdRemPk()+'</div><button class="btn" onclick="doBd()">'+tr("btn_add")+'</button>',{ic:"cake"})}
 
 // FAB handler
 function oMo(){_assign=0;_pri="normal";_rems=[];var dy=td();
 switch(tab){
 case"tasks":
-    if(taskTab==="recurring"){oMC(t("mt_add_recur"),'<input class="inp" id="f-t" placeholder="'+t("f_text")+'"><div class="lb">'+t("g_assign_to")+'</div>'+assignPk("ap",null)+'<div class="lb">'+t("g_schedule")+'</div><div class="or"><button class="ob s" onclick="document.getElementById(\'rr\').value=\'daily\';this.parentNode.querySelectorAll(\'.ob\').forEach(function(b){b.classList.remove(\'s\')});this.classList.add(\'s\');document.getElementById(\'wd\').classList.add(\'hidden\');document.getElementById(\'md\').classList.add(\'hidden\')">'+t("g_daily")+'</button><button class="ob" onclick="document.getElementById(\'rr\').value=\'weekly:\';this.parentNode.querySelectorAll(\'.ob\').forEach(function(b){b.classList.remove(\'s\')});this.classList.add(\'s\');document.getElementById(\'wd\').classList.remove(\'hidden\');document.getElementById(\'md\').classList.add(\'hidden\')">'+t("g_weekly")+'</button><button class="ob" onclick="document.getElementById(\'rr\').value=\'monthly:\';this.parentNode.querySelectorAll(\'.ob\').forEach(function(b){b.classList.remove(\'s\')});this.classList.add(\'s\');document.getElementById(\'md\').classList.remove(\'hidden\');document.getElementById(\'wd\').classList.add(\'hidden\')">'+t("g_monthly")+'</button></div><input type="hidden" id="rr" value="daily"><div id="wd" class="hidden"><div class="lb">'+t("g_days")+'</div><div class="or">'+["mon","tue","wed","thu","fri","sat","sun"].map(function(d){return '<button class="ob" onclick="this.classList.toggle(\'s\')">'+d+'</button>'}).join("")+'</div></div><div id="md" class="hidden"><div class="lb">'+t("g_day_of_month")+'</div><input class="inp" id="f-md" type="number" min="1" max="28" value="1"></div><button class="btn" onclick="doRec()">'+t("btn_create")+'</button>',{ic:"refresh"})}
-    else{oMC(t("mt_add_task"),'<input class="inp" id="f-t" placeholder="'+t("g_what_to_do")+'"><div class="lb">'+t("g_assign_to")+'</div>'+assignPk("ap",null)+'<div class="lb">'+t("f_priority")+'</div><div class="or">'+["low","normal","high"].map(function(p){return '<button class="ob ob-pri-'+p+' '+(p==="normal"?"s":"")+'" onclick="_pri=\''+p+'\';this.parentNode.querySelectorAll(\'.ob\').forEach(function(b){b.classList.remove(\'s\')});this.classList.add(\'s\')">'+t("p_"+p)+'</button>'}).join("")+'</div><div class="lb">'+t("g_due_date")+'</div><div class="dr"><div><input type="date" id="f-dd" min="'+dy+'"></div></div><div class="lb">'+t("g_reminders")+'</div><div id="rw">'+remPk()+'</div><button class="btn" onclick="doTk()">'+t("btn_add")+'</button>',{ic:"clipboard"})}break;
+    if(taskTab==="recurring"){oMC(tr("mt_add_recur"),'<input class="inp" id="f-t" placeholder="'+tr("f_text")+'"><div class="lb">'+tr("g_assign_to")+'</div>'+assignPk("ap",null)+'<div class="lb">'+tr("g_schedule")+'</div><div class="or"><button class="ob s" onclick="document.getElementById(\'rr\').value=\'daily\';this.parentNode.querySelectorAll(\'.ob\').forEach(function(b){b.classList.remove(\'s\')});this.classList.add(\'s\');document.getElementById(\'wd\').classList.add(\'hidden\');document.getElementById(\'md\').classList.add(\'hidden\')">'+tr("g_daily")+'</button><button class="ob" onclick="document.getElementById(\'rr\').value=\'weekly:\';this.parentNode.querySelectorAll(\'.ob\').forEach(function(b){b.classList.remove(\'s\')});this.classList.add(\'s\');document.getElementById(\'wd\').classList.remove(\'hidden\');document.getElementById(\'md\').classList.add(\'hidden\')">'+tr("g_weekly")+'</button><button class="ob" onclick="document.getElementById(\'rr\').value=\'monthly:\';this.parentNode.querySelectorAll(\'.ob\').forEach(function(b){b.classList.remove(\'s\')});this.classList.add(\'s\');document.getElementById(\'md\').classList.remove(\'hidden\');document.getElementById(\'wd\').classList.add(\'hidden\')">'+tr("g_monthly")+'</button></div><input type="hidden" id="rr" value="daily"><div id="wd" class="hidden"><div class="lb">'+tr("g_days")+'</div><div class="or">'+["mon","tue","wed","thu","fri","sat","sun"].map(function(d){return '<button class="ob" onclick="this.classList.toggle(\'s\')">'+d+'</button>'}).join("")+'</div></div><div id="md" class="hidden"><div class="lb">'+tr("g_day_of_month")+'</div><input class="inp" id="f-md" type="number" min="1" max="28" value="1"></div><button class="btn" onclick="doRec()">'+tr("btn_create")+'</button>',{ic:"refresh"})}
+    else{oMC(tr("mt_add_task"),'<input class="inp" id="f-t" placeholder="'+tr("g_what_to_do")+'"><div class="lb">'+tr("g_assign_to")+'</div>'+assignPk("ap",null)+'<div class="lb">'+tr("f_priority")+'</div><div class="or">'+["low","normal","high"].map(function(p){return '<button class="ob ob-pri-'+p+' '+(p==="normal"?"s":"")+'" onclick="_pri=\''+p+'\';this.parentNode.querySelectorAll(\'.ob\').forEach(function(b){b.classList.remove(\'s\')});this.classList.add(\'s\')">'+tr("p_"+p)+'</button>'}).join("")+'</div><div class="lb">'+tr("g_due_date")+'</div><div class="dr"><div><input type="date" id="f-dd" min="'+dy+'"></div></div><div class="lb">'+tr("g_reminders")+'</div><div id="rw">'+remPk()+'</div><button class="btn" onclick="doTk()">'+tr("btn_add")+'</button>',{ic:"clipboard"})}break;
 case"shop":
     // Enhanced: full form like edit
     var folderOpts='<button class="ob s" onclick="window._newShopFold=0;this.parentNode.querySelectorAll(\'.ob\').forEach(function(b){b.classList.remove(\'s\')});this.classList.add(\'s\')">None</button>';
     D.folders.forEach(function(f){folderOpts+='<button class="ob" onclick="window._newShopFold='+f.id+';this.parentNode.querySelectorAll(\'.ob\').forEach(function(b){b.classList.remove(\'s\')});this.classList.add(\'s\')">'+f.emoji+" "+es(f.name)+'</button>'});
     window._newShopFold=0;
-    oMC(t("mt_add_shop"),'<input class="inp" id="ns-n" placeholder="'+t("f_name")+'"><div class="dr"><div><div class="dl">'+t("f_quantity")+'</div><input class="inp" id="ns-q" placeholder="1kg"></div><div><div class="dl">'+t("f_price")+' (din.)</div><input class="inp" id="ns-p" type="number" placeholder="0"></div></div>'+(D.folders.length?'<div class="lb">'+t("f_folder")+'</div><div class="or">'+folderOpts+'</div>':'')+'<button class="btn" onclick="doShNew()">'+t("btn_add")+'</button>',{ic:"cart"});break;
+    oMC(tr("mt_add_shop"),'<input class="inp" id="ns-n" placeholder="'+tr("f_name")+'"><div class="dr"><div><div class="dl">'+tr("f_quantity")+'</div><input class="inp" id="ns-q" placeholder="1kg"></div><div><div class="dl">'+tr("f_price")+' (din.)</div><input class="inp" id="ns-p" type="number" placeholder="0"></div></div>'+(D.folders.length?'<div class="lb">'+tr("f_folder")+'</div><div class="or">'+folderOpts+'</div>':'')+'<button class="btn" onclick="doShNew()">'+tr("btn_add")+'</button>',{ic:"cart"});break;
 case"money":{
     _assign=0;window._txType="expense";window._txCat=0;
-    oMC(t("mt_add_expense"),'<div class="or" style="margin-bottom:8px"><button class="ob s" id="tb-exp" onclick="window._txType=\'expense\';document.getElementById(\'tb-exp\').classList.add(\'s\');document.getElementById(\'tb-inc\').classList.remove(\'s\');txCatRefresh()">💸 '+t("m_expense")+'</button><button class="ob" id="tb-inc" onclick="window._txType=\'income\';document.getElementById(\'tb-inc\').classList.add(\'s\');document.getElementById(\'tb-exp\').classList.remove(\'s\');txCatRefresh()">💰 '+t("m_income")+'</button></div><div class="dr"><div><div class="dl">'+t("f_amount")+'</div><input class="inp" id="tx-a" type="number" step="0.01" placeholder="0"></div><div><div class="dl">'+t("f_currency")+'</div><select id="tx-c"><option value="RSD">din.</option><option value="EUR">€</option><option value="USD">$</option><option value="GBP">£</option><option value="RUB">₽</option></select></div></div><div class="lb">'+t("f_description")+'</div><input class="inp" id="tx-d" placeholder=""><div class="lb">'+t("f_category")+'</div><div class="or" id="tx-cats"></div><div class="lb">'+t("f_date")+'</div><input type="date" id="tx-dt" value="'+dy+'"><div class="lb">'+t("g_who")+'</div>'+assignPk("txm",null)+'<button class="btn" onclick="doTx()">'+t("btn_add")+'</button>',{ic:"wallet"});setTimeout(txCatRefresh,50)}break}
+    oMC(tr("mt_add_expense"),'<div class="or" style="margin-bottom:8px"><button class="ob s" id="tb-exp" onclick="window._txType=\'expense\';document.getElementById(\'tb-exp\').classList.add(\'s\');document.getElementById(\'tb-inc\').classList.remove(\'s\');txCatRefresh()">💸 '+tr("m_expense")+'</button><button class="ob" id="tb-inc" onclick="window._txType=\'income\';document.getElementById(\'tb-inc\').classList.add(\'s\');document.getElementById(\'tb-exp\').classList.remove(\'s\');txCatRefresh()">💰 '+tr("m_income")+'</button></div><div class="dr"><div><div class="dl">'+tr("f_amount")+'</div><input class="inp" id="tx-a" type="number" step="0.01" placeholder="0"></div><div><div class="dl">'+tr("f_currency")+'</div><select id="tx-c"><option value="RSD">din.</option><option value="EUR">€</option><option value="USD">$</option><option value="GBP">£</option><option value="RUB">₽</option></select></div></div><div class="lb">'+tr("f_description")+'</div><input class="inp" id="tx-d" placeholder=""><div class="lb">'+tr("f_category")+'</div><div class="or" id="tx-cats"></div><div class="lb">'+tr("f_date")+'</div><input type="date" id="tx-dt" value="'+dy+'"><div class="lb">'+tr("g_who")+'</div>'+assignPk("txm",null)+'<button class="btn" onclick="doTx()">'+tr("btn_add")+'</button>',{ic:"wallet"});setTimeout(txCatRefresh,50)}break}
 document.getElementById("mo").classList.add("op");setTimeout(function(){var i=document.querySelector("#mb input[type=text],#mb input.inp");if(i)i.focus()},300)}
 
 // Submit handlers

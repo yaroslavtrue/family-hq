@@ -23,13 +23,13 @@
 //
 // ── Pluralization (Intl.PluralRules):
 //   For count-dependent strings, define keys with suffixes _one, _few, _many,
-//   _other. Use the `tn(base_key, n)` helper in app.js — it picks the right
+//   _other. Use the `trn(base_key, n)` helper in app.js — it picks the right
 //   form for the current locale automatically.
 //
 //   English needs: _one (n==1), _other (everything else)
 //   Russian needs: _one (1, 21, 31...), _few (2-4, 22-24...), _many (5-20, 25-30...), _other (fractional)
 //
-//   Example: `tn("g_in_days_full", 5)` → "5 дней" (ru/many) or "in 5 days" (en/other)
+//   Example: `trn("g_in_days_full", 5)` → "5 дней" (ru/many) or "in 5 days" (en/other)
 
 window.LANG = {
   en: {
@@ -88,7 +88,7 @@ window.LANG = {
     g_days: "Days", g_day_of_month: "Day of month", g_what_to_do: "What needs to be done?",
     g_due_date: "Due Date", g_who: "Who",
     g_every_day: "Every day", g_paused: "Paused", g_done: "Done", g_filter_all: "All",
-    // Pluralized — picked via tn() helper using Intl.PluralRules
+    // Pluralized — picked via trn() helper using Intl.PluralRules
     g_in_days_short_one: "in {n}d", g_in_days_short_other: "in {n}d",
     g_in_days_full_one: "in {n} day", g_in_days_full_other: "in {n} days",
     // Money
@@ -312,7 +312,7 @@ window.LANG = {
     g_days: "Дни", g_day_of_month: "День месяца", g_what_to_do: "Что нужно сделать?",
     g_due_date: "Срок", g_who: "Кто",
     g_every_day: "Каждый день", g_paused: "На паузе", g_done: "Готово", g_filter_all: "Все",
-    // Pluralized — Russian needs one/few/many. tn() picks via Intl.PluralRules.
+    // Pluralized — Russian needs one/few/many. trn() picks via Intl.PluralRules.
     g_in_days_short_one: "через {n} д.", g_in_days_short_few: "через {n} д.",
     g_in_days_short_many: "через {n} д.", g_in_days_short_other: "через {n} д.",
     g_in_days_full_one: "через {n} день",      // 1, 21, 31, 41...

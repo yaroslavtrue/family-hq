@@ -6,7 +6,7 @@
 // Backed by /api/words/* (static catalog + custom_words + word_overrides).
 //
 // Loaded BEFORE app.js. All declarations are var/function (window-scope).
-// Reads from app.js / earlier modules: D, fS, t(), A(), hp(), toast(),
+// Reads from app.js / earlier modules: D, fS, tr(), A(), hp(), toast(),
 // es(), icon(), oMC(), cMo(), ren().
 // ─── Words / Vocabulary learning ────────────────────────────────
 var _wordsState={mode:"en",queue:[],cursor:0,sessionCorrect:0,loading:false,stats:{total:0,new:0,learning:0,learned:0},answered:null,lastAnswer:"",showSourceExample:false};
@@ -34,10 +34,10 @@ function rWords(){
   h+='</div>';
   // Loading
   if(_wordsState.loading||(_wordsState.queue.length===0&&_wordsFirstLoad===false&&stats.total===0)){h+='<div class="emp" style="padding-top:40px"><div class="emp-i" style="font-size:32px">⏳</div><div>Loading…</div></div>';return h}
-  if(_wordsState.queue.length===0){h+='<div class="emp" style="padding-top:40px">'+icon("book",48,1.8)+'<div class="emp-t">'+t("g_no_words_t")+'</div><div>'+t("g_no_words_s")+'</div></div>';return h}
+  if(_wordsState.queue.length===0){h+='<div class="emp" style="padding-top:40px">'+icon("book",48,1.8)+'<div class="emp-t">'+tr("g_no_words_t")+'</div><div>'+tr("g_no_words_s")+'</div></div>';return h}
   // Session complete
   if(_wordsState.cursor>=_wordsState.queue.length){
-    h+='<div class="wd-done"><div class="wd-done-emoji">🎉</div><div class="wd-done-t">'+t("wd_session_complete")+'</div><div class="wd-done-s">'+t("wd_correct_of",{n:_wordsState.sessionCorrect,total:_wordsState.queue.length})+'</div><button class="btn" style="max-width:240px;margin-top:18px" onclick="loadWordsSession()">'+t("wd_next_session")+'</button></div>';
+    h+='<div class="wd-done"><div class="wd-done-emoji">🎉</div><div class="wd-done-t">'+tr("wd_session_complete")+'</div><div class="wd-done-s">'+tr("wd_correct_of",{n:_wordsState.sessionCorrect,total:_wordsState.queue.length})+'</div><button class="btn" style="max-width:240px;margin-top:18px" onclick="loadWordsSession()">'+tr("wd_next_session")+'</button></div>';
     return h;
   }
   // Current card
@@ -97,7 +97,7 @@ function rWords(){
   // Action area
   if(!ans){
     h+='<form onsubmit="_wdSubmit(event);return false" style="margin-top:18px"><input type="text" class="wd-input" id="wd-input" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" placeholder="Type the '+targetLang+' word..."></form>';
-    h+='<div class="wd-actions"><button class="btn btn-s wd-btn-skip" onclick="_wdDontKnow()">← '+t("wd_dont_know")+'</button><button class="btn wd-btn-submit" onclick="_wdSubmit()">'+t("wd_check")+'</button></div>';
+    h+='<div class="wd-actions"><button class="btn btn-s wd-btn-skip" onclick="_wdDontKnow()">← '+tr("wd_dont_know")+'</button><button class="btn wd-btn-submit" onclick="_wdSubmit()">'+tr("wd_check")+'</button></div>';
   }else{
     h+='<button class="btn wd-next-btn" onclick="_wdNext()">Next →</button>';
   }
@@ -257,7 +257,7 @@ async function openLearnModePicker(){
   h+='<button class="ob '+(curEn?"s":"")+'" onclick="_setLearnMode(\'en\')">🇬🇧 Learn English</button>';
   h+='<button class="ob '+(!curEn?"s":"")+'" onclick="_setLearnMode(\'ru\')">🇷🇺 Learn Russian</button>';
   h+='</div>';
-  oMC(t("mt_learning_lang"),h,{ic:"book"});
+  oMC(tr("mt_learning_lang"),h,{ic:"book"});
 }
 async function _setLearnMode(m){
   _wordsState.mode=m;hp("ok");
@@ -268,11 +268,11 @@ async function _setLearnMode(m){
   cMo();
   // Re-render whichever tab we're on (Settings shows updated language label).
   ren();
-  toast((m==="en"?"🇬🇧":"🇷🇺")+" "+(m==="en"?t("wd_now_learning_en"):t("wd_now_learning_ru")));
+  toast((m==="en"?"🇬🇧":"🇷🇺")+" "+(m==="en"?tr("wd_now_learning_en"):tr("wd_now_learning_ru")));
 }
 async function _resetWordsProgress(){
   var lang=_wordsState.mode==="en"?"English":"Russian";
-  if(!confirm(t("wd_reset_confirm",{lang:lang})))return;
+  if(!confirm(tr("wd_reset_confirm",{lang:lang})))return;
   await A("POST","/api/words/reset?mode="+_wordsState.mode);
   hp("ok");toast("Progress reset for "+lang);
   loadWordsSession();
@@ -282,7 +282,7 @@ async function _resetWordsProgress(){
 async function openWordsStats(){
   hp("light");
   var d=await A("GET","/api/words/stats");
-  if(!d){oMC(t("mt_stats"),"<div>"+t("wd_load_failed")+"</div>",{ic:"chart"});return}
+  if(!d){oMC(tr("mt_stats"),"<div>"+tr("wd_load_failed")+"</div>",{ic:"chart"});return}
   var h='<div style="font-size:11px;color:var(--ht);margin-bottom:10px;text-align:center">Each member’s progress in their own learning language</div>';
   d.members.forEach(function(m){
     var c=m.counts||{};
@@ -297,7 +297,7 @@ async function openWordsStats(){
     h+='<div style="font-size:11px;color:var(--ht);margin-top:6px;display:flex;justify-content:space-between;align-items:center"><span>'+(c.learning||0)+' learning · '+m.attempts+' attempts · '+m.accuracy+'% accuracy</span><span style="opacity:.6;font-size:14px">›</span></div>';
     h+='</div>';
   });
-  oMC(t("mt_stats"),h,{ic:"chart"});
+  oMC(tr("mt_stats"),h,{ic:"chart"});
 }
 // Member detail — Learned/Mistakes tabs. Mode is now passed from the stats row
 // (each member can be on a different mode), with fallback to the viewer's mode.
@@ -317,7 +317,7 @@ function _wdDetailHtml(){
   var h='<div class="tabs"><button class="tab '+(s.tab==="learned"?"a":"")+'" onclick="_wdDetailSet(\'learned\')"><span style="display:inline-flex;align-items:center;gap:6px">'+icon("ck",12,2.4)+'Learned · '+nL+'</span></button><button class="tab '+(s.tab==="mistakes"?"a":"")+'" onclick="_wdDetailSet(\'mistakes\')"><span style="display:inline-flex;align-items:center;gap:6px">'+icon("bolt",12,2.4)+'Mistakes · '+nM+'</span></button></div>';
   var list=s.tab==="learned"?d.learned:d.mistakes;
   if(!list.length){
-    h+='<div class="emp" style="padding:24px 14px">'+icon(s.tab==="learned"?"ck":"bolt",36,1.8)+'<div class="emp-t">'+(s.tab==="learned"?t("wd_no_learned_t"):t("wd_no_mistakes_t"))+'</div><div style="font-size:12px">'+(s.tab==="learned"?t("wd_no_learned_s"):t("wd_no_mistakes_s"))+'</div></div>';
+    h+='<div class="emp" style="padding:24px 14px">'+icon(s.tab==="learned"?"ck":"bolt",36,1.8)+'<div class="emp-t">'+(s.tab==="learned"?tr("wd_no_learned_t"):tr("wd_no_mistakes_t"))+'</div><div style="font-size:12px">'+(s.tab==="learned"?tr("wd_no_learned_s"):tr("wd_no_mistakes_s"))+'</div></div>';
     return h;
   }
   list.forEach(function(w){
@@ -335,7 +335,7 @@ function _wdDetailSet(tab){_wdDetailState.tab=tab;hp("sel");document.getElementB
 var _wmState={all:[],query:""};
 async function openWordsMgr(){
   hp("light");
-  oMC(t("mt_words"),"<div class=\"emp\" style=\"padding:30px 14px\"><div class=\"emp-i\" style=\"font-size:28px\">⏳</div><div>"+t("g_loading")+"</div></div>",{ic:"book"});
+  oMC(tr("mt_words"),"<div class=\"emp\" style=\"padding:30px 14px\"><div class=\"emp-i\" style=\"font-size:28px\">⏳</div><div>"+tr("g_loading")+"</div></div>",{ic:"book"});
   var d=await A("GET","/api/words/all");
   if(!d||!d.words){document.getElementById("mb").innerHTML="<div class=\"emp\" style=\"padding:30px\">Failed to load.</div>";return}
   _wmState.all=d.words;_wmState.query="";
@@ -347,7 +347,7 @@ function _wmListHtml(){
   if(q){list=list.filter(function(w){return (w.en_word||"").toLowerCase().indexOf(q)>=0||(w.ru_word||"").toLowerCase().indexOf(q)>=0})}
   var h='<input class="inp" id="wm-q" placeholder="🔍 Search…" oninput="_wmSearch(this.value)" style="margin-bottom:14px" value="'+es(_wmState.query)+'">';
   h+='<div style="font-size:11px;color:var(--ht);text-align:center;margin-bottom:10px">'+list.length+' / '+_wmState.all.length+' words</div>';
-  if(!list.length){h+='<div class="emp" style="padding:24px">'+t("g_no_matches")+'</div>';return h}
+  if(!list.length){h+='<div class="emp" style="padding:24px">'+tr("g_no_matches")+'</div>';return h}
   list.forEach(function(w){
     var imgHtml=w.image_key?'<img class="wm-thumb" src="/static/words/'+es(w.image_key)+'.jpg?t='+_wdImgVer+'" alt="" onerror="this.remove()">':'';
     h+='<div class="wm-row" onclick="openWordEdit('+w.idx+')">'+imgHtml+'<div class="wm-pair"><div class="wm-en">'+es(w.en_word||"—")+'</div><div class="wm-ru">'+es(w.ru_word||"—")+'</div></div><button class="bi" aria-label="Edit">'+I.ed+'</button></div>';
@@ -360,7 +360,7 @@ function _wmSearch(v){_wmState.query=v;var i=document.getElementById("wm-q");var
 var _weState={idx:null,data:null};
 async function openWordEdit(idx){
   hp("light");
-  oMC(t("mt_edit_word"),"<div class=\"emp\" style=\"padding:30px\"><div class=\"emp-i\">⏳</div><div>"+t("g_loading")+"</div></div>",{ic:"book"});
+  oMC(tr("mt_edit_word"),"<div class=\"emp\" style=\"padding:30px\"><div class=\"emp-i\">⏳</div><div>"+tr("g_loading")+"</div></div>",{ic:"book"});
   var d=await A("GET","/api/words/one/"+idx);
   if(!d){document.getElementById("mb").innerHTML="<div class=\"emp\" style=\"padding:30px\">Failed to load.</div>";return}
   _weState.idx=idx;_weState.data=d;
@@ -383,7 +383,7 @@ function _weEditorHtml(){
   h+='</div>';
   h+='</div>';
   // English block
-  h+='<div class="lb">'+t("wd_english")+'</div>';
+  h+='<div class="lb">'+tr("wd_english")+'</div>';
   h+='<input class="inp" id="we-en-word" placeholder="Word" value="'+es(d.en_word||"")+'">';
   h+='<input class="inp" id="we-en-ipa" placeholder="IPA, e.g. /ˈɒmlət/" value="'+es(d.en_ipa||"")+'">';
   h+='<input class="inp" id="we-en-def" placeholder="Definition" value="'+es(d.en_def||"")+'">';
@@ -395,14 +395,14 @@ function _weEditorHtml(){
   h+='<input class="inp" id="we-ru-def" placeholder="Определение" value="'+es(d.ru_def||"")+'">';
   h+='<input class="inp" id="we-ru-ex" placeholder="Пример предложения" value="'+es(d.ru_example||"")+'">';
   // Emoji
-  h+='<div class="lb" style="margin-top:14px">'+t("g_emoji")+'</div>';
+  h+='<div class="lb" style="margin-top:14px">'+tr("g_emoji")+'</div>';
   h+='<input class="inp" id="we-emoji" value="'+es(d.emoji||"📖")+'" style="width:80px;text-align:center;font-size:22px">';
-  h+='<div class="we-actions"><button class="btn btn-s" onclick="openWordsMgr()" style="background:transparent;color:var(--ht);border:1px solid var(--bd)">← '+t("btn_back")+'</button><button class="btn" onclick="_weSave()">'+t("btn_save")+'</button></div>';
+  h+='<div class="we-actions"><button class="btn btn-s" onclick="openWordsMgr()" style="background:transparent;color:var(--ht);border:1px solid var(--bd)">← '+tr("btn_back")+'</button><button class="btn" onclick="_weSave()">'+tr("btn_save")+'</button></div>';
   return h;
 }
 async function _weUpload(input){
   var f=input.files&&input.files[0];if(!f)return;
-  if(f.size>15*1024*1024){toast(t("ts_too_large"));return}
+  if(f.size>15*1024*1024){toast(tr("ts_too_large"));return}
   hp("light");
   f=await _downscaleImage(f);
   var fd=new FormData();fd.append("file",f);
@@ -411,22 +411,22 @@ async function _weUpload(input){
   var sess=_getSess();if(sess)headers["X-Session-Token"]=sess;
   try{
     var r=await fetch("/api/words/one/"+_weState.idx+"/image",{method:"POST",headers:headers,body:fd});
-    if(!r.ok){toast(t("ts_upload_failed"));return}
+    if(!r.ok){toast(tr("ts_upload_failed"));return}
     var d=await r.json();
     _weState.data.image_key=d.image_key;
-    hp("ok");toast(t("ts_image_saved"));
+    hp("ok");toast(tr("ts_image_saved"));
     // Refresh preview with cache-bust
     var prev=document.getElementById("we-img-prev");
     if(prev){prev.classList.remove("we-img-empty");prev.innerHTML='<img src="/static/words/'+es(d.image_key)+'.jpg?t='+Date.now()+'" alt="">'}
     // Bump global session-bust so card view also refreshes
     _wdImgVer=Date.now().toString(36).slice(-4);
-  }catch(e){toast(t("ts_upload_error"))}
+  }catch(e){toast(tr("ts_upload_error"))}
 }
 async function _weDeleteImg(){
-  if(!confirm(t("g_remove_image_confirm")))return;
+  if(!confirm(tr("g_remove_image_confirm")))return;
   var r=await A("DELETE","/api/words/one/"+_weState.idx+"/image");
-  if(!r){toast(t("ts_failed"));return}
-  hp("ok");toast(t("ts_image_removed"));
+  if(!r){toast(tr("ts_failed"));return}
+  hp("ok");toast(tr("ts_image_removed"));
   var prev=document.getElementById("we-img-prev");
   if(prev){prev.classList.add("we-img-empty");prev.innerHTML='<span class="we-img-ph">'+es(_weState.data.emoji||"📖")+'</span>'}
   _wdImgVer=Date.now().toString(36).slice(-4);
@@ -444,11 +444,11 @@ async function _weSave(){
     ru_example:v("we-ru-ex").trim(),
     emoji:v("we-emoji").trim()||"📖"
   };
-  if(!payload.en_word||!payload.ru_word){toast(t("ts_word_required"));return}
+  if(!payload.en_word||!payload.ru_word){toast(tr("ts_word_required"));return}
   hp("light");
   var r=await A("PATCH","/api/words/one/"+_weState.idx,payload);
-  if(!r){toast(t("ts_save_failed"));return}
-  hp("ok");toast(t("ts_saved"));
+  if(!r){toast(tr("ts_save_failed"));return}
+  hp("ok");toast(tr("ts_saved"));
   // Refresh the local list so en/ru changes show
   var found=_wmState.all.find(function(w){return w.idx===_weState.idx});
   if(found){found.en_word=payload.en_word;found.ru_word=payload.ru_word;if(r.image_key)found.image_key=r.image_key}

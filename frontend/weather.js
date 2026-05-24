@@ -6,7 +6,7 @@
 // the family's coordinates to /api/settings.
 //
 // Loaded BEFORE app.js. All declarations are var/function (window-scope).
-// Reads from app.js: A(), t(), icon(), es(), hp(), oMC(), cMo(), load(),
+// Reads from app.js: A(), tr(), icon(), es(), hp(), oMC(), cMo(), load(),
 // FX.wCat, dN (locale-aware day names from _rebuildLocaleArrays).
 
 function wIcon(lbl) { return (lbl || "🌤").split(" ")[0] }
@@ -38,15 +38,15 @@ function renderWeatherPage() {
   var lbl = document.getElementById("wx-city-label");
   var body = document.getElementById("wx-body");
   var w = _wxForecast;
-  if (!w) { body.innerHTML = '<div class="emp"><div class="emp-i" style="font-size:32px">⏳</div><div>' + t("g_loading") + '</div></div>'; return }
+  if (!w) { body.innerHTML = '<div class="emp"><div class="emp-i" style="font-size:32px">⏳</div><div>' + tr("g_loading") + '</div></div>'; return }
   if (w.error) {
-    lbl.textContent = t("wx_no_location");
-    body.innerHTML = '<div class="emp"><div class="emp-i" style="font-size:32px">🌍</div><div>' + t("wx_set_city") + '</div><div style="margin-top:14px"><button class="btn" style="max-width:240px" onclick="openCitySearch()">' + t("wx_choose_city") + '</button></div></div>';
+    lbl.textContent = tr("wx_no_location");
+    body.innerHTML = '<div class="emp"><div class="emp-i" style="font-size:32px">🌍</div><div>' + tr("wx_set_city") + '</div><div style="margin-top:14px"><button class="btn" style="max-width:240px" onclick="openCitySearch()">' + tr("wx_choose_city") + '</button></div></div>';
     return;
   }
   lbl.textContent = w.city || "Belgrade";
   var days = (w.days || []).slice(0, 14);
-  if (!days.length) { body.innerHTML = '<div class="emp"><div>' + t("wx_no_forecast") + '</div></div>'; return }
+  if (!days.length) { body.innerHTML = '<div class="emp"><div>' + tr("wx_no_forecast") + '</div></div>'; return }
   // Hero — today (big). Uses current weather (w.label) to stay in sync with the home card.
   // Today's daily summary (days[0]) covers the whole day's dominant weather and may differ from "now".
   var today = days[0];
@@ -54,9 +54,9 @@ function renderWeatherPage() {
   var vdHtml = '<video class="wbg-vd" autoplay muted loop playsinline preload="metadata" onloadeddata="this.classList.add(\'loaded\');this.parentNode.classList.add(\'has-video\')" onerror="this.remove()"><source src="/static/weather/' + cat + '.mp4" type="video/mp4"></video><div class="wbg-vd-scrim"></div>';
   var h = '<div class="wx-hero wbg wbg-' + cat + '">' + vdHtml;
   h += '<div class="wx-hero-ico" style="filter:drop-shadow(0 2px 4px rgba(0,0,0,.35))">' + wIconAnim(w.label, 72, true) + '</div>';
-  h += '<div class="wx-hero-tx" style="text-shadow:0 1px 3px rgba(0,0,0,.5)"><div class="wx-hero-lb" style="color:rgba(255,255,255,.7)">' + t("g_today") + '</div>';
+  h += '<div class="wx-hero-tx" style="text-shadow:0 1px 3px rgba(0,0,0,.5)"><div class="wx-hero-lb" style="color:rgba(255,255,255,.7)">' + tr("g_today") + '</div>';
   h += '<div class="wx-hero-temp" style="color:#fff">' + w.now + '°</div>';
-  h += '<div class="wx-hero-sub" style="color:rgba(255,255,255,.88)">' + es(w.label || "") + ' · ' + t("g_feels") + ' ' + w.feels + '°</div>';
+  h += '<div class="wx-hero-sub" style="color:rgba(255,255,255,.88)">' + es(w.label || "") + ' · ' + tr("g_feels") + ' ' + w.feels + '°</div>';
   h += '<div class="wx-hero-range"><span class="hi" style="color:#fff">↑ ' + today.max + '°</span><span style="color:rgba(255,255,255,.75)">↓ ' + today.min + '°</span></div></div></div>';
   // 14-day grid (2 rows of 7)
   h += '<div class="wx-grid-lb">Next 2 weeks</div>';
@@ -91,7 +91,7 @@ async function refreshWeather() {
 var _citySearchT = null;
 
 function openCitySearch() {
-  oMC(t("mt_choose_city"),
+  oMC(tr("mt_choose_city"),
     '<input class="inp" id="wx-q" placeholder="..." oninput="_searchCityDebounced(this.value)" autocomplete="off">' +
     '<div id="wx-results" style="margin-top:10px"></div>',
     { ic: "pin" });
@@ -110,11 +110,11 @@ async function _doCitySearch(q) {
     el.innerHTML = '<div style="font-size:12px;color:var(--ht);text-align:center;padding:14px 8px">Type at least 2 characters</div>';
     return;
   }
-  el.innerHTML = '<div style="font-size:12px;color:var(--ht);text-align:center;padding:14px 8px">' + t("g_loading") + '</div>';
+  el.innerHTML = '<div style="font-size:12px;color:var(--ht);text-align:center;padding:14px 8px">' + tr("g_loading") + '</div>';
   var d = await A("GET", "/api/weather/geocode?q=" + encodeURIComponent(q));
   var results = (d && d.results) || [];
   if (!results.length) {
-    el.innerHTML = '<div style="font-size:12px;color:var(--ht);text-align:center;padding:14px 8px">' + t("wx_no_results") + '</div>';
+    el.innerHTML = '<div style="font-size:12px;color:var(--ht);text-align:center;padding:14px 8px">' + tr("wx_no_results") + '</div>';
     return;
   }
   var h = '';

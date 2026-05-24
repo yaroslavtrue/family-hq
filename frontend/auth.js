@@ -5,7 +5,7 @@
 // onboarding (rOnb → Create / Join with invite code).
 //
 // Loaded BEFORE app.js. Functions are `var`/`function` declarations (true
-// globals) so app.js can call them. Reads: iD, t(), A(), hp(), toast(),
+// globals) so app.js can call them. Reads: iD, tr(), A(), hp(), toast(),
 // es(), icon(), oMC(), cMo(), load(), fS (all declared in app.js or
 // theme.js / lang.js).
 //
@@ -57,7 +57,7 @@ async function rLogin() {
     '<div class="onb-t">Sign in with Telegram</div>' +
     '<div class="onb-s">Family HQ uses your Telegram account so all data stays in sync.</div>';
   if (!bot) {
-    h += '<div style="color:var(--ac);font-size:13px;text-align:center;padding:16px">⚠️ ' + t("auth_bot_not_configured") + '. Try opening this app from inside Telegram.</div>';
+    h += '<div style="color:var(--ac);font-size:13px;text-align:center;padding:16px">⚠️ ' + tr("auth_bot_not_configured") + '. Try opening this app from inside Telegram.</div>';
   } else {
     h += '<div style="display:flex;gap:8px;margin:16px 0 10px">';
     h += '<button class="ob ' + (_loginMode === "bot" ? "s" : "") + '" style="flex:1" onclick="_loginMode=\'bot\';rLogin()">📨 Via Bot (recommended)</button>';
@@ -68,7 +68,7 @@ async function rLogin() {
       h += '<div style="font-size:11px;color:var(--ht);margin-top:14px;text-align:center;max-width:300px">Works with whichever Telegram account is logged in on your phone — no cookie tricks.</div>';
     } else {
       h += '<div id="tg-widget-host" style="margin-top:20px;display:flex;justify-content:center"></div>';
-      h += '<div style="font-size:11px;color:var(--ht);margin-top:14px;text-align:center;max-width:300px">' + t("auth_widget_session_note") + '</div>';
+      h += '<div style="font-size:11px;color:var(--ht);margin-top:14px;text-align:center;max-width:300px">' + tr("auth_widget_session_note") + '</div>';
     }
   }
   h += '</div>';
@@ -80,7 +80,7 @@ async function rLogin() {
       var clear = document.createElement("button");
       clear.className = "onb-b s2";
       clear.style.cssText = "margin-top:14px;background:transparent;border:1.5px solid var(--ac);color:var(--ac);font-size:12px";
-      clear.textContent = t("auth_clear_session");
+      clear.textContent = tr("auth_clear_session");
       clear.onclick = function () { _logoutPwa() };
       document.querySelector(".onb").appendChild(clear);
     }
@@ -106,11 +106,11 @@ async function _renderBotLogin(bot) {
   var host = document.getElementById("bot-login-host"); if (!host) return;
   host.innerHTML = '<div style="text-align:center;padding:20px;color:var(--ht)">Generating link…</div>';
   var r = await A("POST", "/api/auth/bot-login-init");
-  if (!r || !r.deep_link) { host.innerHTML = '<div style="color:var(--ac);text-align:center;padding:16px">' + t("auth_bot_not_configured") + '</div>'; return }
+  if (!r || !r.deep_link) { host.innerHTML = '<div style="color:var(--ac);text-align:center;padding:16px">' + tr("auth_bot_not_configured") + '</div>'; return }
   _botCode = r.code;
   host.innerHTML =
     '<a href="' + r.deep_link + '" target="_blank" class="btn" style="display:block;text-align:center;text-decoration:none;background:#0088cc;color:#fff;margin-bottom:10px">📨 Open @' + bot + ' in Telegram</a>' +
-    '<div style="font-size:12px;color:var(--ht);text-align:center;margin-top:8px">' + t("auth_bot_steps") + '</div>' +
+    '<div style="font-size:12px;color:var(--ht);text-align:center;margin-top:8px">' + tr("auth_bot_steps") + '</div>' +
     '<div id="bot-poll-status" style="text-align:center;margin-top:14px;font-size:12px;color:var(--ht)">Waiting for confirmation…</div>';
   if (_botPollTimer) clearInterval(_botPollTimer);
   _botPollTimer = setInterval(_pollBotLogin, 2000);
@@ -128,7 +128,7 @@ async function _pollBotLogin() {
     setTimeout(function () { location.reload() }, 500);
   } else if (r.status === "expired") {
     if (_botPollTimer) { clearInterval(_botPollTimer); _botPollTimer = null }
-    if (st) st.innerHTML = '<span style="color:var(--ac)">' + t("auth_code_expired") + '</span>';
+    if (st) st.innerHTML = '<span style="color:var(--ac)">' + tr("auth_code_expired") + '</span>';
   }
 }
 
@@ -164,10 +164,10 @@ function rOnb() {
 }
 
 function shCr() {
-  oMC(t("mt_create_family"), '<input class="inp" id="fn" placeholder="' + t("f_name") + '" value="Our Family"><button class="btn" onclick="doCr()">' + t("btn_create") + '</button>', { ic: "user" })
+  oMC(tr("mt_create_family"), '<input class="inp" id="fn" placeholder="' + tr("f_name") + '" value="Our Family"><button class="btn" onclick="doCr()">' + tr("btn_create") + '</button>', { ic: "user" })
 }
 function shJn() {
-  oMC(t("mt_join_family"), '<div style="text-align:center;margin-bottom:16px"><div style="font-size:14px;color:var(--ht);margin-bottom:12px">' + t("g_enter_code") + '</div><input class="ci2" id="fc" placeholder="ABC123" maxlength="6"></div><button class="btn" onclick="doJn()">' + t("btn_join") + '</button>', { ic: "user" })
+  oMC(tr("mt_join_family"), '<div style="text-align:center;margin-bottom:16px"><div style="font-size:14px;color:var(--ht);margin-bottom:12px">' + tr("g_enter_code") + '</div><input class="ci2" id="fc" placeholder="ABC123" maxlength="6"></div><button class="btn" onclick="doJn()">' + tr("btn_join") + '</button>', { ic: "user" })
 }
 
 async function doCr() {
