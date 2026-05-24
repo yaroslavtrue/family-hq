@@ -142,7 +142,7 @@ async function setLang(newLang){
   if(newLang===_lang)return;
   var r=await A("PATCH","/api/members/me/lang",{lang:newLang});
   if(!r||!r.ok){toast(t("ts_save_failed"));return}
-  _lang=newLang;hp("ok");
+  _lang=newLang;_rebuildLocaleArrays();hp("ok");
   // Re-render the bottom nav labels in place + current tab
   document.querySelectorAll('#nv .ni').forEach(function(b){
     var id=b.dataset.t;var lbl=b.querySelector('span:last-child');
@@ -309,9 +309,20 @@ return "cloud"}
 };
 function em(i,t,s){return '<div class="emp"><div class="emp-i">'+i+'</div><div class="emp-t">'+t+'</div><div>'+s+'</div></div>'}
 function td(){const d=new Date();return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0")}
-const dN=["Sun","Mon","Tue","Wed","Thu","Fri","Sat"],dF=["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"];
-const mN=["January","February","March","April","May","June","July","August","September","October","November","December"];
-function fD(ds){const p=(ds||"").split(" ")[0].split("-").map(Number);if(!p[0]||!p[1]||!p[2])return{day:"?",date:"?",full:"?"};const dt=new Date(p[0],p[1]-1,p[2]);return{day:dN[dt.getDay()],date:p[2]+" "+mN[p[1]-1].slice(0,3),full:dN[dt.getDay()]+" "+p[2]+" "+mN[p[1]-1].slice(0,3)}}
+// Locale-aware date name arrays. Initially populated with English; rebuilt by
+// _rebuildLocaleArrays() whenever _lang changes (called on boot after family/status
+// loads + inside setLang()). All existing callsites use array-index access (dN[d.getDay()],
+// mN[d.getMonth()].slice(0,3)), so we keep that API instead of converting to functions.
+var dN, dF, mN, mNS;
+function _rebuildLocaleArrays(){
+  var dKeys=["sun","mon","tue","wed","thu","fri","sat"];
+  dN=dKeys.map(function(k){return t("dow_short_"+k)});
+  dF=dKeys.map(function(k){return t("dow_full_"+k)});
+  mN=[]; mNS=[];
+  for(var i=1;i<=12;i++){mN.push(t("mo_full_"+i));mNS.push(t("mo_short_"+i))}
+}
+_rebuildLocaleArrays();
+function fD(ds){const p=(ds||"").split(" ")[0].split("-").map(Number);if(!p[0]||!p[1]||!p[2])return{day:"?",date:"?",full:"?"};const dt=new Date(p[0],p[1]-1,p[2]);return{day:dN[dt.getDay()],date:p[2]+" "+mNS[p[1]-1],full:dN[dt.getDay()]+" "+p[2]+" "+mNS[p[1]-1]}}
 function wIcon(lbl){return (lbl||"🌤").split(" ")[0]}
 // ─── Weather forecast page (full overlay) ────────────────────────
 var _wxForecast=null,_wxLoading=false;
@@ -330,10 +341,10 @@ function renderWeatherPage(){
   var body=document.getElementById("wx-body");
   var w=_wxForecast;
   if(!w){body.innerHTML='<div class="emp"><div class="emp-i" style="font-size:32px">⏳</div><div>Loading…</div></div>';return}
-  if(w.error){lbl.textContent="No location";body.innerHTML='<div class="emp"><div class="emp-i" style="font-size:32px">🌍</div><div>Set your city to see the forecast</div><div style="margin-top:14px"><button class="btn" style="max-width:240px" onclick="openCitySearch()">Choose city</button></div></div>';return}
+  if(w.error){lbl.textContent=t("wx_no_location");body.innerHTML='<div class="emp"><div class="emp-i" style="font-size:32px">🌍</div><div>'+t("wx_set_city")+'</div><div style="margin-top:14px"><button class="btn" style="max-width:240px" onclick="openCitySearch()">'+t("wx_choose_city")+'</button></div></div>';return}
   lbl.textContent=w.city||"Belgrade";
   var days=(w.days||[]).slice(0,14);
-  if(!days.length){body.innerHTML='<div class="emp"><div>No forecast data</div></div>';return}
+  if(!days.length){body.innerHTML='<div class="emp"><div>'+t("wx_no_forecast")+'</div></div>';return}
   // Hero — today (big, left-top). Uses CURRENT weather (w.label) to stay in sync with the home card.
   // Today's daily summary (days[0]) covers the whole day's dominant weather and may differ from "now".
   // Same video-background system as the home card.
@@ -388,7 +399,7 @@ async function _doCitySearch(q){
   el.innerHTML='<div style="font-size:12px;color:var(--ht);text-align:center;padding:14px 8px">Searching…</div>';
   var d=await A("GET","/api/weather/geocode?q="+encodeURIComponent(q));
   var results=(d&&d.results)||[];
-  if(!results.length){el.innerHTML='<div style="font-size:12px;color:var(--ht);text-align:center;padding:14px 8px">No matches</div>';return}
+  if(!results.length){el.innerHTML='<div style="font-size:12px;color:var(--ht);text-align:center;padding:14px 8px">'+t("wx_no_results")+'</div>';return}
   var h='';
   results.forEach(function(r){
     var sub=[r.admin1,r.country].filter(Boolean).join(" · ");
@@ -427,7 +438,7 @@ function rWords(){
   if(_wordsState.queue.length===0){h+='<div class="emp" style="padding-top:40px">'+icon("book",48,1.8)+'<div class="emp-t">No words available</div><div>Catalog is empty</div></div>';return h}
   // Session complete
   if(_wordsState.cursor>=_wordsState.queue.length){
-    h+='<div class="wd-done"><div class="wd-done-emoji">🎉</div><div class="wd-done-t">Session complete!</div><div class="wd-done-s">'+_wordsState.sessionCorrect+' of '+_wordsState.queue.length+' correct</div><button class="btn" style="max-width:240px;margin-top:18px" onclick="loadWordsSession()">Next session</button></div>';
+    h+='<div class="wd-done"><div class="wd-done-emoji">🎉</div><div class="wd-done-t">'+t("wd_session_complete")+'</div><div class="wd-done-s">'+t("wd_correct_of",{n:_wordsState.sessionCorrect,total:_wordsState.queue.length})+'</div><button class="btn" style="max-width:240px;margin-top:18px" onclick="loadWordsSession()">'+t("wd_next_session")+'</button></div>';
     return h;
   }
   // Current card
@@ -487,7 +498,7 @@ function rWords(){
   // Action area
   if(!ans){
     h+='<form onsubmit="_wdSubmit(event);return false" style="margin-top:18px"><input type="text" class="wd-input" id="wd-input" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" placeholder="Type the '+targetLang+' word..."></form>';
-    h+='<div class="wd-actions"><button class="btn btn-s wd-btn-skip" onclick="_wdDontKnow()">← Don\'t know</button><button class="btn wd-btn-submit" onclick="_wdSubmit()">Check</button></div>';
+    h+='<div class="wd-actions"><button class="btn btn-s wd-btn-skip" onclick="_wdDontKnow()">← '+t("wd_dont_know")+'</button><button class="btn wd-btn-submit" onclick="_wdSubmit()">'+t("wd_check")+'</button></div>';
   }else{
     h+='<button class="btn wd-next-btn" onclick="_wdNext()">Next →</button>';
   }
@@ -658,11 +669,11 @@ async function _setLearnMode(m){
   cMo();
   // Re-render whichever tab we're on (Settings shows updated language label).
   ren();
-  toast((m==="en"?"🇬🇧":"🇷🇺")+" Now learning "+(m==="en"?"English":"Russian"));
+  toast((m==="en"?"🇬🇧":"🇷🇺")+" "+(m==="en"?t("wd_now_learning_en"):t("wd_now_learning_ru")));
 }
 async function _resetWordsProgress(){
   var lang=_wordsState.mode==="en"?"English":"Russian";
-  if(!confirm("Reset all your Words progress for "+lang+"?\n\nThis wipes your learned/learning state for the language you're currently studying. Other family members are unaffected."))return;
+  if(!confirm(t("wd_reset_confirm",{lang:lang})))return;
   await A("POST","/api/words/reset?mode="+_wordsState.mode);
   hp("ok");toast("Progress reset for "+lang);
   loadWordsSession();
@@ -672,7 +683,7 @@ async function _resetWordsProgress(){
 async function openWordsStats(){
   hp("light");
   var d=await A("GET","/api/words/stats");
-  if(!d){oMC("Stats","<div>Failed to load.</div>",{ic:"chart"});return}
+  if(!d){oMC(t("mt_stats"),"<div>"+t("wd_load_failed")+"</div>",{ic:"chart"});return}
   var h='<div style="font-size:11px;color:var(--ht);margin-bottom:10px;text-align:center">Each member’s progress in their own learning language</div>';
   d.members.forEach(function(m){
     var c=m.counts||{};
@@ -707,7 +718,7 @@ function _wdDetailHtml(){
   var h='<div class="tabs"><button class="tab '+(s.tab==="learned"?"a":"")+'" onclick="_wdDetailSet(\'learned\')"><span style="display:inline-flex;align-items:center;gap:6px">'+icon("ck",12,2.4)+'Learned · '+nL+'</span></button><button class="tab '+(s.tab==="mistakes"?"a":"")+'" onclick="_wdDetailSet(\'mistakes\')"><span style="display:inline-flex;align-items:center;gap:6px">'+icon("bolt",12,2.4)+'Mistakes · '+nM+'</span></button></div>';
   var list=s.tab==="learned"?d.learned:d.mistakes;
   if(!list.length){
-    h+='<div class="emp" style="padding:24px 14px">'+icon(s.tab==="learned"?"ck":"bolt",36,1.8)+'<div class="emp-t">'+(s.tab==="learned"?"No learned words yet":"No mistakes yet")+'</div><div style="font-size:12px">'+(s.tab==="learned"?"Keep practising":"Nice work!")+'</div></div>';
+    h+='<div class="emp" style="padding:24px 14px">'+icon(s.tab==="learned"?"ck":"bolt",36,1.8)+'<div class="emp-t">'+(s.tab==="learned"?t("wd_no_learned_t"):t("wd_no_mistakes_t"))+'</div><div style="font-size:12px">'+(s.tab==="learned"?t("wd_no_learned_s"):t("wd_no_mistakes_s"))+'</div></div>';
     return h;
   }
   list.forEach(function(w){
@@ -773,7 +784,7 @@ function _weEditorHtml(){
   h+='</div>';
   h+='</div>';
   // English block
-  h+='<div class="lb">English</div>';
+  h+='<div class="lb">'+t("wd_english")+'</div>';
   h+='<input class="inp" id="we-en-word" placeholder="Word" value="'+es(d.en_word||"")+'">';
   h+='<input class="inp" id="we-en-ipa" placeholder="IPA, e.g. /ˈɒmlət/" value="'+es(d.en_ipa||"")+'">';
   h+='<input class="inp" id="we-en-def" placeholder="Definition" value="'+es(d.en_def||"")+'">';
@@ -785,9 +796,9 @@ function _weEditorHtml(){
   h+='<input class="inp" id="we-ru-def" placeholder="Определение" value="'+es(d.ru_def||"")+'">';
   h+='<input class="inp" id="we-ru-ex" placeholder="Пример предложения" value="'+es(d.ru_example||"")+'">';
   // Emoji
-  h+='<div class="lb" style="margin-top:14px">Emoji</div>';
+  h+='<div class="lb" style="margin-top:14px">'+t("g_emoji")+'</div>';
   h+='<input class="inp" id="we-emoji" value="'+es(d.emoji||"📖")+'" style="width:80px;text-align:center;font-size:22px">';
-  h+='<div class="we-actions"><button class="btn btn-s" onclick="openWordsMgr()" style="background:transparent;color:var(--ht);border:1px solid var(--bd)">← Back</button><button class="btn" onclick="_weSave()">Save</button></div>';
+  h+='<div class="we-actions"><button class="btn btn-s" onclick="openWordsMgr()" style="background:transparent;color:var(--ht);border:1px solid var(--bd)">← '+t("btn_back")+'</button><button class="btn" onclick="_weSave()">'+t("btn_save")+'</button></div>';
   return h;
 }
 async function _weUpload(input){
@@ -813,7 +824,7 @@ async function _weUpload(input){
   }catch(e){toast(t("ts_upload_error"))}
 }
 async function _weDeleteImg(){
-  if(!confirm("Remove image?"))return;
+  if(!confirm(t("g_remove_image_confirm")))return;
   var r=await A("DELETE","/api/words/one/"+_weState.idx+"/image");
   if(!r){toast(t("ts_failed"));return}
   hp("ok");toast(t("ts_image_removed"));
@@ -909,7 +920,7 @@ function rPlants(){
   var h='<div class="pl-wrap">';
   // ─── Avatar carousel ─────────────────────────────
   h+='<div class="pl-avatars">';
-  h+='<button class="pl-av pl-av-add" onclick="_plOpenAdd()" aria-label="Add plant"><div class="pl-av-pic pl-av-plus">'+icon("pl",22,2.5)+'</div><div class="pl-av-l">Add</div></button>';
+  h+='<button class="pl-av pl-av-add" onclick="_plOpenAdd()" aria-label="Add plant"><div class="pl-av-pic pl-av-plus">'+icon("pl",22,2.5)+'</div><div class="pl-av-l">'+t("pl_add")+'</div></button>';
   list.forEach(function(p){
     var sel=(p.id===_plState.selectedId)?"s":"";
     var img=p.has_image?'<img src="/static/plants/'+p.id+'.jpg?t='+(p.last_watered?Date.parse(p.last_watered)||"":"x")+'" alt="" onerror="this.remove()">':'';
@@ -919,7 +930,7 @@ function rPlants(){
   h+='</div>';
   // ─── Main card ────────────────────────────────────
   if(!cur){
-    h+='<div class="emp" style="padding:50px 14px"><div class="emp-i" style="font-size:46px">🪴</div><div class="emp-t">No plants yet</div><div style="font-size:13px;color:var(--ht);margin-top:6px">Tap <b>+ Add</b> above and snap a photo — AI will identify it</div></div>';
+    h+='<div class="emp" style="padding:50px 14px"><div class="emp-i" style="font-size:46px">🪴</div><div class="emp-t">'+t("pl_no_plants_t")+'</div><div style="font-size:13px;color:var(--ht);margin-top:6px">'+t("pl_no_plants_s")+'</div></div>';
   }else{
     var imgUrl=cur.has_image?'/static/plants/'+cur.id+'.jpg?t='+(cur.last_watered?Date.parse(cur.last_watered)||"":"x"):'';
     h+='<div class="pl-card">';
@@ -973,7 +984,7 @@ function _rPlantInlineTips(cur){
   h+='<div class="pl-inline-h">'+t("pl_care_for")+' <strong>'+es(cur.custom_name||cur.species||"plant")+'</strong></div>';
   // Meta row
   h+='<div class="pl-adv-meta" style="margin-bottom:12px">';
-  h+='<div class="pl-adv-cell"><div class="pl-adv-cell-l">Water every</div><div class="pl-adv-cell-v">'+(cur.water_interval_days||7)+' days</div></div>';
+  h+='<div class="pl-adv-cell"><div class="pl-adv-cell-l">'+t("pl_water_every")+'</div><div class="pl-adv-cell-v">'+(cur.water_interval_days||7)+' '+t("pl_days_unit")+'</div></div>';
   if(cur.light)h+='<div class="pl-adv-cell"><div class="pl-adv-cell-l">Light</div><div class="pl-adv-cell-v">'+es(cur.light)+'</div></div>';
   h+='</div>';
   // History graph
@@ -1002,7 +1013,7 @@ function _plPhotoStripHtml(cur){
     return '<div class="pl-ph-strip"><button class="pl-ph-add" onclick="_plPhotoPick('+cur.id+')"><span style="font-size:22px;line-height:1">+</span><span style="font-size:10px;margin-top:4px">Add photo</span></button><div class="emp" style="padding:14px 8px;font-size:11px;color:var(--ht);flex:1">Loading…</div></div>';
   }
   var h='<div class="pl-ph-strip">';
-  h+='<button class="pl-ph-add" onclick="_plPhotoPick('+cur.id+')"><span style="font-size:22px;line-height:1">+</span><span style="font-size:10px;margin-top:4px;font-weight:600">Add photo</span></button>';
+  h+='<button class="pl-ph-add" onclick="_plPhotoPick('+cur.id+')"><span style="font-size:22px;line-height:1">+</span><span style="font-size:10px;margin-top:4px;font-weight:600">'+t("pl_add_photo_short")+'</span></button>';
   if(!photos.length){
     h+='<div class="pl-ph-empty">No timeline photos yet. Snap one to track growth over time.</div>';
   }else{
@@ -1063,12 +1074,12 @@ function _plPhotoView(photoId, plantId){
   var d=p.taken_at?new Date(p.taken_at):null;
   var dlbl=d?d.toLocaleString("en-US",{day:"numeric",month:"long",year:"numeric"}):"";
   var h='<div class="pl-pview"><img src="/static/plants/timeline/'+p.id+'.jpg" alt=""></div>';
-  h+='<div class="lb" style="margin-top:14px">Caption</div>';
+  h+='<div class="lb" style="margin-top:14px">'+t("pl_caption")+'</div>';
   h+='<input class="inp" id="plv-cap" value="'+es(p.caption||"")+'" placeholder="(optional)" maxlength="120">';
   if(dlbl)h+='<div style="text-align:center;font-size:12px;color:var(--ht);margin-top:10px">📅 '+es(dlbl)+'</div>';
   h+='<div style="display:flex;gap:8px;margin-top:18px">';
   h+='<button class="btn btn-s" style="flex:1;background:transparent;color:var(--ac);border:1px solid color-mix(in srgb,var(--ac) 40%,transparent)" onclick="_plPhotoDelete('+p.id+','+plantId+')">🗑 Delete</button>';
-  h+='<button class="btn" style="flex:1.5" onclick="_plPhotoSaveCaption('+p.id+','+plantId+')">Save</button>';
+  h+='<button class="btn" style="flex:1.5" onclick="_plPhotoSaveCaption('+p.id+','+plantId+')">'+t("btn_save")+'</button>';
   h+='</div>';
   oMC(t("mt_photo"),h,{ic:"flower"});
 }
@@ -1091,7 +1102,7 @@ async function _plPhotoSaveCaption(photoId, plantId){
 }
 
 async function _plPhotoDelete(photoId, plantId){
-  if(!confirm("Delete this photo?"))return;
+  if(!confirm(t("pl_delete_photo_confirm")))return;
   var r=await A("DELETE","/api/plants/photos/"+photoId);
   if(!r)return;
   _plState.photosCache[plantId]=(_plState.photosCache[plantId]||[]).filter(function(x){return x.id!==photoId});
@@ -1126,7 +1137,7 @@ function _plOpenAdd(){
   hp("light");
   var h='<div class="lb">Snap a photo</div>';
   h+='<div style="font-size:12px;color:var(--ht);margin-bottom:14px;line-height:1.4">AI will identify the plant, set a watering schedule, and write care tips. ~3 seconds.</div>';
-  h+='<label class="pl-photo-pick" id="pl-photo-pick"><input type="file" id="pl-file" accept="image/*" capture="environment" style="display:none" onchange="_plOnPhotoPicked(this)"><div class="pl-photo-icon">📷</div><div class="pl-photo-l">Take photo or choose from gallery</div></label>';
+  h+='<label class="pl-photo-pick" id="pl-photo-pick"><input type="file" id="pl-file" accept="image/*" capture="environment" style="display:none" onchange="_plOnPhotoPicked(this)"><div class="pl-photo-icon">📷</div><div class="pl-photo-l">'+t("pl_pick_photo")+'</div></label>';
   h+='<div class="lb" style="margin-top:14px">Nickname (optional)</div>';
   h+='<input class="inp" id="pl-name" placeholder="e.g. Yuki, Momi, Hana…" maxlength="40">';
   h+='<div id="pl-add-msg" style="margin-top:10px;font-size:12px;color:var(--ht);text-align:center;min-height:18px"></div>';
@@ -1141,7 +1152,7 @@ function _plOnPhotoPicked(input){
   // Preview
   var url=URL.createObjectURL(f);
   var p=document.getElementById("pl-photo-pick");
-  if(p){p.style.backgroundImage='url('+url+')';p.classList.add("pl-photo-set");p.querySelector(".pl-photo-icon").style.opacity=0;p.querySelector(".pl-photo-l").textContent="Tap to change"}
+  if(p){p.style.backgroundImage='url('+url+')';p.classList.add("pl-photo-set");p.querySelector(".pl-photo-icon").style.opacity=0;p.querySelector(".pl-photo-l").textContent=t("pl_tap_to_change")}
   var go=document.getElementById("pl-add-go");if(go){go.disabled=false;go.style.opacity=1}
 }
 async function _plDoAdd(){
@@ -1195,7 +1206,7 @@ function _plShowCandidates(candidates,customName){
     h+='<div class="pl-cand-c">'+pct+'%</div>';
     h+='</button>';
   });
-  h+='<button class="btn btn-s" style="margin-top:14px;background:transparent;color:var(--ht);border:1px solid var(--bd)" onclick="cMo()">Cancel</button>';
+  h+='<button class="btn btn-s" style="margin-top:14px;background:transparent;color:var(--ht);border:1px solid var(--bd)" onclick="cMo()">'+t("btn_cancel")+'</button>';
   // Stash for picker
   _plState._candidates=candidates;
   _plState._candCustomName=customName||"";
@@ -1274,7 +1285,7 @@ function _plHistHtml(d,p){
     var avgPart=d.avg_interval_days?' · avg every '+d.avg_interval_days+'d':'';
     stats='<div class="pl-hist-stats">'+d.count+' waterings'+avgPart+' · target '+d.target_interval_days+'d</div>';
   }else{
-    stats='<div class="pl-hist-stats">No waterings logged in this window</div>';
+    stats='<div class="pl-hist-stats">'+t("pl_no_waterings_window")+'</div>';
   }
   return '<div class="pl-hist-bars">'+bars+'</div>'+stats;
 }
@@ -1283,9 +1294,9 @@ function _plMoreMenu(pid){
   hp("light");
   var p=(D.plants||[]).find(function(x){return x.id===pid});if(!p)return;
   var h='<button class="menu-i" onclick="cMo();_plOpenEdit('+pid+')"><span class="mi-ico">'+I.ed+'</span><span class="mi-l">Edit details</span></button>';
-  h+='<button class="menu-i" onclick="cMo();_plReplacePhoto('+pid+')"><span class="mi-ico">📷</span><span class="mi-l">Replace photo</span></button>';
+  h+='<button class="menu-i" onclick="cMo();_plReplacePhoto('+pid+')"><span class="mi-ico">📷</span><span class="mi-l">'+t("pl_replace_photo")+'</span></button>';
   h+='<div style="height:1px;background:var(--bd);margin:6px 0"></div>';
-  h+='<button class="menu-i" onclick="cMo();_plDelete('+pid+')" style="color:var(--ac)"><span class="mi-ico">🗑</span><span class="mi-l">Delete plant</span></button>';
+  h+='<button class="menu-i" onclick="cMo();_plDelete('+pid+')" style="color:var(--ac)"><span class="mi-ico">🗑</span><span class="mi-l">'+t("pl_delete_plant")+'</span></button>';
   oMC(t("mt_more"),h,{ic:"flower"});
 }
 
@@ -1304,7 +1315,7 @@ function _plOpenEdit(pid){
   h+='<div class="dl" style="margin-top:6px">🟢 When healthy</div><input class="inp" id="ple-v-ok" value="'+es(vo.ok||"")+'" placeholder="Feeling great! ✨" maxlength="120">';
   h+='<div class="dl" style="margin-top:6px">🟡 When water due soon</div><input class="inp" id="ple-v-soon" value="'+es(vo.soon||"")+'" placeholder="Could use a drink soon…" maxlength="120">';
   h+='<div class="dl" style="margin-top:6px">🔴 When thirsty</div><input class="inp" id="ple-v-thirsty" value="'+es(vo.thirsty||"")+'" placeholder="I’m getting thirsty 💧" maxlength="120">';
-  h+='<button class="btn" style="margin-top:18px" onclick="_plSaveEdit('+pid+')">Save</button>';
+  h+='<button class="btn" style="margin-top:18px" onclick="_plSaveEdit('+pid+')">'+t("btn_save")+'</button>';
   oMC(t("mt_edit_plant"),h,{ic:"flower"});
 }
 async function _plSaveEdit(pid){
@@ -1354,7 +1365,7 @@ function _plReplacePhoto(pid){
 
 async function _plDelete(pid){
   var p=(D.plants||[]).find(function(x){return x.id===pid});if(!p)return;
-  if(!confirm("Delete "+(p.custom_name||p.species||"this plant")+"? This can't be undone."))return;
+  if(!confirm(t("pl_delete_plant_confirm",{name:(p.custom_name||p.species||"plant")})))return;
   var r=await A("DELETE","/api/plants/"+pid);
   if(!r)return;
   hp("ok");toast("Deleted");
@@ -1498,7 +1509,7 @@ async function init(){
 if(!iD && !_getSess()){rLogin();return}
 try{var r=await A("GET","/api/family/status");if(!r){if(!iD)rLogin();return}fS=r;
 // Restore user's preferred language so the first render is already localized.
-if(r.lang)_lang=r.lang;
+if(r.lang){_lang=r.lang;_rebuildLocaleArrays()}
 // Re-apply nav labels in case bottom nav was rendered with default 'en' labels at boot.
 document.querySelectorAll('#nv .ni').forEach(function(b){var id=b.dataset.t;var lbl=b.querySelector('span:last-child');if(lbl&&id)lbl.textContent=t('nav_'+id)});
 if(r.joined){document.querySelectorAll(".ni").forEach(function(e){e.style.opacity="1"});await load()}else rOnb()}catch(e){document.getElementById("ct").innerHTML='<pre style="color:red">'+e.message+'</pre>'}}
@@ -1530,7 +1541,7 @@ if(!bot){
     h+='<div style="font-size:11px;color:var(--ht);margin-top:14px;text-align:center;max-width:300px">Works with whichever Telegram account is logged in on your phone — no cookie tricks.</div>';
   }else{
     h+='<div id="tg-widget-host" style="margin-top:20px;display:flex;justify-content:center"></div>';
-    h+='<div style="font-size:11px;color:var(--ht);margin-top:14px;text-align:center;max-width:300px">Uses your <b>web.telegram.org</b> session. If you log in with the wrong account, sign out at web.telegram.org first.</div>';
+    h+='<div style="font-size:11px;color:var(--ht);margin-top:14px;text-align:center;max-width:300px">'+t("auth_widget_session_note")+'</div>';
   }
 }
 h+='</div>';
@@ -1543,7 +1554,7 @@ if(bot){
     var clear=document.createElement("button");
     clear.className="onb-b s2";
     clear.style.cssText="margin-top:14px;background:transparent;border:1.5px solid var(--ac);color:var(--ac);font-size:12px";
-    clear.textContent="Clear stored session";
+    clear.textContent=t("auth_clear_session");
     clear.onclick=function(){_logoutPwa()};
     document.querySelector(".onb").appendChild(clear);
   }
@@ -1569,11 +1580,11 @@ async function _renderBotLogin(bot){
 var host=document.getElementById("bot-login-host");if(!host)return;
 host.innerHTML='<div style="text-align:center;padding:20px;color:var(--ht)">Generating link…</div>';
 var r=await A("POST","/api/auth/bot-login-init");
-if(!r||!r.deep_link){host.innerHTML='<div style="color:var(--ac);text-align:center;padding:16px">Bot not configured</div>';return}
+if(!r||!r.deep_link){host.innerHTML='<div style="color:var(--ac);text-align:center;padding:16px">'+t("auth_bot_not_configured")+'</div>';return}
 _botCode=r.code;
 host.innerHTML=
   '<a href="'+r.deep_link+'" target="_blank" class="btn" style="display:block;text-align:center;text-decoration:none;background:#0088cc;color:#fff;margin-bottom:10px">📨 Open @'+bot+' in Telegram</a>'+
-  '<div style="font-size:12px;color:var(--ht);text-align:center;margin-top:8px">1. Tap the blue button above<br>2. In Telegram, tap <b>Start</b> on the bot<br>3. Come back here — auto-logs in</div>'+
+  '<div style="font-size:12px;color:var(--ht);text-align:center;margin-top:8px">'+t("auth_bot_steps")+'</div>'+
   '<div id="bot-poll-status" style="text-align:center;margin-top:14px;font-size:12px;color:var(--ht)">Waiting for confirmation…</div>';
 // Start polling
 if(_botPollTimer)clearInterval(_botPollTimer);
@@ -1592,7 +1603,7 @@ if(r.status==="complete"&&r.token){
   setTimeout(function(){location.reload()},500);
 }else if(r.status==="expired"){
   if(_botPollTimer){clearInterval(_botPollTimer);_botPollTimer=null}
-  if(st)st.innerHTML='<span style="color:var(--ac)">Code expired. Tap "Via Bot" again for a new link.</span>';
+  if(st)st.innerHTML='<span style="color:var(--ac)">'+t("auth_code_expired")+'</span>';
 }
 }
 
@@ -1755,7 +1766,7 @@ D.birthdays.forEach(function(b){
 var totalUp=upTasks.length+upEvents.length+upSubs.length+upBdays.length;
 function _upRow(u){
   var _ud=new Date(Date.now()+u.days*86400000);
-  var dayLabel=u.days===0?t("g_today"):u.days===1?t("g_tomorrow"):dN[_ud.getDay()]+" "+_ud.getDate()+" "+mN[_ud.getMonth()].slice(0,3);
+  var dayLabel=u.days===0?t("g_today"):u.days===1?t("g_tomorrow"):dN[_ud.getDay()]+" "+_ud.getDate()+" "+mNS[_ud.getMonth()];
   var tone=u.days===0?"tone-ac":u.days<=2?"tone-wn":"tone-ok";
   var rightPill=u.days===0?'<span class="lc-rt '+tone+'">'+t("g_today")+'</span>':'<span class="lc-rt '+tone+'">'+tn("g_in_days_short",u.days)+'</span>';
   return '<div class="lc"><div class="lc-i '+(u.accClass||"")+'">'+u.icon+'</div><div class="lc-bd"><div class="lc-tt">'+u.title+'</div><div class="lc-mt">'+dayLabel+' · '+u.sub+'</div></div>'+rightPill+'</div>';
@@ -1781,7 +1792,7 @@ return h}
 function rT(){var h='<div class="tabs"><button class="tab '+(taskTab==="active"?"a":"")+'" onclick="taskTabSet(\'active\')"><span style="display:inline-flex;align-items:center;gap:6px">'+icon("clipboard",13,2.2)+t("g_active")+'</span></button><button class="tab '+(taskTab==="recurring"?"a":"")+'" onclick="taskTabSet(\'recurring\')"><span style="display:inline-flex;align-items:center;gap:6px">'+icon("refresh",13,2.2)+t("g_recurring")+'</span></button><button class="tab '+(taskTab==="events"?"a":"")+'" onclick="taskTabSet(\'events\')"><span style="display:inline-flex;align-items:center;gap:6px">'+icon("clock",13,2.2)+t("g_events")+'</span></button></div>';
 if(taskTab==="recurring")return h+rRecur();
 if(taskTab==="events")return h+rEvts();
-h+='<div class="fb2"><button class="fi '+(!filt?"a":"")+'" onclick="filt=null;ren()">All</button>';
+h+='<div class="fb2"><button class="fi '+(!filt?"a":"")+'" onclick="filt=null;ren()">'+t("g_filter_all")+'</button>';
 D.members.forEach(function(m){h+='<button class="fi '+(filt===m.user_id?"a":"")+'" style="padding:3px 6px;display:inline-flex;align-items:center" onclick="filt='+m.user_id+';ren()">'+mAv(m.user_id,22)+'</button>'});h+='</div>';
 var all=D.tasks;if(filt)all=all.filter(function(x){return x.assigned_to===filt});
 if(searchQ)all=all.filter(function(x){return matchQ(x.text)});
@@ -1838,7 +1849,7 @@ async function svRec(id){var text=document.getElementById("f-t").value.trim();if
 // SHOPPING — enhanced add flow
 // ═══════════════════════════════════════════════════════════
 function rSh(){
-var h='<div class="fb2"><button class="fi '+(shopFold===null?"a":"")+'" onclick="shopFold=null;ren()">All</button><button class="fi '+(shopFold==="stock"?"a":"")+'" onclick="shopFold=\'stock\';ren()"><span style="display:inline-flex;align-items:center;gap:4px">📦 In Stock</span></button>';
+var h='<div class="fb2"><button class="fi '+(shopFold===null?"a":"")+'" onclick="shopFold=null;ren()">'+t("g_filter_all")+'</button><button class="fi '+(shopFold==="stock"?"a":"")+'" onclick="shopFold=\'stock\';ren()"><span style="display:inline-flex;align-items:center;gap:4px">📦 '+t("sh_in_stock")+'</span></button>';
 D.folders.forEach(function(f){h+='<button class="fi '+(shopFold===f.id?"a":"")+'" onclick="shopFold='+f.id+';ren()"><span style="display:inline-flex;align-items:center;gap:4px">'+f.emoji+es(f.name)+'</span></button><button class="bi" onclick="edFolder('+f.id+')" style="padding:2px;margin-left:-6px">'+I.ed+'</button>'});
 h+='<button class="fi" onclick="shAddFolder()"><span style="display:inline-flex;align-items:center;gap:4px">'+I.pl+'Folder</span></button></div>';
 function _scH3(ico,label,cnt,extra,color){var iconHtml=ico?'<span class="sc-ico"'+(color?' style="color:'+color+'"':'')+'>'+icon(ico,12,2.4)+'</span>':'';return '<div class="sc"'+(color?' style="color:'+color+'"':'')+'><span class="sc-l">'+iconHtml+label+(cnt?'<span class="sc-cnt"'+(color?' style="background:color-mix(in srgb,'+color+' 16%,transparent);color:'+color+'"':'')+'>'+cnt+'</span>':"")+'</span>'+(extra||'')+'</div>'}
@@ -1925,7 +1936,7 @@ h+='<div class="st st-mn"><div class="st-ico tone-pr">'+icon("wallet",16,2.2)+'<
 h+='</div>';
 if(!txs.length)return h+em(icon("wallet",48,1.8),t("es_no_txs_t"),t("es_no_txs_s"));
 // Member filter row
-h+='<div class="fb2"><button class="fi '+(!filt?"a":"")+'" onclick="filt=null;ren()">All</button>';
+h+='<div class="fb2"><button class="fi '+(!filt?"a":"")+'" onclick="filt=null;ren()">'+t("g_filter_all")+'</button>';
 D.members.forEach(function(m){h+='<button class="fi '+(filt===m.user_id?"a":"")+'" style="padding:3px 6px;display:inline-flex;align-items:center" onclick="filt='+m.user_id+';ren()">'+mAv(m.user_id,22)+'</button>'});h+='</div>';
 // Transaction rows as .lc cards: category emoji on tinted gradient (green for income, coral for expense), description as title, date + member as meta, signed amount pill on the right
 txs.forEach(function(tx){
@@ -2120,7 +2131,7 @@ if(!D.subs.length)return em(icon("card",48,1.8),t("es_no_subs_t"),t("es_no_subs_
 var items=D.subs;if(searchQ)items=items.filter(function(s){return matchQ(s.name)});
 var totalEur=0;items.forEach(function(s){totalEur+=(s.amount_eur||0)});
 var h=rSubAddBtn()+'<div class="c" style="border-left:3px solid var(--wn)"><div class="bd"><div class="tt" style="font-weight:700">Monthly total</div><div class="mt" style="font-size:16px;color:var(--wn);font-weight:800">€'+totalEur.toFixed(2)+'</div></div></div>';
-h+='<div class="fb2"><button class="fi '+(filt===null?"a":"")+'" onclick="filt=null;ren()">All</button>';D.members.forEach(function(m){h+='<button class="fi '+(filt===m.user_id?"a":"")+'" style="padding:3px 6px;display:inline-flex;align-items:center" onclick="filt='+m.user_id+';ren()">'+mAv(m.user_id,22)+'</button>'});h+='</div>';
+h+='<div class="fb2"><button class="fi '+(filt===null?"a":"")+'" onclick="filt=null;ren()">'+t("g_filter_all")+'</button>';D.members.forEach(function(m){h+='<button class="fi '+(filt===m.user_id?"a":"")+'" style="padding:3px 6px;display:inline-flex;align-items:center" onclick="filt='+m.user_id+';ren()">'+mAv(m.user_id,22)+'</button>'});h+='</div>';
 if(filt)items=items.filter(function(s){return s.assigned_to===filt});
 items.forEach(function(s){var daysTxt=s.days_until===0?"Today":s.days_until===1?"Tomorrow":"in "+s.days_until+"d";
 var tone=s.days_until===0?"tone-ac":s.days_until<=2?"tone-wn":"";
@@ -2544,7 +2555,7 @@ async function _trImgUpload(tid,input){
   }catch(e){toast(t("ts_network"))}
 }
 async function _trImgDelete(tid){
-  if(!confirm("Remove image?"))return;
+  if(!confirm(t("g_remove_image_confirm")))return;
   var r=await A("DELETE","/api/workout-templates/"+tid+"/image");
   if(!r)return;
   hp("ok");toast(t("ts_image_removed"));
@@ -3847,7 +3858,7 @@ var curTh=TH[cTheme]||TH.midnight;
 h+='<div class="sc"><span class="sc-l">'+t("set_appearance")+'</span></div>';
 var thAcc=curTh.pr;
 var thStyle='background:linear-gradient(135deg,color-mix(in srgb,'+thAcc+' 38%,transparent),color-mix(in srgb,'+thAcc+' 10%,transparent));border-color:color-mix(in srgb,'+thAcc+' 48%,transparent);color:'+thAcc+';box-shadow:inset 0 1px 0 color-mix(in srgb,'+thAcc+' 20%,transparent),0 2px 12px color-mix(in srgb,'+thAcc+' 22%,transparent)';
-h+=_setRow({ico:"palette",iconStyle:thStyle,title:curTh.n,subtitle:"Tap to change · "+Object.keys(TH).length+" themes · "+curTh.e,onclick:"openThemePicker()"});
+h+=_setRow({ico:"palette",iconStyle:thStyle,title:t("th_"+cTheme)||curTh.n,subtitle:t("set_theme_sub")+" · "+Object.keys(TH).length+" · "+curTh.e,onclick:"openThemePicker()"});
 h+='<div class="sc"><span class="sc-l">'+t("set_notifications")+'</span></div>';
 h+=_setRow({ico:"bl",acc:"acc-wn",title:t("set_morning_digest"),subtitle:(D.settings.digest_time||"09:00")+" · "+t("set_morning_digest_sub"),onclick:"openDigestCfg()"});
 var nExp=D.categories.filter(function(c){return c.type==="expense"}).length;
@@ -3868,7 +3879,7 @@ if(_pwaPrompt){
 }
 h+='<div class="sc"><span class="sc-l">'+t("set_developer")+'</span></div>';
 h+=_setRow({ico:"debug",acc:"acc-ac",title:t("set_debug")+" "+(dbgOn?"ON":"OFF"),onclick:"dbgOn=!dbgOn;document.getElementById(\'dbg\').classList.toggle(\'hidden\',!dbgOn);ren()"});
-h+='<div style="margin-top:18px;text-align:center;font-size:11px;color:var(--ht);letter-spacing:.3px">Family HQ v8.34.0</div>';return h}
+h+='<div style="margin-top:18px;text-align:center;font-size:11px;color:var(--ht);letter-spacing:.3px">Family HQ v8.34.1</div>';return h}
 async function setTh(id){
   if(id==="custom"){
     // Tapping Custom in the picker opens the editor (saves happen there). Also apply right away.
@@ -3887,8 +3898,8 @@ function openThemePicker(){
   h+='<div class="tc" onclick="setTh(\'custom\')" style="background:'+dt.cd+';border:2px solid '+(sel?dt.pr:dt.bd)+'"><div class="te" style="color:'+dt.pr+'">'+icon("palette",24,2.2)+'</div><div class="tn" style="color:'+dt.tx+'">Custom</div><div class="td">'+[dt.pr,dt.ac,dt.ok,dt.wn].map(function(c){return '<div class="tdd" style="background:'+c+'"></div>'}).join("")+'</div></div>';
   Object.keys(TH).forEach(function(id){
     if(id==="custom")return; // already rendered above
-    var t=TH[id];var sl=cTheme===id;
-    h+='<div class="tc" onclick="setTh(\''+id+'\');cMo()" style="background:'+t.cd+';border:2px solid '+(sl?t.pr:t.bd)+'"><div class="te">'+t.e+'</div><div class="tn" style="color:'+t.tx+'">'+t.n+'</div><div class="td">'+[t.pr,t.ac,t.ok,t.wn].map(function(c){return '<div class="tdd" style="background:'+c+'"></div>'}).join("")+'</div></div>'
+    var th=TH[id];var sl=cTheme===id;var thName=t("th_"+id)||th.n;
+    h+='<div class="tc" onclick="setTh(\''+id+'\');cMo()" style="background:'+th.cd+';border:2px solid '+(sl?th.pr:th.bd)+'"><div class="te">'+th.e+'</div><div class="tn" style="color:'+th.tx+'">'+thName+'</div><div class="td">'+[th.pr,th.ac,th.ok,th.wn].map(function(c){return '<div class="tdd" style="background:'+c+'"></div>'}).join("")+'</div></div>'
   });
   h+='</div>';
   oMC(t("mt_choose_theme"),h,{ic:"palette"})
