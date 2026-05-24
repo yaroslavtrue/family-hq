@@ -977,10 +977,11 @@ body.no-scroll .mx{touch-action:pan-y}
 <!-- Debug -->
 <div class="dbg hidden" id="dbg"><button class="dbg-cp" onclick="navigator.clipboard.writeText(dbgLog.join('\n'))">Copy</button></div>
 <!-- Load JS -->
-<!-- Load order: data (lang.js) → engines (theme.js) → main (app.js). All share globals; -->
-<!-- theme.js + lang.js use `var` declarations so they're true window-scope. -->
-<script src="/static/lang.js?v=192"></script>
-<script src="/static/theme.js?v=192"></script>
-<script src="/static/app.js?v=192"></script>
+<!-- Load order: data (lang.js) → engines (theme.js, auth.js) → main (app.js). -->
+<!-- All share globals; extracted modules use `var`/`function` declarations so they're true window-scope. -->
+<script src="/static/lang.js?v=193"></script>
+<script src="/static/theme.js?v=193"></script>
+<script src="/static/auth.js?v=193"></script>
+<script src="/static/app.js?v=193"></script>
 </body>
 </html>
