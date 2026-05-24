@@ -835,7 +835,9 @@ function zRemPk(){var h='';_zRems.forEach(function(r,i){var p=(r||"").split(" ")
 
 // ─── Subtask helpers ────────────────────────────────────────
 function sC(t,id){var s=allSubs[t]&&allSubs[t][id]?allSubs[t][id]:[];if(!s.length)return "";var d=s.filter(function(x){return x.done}).length;return '<span style="font-size:11px;color:'+(d===s.length?"var(--ok)":"var(--ht)")+';font-weight:600">'+d+'/'+s.length+'</span>'}
-function rSu(t,id){var k=t+"_"+id;if(!ex[k])return "";var s=allSubs[t]&&allSubs[t][id]?allSubs[t][id]:[];var h='<div class="sbs">';s.forEach(function(x){h+='<div class="si"><div class="cb cb-s '+(x.done?"cb-k":"cb-o")+'" onclick="tSu('+x.id+')">'+(x.done?I.ck:"")+'</div><span class="sx'+(x.done?" dn":"")+'">'+es(x.text)+'</span><button class="bi" onclick="dSu('+x.id+')">'+I.x+'</button></div>'});h+='</div><div class="sa"><input id="si-'+t+'-'+id+'" placeholder="'+t("su_add_step")+'" onkeydown="if(event.key===\'Enter\')aSu(\''+t+'\','+id+')"><button onclick="aSu(\''+t+'\','+id+')">'+t("su_add")+'</button></div>';return h}
+// BUGFIX (v8.39.1): renamed param `t` -> `pt` (parent_type). Inside the body we call
+// t("su_add_step") + t("su_add") for i18n — with a `t` param that would shadow the helper.
+function rSu(pt,id){var k=pt+"_"+id;if(!ex[k])return "";var s=allSubs[pt]&&allSubs[pt][id]?allSubs[pt][id]:[];var h='<div class="sbs">';s.forEach(function(x){h+='<div class="si"><div class="cb cb-s '+(x.done?"cb-k":"cb-o")+'" onclick="tSu('+x.id+')">'+(x.done?I.ck:"")+'</div><span class="sx'+(x.done?" dn":"")+'">'+es(x.text)+'</span><button class="bi" onclick="dSu('+x.id+')">'+I.x+'</button></div>'});h+='</div><div class="sa"><input id="si-'+pt+'-'+id+'" placeholder="'+t("su_add_step")+'" onkeydown="if(event.key===\'Enter\')aSu(\''+pt+'\','+id+')"><button onclick="aSu(\''+pt+'\','+id+')">'+t("su_add")+'</button></div>';return h}
 function tX(t,id){ex[t+"_"+id]=!ex[t+"_"+id];ren()}
 async function tSu(sid){hp();await A("PATCH","/api/subtasks/"+sid+"/toggle");await load()}
 async function dSu(sid){hp();await A("DELETE","/api/subtasks/"+sid);await load()}
@@ -870,16 +872,21 @@ if(tabId==="tasks"&&taskTab&&taskTab!=="active"){
   if(taskTab==="events"){_hi.innerHTML=icon("clock",22,2.2);document.getElementById("ht").textContent=t("tt_events_t");document.getElementById("hs").textContent=t("tt_events_s");_evtsFirstRender=true}
   else if(taskTab==="recurring"){_hi.innerHTML=icon("refresh",22,2.2);document.getElementById("ht").textContent=t("tt_recurring_t");document.getElementById("hs").textContent=t("tt_recurring_s")}
 }
+// BUGFIX (v8.39.1): these used to reference `t` when the function was `go(t)`.
+// During the i18n rename to `go(tabId)`, these stayed as `t` — which now silently
+// resolves to the global i18n helper function. noFab.indexOf(function) → -1 →
+// FAB never hidden; t==="words" → false → `words-mode` class never set → Words
+// tab loses its full-screen takeover and scrolls vertically.
 var noFab=["home","settings","clean","events","birthdays","subs","profile","trainings","words","plants"];
-var hideFab=noFab.indexOf(t)>=0||(t==="tasks"&&taskTab==="events");
+var hideFab=noFab.indexOf(tabId)>=0||(tabId==="tasks"&&taskTab==="events");
 document.getElementById("fab").classList.toggle("hidden",hideFab);
 // Words mode renders its own header — hide the global one
-document.body.classList.toggle("words-mode",t==="words");
-if(t==="home")_firstHomeRender=true;
-if(t==="events")_evtsFirstRender=true;
-if(t==="profile")_profStats=null;
-if(t==="words")_wordsFirstLoad=true;
-if(t==="trainings")_trainStats=null;
+document.body.classList.toggle("words-mode",tabId==="words");
+if(tabId==="home")_firstHomeRender=true;
+if(tabId==="events")_evtsFirstRender=true;
+if(tabId==="profile")_profStats=null;
+if(tabId==="words")_wordsFirstLoad=true;
+if(tabId==="trainings")_trainStats=null;
 ren();hp("sel")}
 
 // Hamburger menu
@@ -3164,7 +3171,7 @@ if(_pwaPrompt){
 }
 h+='<div class="sc"><span class="sc-l">'+t("set_developer")+'</span></div>';
 h+=_setRow({ico:"debug",acc:"acc-ac",title:t("set_debug")+" "+(dbgOn?"ON":"OFF"),onclick:"dbgOn=!dbgOn;document.getElementById(\'dbg\').classList.toggle(\'hidden\',!dbgOn);ren()"});
-h+='<div style="margin-top:18px;text-align:center;font-size:11px;color:var(--ht);letter-spacing:.3px">Family HQ v8.39.0</div>';return h}
+h+='<div style="margin-top:18px;text-align:center;font-size:11px;color:var(--ht);letter-spacing:.3px">Family HQ v8.39.1</div>';return h}
 async function setTh(id){
   if(id==="custom"){
     // Tapping Custom in the picker opens the editor (saves happen there). Also apply right away.
