@@ -219,6 +219,8 @@ window.LANG = {
     sh_in_stock: "In Stock",
     sh_bought: "Bought", sh_clear: "Clear", sh_edit_item: "Edit Item",
     mt_edit_sub: "Edit Subscription",
+    mt_edit_zone_task: "Edit Cleaning Task",
+    cl_reset_days: "Reset (days)",
     // Workout — active session (v8.35.0 polish)
     wx_reps: "Reps", wx_weight: "Weight", wx_add_set: "Add Set",
     wx_last_time: "Last time", wx_in_progress: "in progress",
@@ -429,6 +431,8 @@ window.LANG = {
     sh_in_stock: "В наличии",
     sh_bought: "Куплено", sh_clear: "Очистить", sh_edit_item: "Изменить товар",
     mt_edit_sub: "Изменить подписку",
+    mt_edit_zone_task: "Изменить задачу зоны",
+    cl_reset_days: "Сброс (дней)",
     wx_reps: "Повторы", wx_weight: "Вес", wx_add_set: "Добавить подход",
     wx_last_time: "В прошлый раз", wx_in_progress: "в процессе",
     wx_completed: "Завершено", wx_exercises: "упр.", wx_sets: "подх.",
