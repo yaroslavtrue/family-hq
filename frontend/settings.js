@@ -1,0 +1,197 @@
+// ═══════════════════════════════════════════════════════════════
+// 🏠 Family HQ — Settings page (extracted from app.js in v8.45.0)
+// ═══════════════════════════════════════════════════════════════
+// Settings hamburger page: Family info + invite, members, language picker,
+// theme picker (catalog + custom editor), notifications/digest, money
+// categories link, learning language, integrations, developer toggle.
+//
+// Loaded BEFORE app.js. All declarations are var/function (window-scope).
+// Reads from earlier modules: D, fS, tr(), trn(), A(), hp(), toast(),
+// es(), icon(), oMC(), cMo(), ren(), mAv(), I, iD, TH, cTheme, aT(),
+// _lang, _wordsState.
+
+// ═══════════════════════════════════════════════════════════
+// SETTINGS (hamburger page)
+// ═══════════════════════════════════════════════════════════
+function rSet(){var h='';
+function _setRow(opts){
+  // opts: {ico, iconCustom, iconStyle, acc, title, subtitle, onclick, right, id, style}
+  var hasIcon=opts.ico||opts.iconCustom;
+  var iconInner=opts.iconCustom||(opts.ico?icon(opts.ico,20,2.2):'');
+  var iconStyleAttr=opts.iconStyle?' style="'+opts.iconStyle+'"':'';
+  var iconHtml=hasIcon?'<div class="lc-i '+(opts.acc||"")+'"'+iconStyleAttr+'>'+iconInner+'</div>':'';
+  var ocl=opts.onclick?' onclick="'+opts.onclick+'"':"";
+  var cls="lc lc-row"+(opts.onclick?" lc-tap":"");
+  var sub=opts.subtitle?'<div class="lc-mt">'+opts.subtitle+'</div>':"";
+  return '<div class="'+cls+'"'+ocl+(opts.id?' id="'+opts.id+'"':"")+(opts.style?' style="'+opts.style+'"':"")+'>'+iconHtml+'<div class="lc-bd"><div class="lc-tt">'+opts.title+'</div>'+sub+'</div>'+(opts.right||'')+(opts.onclick?'<span class="lc-chev">›</span>':"")+'</div>'
+}
+if(fS&&fS.joined){
+  h+='<div class="sc"><span class="sc-l">'+tr("set_family")+'</span></div>';
+  h+=_setRow({ico:"user",acc:"acc-ok",title:es(fS.name||"My Family"),subtitle:tr("set_family")});
+  h+='<div class="invite-card"><div class="invite-lb">'+tr("set_invite_code")+'</div><div class="invite-cd">'+(fS.invite_code||"...")+'</div><div class="invite-hint">'+tr("set_share_hint")+'</div></div>';
+  h+='<div class="sc"><span class="sc-l">'+tr("set_members")+'<span class="sc-cnt">'+(fS.members||[]).length+'</span></span></div>';
+  (fS.members||[]).forEach(function(m){
+    var right='<button class="bi" onclick="edMe('+m.user_id+',\''+es(m.user_name)+'\',\''+m.emoji+'\',\''+m.color+'\')">'+I.ed+'</button>';
+    h+='<div class="lc lc-mem">'+mAv(m.user_id,44)+'<div class="lc-bd"><div class="lc-tt">'+es(m.user_name)+'</div><div class="lc-mem-strip" style="background:'+m.color+'"></div></div>'+right+'</div>';
+  });
+  h+='<div style="margin:14px 0 22px;display:flex;gap:8px"><button class="btn btn-s" style="font-size:13px;flex:1" onclick="if(confirm(\''+tr("set_leave_family")+'?\'))leaveFam()">'+tr("set_leave_family")+'</button>'+
+  (!iD&&_getSess()?'<button class="btn btn-s" style="font-size:13px;flex:1;background:transparent;border:1.5px solid var(--bd);color:var(--tx)" onclick="_logoutPwa()">Log out</button>':'')+
+  '</div>';
+}
+// ─── Language picker (per-member, v8.32.0) ─────────────────────────
+// Two big buttons EN/RU; current one filled with theme primary, the other outlined.
+h+='<div class="sc"><span class="sc-l">'+tr("set_language")+'</span></div>';
+h+='<div style="display:flex;gap:8px;margin-bottom:18px">';
+['en','ru'].forEach(function(code){
+  var sel=(_lang===code);
+  var label=(code==='en'?'🇬🇧 English':'🇷🇺 Русский');
+  h+='<button class="btn btn-s" style="flex:1;font-size:14px;'+(sel?'':'background:transparent;border:1.5px solid var(--bd);color:var(--tx)')+'" onclick="setLang(\''+code+'\')">'+label+'</button>';
+});
+h+='</div>';
+var curTh=TH[cTheme]||TH.midnight;
+h+='<div class="sc"><span class="sc-l">'+tr("set_appearance")+'</span></div>';
+var thAcc=curTh.pr;
+var thStyle='background:linear-gradient(135deg,color-mix(in srgb,'+thAcc+' 38%,transparent),color-mix(in srgb,'+thAcc+' 10%,transparent));border-color:color-mix(in srgb,'+thAcc+' 48%,transparent);color:'+thAcc+';box-shadow:inset 0 1px 0 color-mix(in srgb,'+thAcc+' 20%,transparent),0 2px 12px color-mix(in srgb,'+thAcc+' 22%,transparent)';
+h+=_setRow({ico:"palette",iconStyle:thStyle,title:tr("th_"+cTheme)||curTh.n,subtitle:tr("set_theme_sub")+" · "+Object.keys(TH).length+" · "+curTh.e,onclick:"openThemePicker()"});
+h+='<div class="sc"><span class="sc-l">'+tr("set_notifications")+'</span></div>';
+h+=_setRow({ico:"bl",acc:"acc-wn",title:tr("set_morning_digest"),subtitle:(D.settings.digest_time||"09:00")+" · "+tr("set_morning_digest_sub"),onclick:"openDigestCfg()"});
+var nExp=D.categories.filter(function(c){return c.type==="expense"}).length;
+var nInc=D.categories.filter(function(c){return c.type==="income"}).length;
+h+='<div class="sc"><span class="sc-l">'+tr("set_money")+'</span></div>';
+h+=_setRow({ico:"list",acc:"acc-pr",title:tr("set_categories"),subtitle:nExp+" expense · "+nInc+" income",onclick:"openCatMgr()"});
+h+='<div class="sc"><span class="sc-l">'+tr("set_learning")+'</span></div>';
+var _curLearn=_wordsState&&_wordsState.mode==="ru"?"🇷🇺 Russian":"🇬🇧 English";
+h+=_setRow({iconCustom:'<span style="font-size:22px">🎓</span>',acc:"acc-pr",title:tr("set_learning_lang"),subtitle:_curLearn,onclick:"openLearnModePicker()"});
+h+=_setRow({ico:"book",acc:"acc-pr",title:tr("set_words_editor"),subtitle:tr("set_words_editor_sub"),onclick:"openWordsMgr()"});
+h+=_setRow({iconCustom:'<span style="font-size:22px">🔄</span>',acc:"acc-ac",title:tr("set_reset_progress"),subtitle:tr("set_reset_progress_sub"),onclick:"_resetWordsProgress()"});
+h+='<div class="sc"><span class="sc-l">'+tr("set_integrations")+'</span></div>';
+h+=_setRow({iconCustom:'<span style="font-size:22px">🔵</span>',acc:"",title:"Trello Sync",subtitle:"Board: Работа",onclick:"syncTrello()",right:'<span id="trello-btn" class="lc-rt" style="background:color-mix(in srgb,var(--pr) 16%,transparent);color:var(--pr)">Sync Now</span>'});
+if(_pwaPrompt){
+  h+=_setRow({iconCustom:'<span style="font-size:22px">📱</span>',acc:"",title:"Install App",subtitle:"Add to home screen — works offline",onclick:"installPWA()",right:'<span class="lc-rt" style="background:color-mix(in srgb,var(--pr) 16%,transparent);color:var(--pr)">Install</span>'});
+}else if(!iD && /iPhone|iPad|iPod/.test(navigator.userAgent||"")){
+  h+='<div class="lc"><div class="lc-i acc-pr"><span style="font-size:22px">📱</span></div><div class="lc-bd"><div class="lc-tt">Install on iOS</div><div class="lc-mt">Tap <b>Share</b> ⬆ → <b>Add to Home Screen</b></div></div></div>';
+}
+h+='<div class="sc"><span class="sc-l">'+tr("set_developer")+'</span></div>';
+h+=_setRow({ico:"debug",acc:"acc-ac",title:tr("set_debug")+" "+(dbgOn?"ON":"OFF"),onclick:"dbgOn=!dbgOn;document.getElementById(\'dbg\').classList.toggle(\'hidden\',!dbgOn);ren()"});
+h+='<div style="margin-top:18px;text-align:center;font-size:11px;color:var(--ht);letter-spacing:.3px">Family HQ v8.41.0</div>';return h}
+async function setTh(id){
+  if(id==="custom"){
+    // Tapping Custom in the picker opens the editor (saves happen there). Also apply right away.
+    aT("custom");
+    await A("PATCH","/api/settings",{theme:"custom"});
+    cMo();openCustomThemeEditor();return
+  }
+  aT(id);hp();await A("PATCH","/api/settings",{theme:id});ren()
+}
+function openThemePicker(){
+  var h='<div class="tg">';
+  // Custom always first — its preview shows the user's saved palette (or seeded from current theme)
+  var p=_getMyCustomPalette()||_seedCustomFromTheme(cTheme==="custom"?"midnight":cTheme);
+  var dt=_deriveCustomTheme(p);
+  var sel=cTheme==="custom";
+  h+='<div class="tc" onclick="setTh(\'custom\')" style="background:'+dt.cd+';border:2px solid '+(sel?dt.pr:dt.bd)+'"><div class="te" style="color:'+dt.pr+'">'+icon("palette",24,2.2)+'</div><div class="tn" style="color:'+dt.tx+'">Custom</div><div class="td">'+[dt.pr,dt.ac,dt.ok,dt.wn].map(function(c){return '<div class="tdd" style="background:'+c+'"></div>'}).join("")+'</div></div>';
+  Object.keys(TH).forEach(function(id){
+    if(id==="custom")return; // already rendered above
+    var th=TH[id];var sl=cTheme===id;var thName=tr("th_"+id)||th.n;
+    h+='<div class="tc" onclick="setTh(\''+id+'\');cMo()" style="background:'+th.cd+';border:2px solid '+(sl?th.pr:th.bd)+'"><div class="te">'+th.e+'</div><div class="tn" style="color:'+th.tx+'">'+thName+'</div><div class="td">'+[th.pr,th.ac,th.ok,th.wn].map(function(c){return '<div class="tdd" style="background:'+c+'"></div>'}).join("")+'</div></div>'
+  });
+  h+='</div>';
+  oMC(tr("mt_choose_theme"),h,{ic:"palette"})
+}
+
+// ─── Custom theme editor ─────────────────────────────────────────
+var _customSnapshot=null,_customDraft=null;
+function openCustomThemeEditor(){
+  // Snapshot current applied theme (so Cancel reverts cleanly)
+  _customSnapshot={theme:cTheme,palette:_getMyCustomPalette()};
+  // Draft starts from saved palette OR a seed from the previous non-custom theme
+  var seedFrom=_customSnapshot.theme==="custom"?"midnight":_customSnapshot.theme;
+  _customDraft=_getMyCustomPalette()||_seedCustomFromTheme(seedFrom);
+  // Apply draft immediately so user sees live preview
+  aT("custom");
+  oMC(tr("mt_custom_theme"),_customEditorHtml(),{ic:"palette"})
+}
+function _customEditorHtml(){
+  var p=_customDraft;
+  var dt=_deriveCustomTheme(p);
+  // Contrast checks (WCAG)
+  var warns=[];
+  var c1=_contrast(dt.tx,p.bg);if(c1<3.5)warns.push("Text on background contrast is low ("+c1.toFixed(1)+":1)");
+  var c2=_contrast(p.pr,p.bg);if(c2<2.8)warns.push("Primary accent vs background contrast is low ("+c2.toFixed(1)+":1)");
+  var c3=_contrast(p.bg,p.sf);if(c3<1.06)warns.push("Background and Surface are too similar — cards won't stand out");
+  var c4=_contrast(p.ac,p.bg);if(c4<2.5)warns.push("Alert accent vs background contrast is low");
+  var c5=_contrast(p.ok,p.bg);if(c5<2.5)warns.push("Success accent vs background contrast is low");
+  var warnHtml=warns.length?'<div class="ct-warn">'+warns.map(function(w){return '<div class="ct-warn-row">⚠ '+w+'</div>'}).join('')+'</div>':'';
+  // Preview tile
+  var prev='<div class="ct-prev" style="background:'+p.bg+';color:'+dt.tx+';border-color:'+dt.bd+'">'+
+    '<div class="ct-prev-h">Family HQ</div>'+
+    '<div class="ct-prev-s" style="color:'+dt.ht+'">Live preview of your palette</div>'+
+    '<div class="ct-prev-card" style="background:'+dt.cd+'"><div class="ct-prev-row"><span class="ct-prev-ico" style="background:linear-gradient(135deg,'+_toRgba(p.pr,0.38)+','+_toRgba(p.pr,0.10)+');border:1px solid '+_toRgba(p.pr,0.45)+';color:'+p.pr+'">'+icon("clipboard",16,2.2)+'</span><span class="ct-prev-tt">Task title</span><span class="ct-prev-pill" style="background:'+_toRgba(p.pr,0.18)+';color:'+p.pr+'">High</span></div></div>'+
+    '<div class="ct-prev-chips"><span class="ct-prev-chip" style="background:'+_toRgba(p.pr,0.16)+';color:'+p.pr+';border:1px solid '+_toRgba(p.pr,0.5)+'">Primary</span><span class="ct-prev-chip" style="background:'+_toRgba(p.ac,0.16)+';color:'+p.ac+';border:1px solid '+_toRgba(p.ac,0.5)+'">Alert</span><span class="ct-prev-chip" style="background:'+_toRgba(p.ok,0.16)+';color:'+p.ok+';border:1px solid '+_toRgba(p.ok,0.5)+'">Success</span></div>'+
+    '<button class="ct-prev-btn" style="background:'+dt.gd+';color:'+dt.gtx+'">Primary Button</button>'+
+    '</div>';
+  // Color rows
+  function row(key,label,val){
+    return '<div class="ct-row"><div class="ct-row-lb">'+label+'</div><div class="ct-row-val"><input type="color" value="'+val+'" oninput="_customColorChange(\''+key+'\',this.value)"><span class="ct-row-hex">'+val.toUpperCase()+'</span></div></div>'
+  }
+  var h='';
+  h+=prev;
+  h+=warnHtml;
+  h+='<div class="lb" style="margin-top:18px">Surfaces</div>';
+  h+=row("bg","Background",p.bg);
+  h+=row("sf","Surface",p.sf);
+  h+='<div class="lb" style="margin-top:14px">Accents</div>';
+  h+=row("pr","Primary",p.pr);
+  h+=row("ac","Alert",p.ac);
+  h+=row("ok","Success",p.ok);
+  h+='<div style="display:flex;gap:8px;margin-top:18px"><button class="btn btn-s" style="flex:1" onclick="_resetCustomTheme()">Reset</button><button class="btn btn-s" style="flex:1" onclick="_cancelCustomTheme()">Cancel</button><button class="btn" style="flex:2" onclick="_saveCustomTheme()">Save</button></div>';
+  return h
+}
+function _customColorChange(key,val){
+  _customDraft[key]=val;
+  aT("custom"); // re-derive and apply — but aT reads _getMyCustomPalette which doesn't know about the draft
+  // Workaround: temporarily stuff the draft into member data so _getMyCustomPalette sees it
+  var myId=fS&&fS.my_id;
+  var me=myId&&(D.members||[]).find(function(m){return m.user_id===myId});
+  if(me){me.custom_theme=JSON.stringify(_customDraft);aT("custom")}
+  // Re-render the editor (preview tile + hex labels + warnings update)
+  document.getElementById("mb").innerHTML=_customEditorHtml()
+}
+function _resetCustomTheme(){
+  var seed=_customSnapshot&&_customSnapshot.theme&&_customSnapshot.theme!=="custom"?_customSnapshot.theme:"midnight";
+  _customDraft=_seedCustomFromTheme(seed);
+  _customColorChange("__reset",null); // force re-render
+}
+function _cancelCustomTheme(){
+  // Restore: original palette in member, original theme applied
+  var myId=fS&&fS.my_id;
+  var me=myId&&(D.members||[]).find(function(m){return m.user_id===myId});
+  if(me)me.custom_theme=_customSnapshot.palette?JSON.stringify(_customSnapshot.palette):null;
+  if(_customSnapshot.theme)aT(_customSnapshot.theme);
+  // Also revert family theme setting since setTh("custom") already patched it
+  A("PATCH","/api/settings",{theme:_customSnapshot.theme});
+  cMo();hp();ren()
+}
+async function _saveCustomTheme(){
+  var myId=fS&&fS.my_id;if(!myId)return;
+  var json=JSON.stringify(_customDraft);
+  // Persist locally + on server
+  var me=(D.members||[]).find(function(m){return m.user_id===myId});if(me)me.custom_theme=json;
+  await A("PATCH","/api/members/"+myId,{custom_theme:json});
+  // Family theme is already "custom" from setTh — no extra save needed
+  aT("custom");hp("ok");cMo();ren()
+}
+async function setDg(v){await A("PATCH","/api/settings",{digest_time:v});hp()}
+var _catTab="expense";
+function openCatMgr(){_catTab="expense";oMC(tr("mt_categories"),catMgrHtml(),{ic:"list"})}
+function catMgrHtml(){
+var h='<div class="tabs" style="margin-bottom:16px"><button class="tab '+(_catTab==="expense"?"a":"")+'" onclick="_catTab=\'expense\';document.getElementById(\'mb\').innerHTML=catMgrHtml()">💸 Expense</button><button class="tab '+(_catTab==="income"?"a":"")+'" onclick="_catTab=\'income\';document.getElementById(\'mb\').innerHTML=catMgrHtml()">💰 Income</button></div>';
+D.categories.filter(function(c){return c.type===_catTab}).forEach(function(c){
+h+='<div class="c"><span style="font-size:20px">'+c.emoji+'</span><div class="bd"><div class="tt">'+es(c.name)+'</div></div><button class="bi" onclick="cMo();edCat('+c.id+')">'+I.ed+'</button><button class="bi" onclick="dlCat('+c.id+');openCatMgr()">'+I.tr+'</button></div>'});
+h+='<button class="btn btn-s" onclick="cMo();addCat(\''+_catTab+'\')">+ Add Category</button>';
+return h}
+async function syncTrello(){var btn=document.getElementById("trello-btn");if(btn)btn.textContent="Syncing...";try{await A("POST","/api/trello/sync");await load();toast("✓ Trello synced")}catch(e){toast("Trello sync failed")}if(btn)btn.textContent="Sync Now"}
+async function leaveFam(){await A("POST","/api/family/leave");location.reload()}
+function edMe(uid,name,emoji,color){oMC("Edit Profile",'<input class="inp" id="me-n" value="'+name+'" placeholder="Name"><div class="dr"><div><div class="dl">Emoji</div><input class="inp" id="me-e" value="'+emoji+'" style="text-align:center;font-size:24px"></div><div><div class="dl">Color</div><input type="color" id="me-c" value="'+color+'" style="width:100%;height:48px;border-radius:12px;border:none;cursor:pointer"></div></div><button class="btn" onclick="svMe('+uid+')">Save</button>',{ic:"user"})}
+async function svMe(uid){var n=document.getElementById("me-n").value.trim();var e=document.getElementById("me-e").value.trim();var c=document.getElementById("me-c").value;if(!n)return;await A("PATCH","/api/members/"+uid,{user_name:n,emoji:e,color:c});cMo();hp();await load()}
+
