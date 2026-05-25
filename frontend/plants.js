@@ -187,43 +187,59 @@ async function _plLoadPhotos(pid){
 
 // "Update" flow (v8.46.0): take a photo → upload to timeline + Sonnet vision
 // health check → show result modal with status pill + issues + advice.
-// Same input element pattern as before — just no caption prompt and an
-// analyze=1 form flag that triggers the AI assessment on the backend.
+//
+// iOS Telegram WebView quirk: detached <input> sometimes doesn't fire `change`.
+// We append the element to body (off-screen) and use addEventListener.
 function _plPhotoPick(pid){
   hp("light");
   var input=document.createElement("input");
   input.type="file";input.accept="image/*";input.capture="environment";
-  input.onchange=async function(){
-    var f=input.files&&input.files[0];if(!f)return;
-    if(f.size>15*1024*1024){toast(tr("ts_too_large"));return}
-    f=await _downscaleImage(f);
-    var fd=new FormData();
-    fd.append("file",f);
-    fd.append("caption","");           // no caption prompt — "Update" is photo-only
-    fd.append("analyze","1");          // request Sonnet health check
-    var headers={};
-    if(iD)headers["X-Telegram-Init-Data"]=iD;
-    var sess=_getSess();if(sess)headers["X-Session-Token"]=sess;
-    // Show a non-blocking "Analyzing…" toast — Sonnet round-trip is ~3-6s.
-    toast(tr("pl_analyzing"));
+  input.style.cssText="position:fixed;left:-9999px;top:-9999px;opacity:0;pointer-events:none";
+  document.body.appendChild(input);
+  var done=false;
+  // Robust handler — wrapped in try/catch so a thrown error inside still cleans up the DOM node.
+  var handle=async function(){
+    if(done)return;done=true;
     try{
+      var f=input.files&&input.files[0];
+      if(!f){toast("No photo selected");return}
+      if(f.size>15*1024*1024){toast(tr("ts_too_large"));return}
+      // Visible immediately so user knows something is happening — Sonnet call is 3-6s.
+      toast(tr("pl_analyzing"));
+      f=await _downscaleImage(f);
+      var fd=new FormData();
+      fd.append("file",f);
+      fd.append("caption","");           // no caption prompt — "Update" is photo-only
+      fd.append("analyze","1");          // request Sonnet health check
+      var headers={};
+      if(iD)headers["X-Telegram-Init-Data"]=iD;
+      var sess=_getSess();if(sess)headers["X-Session-Token"]=sess;
       var r=await fetch("/api/plants/"+pid+"/photos",{method:"POST",headers:headers,body:fd});
-      if(!r.ok){toast(tr("ts_upload_failed"));return}
+      if(!r.ok){
+        var errText="";try{errText=await r.text()}catch(e){}
+        toast(tr("ts_upload_failed")+" ("+r.status+")");
+        console.error("[plants] upload failed",r.status,errText);
+        return;
+      }
       var p=await r.json();
       hp("ok");
-      // Prepend to local cache (newest first)
       var arr=_plState.photosCache[pid]||[];
       arr.unshift(p);
       _plState.photosCache[pid]=arr;
       ren();
-      // Show health modal if Sonnet returned an assessment; otherwise just toast.
       if(p.ai_analysis){
         _plShowHealthModal(p.ai_analysis, pid);
       } else {
         toast(tr("ts_photo_added"));
       }
-    }catch(e){toast(tr("ts_network"))}
+    }catch(e){
+      console.error("[plants] update flow error",e);
+      toast(tr("ts_network"));
+    }finally{
+      try{input.parentNode&&input.parentNode.removeChild(input)}catch(e){}
+    }
   };
+  input.addEventListener("change",handle);
   input.click();
 }
 
