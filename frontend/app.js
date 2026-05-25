@@ -90,7 +90,7 @@ async function setLang(newLang){
 let calTab="events",shopFold=null,searchQ="",searchOpen=false,menuOpen=false;
 // Main state object — `var` (not let) so extracted feature modules
 // (plants.js, words.js, trainings.js, …) can read/mutate it from window scope.
-var D = {tasks:[],recurring:[],shopping:[],folders:[],events:[],birthdays:[],subs:[],dashboard:{},members:[],zones:[],settings:{},weather:null,categories:[],transactions:[],exercises:[],recentWorkouts:[],workoutTemplates:[],plants:[]};
+var D = {tasks:[],recurring:[],shopping:[],folders:[],events:[],birthdays:[],subs:[],dashboard:{},members:[],zones:[],settings:{},weather:null,categories:[],transactions:[],exercises:[],recentWorkouts:[],workoutTemplates:[],plants:[],dishes:[]};
 var allSubs = {task:{}, event:{}};
 // Modal-shared state — `var` so feature modules (tasks.js, events, etc.) can read/mutate.
 var _assign=0,_pri="normal",_rems=[],_zRems=[],_bdRems=[],_subRems=[],zOpen={};
@@ -154,7 +154,9 @@ book:'<path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 
 speaker:'<polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"/>',
 translate:'<path d="m16 3 4 4-4 4"/><path d="M20 7H4"/><path d="m8 21-4-4 4-4"/><path d="M4 17h16"/>',
 flower:'<circle cx="12" cy="12" r="2.5"/><circle cx="12" cy="5.5" r="3"/><circle cx="18.5" cy="12" r="3"/><circle cx="12" cy="18.5" r="3"/><circle cx="5.5" cy="12" r="3"/>',
-leaf:'<path d="M11 20A7 7 0 0 1 9.8 6.1C15.5 5 17 4.48 19 2c1 2 2 4.18 2 8 0 5.5-4.78 10-10 10Z"/><path d="M2 21c0-3 1.85-5.36 5.08-6"/>'
+leaf:'<path d="M11 20A7 7 0 0 1 9.8 6.1C15.5 5 17 4.48 19 2c1 2 2 4.18 2 8 0 5.5-4.78 10-10 10Z"/><path d="M2 21c0-3 1.85-5.36 5.08-6"/>',
+// chef = fork + knife (utensils). Used in the Cooking tab nav + hamburger.
+chef:'<path d="M3 2v7c0 1.1.9 2 2 2h0v11"/><path d="M7 2v7c0 1.1-.9 2-2 2"/><path d="M7 2v20"/><path d="M21 15V2a5 5 0 0 0-3 4.5V12h3Z"/><path d="M18 15v7"/>'
 };
 // Wrappers — pre-built default sizes for the most-used icons
 const I={
@@ -330,7 +332,7 @@ async function aSu(t,pid){var i=document.getElementById("si-"+t+"-"+pid);if(!i||
 // NAVIGATION — customizable per-member bottom nav (v8.47.0) + hamburger
 // ═══════════════════════════════════════════════════════════
 // TT — tab title/subtitle catalog. Used by go() to set the header per tab.
-const TT={home:{i:"home",t:"Family HQ",s:"Everything at a glance"},tasks:{i:"clipboard",t:"Tasks",s:"Manage & assign"},shop:{i:"cart",t:"Shopping",s:"Shared list"},trainings:{i:"dumbbell",t:"Trainings",s:"Workouts & progress"},words:{i:"book",t:"Words",s:"Vocabulary learning"},plants:{i:"flower",t:"Plants",s:"Care & watering"},money:{i:"dollar",t:"Money",s:"Budget & subs"},profile:{i:"user",t:"Profile",s:"Personal stats"},events:{i:"clock",t:"Events",s:"Schedule"},birthdays:{i:"cake",t:"Birthdays",s:"Never forget"},clean:{i:"broom",t:"Cleaning",s:"Apartment zones"},settings:{i:"cog",t:"Settings",s:"Customize"},subs:{i:"card",t:"Subscriptions",s:"Monthly payments"}};
+const TT={home:{i:"home",t:"Family HQ",s:"Everything at a glance"},tasks:{i:"clipboard",t:"Tasks",s:"Manage & assign"},shop:{i:"cart",t:"Shopping",s:"Shared list"},trainings:{i:"dumbbell",t:"Trainings",s:"Workouts & progress"},words:{i:"book",t:"Words",s:"Vocabulary learning"},plants:{i:"flower",t:"Plants",s:"Care & watering"},cooking:{i:"chef",t:"Cooking",s:"Dishes & ingredient costs"},money:{i:"dollar",t:"Money",s:"Budget & subs"},profile:{i:"user",t:"Profile",s:"Personal stats"},events:{i:"clock",t:"Events",s:"Schedule"},birthdays:{i:"cake",t:"Birthdays",s:"Never forget"},clean:{i:"broom",t:"Cleaning",s:"Apartment zones"},settings:{i:"cog",t:"Settings",s:"Customize"},subs:{i:"card",t:"Subscriptions",s:"Monthly payments"}};
 
 // NV_ALL — every tab that's eligible for the bottom nav. Per-icon `sv` field
 // holds the same inline SVG as old NV; for new tabs we fall back to icon().
@@ -344,6 +346,7 @@ const NV_ALL=[
   // Hamburger-page candidates that can be promoted to nav. Use icon() helper so we stay
   // consistent with the same glyphs the hamburger menu uses for these features.
   {id:"shop",       icon_name:"cart"},
+  {id:"cooking",    icon_name:"chef"},
   {id:"trainings",  icon_name:"dumbbell"},
   {id:"plants",     icon_name:"flower"},
   {id:"birthdays",  icon_name:"cake"},
@@ -416,6 +419,10 @@ if(tabId==="events")_evtsFirstRender=true;
 if(tabId==="profile")_profStats=null;
 if(tabId==="words")_wordsFirstLoad=true;
 if(tabId==="trainings")_trainStats=null;
+if(tabId==="cooking"){
+  // Lazy first-load: fetch dishes if we haven't yet (or after a saved edit cleared them).
+  A("GET","/api/dishes").then(function(r){if(r&&r.dishes){D.dishes=r.dishes;if(tab==="cooking")ren()}});
+}
 ren();hp("sel")}
 
 // Hamburger menu
@@ -449,6 +456,8 @@ allSubs.task=b.subtasks_task||{};allSubs.event=b.subtasks_event||{};D.txItems=b.
 D.weather=b.weather||null;D.categories=b.categories||[];D.transactions=b.transactions||[];
 D.exercises=b.exercises||[];D.recentWorkouts=b.recent_workouts||[];D.workoutTemplates=b.workout_templates||[];
 D.plants=b.plants||[];
+// Dishes are loaded lazily on first Cooking-tab visit (rCooking pulls them).
+if(D.dishes===undefined)D.dishes=[];
 // Sync Words state from member data so Settings can read it without opening Words first.
 try{_wordsInitMode()}catch(e){}
 if(D.settings.theme)aT(D.settings.theme);ren()}
@@ -466,7 +475,7 @@ case"home":c.innerHTML=rH();if(_firstHomeRender){_firstHomeRender=false;FX.count
 case"shop":c.innerHTML=rSh();break;case"money":c.innerHTML=rMoney();break;
 case"trainings":c.innerHTML=rTrain();break;
 case"events":c.innerHTML=rEvts();break;case"birthdays":c.innerHTML=rBdays();break;
-case"clean":c.innerHTML=rC();break;case"settings":c.innerHTML=rSet();break;case"subs":c.innerHTML=rSubsList();break;case"profile":c.innerHTML=rProfile();break;case"words":c.innerHTML=rWords();break;case"plants":c.innerHTML=rPlants();break}}
+case"clean":c.innerHTML=rC();break;case"settings":c.innerHTML=rSet();break;case"subs":c.innerHTML=rSubsList();break;case"profile":c.innerHTML=rProfile();break;case"words":c.innerHTML=rWords();break;case"plants":c.innerHTML=rPlants();break;case"cooking":c.innerHTML=rCooking();break}}
 function sB(t,n){var e=document.getElementById("b-"+t);if(!e)return;if(n>0){e.textContent=n;e.classList.remove("hidden")}else e.classList.add("hidden")}
 
 // Hamburger menu — dynamically rendered with counters.
@@ -497,6 +506,7 @@ words:     {ic:"book"},
 money:     {ic:"dollar"},
 profile:   {ic:"user"},
 shop:      {ic:"cart",      cntKey:"shop"},
+cooking:   {ic:"chef"},
 trainings: {ic:"dumbbell"},
 plants:    {ic:"flower",    cntKey:"plants"},
 birthdays: {ic:"cake",      cntKey:"birthdays"},
@@ -504,7 +514,7 @@ clean:     {ic:"broom",     cntKey:"clean"},
 subs:      {ic:"card",      cntKey:"subs"},
 settings:  {ic:"cog"},
 };
-var HM_CORE=["shop","trainings","plants","birthdays","clean","subs","tasks","words","money","profile","home"];
+var HM_CORE=["shop","cooking","trainings","plants","birthdays","clean","subs","tasks","words","money","profile","home"];
 // Tabs currently shown in the bottom nav — exclude them here so we don't duplicate.
 var inNav={};_currentNavIds().forEach(function(id){inNav[id]=true});
 var rendered=[];
@@ -1232,6 +1242,11 @@ case"shop":
     D.folders.forEach(function(f){folderOpts+='<button class="ob" onclick="window._newShopFold='+f.id+';this.parentNode.querySelectorAll(\'.ob\').forEach(function(b){b.classList.remove(\'s\')});this.classList.add(\'s\')">'+f.emoji+" "+es(f.name)+'</button>'});
     window._newShopFold=0;
     oMC(tr("mt_add_shop"),'<input class="inp" id="ns-n" placeholder="'+tr("f_name")+'"><div class="dr"><div><div class="dl">'+tr("f_quantity")+'</div><input class="inp" id="ns-q" placeholder="1kg"></div><div><div class="dl">'+tr("f_price")+' (din.)</div><input class="inp" id="ns-p" type="number" placeholder="0"></div></div>'+(D.folders.length?'<div class="lb">'+tr("f_folder")+'</div><div class="or">'+folderOpts+'</div>':'')+'<button class="btn" onclick="doShNew()">'+tr("btn_add")+'</button>',{ic:"cart"});break;
+case"cooking":
+    // Cooking has its own opinionated add-modal with image picker + ingredient rows.
+    // Defer to cooking.js — keeps that module self-contained.
+    if(typeof _ckOpenAdd==="function")_ckOpenAdd();
+    return;
 case"money":{
     _assign=0;window._txType="expense";window._txCat=0;
     oMC(tr("mt_add_expense"),'<div class="or" style="margin-bottom:8px"><button class="ob s" id="tb-exp" onclick="window._txType=\'expense\';document.getElementById(\'tb-exp\').classList.add(\'s\');document.getElementById(\'tb-inc\').classList.remove(\'s\');txCatRefresh()">💸 '+tr("m_expense")+'</button><button class="ob" id="tb-inc" onclick="window._txType=\'income\';document.getElementById(\'tb-inc\').classList.add(\'s\');document.getElementById(\'tb-exp\').classList.remove(\'s\');txCatRefresh()">💰 '+tr("m_income")+'</button></div><div class="dr"><div><div class="dl">'+tr("f_amount")+'</div><input class="inp" id="tx-a" type="number" step="0.01" placeholder="0"></div><div><div class="dl">'+tr("f_currency")+'</div><select id="tx-c"><option value="RSD">din.</option><option value="EUR">€</option><option value="USD">$</option><option value="GBP">£</option><option value="RUB">₽</option></select></div></div><div class="lb">'+tr("f_description")+'</div><input class="inp" id="tx-d" placeholder=""><div class="lb">'+tr("f_category")+'</div><div class="or" id="tx-cats"></div><div class="lb">'+tr("f_date")+'</div><input type="date" id="tx-dt" value="'+dy+'"><div class="lb">'+tr("g_who")+'</div>'+assignPk("txm",null)+'<button class="btn" onclick="doTx()">'+tr("btn_add")+'</button>',{ic:"wallet"});setTimeout(txCatRefresh,50)}break}

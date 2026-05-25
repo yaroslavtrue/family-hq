@@ -948,6 +948,76 @@ body.no-scroll .mx{touch-action:pan-y}
 .tr-ex-bd{flex:1;min-width:0}
 .tr-ex-n{font-size:14px;font-weight:700;color:var(--tx);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .tr-ex-mt{font-size:11px;color:var(--ht);margin-top:2px}
+
+/* ─── Cooking tab (v8.48.0) ────────────────────────────────────── */
+.ck-head{padding:6px 14px 4px}
+.ck-head-row{display:flex;justify-content:space-between;align-items:baseline;padding:8px 2px 12px}
+.ck-head-l{font-size:13px;color:var(--ht);font-weight:500}
+.ck-head-v{font-size:22px;font-weight:800;letter-spacing:-.3px;color:var(--tx)}
+.ck-search-row{margin-bottom:8px}
+.ck-search{display:flex;align-items:center;gap:8px;padding:11px 14px;background:var(--cd);border:1px solid var(--bd);border-radius:14px}
+.ck-search input{flex:1;border:none;background:transparent;outline:none;color:var(--tx);font-size:14px;font-weight:500}
+.ck-search input::placeholder{color:var(--ht)}
+.ck-sub{display:flex;align-items:center;gap:8px;padding:10px 4px 6px;font-size:15px;font-weight:700;color:var(--tx)}
+.ck-cnt{display:inline-flex;align-items:center;justify-content:center;min-width:22px;height:22px;padding:0 7px;border-radius:11px;background:color-mix(in srgb,var(--pr) 14%,transparent);color:var(--pr);font-size:11px;font-weight:700}
+.ck-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;padding:4px 14px 96px}
+.ck-c{display:flex;flex-direction:column;background:var(--cd);border:1px solid var(--bd);border-radius:18px;overflow:hidden;text-align:left;cursor:pointer;padding:0;transition:transform .15s ease,box-shadow .2s ease}
+.ck-c:active{transform:scale(.98)}
+.ck-c-imgwrap{position:relative;width:100%;aspect-ratio:1/1;background:color-mix(in srgb,var(--pr) 6%,transparent)}
+.ck-c-img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+.ck-c-ph{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:48px;opacity:.55}
+.ck-c-fav{position:absolute;top:9px;right:9px;display:flex;align-items:center;justify-content:center;width:30px;height:30px;border-radius:50%;background:color-mix(in srgb,#fff 90%,transparent);color:var(--ht);border:none;cursor:pointer;box-shadow:0 2px 6px rgba(0,0,0,.15)}
+.ck-c-fav-on{color:var(--ac)}
+.ck-c-body{padding:10px 12px 12px;display:flex;flex-direction:column;gap:4px}
+.ck-c-name{font-size:14px;font-weight:700;color:var(--tx);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ck-c-meta{display:flex;justify-content:space-between;align-items:center;gap:6px;font-size:11px;color:var(--ht);font-weight:500}
+.ck-c-price{color:var(--ac);font-weight:700;font-size:13px}
+.ck-c-pu{color:var(--ht);font-weight:500}
+.ck-c-srv{display:inline-flex;align-items:center;gap:3px}
+
+/* Cooking — detail modal */
+.ck-d-hero{position:relative;margin:-16px -16px 14px;border-radius:14px 14px 0 0;overflow:hidden;height:230px;background:color-mix(in srgb,var(--pr) 8%,transparent)}
+.ck-d-img{width:100%;height:100%;object-fit:cover;display:block}
+.ck-d-ph{width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:80px;opacity:.55}
+.ck-d-fav{position:absolute;top:14px;right:14px;display:flex;align-items:center;justify-content:center;width:38px;height:38px;border-radius:50%;background:color-mix(in srgb,#fff 90%,transparent);color:var(--ht);border:none;cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,.2)}
+.ck-d-titlerow{display:flex;justify-content:space-between;align-items:flex-start;gap:10px;margin-bottom:8px}
+.ck-d-name{font-size:22px;font-weight:800;letter-spacing:-.3px;color:var(--tx);line-height:1.2}
+.ck-d-price{margin-top:2px;font-size:16px;color:var(--ac);font-weight:700}
+.ck-d-srv{display:inline-flex;align-items:center;gap:4px;font-size:13px;color:var(--ht);font-weight:600;padding-top:4px}
+.ck-d-desc{margin:0 0 14px;font-size:13px;color:var(--ht);line-height:1.5}
+.ck-d-stats{display:flex;align-items:center;gap:0;padding:14px 16px;background:color-mix(in srgb,var(--pr) 5%,var(--cd));border:1px solid var(--bd);border-radius:14px;margin-bottom:14px}
+.ck-d-stat{flex:1;display:flex;flex-direction:column;gap:3px}
+.ck-d-stat-l{font-size:11px;color:var(--ht);font-weight:500;display:flex;align-items:center;gap:4px}
+.ck-d-stat-v{font-size:18px;font-weight:800;color:var(--tx)}
+.ck-d-sep{width:1px;align-self:stretch;background:var(--bd);margin:0 14px}
+.ck-d-ihead{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;font-size:15px;font-weight:700;color:var(--tx)}
+.ck-d-refresh{display:inline-flex;align-items:center;gap:5px;padding:6px 10px;background:transparent;border:1px solid var(--bd);border-radius:12px;font-size:11px;color:var(--ht);font-weight:600;cursor:pointer}
+.ck-d-list{display:flex;flex-direction:column;gap:8px;margin-bottom:12px}
+.ck-d-i{display:flex;align-items:center;gap:10px;padding:10px 12px;background:var(--cd);border:1px solid var(--bd);border-radius:14px}
+.ck-d-i-info{flex:1;min-width:0}
+.ck-d-i-n{font-size:14px;font-weight:600;color:var(--tx)}
+.ck-d-i-q{font-size:11px;color:var(--ht);margin-top:2px}
+.ck-d-i-p{font-size:13px;color:var(--tx);font-weight:700;text-align:right;flex-shrink:0}
+.ck-d-actions{display:flex;gap:8px;margin:14px 0}
+.ck-d-actions .btn-sec{flex:1;display:inline-flex;align-items:center;justify-content:center;gap:6px;padding:11px;background:transparent;color:var(--ht);border:1px solid var(--bd);border-radius:14px;font-size:13px;font-weight:600;cursor:pointer}
+.ck-d-cta{display:flex;justify-content:space-between;align-items:center;width:100%;padding:16px 22px;background:var(--ac);color:#fff;border:none;border-radius:18px;font-size:15px;font-weight:700;cursor:pointer;margin-top:6px;box-shadow:0 4px 14px color-mix(in srgb,var(--ac) 35%,transparent)}
+.ck-d-cta:active{transform:translateY(1px)}
+
+/* Cooking — edit/add modal */
+.ck-e-imgpick{width:130px;height:130px;border-radius:18px;background:color-mix(in srgb,var(--pr) 8%,var(--cd));border:1.5px dashed var(--bd);display:flex;align-items:center;justify-content:center;overflow:hidden;cursor:pointer;margin:4px 0 18px}
+.ck-e-imgpick img{width:100%;height:100%;object-fit:cover}
+.ck-e-img-plus{font-size:36px;font-weight:300;color:var(--ht);width:40px;height:40px;border-radius:50%;background:var(--cd);border:1px solid var(--bd);display:flex;align-items:center;justify-content:center}
+.ck-e-ihead{display:flex;justify-content:space-between;align-items:center;margin:16px 0 8px;font-size:13px;font-weight:700;color:var(--tx)}
+.ck-e-iempty{padding:14px;text-align:center;color:var(--ht);font-size:12px;background:color-mix(in srgb,var(--pr) 3%,transparent);border:1px dashed var(--bd);border-radius:12px}
+.ck-e-i{display:grid;grid-template-columns:1fr 60px 50px 70px 30px;gap:6px;align-items:center;margin-bottom:6px}
+.ck-e-i input{padding:8px 9px;background:var(--cd);border:1px solid var(--bd);border-radius:10px;font-size:13px;color:var(--tx);outline:none;min-width:0;width:100%;box-sizing:border-box}
+.ck-e-i input:focus{border-color:var(--pr)}
+.ck-e-i-x{display:flex;align-items:center;justify-content:center;width:30px;height:30px;border-radius:8px;background:transparent;border:none;color:var(--ht);cursor:pointer}
+.ck-e-i-x:hover{color:var(--ac);background:color-mix(in srgb,var(--ac) 10%,transparent)}
+.ck-e-iadd{display:inline-flex;align-items:center;gap:6px;padding:9px 14px;background:transparent;color:var(--pr);border:1px dashed color-mix(in srgb,var(--pr) 50%,transparent);border-radius:12px;font-size:13px;font-weight:600;cursor:pointer;margin-top:4px}
+.ck-e-est{display:flex;justify-content:space-between;align-items:center;margin-top:18px;padding:12px 14px;background:color-mix(in srgb,var(--pr) 6%,transparent);border-radius:12px;font-size:13px}
+.ck-e-est span:first-child{color:var(--ht);font-weight:500}
+.ck-e-est span:last-child{font-weight:800;color:var(--tx);font-size:16px}
 </style>
 </head>
 <body>
@@ -999,16 +1069,17 @@ body.no-scroll .mx{touch-action:pan-y}
 <!-- Load JS -->
 <!-- Load order: data (lang.js) → engines (theme.js, auth.js, weather.js) → main (app.js). -->
 <!-- All share globals; extracted modules use `var`/`function` declarations so they're true window-scope. -->
-<script src="/static/lang.js?v=206"></script>
-<script src="/static/theme.js?v=206"></script>
-<script src="/static/auth.js?v=206"></script>
-<script src="/static/weather.js?v=206"></script>
-<script src="/static/words.js?v=206"></script>
-<script src="/static/plants.js?v=206"></script>
-<script src="/static/trainings.js?v=206"></script>
-<script src="/static/money.js?v=206"></script>
-<script src="/static/tasks.js?v=206"></script>
-<script src="/static/settings.js?v=206"></script>
-<script src="/static/app.js?v=206"></script>
+<script src="/static/lang.js?v=207"></script>
+<script src="/static/theme.js?v=207"></script>
+<script src="/static/auth.js?v=207"></script>
+<script src="/static/weather.js?v=207"></script>
+<script src="/static/words.js?v=207"></script>
+<script src="/static/plants.js?v=207"></script>
+<script src="/static/trainings.js?v=207"></script>
+<script src="/static/money.js?v=207"></script>
+<script src="/static/tasks.js?v=207"></script>
+<script src="/static/cooking.js?v=207"></script>
+<script src="/static/settings.js?v=207"></script>
+<script src="/static/app.js?v=207"></script>
 </body>
 </html>

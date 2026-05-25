@@ -31,3 +31,6 @@ services:
       # Workout template hero images — AI-generated body-part illustrations
       # uploaded per template. URL /static/workouts/<template_id>.jpg.
       - ./frontend/workouts:/app/frontend/workouts
+      # Dish photos (Cooking tab, v8.48.0). One image per dish; URL /api/dishes/<id>/image.
+      # Bind-mounted so deletes/uploads survive container rebuilds.
+      - ./frontend/dishes:/app/frontend/dishes

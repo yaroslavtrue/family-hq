@@ -3288,8 +3288,288 @@ def serve_exercise_image(fn: str):
     r.headers["Cache-Control"] = "public, max-age=86400"
     return r
 
+# ═════════════════════════════════════════════════════════════════════════
+# 🍳 COOKING (v8.48.0)
+# ═════════════════════════════════════════════════════════════════════════
+# Family-shared dish book. Each dish has an image, name, servings, optional
+# cook time + description, and an ordered ingredient list. Ingredient prices
+# are captured at save time but the picker can also auto-fetch the latest
+# price for a name from the shopping table (price-lookup endpoint).
+#
+# Cost per serving = sum(ingredient.price) / servings. We send both the total
+# and the per-serving figure in the dish view so the frontend can render the
+# reference design without doing arithmetic.
+
+DISHES_IMG_DIR = os.environ.get("DISHES_IMG_DIR", "/app/frontend/dishes")
+
+
+def _dish_total(ings: list[dict]) -> float:
+    """Sum of per-line prices. Missing/null prices count as 0."""
+    return round(sum(float(i.get("price") or 0) for i in ings), 2)
+
+
+def _dish_view(d: dict, ingredients: list[dict]) -> dict:
+    """Return the shape the frontend renders."""
+    servings = int(d.get("servings") or 1) or 1
+    total = _dish_total(ingredients)
+    return {
+        "id": d["id"],
+        "name": d.get("name") or "",
+        "description": d.get("description") or "",
+        "servings": servings,
+        "cook_time_min": d.get("cook_time_min"),
+        "favorite": int(d.get("favorite") or 0) == 1,
+        "added_by": d.get("added_by"),
+        "added_at": d.get("added_at"),
+        "ingredients": ingredients,
+        "total_cost": total,
+        "cost_per_serving": round(total / servings, 2) if servings else 0,
+        "has_image": os.path.isfile(os.path.join(DISHES_IMG_DIR, f"{d['id']}.jpg")),
+    }
+
+
+def _dish_ingredients(db, did: int) -> list[dict]:
+    rows = db.execute(
+        "SELECT id, name, quantity, unit, price, sort_order FROM dish_ingredients "
+        "WHERE dish_id=? ORDER BY sort_order, id", (did,)
+    ).fetchall()
+    return [dict(r) for r in rows]
+
+
+def _shopping_price_for(db, family_id: int, name: str) -> dict | None:
+    """Look up the most recent shopping row matching `name` (case-insensitive,
+    trimmed). Returns {price, quantity, unit, item} or None if no match.
+
+    Strategy: exact lowered match first (most precise), then fall back to a
+    LIKE for partial matches. Latest row wins so newer prices take priority."""
+    if not name or not name.strip():
+        return None
+    nm = name.strip().lower()
+    # Exact match first
+    row = db.execute(
+        "SELECT item, quantity, price FROM shopping "
+        "WHERE family_id=? AND LOWER(TRIM(item))=? AND price IS NOT NULL "
+        "ORDER BY id DESC LIMIT 1", (family_id, nm)
+    ).fetchone()
+    if not row:
+        # Loose LIKE fallback — helps "Eggs" find "Eggs (large)" if it exists
+        row = db.execute(
+            "SELECT item, quantity, price FROM shopping "
+            "WHERE family_id=? AND LOWER(item) LIKE ? AND price IS NOT NULL "
+            "ORDER BY id DESC LIMIT 1", (family_id, f"%{nm}%")
+        ).fetchone()
+    if not row:
+        return None
+    return {
+        "item": row["item"],
+        "quantity": row["quantity"],
+        "price": float(row["price"] or 0),
+    }
+
+
+@app.get("/api/dishes")
+def dishes_list(user=Depends(get_uf), db=Depends(get_db)):
+    """Cards-grid summary — fetches each dish + its ingredients (joined) so the
+    list view can show cost-per-serving without N+1 round trips."""
+    rows = db.execute(
+        "SELECT * FROM dishes WHERE family_id=? ORDER BY favorite DESC, id DESC",
+        (user["family_id"],)
+    ).fetchall()
+    dishes = []
+    total_all = 0.0
+    for r in rows:
+        d = dict(r)
+        ings = _dish_ingredients(db, d["id"])
+        view = _dish_view(d, ings)
+        # Trim ingredient detail for the list endpoint (only need totals + count).
+        view["ingredient_count"] = len(ings)
+        del view["ingredients"]
+        dishes.append(view)
+        total_all += view["total_cost"]
+    return {"dishes": dishes, "total_cost_all": round(total_all, 2)}
+
+
+@app.get("/api/dishes/price-lookup")
+def dishes_price_lookup_early(name: str, user=Depends(get_uf), db=Depends(get_db)):
+    """Resolve the latest known shopping price for an ingredient name.
+    Declared BEFORE /api/dishes/{did} so the literal "price-lookup" segment
+    isn't first parsed as an int (which would yield 422 before our handler ran).
+    The actual implementation lives at this single endpoint."""
+    hit = _shopping_price_for(db, user["family_id"], name)
+    return hit or {"price": None}
+
+
+@app.get("/api/dishes/{did}")
+def dishes_detail(did: int, user=Depends(get_uf), db=Depends(get_db)):
+    row = db.execute("SELECT * FROM dishes WHERE id=? AND family_id=?", (did, user["family_id"])).fetchone()
+    if not row: raise HTTPException(404)
+    return _dish_view(dict(row), _dish_ingredients(db, did))
+
+
+class DishIngredientIn(BaseModel):
+    name: str
+    quantity: float | None = None
+    unit: str | None = None
+    price: float | None = None
+
+
+class DishCreate(BaseModel):
+    name: str
+    description: str | None = ""
+    servings: int = 2
+    cook_time_min: int | None = None
+    ingredients: list[DishIngredientIn] = []
+
+
+def _save_ingredients(db, did: int, ingredients: list[dict]):
+    """Replace the full ingredient list atomically — easier semantics than diff/merge
+    for the frontend (it always sends the canonical state)."""
+    db.execute("DELETE FROM dish_ingredients WHERE dish_id=?", (did,))
+    for i, ing in enumerate(ingredients):
+        name = (ing.get("name") or "").strip()
+        if not name: continue
+        db.execute(
+            "INSERT INTO dish_ingredients (dish_id, name, quantity, unit, price, sort_order) "
+            "VALUES (?, ?, ?, ?, ?, ?)",
+            (did, name,
+             float(ing["quantity"]) if ing.get("quantity") not in (None, "") else None,
+             (ing.get("unit") or "").strip() or None,
+             float(ing["price"]) if ing.get("price") not in (None, "") else None,
+             i)
+        )
+
+
+@app.post("/api/dishes")
+def dishes_create(body: DishCreate, user=Depends(get_uf), db=Depends(get_db)):
+    """Create a dish (sans image — upload separately via /api/dishes/{id}/image)."""
+    name = (body.name or "").strip()
+    if not name: raise HTTPException(400, "name required")
+    servings = max(1, int(body.servings or 1))
+    cur = db.execute(
+        "INSERT INTO dishes (family_id, name, description, servings, cook_time_min, added_by) "
+        "VALUES (?, ?, ?, ?, ?, ?)",
+        (user["family_id"], name, (body.description or "").strip(), servings,
+         body.cook_time_min, user["id"])
+    )
+    did = cur.lastrowid
+    _save_ingredients(db, did, [i.dict() for i in body.ingredients])
+    db.commit()
+    row = db.execute("SELECT * FROM dishes WHERE id=?", (did,)).fetchone()
+    return _dish_view(dict(row), _dish_ingredients(db, did))
+
+
+class DishEdit(BaseModel):
+    name: str | None = None
+    description: str | None = None
+    servings: int | None = None
+    cook_time_min: int | None = None
+    favorite: bool | None = None
+    ingredients: list[DishIngredientIn] | None = None  # full replacement when present
+
+
+@app.patch("/api/dishes/{did}")
+def dishes_update(did: int, body: DishEdit, user=Depends(get_uf), db=Depends(get_db)):
+    row = db.execute("SELECT * FROM dishes WHERE id=? AND family_id=?", (did, user["family_id"])).fetchone()
+    if not row: raise HTTPException(404)
+    payload = body.dict(exclude_unset=True)
+    ings = payload.pop("ingredients", None)
+    if "favorite" in payload:
+        payload["favorite"] = 1 if payload["favorite"] else 0
+    if "servings" in payload and payload["servings"] is not None:
+        payload["servings"] = max(1, int(payload["servings"]))
+    if payload:
+        sets, params = [], []
+        for k, v in payload.items():
+            sets.append(f"{k}=?"); params.append(v)
+        params.append(did)
+        db.execute(f"UPDATE dishes SET {','.join(sets)} WHERE id=?", params)
+    if ings is not None:
+        _save_ingredients(db, did, [i if isinstance(i, dict) else i.dict() for i in ings])
+    db.commit()
+    fresh = db.execute("SELECT * FROM dishes WHERE id=?", (did,)).fetchone()
+    return _dish_view(dict(fresh), _dish_ingredients(db, did))
+
+
+@app.delete("/api/dishes/{did}")
+def dishes_delete(did: int, user=Depends(get_uf), db=Depends(get_db)):
+    row = db.execute("SELECT id FROM dishes WHERE id=? AND family_id=?", (did, user["family_id"])).fetchone()
+    if not row: raise HTTPException(404)
+    db.execute("DELETE FROM dish_ingredients WHERE dish_id=?", (did,))
+    db.execute("DELETE FROM dishes WHERE id=?", (did,))
+    db.commit()
+    # Best-effort image cleanup
+    try:
+        fp = os.path.join(DISHES_IMG_DIR, f"{did}.jpg")
+        if os.path.isfile(fp): os.remove(fp)
+    except Exception:
+        pass
+    return {"ok": True}
+
+
+@app.post("/api/dishes/{did}/image")
+async def dishes_image_upload(did: int, file: UploadFile = File(...), user=Depends(get_uf), db=Depends(get_db)):
+    """Upload or replace a dish photo."""
+    row = db.execute("SELECT id FROM dishes WHERE id=? AND family_id=?", (did, user["family_id"])).fetchone()
+    if not row: raise HTTPException(404)
+    if (file.content_type or "").split("/")[0] != "image":
+        raise HTTPException(400, "not an image")
+    data = await file.read()
+    if not data or len(data) > 5 * 1024 * 1024:
+        raise HTTPException(400, "empty or too large (max 5 MB)")
+    os.makedirs(DISHES_IMG_DIR, exist_ok=True)
+    with open(os.path.join(DISHES_IMG_DIR, f"{did}.jpg"), "wb") as f:
+        f.write(data)
+    return {"ok": True, "size": len(data)}
+
+
+class DishToShoppingBody(BaseModel):
+    folder_id: int | None = None
+
+
+@app.post("/api/dishes/{did}/add-to-shopping")
+def dishes_to_shopping(did: int, body: DishToShoppingBody, user=Depends(get_uf), db=Depends(get_db)):
+    """Push every ingredient of the dish onto the family shopping list as
+    individual rows. Quantity comes from the dish ingredient ("200 g", "2 pcs",
+    etc.) so the shopper sees how much to buy."""
+    row = db.execute("SELECT id FROM dishes WHERE id=? AND family_id=?", (did, user["family_id"])).fetchone()
+    if not row: raise HTTPException(404)
+    ings = _dish_ingredients(db, did)
+    added = []
+    for ing in ings:
+        nm = (ing.get("name") or "").strip()
+        if not nm: continue
+        qty_parts = []
+        if ing.get("quantity") not in (None, ""): qty_parts.append(str(ing["quantity"]).rstrip("0").rstrip("."))
+        if ing.get("unit"): qty_parts.append(str(ing["unit"]))
+        qty_str = " ".join(p for p in qty_parts if p) or None
+        cur = db.execute(
+            "INSERT INTO shopping (family_id, item, quantity, price, added_by, folder_id) "
+            "VALUES (?, ?, ?, ?, ?, ?)",
+            (user["family_id"], nm, qty_str, ing.get("price"),
+             user["first_name"], body.folder_id)
+        )
+        added.append({"id": cur.lastrowid, "item": nm, "quantity": qty_str})
+    db.commit()
+    return {"ok": True, "added": added, "count": len(added)}
+
+
+@app.get("/api/dishes/{did}/image")
+def dishes_image_get(did: int):
+    """Serve the dish photo. Public-ish (anyone with the dish id) — same
+    pattern as plant images. Cache for 24h."""
+    fp = os.path.join(DISHES_IMG_DIR, f"{did}.jpg")
+    if not os.path.isfile(fp): raise HTTPException(404)
+    r = FileResponse(fp, media_type="image/jpeg")
+    r.headers["Cache-Control"] = "public, max-age=86400"
+    return r
+
+
 # ─── Debug & Serve ───────────────────────────────────────────────────────
-APP_VERSION = "v8.47.1"
+APP_VERSION = "v8.48.0"
+# v8.48.0 — Cooking tab. Schema v28 (dishes + dish_ingredients). Endpoints:
+# GET /api/dishes, GET/PATCH/DELETE /api/dishes/{id}, POST /api/dishes (json create),
+# POST /api/dishes/{id}/image (multipart), GET /api/dishes/{id}/image,
+# GET /api/dishes/price-lookup?name=…, POST /api/dishes/{id}/add-to-shopping.
 
 @app.get("/api/debug/ping")
 def ping(): return {"ok": True, "version": APP_VERSION, "time": datetime.now(ZoneInfo(TIMEZONE)).isoformat()}

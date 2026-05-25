@@ -577,6 +577,37 @@ def migrate(db_path):
         # v27: per-member bottom-nav preference. JSON array of tab ids (e.g. ["home","tasks","plants","money","profile"]).
         # NULL = default 5 (home/tasks/words/money/profile). Frontend reads from /api/family/status.
         lambda c: safe_add_col(c, "family_members", "nav_tabs", "TEXT"),
+        # v28: Cooking — dishes + dish_ingredients.
+        # Dish image stored at /app/frontend/dishes/<id>.jpg (volume-bound on VPS).
+        # Ingredient prices captured at save time. Total cost computed as sum(qty*price)
+        # but we just sum the per-ingredient "line" price stored in dish_ingredients.price.
+        # Auto-price-lookup happens client-side via /api/dishes/price-lookup which matches
+        # by lowered/trimmed ingredient name against the shopping table.
+        lambda c: c.executescript("""
+            CREATE TABLE IF NOT EXISTS dishes (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                family_id INTEGER NOT NULL,
+                name TEXT NOT NULL,
+                description TEXT,
+                servings INTEGER NOT NULL DEFAULT 2,
+                cook_time_min INTEGER,
+                favorite INTEGER NOT NULL DEFAULT 0,
+                added_by INTEGER,
+                added_at TEXT DEFAULT (datetime('now'))
+            );
+            CREATE INDEX IF NOT EXISTS idx_dishes_family ON dishes(family_id);
+
+            CREATE TABLE IF NOT EXISTS dish_ingredients (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                dish_id INTEGER NOT NULL,
+                name TEXT NOT NULL,
+                quantity REAL,
+                unit TEXT,
+                price REAL,
+                sort_order INTEGER NOT NULL DEFAULT 0
+            );
+            CREATE INDEX IF NOT EXISTS idx_dish_ingredients_dish ON dish_ingredients(dish_id, sort_order);
+        """),
     ]
 
     for i, mig in enumerate(migrations):
