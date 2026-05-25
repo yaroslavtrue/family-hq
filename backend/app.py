@@ -3565,7 +3565,8 @@ def dishes_image_get(did: int):
 
 
 # ─── Debug & Serve ───────────────────────────────────────────────────────
-APP_VERSION = "v8.48.0"
+APP_VERSION = "v8.49.0"
+# v8.49.0 — What's New + Tips timeline (frontend-only). Removed cooking total-cost-all header.
 # v8.48.0 — Cooking tab. Schema v28 (dishes + dish_ingredients). Endpoints:
 # GET /api/dishes, GET/PATCH/DELETE /api/dishes/{id}, POST /api/dishes (json create),
 # POST /api/dishes/{id}/image (multipart), GET /api/dishes/{id}/image,

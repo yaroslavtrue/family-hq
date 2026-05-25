@@ -75,9 +75,12 @@ if(_pwaPrompt){
 }else if(!iD && /iPhone|iPad|iPod/.test(navigator.userAgent||"")){
   h+='<div class="lc"><div class="lc-i acc-pr"><span style="font-size:22px">📱</span></div><div class="lc-bd"><div class="lc-tt">Install on iOS</div><div class="lc-mt">Tap <b>Share</b> ⬆ → <b>Add to Home Screen</b></div></div></div>';
 }
+// Tips & News (v8.49.0) — opens release timeline from /static/news.js.
+h+='<div class="sc"><span class="sc-l">'+tr("set_about")+'</span></div>';
+h+=_setRow({ico:"bolt",acc:"acc-pr",title:tr("set_tips_news"),subtitle:tr("set_tips_news_sub"),onclick:"showAllNews()"});
 h+='<div class="sc"><span class="sc-l">'+tr("set_developer")+'</span></div>';
 h+=_setRow({ico:"debug",acc:"acc-ac",title:tr("set_debug")+" "+(dbgOn?"ON":"OFF"),onclick:"dbgOn=!dbgOn;document.getElementById(\'dbg\').classList.toggle(\'hidden\',!dbgOn);ren()"});
-h+='<div style="margin-top:18px;text-align:center;font-size:11px;color:var(--ht);letter-spacing:.3px">Family HQ v8.41.0</div>';return h}
+h+='<div style="margin-top:18px;text-align:center;font-size:11px;color:var(--ht);letter-spacing:.3px">Family HQ v8.49.0</div>';return h}
 async function setTh(id){
   if(id==="custom"){
     // Tapping Custom in the picker opens the editor (saves happen there). Also apply right away.

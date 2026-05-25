@@ -20,14 +20,12 @@ var _ckDetailId = null;
 
 // ─── List render ──────────────────────────────────────────────
 function rCooking(){
-  var list = D.dishes || [];
-  var totalAll = list.reduce(function(s,d){ return s + (d.total_cost||0) }, 0);
-  var cur = fS && fS.currency || "EUR";
   var h = '';
-  // Header — total cost summary + search bar (rendered once; search re-renders body only)
+  // Header — search bar only (the "total of all dishes" line was removed in v8.49.0:
+  // it added visual weight without being actionable, and the price-per-dish on each
+  // card carries the same information at a more useful granularity).
   h += '<div class="ck-head">';
-  h += '<div class="ck-head-row"><span class="ck-head-l">'+tr("ck_total_all")+'</span><span class="ck-head-v">'+_fmtMoney(totalAll, cur)+'</span></div>';
-  h += '<div class="ck-search-row"><div class="ck-search">'+icon("home",16,2)
+  h += '<div class="ck-search-row" style="margin-top:6px"><div class="ck-search">'+icon("home",16,2)
        .replace('viewBox="0 0 24 24"','viewBox="0 0 24 24" style="opacity:.55"')+
        '<input type="text" id="ck-q" placeholder="'+tr("ck_search_ph")+'" value="'+es(_ckSearch)+'" oninput="_ckOnSearch(this.value)"></div></div>';
   h += '<div class="ck-sub" id="ck-sub"></div>';

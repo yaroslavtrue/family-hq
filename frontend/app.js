@@ -439,7 +439,10 @@ if(r.lang){_lang=r.lang;_rebuildLocaleArrays()}
 // Restore user's custom bottom-nav layout. _buildNav() reads _navTabs (null = default).
 if(r.nav_tabs!==undefined)_navTabs=r.nav_tabs;
 _buildNav();
-if(r.joined){document.querySelectorAll(".ni").forEach(function(e){e.style.opacity="1"});await load()}else rOnb()}catch(e){document.getElementById("ct").innerHTML='<pre style="color:red">'+e.message+'</pre>'}}
+if(r.joined){document.querySelectorAll(".ni").forEach(function(e){e.style.opacity="1"});await load();
+  // What's New — show once after first paint if the user hasn't seen the latest release yet.
+  if(typeof maybeShowWhatsNew==="function")maybeShowWhatsNew();
+}else rOnb()}catch(e){document.getElementById("ct").innerHTML='<pre style="color:red">'+e.message+'</pre>'}}
 
 
 // ─── Load (bundle) ──────────────────────────────────────────

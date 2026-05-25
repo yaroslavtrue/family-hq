@@ -229,6 +229,14 @@ window.LANG = {
     nav_pick_hint: "Pick 3-5 features to show in the bottom nav. Tap a tile to add or remove. Number shows position.",
     nav_max_warning: "Max 5 tabs — remove one first",
     nav_min_warning: "Need at least 3 tabs",
+    // What's New + Tips (v8.49.0)
+    news_whatsnew: "What's New",
+    news_got_it: "Got it",
+    news_see_all: "See all",
+    news_timeline_title: "Tips & News",
+    set_about: "About",
+    set_tips_news: "Tips & News",
+    set_tips_news_sub: "What's new — release history",
     // Cooking (v8.48.0)
     ck_total_all: "Total cost of all dishes",
     ck_search_ph: "Search dishes...",
@@ -490,6 +498,14 @@ window.LANG = {
     nav_pick_hint: "Выбери 3-5 вкладок для нижнего меню. Тап по плитке — добавить/убрать. Номер показывает позицию.",
     nav_max_warning: "Максимум 5 вкладок — убери одну",
     nav_min_warning: "Нужно минимум 3 вкладки",
+    // What's New + Tips (v8.49.0)
+    news_whatsnew: "Что нового",
+    news_got_it: "Понятно",
+    news_see_all: "Все обновления",
+    news_timeline_title: "Советы и новости",
+    set_about: "О приложении",
+    set_tips_news: "Советы и новости",
+    set_tips_news_sub: "Что нового — история обновлений",
     // Cooking (v8.48.0)
     ck_total_all: "Общая стоимость блюд",
     ck_search_ph: "Поиск блюд...",
