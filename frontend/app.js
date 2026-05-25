@@ -381,6 +381,8 @@ function _buildNav(){
     b.onclick=function(){go(id)};
     n.appendChild(b);
   });
+  // Keep the hamburger menu in sync — it shows everything NOT in the bottom nav.
+  if(typeof rMenuItems==="function")rMenuItems();
 }
 _buildNav();
 
@@ -467,7 +469,11 @@ case"events":c.innerHTML=rEvts();break;case"birthdays":c.innerHTML=rBdays();brea
 case"clean":c.innerHTML=rC();break;case"settings":c.innerHTML=rSet();break;case"subs":c.innerHTML=rSubsList();break;case"profile":c.innerHTML=rProfile();break;case"words":c.innerHTML=rWords();break;case"plants":c.innerHTML=rPlants();break}}
 function sB(t,n){var e=document.getElementById("b-"+t);if(!e)return;if(n>0){e.textContent=n;e.classList.remove("hidden")}else e.classList.add("hidden")}
 
-// Hamburger menu — dynamically rendered with counters
+// Hamburger menu — dynamically rendered with counters.
+// v8.47.1: shows EVERY navigable tab that isn't currently in the bottom nav. So
+// if the user promotes e.g. `shop` to bottom nav, it disappears from here; if
+// they demote e.g. `tasks` (default-nav) from bottom nav, it shows up here. The
+// candidate order is fixed (HM_ORDER) so the menu doesn't reshuffle wildly.
 function rMenuItems(){
 var el=document.getElementById("menu-items");if(!el)return;
 // Also localize the menu header ("Menu" / "Меню") — DOM-driven from index.html
@@ -479,26 +485,45 @@ events: (D.events||[]).filter(function(e){var d=(e.event_date||"").split(" ")[0]
 birthdays: (D.birthdays||[]).filter(function(b){return b.days_until!=null&&b.days_until>=0&&b.days_until<=7}).length,
 clean: (D.zones||[]).filter(function(z){return z.dirty}).length,
 subs: (D.subs||[]).filter(function(s){return s.days_until!=null&&s.days_until>=0&&s.days_until<=5}).length,
+plants: (D.plants||[]).filter(function(p){return p.status==="thirsty"}).length,
+tasks: (D.tasks||[]).filter(function(x){return!x.done}).length,
 };
-// Labels read through tr("tt_<id>_t") so they share keys with the page-header dict (single source of truth).
-var items=[
-{id:"shop",ic:"cart",cnt:cnt.shop},
-{id:"trainings",ic:"dumbbell",cnt:0},
-{id:"plants",ic:"flower",cnt:(D.plants||[]).filter(function(p){return p.status==="thirsty"}).length},
-{id:"birthdays",ic:"cake",cnt:cnt.birthdays},
-{id:"clean",ic:"broom",cnt:cnt.clean},
-{id:"subs",ic:"card",cnt:cnt.subs},
-];
+// Catalog of hamburger candidates (icon + counter key). HM_CORE comes first in
+// a stable order, HM_SETTINGS lives in a separate visual group at the bottom.
+var ITEMS={
+home:      {ic:"home"},
+tasks:     {ic:"clipboard", cntKey:"tasks"},
+words:     {ic:"book"},
+money:     {ic:"dollar"},
+profile:   {ic:"user"},
+shop:      {ic:"cart",      cntKey:"shop"},
+trainings: {ic:"dumbbell"},
+plants:    {ic:"flower",    cntKey:"plants"},
+birthdays: {ic:"cake",      cntKey:"birthdays"},
+clean:     {ic:"broom",     cntKey:"clean"},
+subs:      {ic:"card",      cntKey:"subs"},
+settings:  {ic:"cog"},
+};
+var HM_CORE=["shop","trainings","plants","birthdays","clean","subs","tasks","words","money","profile","home"];
+// Tabs currently shown in the bottom nav — exclude them here so we don't duplicate.
+var inNav={};_currentNavIds().forEach(function(id){inNav[id]=true});
+var rendered=[];
+HM_CORE.forEach(function(id){if(inNav[id])return;rendered.push(id)});
 var h='';
-items.forEach(function(it){
-var b=it.cnt>0?'<span class="mi-cnt">'+it.cnt+'</span>':'';
-h+='<button class="menu-i" onclick="go(\''+it.id+'\')"><span class="mi-ico">'+icon(it.ic,20,2)+'</span><span class="mi-l">'+tr("tt_"+it.id+"_t")+'</span>'+b+'</button>';
+rendered.forEach(function(id){
+var it=ITEMS[id];if(!it)return;
+var n=it.cntKey?(cnt[it.cntKey]||0):0;
+var b=n>0?'<span class="mi-cnt">'+n+'</span>':'';
+h+='<button class="menu-i" onclick="go(\''+id+'\')"><span class="mi-ico">'+icon(it.ic,20,2)+'</span><span class="mi-l">'+tr("nav_"+id)+'</span>'+b+'</button>';
 });
-h+='<div style="height:1px;background:var(--bd);margin:8px 0"></div>';
-h+='<button class="menu-i" onclick="go(\'settings\')"><span class="mi-ico">'+icon("cog",20,2)+'</span><span class="mi-l">'+tr("tt_settings_t")+'</span></button>';
+// Settings sits in its own group at the bottom unless already promoted to bottom nav.
+if(!inNav["settings"]){
+if(rendered.length)h+='<div style="height:1px;background:var(--bd);margin:8px 0"></div>';
+h+='<button class="menu-i" onclick="go(\'settings\')"><span class="mi-ico">'+icon("cog",20,2)+'</span><span class="mi-l">'+tr("nav_settings")+'</span></button>';
+}
 el.innerHTML=h;
-// Show dot on hamburger icon if any section has active items
-var totalActive=Object.values(cnt).reduce(function(a,b){return a+b},0);
+// Show dot on hamburger icon if any visible section has active items
+var totalActive=rendered.reduce(function(s,id){var k=ITEMS[id]&&ITEMS[id].cntKey;return s+(k?(cnt[k]||0):0)},0);
 var dot=document.getElementById("hm-dot");if(dot)dot.classList.toggle("hidden",totalActive===0);
 }
 

@@ -35,6 +35,7 @@ window.LANG = {
   en: {
     // Nav
     nav_home: "Home", nav_tasks: "Tasks", nav_words: "Words", nav_money: "Money", nav_profile: "Profile",
+    nav_shop: "Shop", nav_trainings: "Gym", nav_plants: "Plants", nav_birthdays: "Birthdays", nav_clean: "Clean", nav_subs: "Subs", nav_settings: "Settings",
     // Page headers (title + subtitle)
     tt_home_t: "Family HQ", tt_home_s: "Everything at a glance",
     tt_tasks_t: "Tasks", tt_tasks_s: "Manage & assign",
@@ -274,6 +275,7 @@ window.LANG = {
 
   ru: {
     nav_home: "Главная", nav_tasks: "Задачи", nav_words: "Слова", nav_money: "Финансы", nav_profile: "Профиль",
+    nav_shop: "Покупки", nav_trainings: "Зал", nav_plants: "Цветы", nav_birthdays: "ДР", nav_clean: "Уборка", nav_subs: "Подписки", nav_settings: "Настройки",
     tt_home_t: "Family HQ", tt_home_s: "Всё в одном месте",
     tt_tasks_t: "Задачи", tt_tasks_s: "Управление и назначение",
     tt_shop_t: "Покупки", tt_shop_s: "Общий список",
