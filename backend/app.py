@@ -485,9 +485,9 @@ def update_my_lang(body: LangUpdate, user=Depends(get_uf), db=Depends(get_db)):
 
 # Per-member bottom-navigation preference (v8.47.0).
 # tabs: array of tab ids in display order, 3-5 items. null/empty resets to default.
-_VALID_NAV_TABS = {"home", "tasks", "shop", "trainings", "words", "plants",
-                   "money", "profile", "events", "birthdays", "clean",
-                   "settings", "subs"}
+_VALID_NAV_TABS = {"home", "tasks", "shop", "cooking", "trainings", "words",
+                   "plants", "money", "profile", "events", "birthdays",
+                   "clean", "settings", "subs"}
 
 class NavTabsUpdate(BaseModel):
     tabs: list[str] | None = None
@@ -3565,7 +3565,8 @@ def dishes_image_get(did: int):
 
 
 # ─── Debug & Serve ───────────────────────────────────────────────────────
-APP_VERSION = "v8.49.0"
+APP_VERSION = "v8.49.1"
+# v8.49.1 — hotfix: added "cooking" to _VALID_NAV_TABS so nav-picker Save works.
 # v8.49.0 — What's New + Tips timeline (frontend-only). Removed cooking total-cost-all header.
 # v8.48.0 — Cooking tab. Schema v28 (dishes + dish_ingredients). Endpoints:
 # GET /api/dishes, GET/PATCH/DELETE /api/dishes/{id}, POST /api/dishes (json create),
