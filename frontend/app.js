@@ -82,11 +82,8 @@ async function setLang(newLang){
   var r=await A("PATCH","/api/members/me/lang",{lang:newLang});
   if(!r||!r.ok){toast(tr("ts_save_failed"));return}
   _lang=newLang;_rebuildLocaleArrays();hp("ok");
-  // Re-render the bottom nav labels in place + current tab
-  document.querySelectorAll('#nv .ni').forEach(function(b){
-    var id=b.dataset.t;var lbl=b.querySelector('span:last-child');
-    if(lbl&&id)lbl.textContent=tr('nav_'+id);
-  });
+  // Re-render bottom nav labels + current tab.
+  if(typeof _buildNav==="function")_buildNav();
   ren();
 }
 // moneyTab moved to money.js (v8.43.0); taskTab moved to tasks.js (v8.44.0).
@@ -330,18 +327,62 @@ async function dSu(sid){hp();await A("DELETE","/api/subtasks/"+sid);await load()
 async function aSu(t,pid){var i=document.getElementById("si-"+t+"-"+pid);if(!i||!i.value.trim())return;await A("POST","/api/subtasks/"+t+"/"+pid,{text:i.value.trim()});hp();await load()}
 
 // ═══════════════════════════════════════════════════════════
-// NAVIGATION — 4 tabs + hamburger
+// NAVIGATION — customizable per-member bottom nav (v8.47.0) + hamburger
 // ═══════════════════════════════════════════════════════════
-const NV=[
-{id:"home",l:"Home",sv:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>'},
-{id:"tasks",l:"Tasks",sv:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></svg>'},
-{id:"words",l:"Words",sv:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>'},
-{id:"money",l:"Money",sv:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg>'},
-{id:"profile",l:"Profile",sv:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>'}
-];
+// TT — tab title/subtitle catalog. Used by go() to set the header per tab.
 const TT={home:{i:"home",t:"Family HQ",s:"Everything at a glance"},tasks:{i:"clipboard",t:"Tasks",s:"Manage & assign"},shop:{i:"cart",t:"Shopping",s:"Shared list"},trainings:{i:"dumbbell",t:"Trainings",s:"Workouts & progress"},words:{i:"book",t:"Words",s:"Vocabulary learning"},plants:{i:"flower",t:"Plants",s:"Care & watering"},money:{i:"dollar",t:"Money",s:"Budget & subs"},profile:{i:"user",t:"Profile",s:"Personal stats"},events:{i:"clock",t:"Events",s:"Schedule"},birthdays:{i:"cake",t:"Birthdays",s:"Never forget"},clean:{i:"broom",t:"Cleaning",s:"Apartment zones"},settings:{i:"cog",t:"Settings",s:"Customize"},subs:{i:"card",t:"Subscriptions",s:"Monthly payments"}};
 
-(function(){var n=document.getElementById("nv");NV.forEach(function(item){var b=document.createElement("button");b.className="ni"+(item.id==="home"?" a":"");b.dataset.t=item.id;b.innerHTML='<span class="nb hidden" id="b-'+item.id+'"></span>'+item.sv+'<span>'+tr("nav_"+item.id)+'</span>';b.onclick=function(){go(item.id)};n.appendChild(b)})})();
+// NV_ALL — every tab that's eligible for the bottom nav. Per-icon `sv` field
+// holds the same inline SVG as old NV; for new tabs we fall back to icon().
+// Order here is the default order the picker UI presents.
+const NV_ALL=[
+  {id:"home",   sv:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>'},
+  {id:"tasks",  sv:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></svg>'},
+  {id:"words",  sv:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>'},
+  {id:"money",  sv:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg>'},
+  {id:"profile",sv:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>'},
+  // Hamburger-page candidates that can be promoted to nav. Use icon() helper so we stay
+  // consistent with the same glyphs the hamburger menu uses for these features.
+  {id:"shop",       icon_name:"cart"},
+  {id:"trainings",  icon_name:"dumbbell"},
+  {id:"plants",     icon_name:"flower"},
+  {id:"birthdays",  icon_name:"cake"},
+  {id:"clean",      icon_name:"broom"},
+  {id:"subs",       icon_name:"card"},
+  {id:"settings",   icon_name:"cog"},
+];
+const NV_DEFAULT_ORDER=["home","tasks","words","money","profile"];
+
+// `_navTabs` is set from /api/family/status (null = use NV_DEFAULT_ORDER).
+// Mutated by saveNavTabs() in settings.js after the picker modal commits.
+var _navTabs=null;
+function _currentNavIds(){
+  var ids=(_navTabs&&_navTabs.length)?_navTabs:NV_DEFAULT_ORDER;
+  // Safety filter — drop any unknown ids that drifted from older saves.
+  var known={};NV_ALL.forEach(function(x){known[x.id]=x});
+  return ids.filter(function(id){return known[id]});
+}
+
+// Rebuild the #nv element from the user's current preference. Called on boot
+// (after family/status), after setLang() (so labels update), and after the
+// picker saves a new layout.
+function _buildNav(){
+  var n=document.getElementById("nv");if(!n)return;
+  var ids=_currentNavIds();
+  n.innerHTML="";
+  var byId={};NV_ALL.forEach(function(x){byId[x.id]=x});
+  ids.forEach(function(id){
+    var item=byId[id];if(!item)return;
+    var glyph=item.sv||icon(item.icon_name||"cog",22,2);
+    var b=document.createElement("button");
+    b.className="ni"+(tab===id?" a":"");
+    b.dataset.t=id;
+    b.innerHTML='<span class="nb hidden" id="b-'+id+'"></span>'+glyph+'<span>'+tr("nav_"+id)+'</span>';
+    b.onclick=function(){go(id)};
+    n.appendChild(b);
+  });
+}
+_buildNav();
 
 function go(tabId){tab=tabId;filt=null;searchQ="";menuOpen=false;
 document.getElementById("menu-overlay").classList.remove("open");
@@ -386,8 +427,9 @@ if(!iD && !_getSess()){rLogin();return}
 try{var r=await A("GET","/api/family/status");if(!r){if(!iD)rLogin();return}fS=r;
 // Restore user's preferred language so the first render is already localized.
 if(r.lang){_lang=r.lang;_rebuildLocaleArrays()}
-// Re-apply nav labels in case bottom nav was rendered with default 'en' labels at boot.
-document.querySelectorAll('#nv .ni').forEach(function(b){var id=b.dataset.t;var lbl=b.querySelector('span:last-child');if(lbl&&id)lbl.textContent=tr('nav_'+id)});
+// Restore user's custom bottom-nav layout. _buildNav() reads _navTabs (null = default).
+if(r.nav_tabs!==undefined)_navTabs=r.nav_tabs;
+_buildNav();
 if(r.joined){document.querySelectorAll(".ni").forEach(function(e){e.style.opacity="1"});await load()}else rOnb()}catch(e){document.getElementById("ct").innerHTML='<pre style="color:red">'+e.message+'</pre>'}}
 
 

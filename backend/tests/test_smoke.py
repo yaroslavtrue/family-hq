@@ -34,7 +34,7 @@ def test_migration_applied_to_latest(app_module, temp_db):
     con = sqlite3.connect(temp_db)
     ver = con.execute("SELECT version FROM schema_version").fetchone()[0]
     con.close()
-    assert ver == 26, f"Expected schema v26, got v{ver}"
+    assert ver == 27, f"Expected schema v27, got v{ver}"
 
 
 def test_bundle_shape(client_as):

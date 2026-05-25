@@ -459,11 +459,16 @@ def telegram_login(body: TelegramLoginPayload, db=Depends(get_db)):
 
 @app.get("/api/family/status")
 def family_status(user=Depends(get_user), db=Depends(get_db)):
-    row = db.execute("SELECT fm.family_id, fm.lang, f.name, f.invite_code FROM family_members fm JOIN families f ON f.id=fm.family_id WHERE fm.user_id=?", (user["id"],)).fetchone()
+    row = db.execute("SELECT fm.family_id, fm.lang, fm.nav_tabs, f.name, f.invite_code FROM family_members fm JOIN families f ON f.id=fm.family_id WHERE fm.user_id=?", (user["id"],)).fetchone()
     if not row: return {"joined": False}
     members = [dict(m) for m in db.execute("SELECT user_id, user_name, emoji, color, photo_url FROM family_members WHERE family_id=?", (row["family_id"],)).fetchall()]
-    # lang: per-member UI language ('en'|'ru'), drives the t(key) helper in app.js.
-    return {"joined": True, "family_id": row["family_id"], "name": row["name"], "invite_code": row["invite_code"], "members": members, "my_id": user["id"], "lang": (row["lang"] or "en")}
+    # lang: per-member UI language ('en'|'ru'), drives the tr(key) helper in app.js.
+    # nav_tabs: per-member bottom-nav preference, JSON array of tab ids; null = default.
+    nav_tabs = None
+    if row["nav_tabs"]:
+        try: nav_tabs = _json_mod.loads(row["nav_tabs"])
+        except Exception: nav_tabs = None
+    return {"joined": True, "family_id": row["family_id"], "name": row["name"], "invite_code": row["invite_code"], "members": members, "my_id": user["id"], "lang": (row["lang"] or "en"), "nav_tabs": nav_tabs}
 
 
 class LangUpdate(BaseModel):
@@ -476,6 +481,35 @@ def update_my_lang(body: LangUpdate, user=Depends(get_uf), db=Depends(get_db)):
     db.execute("UPDATE family_members SET lang=? WHERE user_id=?", (body.lang, user["id"]))
     db.commit()
     return {"ok": True, "lang": body.lang}
+
+
+# Per-member bottom-navigation preference (v8.47.0).
+# tabs: array of tab ids in display order, 3-5 items. null/empty resets to default.
+_VALID_NAV_TABS = {"home", "tasks", "shop", "trainings", "words", "plants",
+                   "money", "profile", "events", "birthdays", "clean",
+                   "settings", "subs"}
+
+class NavTabsUpdate(BaseModel):
+    tabs: list[str] | None = None
+
+@app.patch("/api/members/me/nav_tabs")
+def update_my_nav_tabs(body: NavTabsUpdate, user=Depends(get_uf), db=Depends(get_db)):
+    tabs = body.tabs
+    if tabs:
+        # Validation: 3-5 items, all known ids, no duplicates.
+        if not (3 <= len(tabs) <= 5):
+            raise HTTPException(400, "Pick between 3 and 5 tabs")
+        if len(set(tabs)) != len(tabs):
+            raise HTTPException(400, "Duplicate tab ids")
+        bad = [t for t in tabs if t not in _VALID_NAV_TABS]
+        if bad:
+            raise HTTPException(400, f"Unknown tab ids: {bad}")
+        stored = _json_mod.dumps(tabs)
+    else:
+        stored = None  # NULL → default
+    db.execute("UPDATE family_members SET nav_tabs=? WHERE user_id=?", (stored, user["id"]))
+    db.commit()
+    return {"ok": True, "tabs": tabs}
 
 
 @app.post("/api/family/create")
@@ -3255,7 +3289,7 @@ def serve_exercise_image(fn: str):
     return r
 
 # ─── Debug & Serve ───────────────────────────────────────────────────────
-APP_VERSION = "v8.46.1"
+APP_VERSION = "v8.47.0"
 
 @app.get("/api/debug/ping")
 def ping(): return {"ok": True, "version": APP_VERSION, "time": datetime.now(ZoneInfo(TIMEZONE)).isoformat()}

@@ -574,6 +574,9 @@ def migrate(db_path):
         # v26: AI health check on growth-timeline photos. JSON {status, summary, issues[], advice[]}
         # written by `_assess_plant_health` after each Update tap. NULL for photos uploaded before v26.
         lambda c: safe_add_col(c, "plant_photos", "ai_analysis", "TEXT"),
+        # v27: per-member bottom-nav preference. JSON array of tab ids (e.g. ["home","tasks","plants","money","profile"]).
+        # NULL = default 5 (home/tasks/words/money/profile). Frontend reads from /api/family/status.
+        lambda c: safe_add_col(c, "family_members", "nav_tabs", "TEXT"),
     ]
 
     for i, mig in enumerate(migrations):

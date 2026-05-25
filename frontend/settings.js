@@ -53,6 +53,10 @@ h+='<div class="sc"><span class="sc-l">'+tr("set_appearance")+'</span></div>';
 var thAcc=curTh.pr;
 var thStyle='background:linear-gradient(135deg,color-mix(in srgb,'+thAcc+' 38%,transparent),color-mix(in srgb,'+thAcc+' 10%,transparent));border-color:color-mix(in srgb,'+thAcc+' 48%,transparent);color:'+thAcc+';box-shadow:inset 0 1px 0 color-mix(in srgb,'+thAcc+' 20%,transparent),0 2px 12px color-mix(in srgb,'+thAcc+' 22%,transparent)';
 h+=_setRow({ico:"palette",iconStyle:thStyle,title:tr("th_"+cTheme)||curTh.n,subtitle:tr("set_theme_sub")+" · "+Object.keys(TH).length+" · "+curTh.e,onclick:"openThemePicker()"});
+// Bottom navigation picker (v8.47.0). Shows current nav as a small preview + count.
+var navIds=_currentNavIds();
+var navPreview=navIds.map(function(id){return tr("nav_"+id)}).join(" · ");
+h+=_setRow({ico:"list",acc:"acc-pr",title:tr("set_bottom_nav"),subtitle:navPreview+" ("+navIds.length+")",onclick:"openNavPicker()"});
 h+='<div class="sc"><span class="sc-l">'+tr("set_notifications")+'</span></div>';
 h+=_setRow({ico:"bl",acc:"acc-wn",title:tr("set_morning_digest"),subtitle:(D.settings.digest_time||"09:00")+" · "+tr("set_morning_digest_sub"),onclick:"openDigestCfg()"});
 var nExp=D.categories.filter(function(c){return c.type==="expense"}).length;
@@ -195,3 +199,78 @@ async function leaveFam(){await A("POST","/api/family/leave");location.reload()}
 function edMe(uid,name,emoji,color){oMC("Edit Profile",'<input class="inp" id="me-n" value="'+name+'" placeholder="Name"><div class="dr"><div><div class="dl">Emoji</div><input class="inp" id="me-e" value="'+emoji+'" style="text-align:center;font-size:24px"></div><div><div class="dl">Color</div><input type="color" id="me-c" value="'+color+'" style="width:100%;height:48px;border-radius:12px;border:none;cursor:pointer"></div></div><button class="btn" onclick="svMe('+uid+')">Save</button>',{ic:"user"})}
 async function svMe(uid){var n=document.getElementById("me-n").value.trim();var e=document.getElementById("me-e").value.trim();var c=document.getElementById("me-c").value;if(!n)return;await A("PATCH","/api/members/"+uid,{user_name:n,emoji:e,color:c});cMo();hp();await load()}
 
+
+// ─── Bottom-nav picker (v8.47.0) ─────────────────────────────────
+// Pick 3-5 features to show in the bottom nav. Tap a tile to toggle it on/off.
+// Selection order = display order in the nav. Footer shows count + Save button.
+// `_navDraft` is the working list while modal is open; saved by saveNavTabs().
+var _navDraft = null;
+
+function openNavPicker(){
+  _navDraft = _currentNavIds().slice();
+  oMC(tr("set_bottom_nav"), _navPickerHtml(), {ic:"list"});
+}
+
+function _navPickerHtml(){
+  var ids = _navDraft || [];
+  var inDraft = {}; ids.forEach(function(id, i){ inDraft[id] = i+1 });  // 1-based position
+  var h = '<div class="np-hint">' + tr("nav_pick_hint") + '</div>';
+  h += '<div class="np-grid">';
+  NV_ALL.forEach(function(item){
+    var pos = inDraft[item.id];
+    var sel = !!pos;
+    var disabled = !sel && ids.length >= 5;
+    var glyph = item.sv || icon(item.icon_name || "cog", 22, 2);
+    h += '<button class="np-tile' + (sel ? ' np-on' : '') + (disabled ? ' np-disabled' : '') +
+         '" onclick="toggleNavTab(\'' + item.id + '\')">' +
+         (sel ? '<span class="np-num">' + pos + '</span>' : '') +
+         '<span class="np-ico">' + glyph + '</span>' +
+         '<span class="np-l">' + tr("nav_" + item.id) + '</span>' +
+         '</button>';
+  });
+  h += '</div>';
+  h += '<div class="np-foot"><span class="np-cnt">' + ids.length + '/5</span>' +
+       '<button class="btn btn-s" style="background:transparent;color:var(--ht);border:1px solid var(--bd)" onclick="resetNavTabs()">' + tr("btn_reset") + '</button>' +
+       '<button class="btn" onclick="saveNavTabs()"' + (ids.length < 3 ? ' disabled style="opacity:.4"' : '') + '>' + tr("btn_save") + '</button>' +
+       '</div>';
+  return h;
+}
+
+function toggleNavTab(id){
+  if(!_navDraft) return;
+  var idx = _navDraft.indexOf(id);
+  if(idx >= 0){
+    _navDraft.splice(idx, 1);
+  } else {
+    if(_navDraft.length >= 5){ toast(tr("nav_max_warning")); return; }
+    _navDraft.push(id);
+  }
+  hp("sel");
+  // Re-render modal body inline (preserve scroll position).
+  var mb = document.getElementById("mb");
+  if(mb) mb.innerHTML = _navPickerHtml();
+}
+
+function resetNavTabs(){
+  _navDraft = NV_DEFAULT_ORDER.slice();
+  hp("warn");
+  var mb = document.getElementById("mb");
+  if(mb) mb.innerHTML = _navPickerHtml();
+}
+
+async function saveNavTabs(){
+  if(!_navDraft || _navDraft.length < 3){ toast(tr("nav_min_warning")); return; }
+  // Send null when user picked the default — saves space and keeps a clean DB row.
+  var sameAsDefault = _navDraft.length === NV_DEFAULT_ORDER.length &&
+                      _navDraft.every(function(id, i){ return id === NV_DEFAULT_ORDER[i] });
+  var body = { tabs: sameAsDefault ? null : _navDraft.slice() };
+  var r = await A("PATCH", "/api/members/me/nav_tabs", body);
+  if(!r || !r.ok){ toast(tr("ts_save_failed")); return; }
+  hp("ok");
+  _navTabs = body.tabs;       // local sync
+  _navDraft = null;
+  cMo();
+  _buildNav();                // rebuild bottom nav with new layout
+  ren();                       // refresh Settings row preview
+  toast(tr("ts_saved"));
+}
