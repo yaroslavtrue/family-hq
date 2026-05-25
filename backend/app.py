@@ -2732,6 +2732,94 @@ async def _identify_plant_image(image_bytes: bytes) -> dict | None:
         return None
 
 
+# ─── Plant health check (v8.46.0) ──────────────────────────────────
+# Vision-based plant condition assessment. Triggered by the "Update" button
+# in the Plants tab — every timeline photo can ride along with a health check.
+# Sonnet looks at the photo + knows the plant's species & watering schedule
+# and returns a structured assessment so the frontend can show a status pill
+# and actionable advice.
+
+_HEALTH_PROMPT_TEMPLATE = """You are a plant-care advisor. The user just uploaded a new photo of their {species} (Latin: {latin_name}).
+Their current care: watering interval every {water_interval_days} days, light preference: {light}.
+
+Assess this plant's current health and condition from the photo. Look at:
+- Leaf color (yellowing, browning, pale = trouble; rich green = healthy)
+- Leaf posture (droopy = thirsty or overwatered, perky = OK, curled = stress)
+- Soil if visible (cracked = bone dry, glossy = freshly watered, moldy = overwatered)
+- Pest signs (webs, spots, holes, sticky residue)
+- New growth signs (light-green new leaves, buds)
+- Overall vigor
+
+Return STRICT JSON only, no prose, no code fences. Schema:
+{{
+  "status": "healthy" | "concern" | "critical",
+  "summary": "<one short sentence, plain language, what you see overall>",
+  "issues": ["<observation 1>", "<observation 2>", ...],
+  "advice": ["<actionable step 1>", "<actionable step 2>", ...]
+}}
+
+Rules:
+- If the plant looks fine, set status="healthy", a positive 1-sentence summary, and BOTH "issues" and "advice" arrays EMPTY ([]). Don't invent problems.
+- "concern" = noticeable issue, recoverable with care adjustments. "critical" = urgent, may not recover without immediate action.
+- Each issue or advice item: short, specific, 5-15 words. No filler.
+- Maximum 3 items in each array.
+- Respond in {language} ("en" = English, "ru" = Russian). Keep the JSON keys in English.
+
+Begin response with {{."""
+
+
+async def _assess_plant_health(plant: dict, image_bytes: bytes, language: str = "en") -> dict | None:
+    """Call Sonnet vision to assess plant health from a fresh photo.
+
+    Returns dict with keys {status, summary, issues, advice} or None if AI unavailable.
+    `language` controls the natural-language response (issue/advice strings) — 'en' or 'ru'.
+    The JSON keys are always English so the frontend can render any language consistently.
+    """
+    if not ANTHROPIC_API_KEY:
+        return None
+    prompt = _HEALTH_PROMPT_TEMPLATE.format(
+        species=plant.get("species") or plant.get("custom_name") or "plant",
+        latin_name=plant.get("latin_name") or "unknown",
+        water_interval_days=plant.get("water_interval_days") or 7,
+        light=plant.get("light") or "not specified",
+        language=language,
+    )
+    b64 = _b64.standard_b64encode(image_bytes).decode("utf-8")
+    try:
+        async with httpx.AsyncClient(timeout=60) as c:
+            r = await c.post("https://api.anthropic.com/v1/messages", headers={
+                "x-api-key": ANTHROPIC_API_KEY,
+                "anthropic-version": "2023-06-01",
+                "content-type": "application/json",
+            }, json={
+                "model": _PLANT_MODEL,
+                "max_tokens": 800,
+                "system": prompt,
+                "messages": [{"role": "user", "content": [
+                    {"type": "image", "source": {"type": "base64", "media_type": "image/jpeg", "data": b64}},
+                    {"type": "text", "text": "Assess this plant. JSON only."},
+                ]}],
+            })
+            data = r.json()
+            text = (data.get("content", [{}])[0].get("text") or "").strip()
+            if text.startswith("```"):
+                text = text.split("\n", 1)[-1].rsplit("```", 1)[0].strip()
+            parsed = _json_mod.loads(text)
+            # Defensive normalization — Sonnet usually behaves but let's not trust user-facing data blindly.
+            status = parsed.get("status")
+            if status not in ("healthy", "concern", "critical"):
+                status = "healthy"
+            return {
+                "status": status,
+                "summary": str(parsed.get("summary") or "")[:200],
+                "issues": [str(x)[:200] for x in (parsed.get("issues") or [])[:3]],
+                "advice": [str(x)[:200] for x in (parsed.get("advice") or [])[:3]],
+            }
+    except Exception as e:
+        log.error(f"plant health check failed: {e}")
+        return None
+
+
 # Thin wrappers that bake TIMEZONE into the shared helpers
 def _plant_status(p: dict) -> str: return _plant_status_impl(p, TIMEZONE)
 def _watered_today(p: dict) -> bool: return _watered_today_impl(p, TIMEZONE)
@@ -3043,9 +3131,17 @@ def plants_photos_list(pid: int, user=Depends(get_uf), db=Depends(get_db)):
     row = db.execute("SELECT id FROM plants WHERE id=? AND family_id=?", (pid, user["family_id"])).fetchone()
     if not row: raise HTTPException(404)
     rows = db.execute(
-        "SELECT id, caption, taken_at, added_by FROM plant_photos WHERE plant_id=? ORDER BY taken_at DESC, id DESC",
+        "SELECT id, caption, taken_at, added_by, ai_analysis FROM plant_photos WHERE plant_id=? ORDER BY taken_at DESC, id DESC",
         (pid,)).fetchall()
-    return {"photos": [dict(r) for r in rows]}
+    out = []
+    for r in rows:
+        d = dict(r)
+        # Parse stored ai_analysis JSON so the frontend doesn't have to.
+        if d.get("ai_analysis"):
+            try: d["ai_analysis"] = _json_mod.loads(d["ai_analysis"])
+            except Exception: d["ai_analysis"] = None
+        out.append(d)
+    return {"photos": out}
 
 
 @app.post("/api/plants/{pid}/photos")
@@ -3053,26 +3149,43 @@ async def plants_photos_add(
     pid: int,
     file: UploadFile = File(...),
     caption: str = Form(""),
+    analyze: str = Form(""),   # "1" triggers the Sonnet health-check (v8.46.0)
     user=Depends(get_uf), db=Depends(get_db),
 ):
-    """Add a new timeline photo. Stored at /app/frontend/plants/timeline/<photo_id>.jpg."""
-    row = db.execute("SELECT id FROM plants WHERE id=? AND family_id=?", (pid, user["family_id"])).fetchone()
+    """Add a new timeline photo. Stored at /app/frontend/plants/timeline/<photo_id>.jpg.
+
+    When `analyze=1` (sent by the "Update" button in the Plants tab), the photo
+    is also passed to Claude Sonnet vision which returns a structured health
+    assessment {status, summary, issues, advice}. Saved as JSON in `ai_analysis`
+    and returned in the response so the frontend can immediately show a result
+    modal without a second round-trip.
+    """
+    row = db.execute("SELECT * FROM plants WHERE id=? AND family_id=?", (pid, user["family_id"])).fetchone()
     if not row: raise HTTPException(404)
     if (file.content_type or "").split("/")[0] != "image":
         raise HTTPException(400, "not an image")
     data = await file.read()
     if not data or len(data) > 5 * 1024 * 1024:
         raise HTTPException(400, "empty or too large (max 5 MB)")
+    # Run Sonnet check first (before INSERT) — if it fails, we still save the photo without analysis.
+    analysis = None
+    if analyze == "1":
+        # Resolve user language from family_members so advice comes back in their UI lang.
+        lang_row = db.execute("SELECT lang FROM family_members WHERE user_id=?", (user["id"],)).fetchone()
+        ulang = (lang_row["lang"] if lang_row and lang_row["lang"] else "en")
+        analysis = await _assess_plant_health(dict(row), data, language=ulang)
     cur = db.execute(
-        "INSERT INTO plant_photos (plant_id, caption, added_by) VALUES (?, ?, ?)",
-        (pid, (caption or "").strip(), user["id"]))
+        "INSERT INTO plant_photos (plant_id, caption, added_by, ai_analysis) VALUES (?, ?, ?, ?)",
+        (pid, (caption or "").strip(), user["id"], _json_mod.dumps(analysis) if analysis else None))
     photo_id = cur.lastrowid
     os.makedirs(PLANTS_TIMELINE_DIR, exist_ok=True)
     with open(os.path.join(PLANTS_TIMELINE_DIR, f"{photo_id}.jpg"), "wb") as f:
         f.write(data)
     db.commit()
     fresh = db.execute("SELECT id, caption, taken_at, added_by FROM plant_photos WHERE id=?", (photo_id,)).fetchone()
-    return dict(fresh)
+    out = dict(fresh)
+    out["ai_analysis"] = analysis  # dict or None; frontend keys off this for the result modal
+    return out
 
 
 @app.patch("/api/plants/photos/{photo_id}")
@@ -3142,7 +3255,7 @@ def serve_exercise_image(fn: str):
     return r
 
 # ─── Debug & Serve ───────────────────────────────────────────────────────
-APP_VERSION = "v8.45.0"
+APP_VERSION = "v8.46.0"
 
 @app.get("/api/debug/ping")
 def ping(): return {"ok": True, "version": APP_VERSION, "time": datetime.now(ZoneInfo(TIMEZONE)).isoformat()}

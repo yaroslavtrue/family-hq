@@ -159,10 +159,10 @@ function _rPlantInlineTips(cur){
 function _plPhotoStripHtml(cur){
   var photos=_plState.photosCache[cur.id];
   if(photos===undefined){
-    return '<div class="pl-ph-strip"><button class="pl-ph-add" onclick="_plPhotoPick('+cur.id+')"><span style="font-size:22px;line-height:1">+</span><span style="font-size:10px;margin-top:4px">'+tr("pl_add_photo_short")+'</span></button><div class="emp" style="padding:14px 8px;font-size:11px;color:var(--ht);flex:1">'+tr("g_loading")+'</div></div>';
+    return '<div class="pl-ph-strip"><button class="pl-ph-add" onclick="_plPhotoPick('+cur.id+')"><span style="font-size:22px;line-height:1">🩺</span><span style="font-size:10px;margin-top:4px;font-weight:600">'+tr("pl_update")+'</span></button><div class="emp" style="padding:14px 8px;font-size:11px;color:var(--ht);flex:1">'+tr("g_loading")+'</div></div>';
   }
   var h='<div class="pl-ph-strip">';
-  h+='<button class="pl-ph-add" onclick="_plPhotoPick('+cur.id+')"><span style="font-size:22px;line-height:1">+</span><span style="font-size:10px;margin-top:4px;font-weight:600">'+tr("pl_add_photo_short")+'</span></button>';
+  h+='<button class="pl-ph-add" onclick="_plPhotoPick('+cur.id+')"><span style="font-size:22px;line-height:1">🩺</span><span style="font-size:10px;margin-top:4px;font-weight:600">'+tr("pl_update")+'</span></button>';
   if(!photos.length){
     h+='<div class="pl-ph-empty">No timeline photos yet. Snap one to track growth over time.</div>';
   }else{
@@ -185,7 +185,10 @@ async function _plLoadPhotos(pid){
   if(tab==="plants"&&_plState.selectedId===pid)ren();
 }
 
-// Trigger file picker → POST timeline photo → reload + rerender
+// "Update" flow (v8.46.0): take a photo → upload to timeline + Sonnet vision
+// health check → show result modal with status pill + issues + advice.
+// Same input element pattern as before — just no caption prompt and an
+// analyze=1 form flag that triggers the AI assessment on the backend.
 function _plPhotoPick(pid){
   hp("light");
   var input=document.createElement("input");
@@ -194,24 +197,59 @@ function _plPhotoPick(pid){
     var f=input.files&&input.files[0];if(!f)return;
     if(f.size>15*1024*1024){toast(tr("ts_too_large"));return}
     f=await _downscaleImage(f);
-    var caption=prompt("Caption (optional, e.g. \"first leaves\"):","")||"";
-    var fd=new FormData();fd.append("file",f);fd.append("caption",caption.trim());
+    var fd=new FormData();
+    fd.append("file",f);
+    fd.append("caption","");           // no caption prompt — "Update" is photo-only
+    fd.append("analyze","1");          // request Sonnet health check
     var headers={};
     if(iD)headers["X-Telegram-Init-Data"]=iD;
     var sess=_getSess();if(sess)headers["X-Session-Token"]=sess;
+    // Show a non-blocking "Analyzing…" toast — Sonnet round-trip is ~3-6s.
+    toast(tr("pl_analyzing"));
     try{
       var r=await fetch("/api/plants/"+pid+"/photos",{method:"POST",headers:headers,body:fd});
       if(!r.ok){toast(tr("ts_upload_failed"));return}
       var p=await r.json();
-      hp("ok");toast(tr("ts_photo_added"));
+      hp("ok");
+      // Prepend to local cache (newest first)
       var arr=_plState.photosCache[pid]||[];
-      // Prepend (newest first)
       arr.unshift(p);
       _plState.photosCache[pid]=arr;
       ren();
+      // Show health modal if Sonnet returned an assessment; otherwise just toast.
+      if(p.ai_analysis){
+        _plShowHealthModal(p.ai_analysis, pid);
+      } else {
+        toast(tr("ts_photo_added"));
+      }
     }catch(e){toast(tr("ts_network"))}
   };
   input.click();
+}
+
+// Show Sonnet's health assessment in a modal (status pill + summary + issues + advice).
+// Reused by _plPhotoView when tapping a historical photo that has stored ai_analysis.
+function _plShowHealthModal(a, pid){
+  if(!a||!a.status)return;
+  var statusInfo = {
+    healthy:  {emoji:"🟢", color:"var(--ok)", label:tr("pl_h_healthy")},
+    concern:  {emoji:"🟡", color:"var(--wn)", label:tr("pl_h_concern")},
+    critical: {emoji:"🔴", color:"var(--ac)", label:tr("pl_h_critical")}
+  }[a.status] || {emoji:"🟢", color:"var(--ok)", label:a.status};
+  var h='<div class="pl-h-pill" style="background:color-mix(in srgb,'+statusInfo.color+' 14%,transparent);color:'+statusInfo.color+';border:1px solid color-mix(in srgb,'+statusInfo.color+' 40%,transparent)">'+statusInfo.emoji+' '+statusInfo.label+'</div>';
+  if(a.summary)h+='<div class="pl-h-summary">'+es(a.summary)+'</div>';
+  if(a.issues&&a.issues.length){
+    h+='<div class="lb" style="margin-top:14px">'+tr("pl_h_issues")+'</div>';
+    a.issues.forEach(function(item){h+='<div class="pl-h-row">⚠️ '+es(item)+'</div>'});
+  }
+  if(a.advice&&a.advice.length){
+    h+='<div class="lb" style="margin-top:14px">'+tr("pl_h_advice")+'</div>';
+    a.advice.forEach(function(item){h+='<div class="pl-h-row pl-h-row-ok">💡 '+es(item)+'</div>'});
+  }
+  if((!a.issues||!a.issues.length)&&(!a.advice||!a.advice.length)&&a.status==="healthy"){
+    h+='<div style="text-align:center;color:var(--ht);font-size:13px;margin-top:14px">'+tr("pl_h_no_issues")+'</div>';
+  }
+  oMC(tr("pl_h_title"),h,{ic:"flower"});
 }
 
 // Full-screen photo view modal — delete button + caption edit
@@ -226,8 +264,14 @@ function _plPhotoView(photoId, plantId){
   h+='<div class="lb" style="margin-top:14px">'+tr("pl_caption")+'</div>';
   h+='<input class="inp" id="plv-cap" value="'+es(p.caption||"")+'" placeholder="(optional)" maxlength="120">';
   if(dlbl)h+='<div style="text-align:center;font-size:12px;color:var(--ht);margin-top:10px">📅 '+es(dlbl)+'</div>';
+  // If this photo has a stored AI health check, offer to view it
+  if(p.ai_analysis&&p.ai_analysis.status){
+    var sCol = p.ai_analysis.status==="critical" ? "var(--ac)" : (p.ai_analysis.status==="concern" ? "var(--wn)" : "var(--ok)");
+    var sEmoji = p.ai_analysis.status==="critical" ? "🔴" : (p.ai_analysis.status==="concern" ? "🟡" : "🟢");
+    h+='<button class="btn btn-s" style="width:100%;margin-top:10px;background:color-mix(in srgb,'+sCol+' 12%,transparent);color:'+sCol+';border:1px solid color-mix(in srgb,'+sCol+' 35%,transparent)" onclick="_plShowHealthModal(_plState.photosCache['+plantId+'].find(function(x){return x.id==='+p.id+'}).ai_analysis,'+plantId+')">'+sEmoji+' '+tr("pl_h_view")+'</button>';
+  }
   h+='<div style="display:flex;gap:8px;margin-top:18px">';
-  h+='<button class="btn btn-s" style="flex:1;background:transparent;color:var(--ac);border:1px solid color-mix(in srgb,var(--ac) 40%,transparent)" onclick="_plPhotoDelete('+p.id+','+plantId+')">🗑 Delete</button>';
+  h+='<button class="btn btn-s" style="flex:1;background:transparent;color:var(--ac);border:1px solid color-mix(in srgb,var(--ac) 40%,transparent)" onclick="_plPhotoDelete('+p.id+','+plantId+')">🗑 '+tr("btn_delete")+'</button>';
   h+='<button class="btn" style="flex:1.5" onclick="_plPhotoSaveCaption('+p.id+','+plantId+')">'+tr("btn_save")+'</button>';
   h+='</div>';
   oMC(tr("mt_photo"),h,{ic:"flower"});

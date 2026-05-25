@@ -27,13 +27,14 @@ def test_bot_info_shape(anon_client):
     assert "bot_username" in r.json()
 
 
-def test_migration_applied_to_v25(app_module, temp_db):
-    """schema_version table should be at v25 after migrate() ran in conftest."""
+def test_migration_applied_to_latest(app_module, temp_db):
+    """schema_version table should be at the latest migration after migrate() ran in conftest.
+    Bumped to v26 in v8.46.0 (ai_analysis column on plant_photos for AI health check)."""
     import sqlite3
     con = sqlite3.connect(temp_db)
     ver = con.execute("SELECT version FROM schema_version").fetchone()[0]
     con.close()
-    assert ver == 25, f"Expected schema v25, got v{ver}"
+    assert ver == 26, f"Expected schema v26, got v{ver}"
 
 
 def test_bundle_shape(client_as):

@@ -571,6 +571,9 @@ def migrate(db_path):
         # v25: per-member UI language preference. Defaults to 'en'. Frontend reads from
         # /api/family/status into a global `_lang` var; t(key) helper picks ru vs en strings.
         lambda c: safe_add_col(c, "family_members", "lang", "TEXT DEFAULT 'en'"),
+        # v26: AI health check on growth-timeline photos. JSON {status, summary, issues[], advice[]}
+        # written by `_assess_plant_health` after each Update tap. NULL for photos uploaded before v26.
+        lambda c: safe_add_col(c, "plant_photos", "ai_analysis", "TEXT"),
     ]
 
     for i, mig in enumerate(migrations):
