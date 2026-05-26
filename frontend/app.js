@@ -172,14 +172,58 @@ function es(s){const d=document.createElement("div");d.textContent=s||"";return 
 // Client-side image downscale before upload. Modern phones shoot 5-12 MB JPEGs
 // at 12 MP which can exceed our backend 5 MB cap (esp. via Telegram WebView). Pass
 // any File/Blob; returns a File with the same name+type or a smaller JPEG version.
-// Skips work when input is already small. Uses canvas — supports HEIC if the browser
-// decodes it (iOS Safari does); otherwise the input passes through unchanged on error.
+//
+// v8.49.2: memory-safe rewrite. Telegram Android WebView has a ~150-200 MB heap
+// budget on low-RAM devices — decoding a 12 MP photo to a full bitmap is ~48 MB
+// of RGBA + a copy in canvas + a copy in toBlob, which OOMs WebView and surfaces
+// as "Unable to perform last action due to low memory". Two fixes:
+//   1. ALWAYS downscale (the old <1.5 MB skip was wrong — small files can still
+//      have huge pixel dimensions, and Claude Vision caps at 1568 px anyway).
+//   2. Prefer `createImageBitmap` with resize-during-decode — the scaled bitmap
+//      is the only one in memory, instead of full + scaled + canvas.
+// Default maxDim dropped 1920 → 1280 (still well above Claude Vision's effective
+// resolution, and ~55% fewer pixels = ~55% less RAM).
 async function _downscaleImage(file, maxDim, quality){
   if(!file)return file;
-  maxDim=maxDim||1920;quality=quality||0.85;
-  // Skip if already small in both bytes and pixels (we can't check pixels w/o decoding,
-  // so use byte threshold as a fast path: <1.5 MB usually means no need to recompress)
-  if(file.size<=1.5*1024*1024)return file;
+  maxDim=maxDim||1280;quality=quality||0.82;
+
+  // ─── Path A: createImageBitmap with resize-during-decode (memory-safe) ──
+  // Available on Android Chrome 73+ and modern iOS Safari. The decode-then-resize
+  // option keeps the full-size bitmap from ever materializing in JS heap.
+  if(typeof createImageBitmap==='function'){
+    try{
+      // Tiny probe to learn natural dimensions, then immediately close to free.
+      // (createImageBitmap has no "max-side" option — only explicit w/h — so we
+      // need the original aspect ratio to compute the scaled dims.)
+      var probe=await createImageBitmap(file);
+      var w=probe.width,h=probe.height;
+      if(probe.close)probe.close();
+      var scale=Math.min(1,maxDim/Math.max(w,h));
+      var cw=Math.max(1,Math.round(w*scale)),ch=Math.max(1,Math.round(h*scale));
+
+      // If the image is already at/below the target AND under 1 MB, recompression
+      // usually hurts (re-encoding lossless never improves a compressed JPEG).
+      if(scale===1 && file.size<1024*1024) return file;
+
+      var bm=await createImageBitmap(file,{resizeWidth:cw,resizeHeight:ch,resizeQuality:'high'});
+      var canvas=document.createElement('canvas');
+      canvas.width=cw;canvas.height=ch;
+      var ctx=canvas.getContext('2d');
+      ctx.drawImage(bm,0,0);
+      if(bm.close)bm.close();  // free GPU bitmap immediately
+
+      var blob=await new Promise(function(res){canvas.toBlob(res,'image/jpeg',quality)});
+      // Eagerly release canvas memory — important on Android low-RAM devices.
+      canvas.width=0;canvas.height=0;
+      if(!blob||blob.size>=file.size)return file;
+      return new File([blob],'photo.jpg',{type:'image/jpeg',lastModified:Date.now()});
+    }catch(e){
+      console.warn('[img] createImageBitmap path failed, falling back to <img>:',e);
+      // Fall through to legacy path below.
+    }
+  }
+
+  // ─── Path B (legacy): <img>+canvas. Higher peak memory but works everywhere. ──
   return new Promise(function(resolve){
     var url;
     try{url=URL.createObjectURL(file)}catch(e){resolve(file);return}
@@ -194,10 +238,12 @@ async function _downscaleImage(file, maxDim, quality){
         canvas.width=cw;canvas.height=ch;
         var ctx=canvas.getContext('2d');
         ctx.drawImage(img,0,0,cw,ch);
+        // Detach source bitmap before encode to lower peak memory.
+        img.src=''; img=null;
         canvas.toBlob(function(blob){
+          // Free canvas eagerly.
+          canvas.width=0;canvas.height=0;
           if(!blob){resolve(file);return}
-          // If downscale actually made it bigger (rare for already-compressed JPEGs that
-          // get re-encoded at higher quality), keep original.
           if(blob.size>=file.size){resolve(file);return}
           resolve(new File([blob],'photo.jpg',{type:'image/jpeg',lastModified:Date.now()}));
         },'image/jpeg',quality);

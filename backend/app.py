@@ -3565,7 +3565,9 @@ def dishes_image_get(did: int):
 
 
 # ─── Debug & Serve ───────────────────────────────────────────────────────
-APP_VERSION = "v8.49.1"
+APP_VERSION = "v8.49.2"
+# v8.49.2 — frontend-only: memory-safe image downscale (Telegram Android WebView OOM).
+#           Uses createImageBitmap with resize-during-decode; default maxDim 1920→1280.
 # v8.49.1 — hotfix: added "cooking" to _VALID_NAV_TABS so nav-picker Save works.
 # v8.49.0 — What's New + Tips timeline (frontend-only). Removed cooking total-cost-all header.
 # v8.48.0 — Cooking tab. Schema v28 (dishes + dish_ingredients). Endpoints:
