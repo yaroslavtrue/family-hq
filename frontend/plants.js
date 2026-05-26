@@ -8,7 +8,7 @@
 // Reads from earlier modules: D, fS, tr(), trn(), A(), hp(), toast(),
 // es(), icon(), oMC(), cMo(), ren(), _downscaleImage(), iD, mAv().
 // ─── Plants — family-shared plant care with AI species identification ─────
-var _plState={selectedId:null,histCache:{},photosCache:{}}; // histCache[plant_id] = {dates,water_days,count,avg_interval_days,target_interval_days}; photosCache[plant_id] = [{id,caption,taken_at,url}]
+var _plState={selectedId:null,histCache:{},photosCache:{},coverVer:{}}; // coverVer[plant_id] = timestamp set on Update so the <img> URL gets a fresh ?t= param. Lives outside D.plants because /api/plants reloads wipe that array.
 // Speech-bubble phrase bank, keyed to watering status. Selection is deterministic by
 // (plant.id + day-of-year) so the phrase stays stable for a whole day instead of
 // flickering on every re-render.
@@ -46,7 +46,7 @@ function _rPlantsWidget(){
   h+='<div class="hpw" onclick="go(\'plants\')">';
   h+='<div class="hpw-track">';
   list.forEach(function(p){
-    var _ct=p._cover_v||(p.last_watered?Date.parse(p.last_watered)||"":"x");
+    var _ct=_plState.coverVer[p.id]||(p.last_watered?Date.parse(p.last_watered)||"":"x");
     var img=p.has_image?'<img src="/static/plants/'+p.id+'.jpg?t='+_ct+'" alt="" onerror="this.remove()">':'';
     var ph=img?"":'<span class="hpw-ph">🪴</span>';
     var dotColor=_plStatusColor(p.status);
@@ -73,7 +73,7 @@ function rPlants(){
   h+='<button class="pl-av pl-av-add" onclick="_plOpenAdd()" aria-label="Add plant"><div class="pl-av-pic pl-av-plus">'+icon("pl",22,2.5)+'</div><div class="pl-av-l">'+tr("pl_add")+'</div></button>';
   list.forEach(function(p){
     var sel=(p.id===_plState.selectedId)?"s":"";
-    var _ct=p._cover_v||(p.last_watered?Date.parse(p.last_watered)||"":"x");
+    var _ct=_plState.coverVer[p.id]||(p.last_watered?Date.parse(p.last_watered)||"":"x");
     var img=p.has_image?'<img src="/static/plants/'+p.id+'.jpg?t='+_ct+'" alt="" onerror="this.remove()">':'';
     var ph=img?"":'<span class="pl-av-ph">🪴</span>';
     h+='<button class="pl-av '+sel+'" onclick="_plSelect('+p.id+')"><div class="pl-av-pic">'+img+ph+'<span class="pl-av-dot" style="background:'+_plStatusColor(p.status)+'"></span></div><div class="pl-av-l">'+es(p.custom_name||p.species||"Plant")+'</div></button>';
@@ -83,7 +83,7 @@ function rPlants(){
   if(!cur){
     h+='<div class="emp" style="padding:50px 14px"><div class="emp-i" style="font-size:46px">🪴</div><div class="emp-t">'+tr("pl_no_plants_t")+'</div><div style="font-size:13px;color:var(--ht);margin-top:6px">'+tr("pl_no_plants_s")+'</div></div>';
   }else{
-    var _curCt=cur._cover_v||(cur.last_watered?Date.parse(cur.last_watered)||"":"x");
+    var _curCt=_plState.coverVer[cur.id]||(cur.last_watered?Date.parse(cur.last_watered)||"":"x");
     var imgUrl=cur.has_image?'/static/plants/'+cur.id+'.jpg?t='+_curCt:'';
     h+='<div class="pl-card">';
     h+='<div class="pl-card-bg" style="'+(imgUrl?'background-image:url(\''+imgUrl+'\')':'')+'"></div>';
@@ -161,21 +161,24 @@ function _rPlantInlineTips(cur){
 
 function _plPhotoStripHtml(cur){
   var photos=_plState.photosCache[cur.id];
+  // Update button stays pinned on the left, photos scroll horizontally next to it.
+  // Photos are ordered newest-first (right next to Update button); the scroll
+  // area expands toward older entries to the right. Same horizontal-strip
+  // pattern as the Money analytics row.
+  var addBtn='<button class="pl-ph-add" onclick="_plPhotoPick('+cur.id+')"><span style="font-size:22px;line-height:1">🩺</span><span style="font-size:10px;margin-top:4px;font-weight:600">'+tr("pl_update")+'</span></button>';
   if(photos===undefined){
-    return '<div class="pl-ph-strip"><button class="pl-ph-add" onclick="_plPhotoPick('+cur.id+')"><span style="font-size:22px;line-height:1">🩺</span><span style="font-size:10px;margin-top:4px;font-weight:600">'+tr("pl_update")+'</span></button><div class="emp" style="padding:14px 8px;font-size:11px;color:var(--ht);flex:1">'+tr("g_loading")+'</div></div>';
+    return '<div class="pl-ph-row">'+addBtn+'<div class="pl-ph-scroll"><div class="emp" style="padding:14px 8px;font-size:11px;color:var(--ht);flex:1">'+tr("g_loading")+'</div></div></div>';
   }
-  var h='<div class="pl-ph-strip">';
-  h+='<button class="pl-ph-add" onclick="_plPhotoPick('+cur.id+')"><span style="font-size:22px;line-height:1">🩺</span><span style="font-size:10px;margin-top:4px;font-weight:600">'+tr("pl_update")+'</span></button>';
   if(!photos.length){
-    h+='<div class="pl-ph-empty">No timeline photos yet. Snap one to track growth over time.</div>';
-  }else{
-    photos.forEach(function(p){
-      var d=p.taken_at?new Date(p.taken_at):null;
-      var dlbl=d?(d.getDate()+' '+["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"][d.getMonth()]+(d.getFullYear()!==new Date().getFullYear()?" '"+String(d.getFullYear()).slice(-2):"")):"";
-      h+='<button class="pl-ph-thumb" onclick="_plPhotoView('+p.id+','+cur.id+')"><img src="/static/plants/timeline/'+p.id+'.jpg" alt="" loading="lazy"><span class="pl-ph-date">'+es(dlbl)+'</span></button>';
-    });
+    return '<div class="pl-ph-row">'+addBtn+'<div class="pl-ph-scroll"><div class="pl-ph-empty">No timeline photos yet. Snap one to track growth over time.</div></div></div>';
   }
-  h+='</div>';
+  var h='<div class="pl-ph-row">'+addBtn+'<div class="pl-ph-scroll">';
+  photos.forEach(function(p){
+    var d=p.taken_at?new Date(p.taken_at):null;
+    var dlbl=d?(d.getDate()+' '+["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"][d.getMonth()]+(d.getFullYear()!==new Date().getFullYear()?" '"+String(d.getFullYear()).slice(-2):"")):"";
+    h+='<button class="pl-ph-thumb" onclick="_plPhotoView('+p.id+','+cur.id+')"><img src="/static/plants/timeline/'+p.id+'.jpg" alt="" loading="lazy"><span class="pl-ph-date">'+es(dlbl)+'</span></button>';
+  });
+  h+='</div></div>';
   return h;
 }
 
@@ -351,16 +354,22 @@ async function _plUploadUpdatePhoto(pid, f){
     var p = await r.json();
     hp("ok");
     var arr = _plState.photosCache[pid] || [];
-    // Timeline order is oldest-first (v8.49.3), so append new photo to the end.
-    arr.push(p);
+    // Newest-first ordering — new photo lands at the head of the strip, next
+    // to the Update button.
+    arr.unshift(p);
     _plState.photosCache[pid] = arr;
-    // Cover was overwritten on the backend — bust the image cache via _cover_v.
+    // Cover was overwritten on the backend — bust the image cache via the
+    // global _plState.coverVer map (survives D.plants array replacements).
+    _plState.coverVer[pid] = Date.now();
     var pl = (D.plants||[]).find(function(x){ return x.id===pid });
-    if(pl){
-      pl._cover_v = Date.now();
-      pl.has_image = true;
-    }
-    A("GET","/api/plants").then(function(d){ if(d&&d.plants) D.plants = d.plants; ren() });
+    if(pl){ pl.has_image = true; }
+    A("GET","/api/plants").then(function(d){
+      if(d&&d.plants) D.plants = d.plants;
+      // Keep the bump alive after the refresh — fresh rows lose any inline
+      // _cover_v we might have stamped, but coverVer[] is per-state and persists.
+      _plState.coverVer[pid] = Date.now();
+      ren();
+    });
     ren();
     if(p.ai_analysis){
       _plShowHealthModal(p.ai_analysis, pid);
@@ -373,10 +382,11 @@ async function _plUploadUpdatePhoto(pid, f){
   }
 }
 
-// Show Sonnet's health assessment in a modal (status pill + summary + issues + advice).
-// Reused by _plPhotoView when tapping a historical photo that has stored ai_analysis.
-function _plShowHealthModal(a, pid){
-  if(!a||!a.status)return;
+// Render the AI health analysis as standalone HTML — used both by the post-Update
+// pop-up modal (_plShowHealthModal) and inline inside the photo-view modal
+// (_plPhotoView) so users see issues + advice without an extra tap.
+function _plHealthBlockHtml(a){
+  if(!a||!a.status)return'';
   var statusInfo = {
     healthy:  {emoji:"🟢", color:"var(--ok)", label:tr("pl_h_healthy")},
     concern:  {emoji:"🟡", color:"var(--wn)", label:tr("pl_h_concern")},
@@ -395,6 +405,12 @@ function _plShowHealthModal(a, pid){
   if((!a.issues||!a.issues.length)&&(!a.advice||!a.advice.length)&&a.status==="healthy"){
     h+='<div style="text-align:center;color:var(--ht);font-size:13px;margin-top:14px">'+tr("pl_h_no_issues")+'</div>';
   }
+  return h;
+}
+
+function _plShowHealthModal(a, pid){
+  var h = _plHealthBlockHtml(a);
+  if(!h) return;
   oMC(tr("pl_h_title"),h,{ic:"flower"});
 }
 
@@ -407,15 +423,15 @@ function _plPhotoView(photoId, plantId){
   var d=p.taken_at?new Date(p.taken_at):null;
   var dlbl=d?d.toLocaleString("en-US",{day:"numeric",month:"long",year:"numeric"}):"";
   var h='<div class="pl-pview"><img src="/static/plants/timeline/'+p.id+'.jpg" alt=""></div>';
+  if(dlbl)h+='<div style="text-align:center;font-size:12px;color:var(--ht);margin-top:10px">📅 '+es(dlbl)+'</div>';
+  // v8.49.5: render the AI health check INLINE below the photo (was a button
+  // that opened a separate modal). The modal body scrolls vertically so the
+  // user can swipe through pill + summary + issues + advice naturally.
+  if(p.ai_analysis&&p.ai_analysis.status){
+    h+='<div class="pl-pview-tip">'+_plHealthBlockHtml(p.ai_analysis)+'</div>';
+  }
   h+='<div class="lb" style="margin-top:14px">'+tr("pl_caption")+'</div>';
   h+='<input class="inp" id="plv-cap" value="'+es(p.caption||"")+'" placeholder="(optional)" maxlength="120">';
-  if(dlbl)h+='<div style="text-align:center;font-size:12px;color:var(--ht);margin-top:10px">📅 '+es(dlbl)+'</div>';
-  // If this photo has a stored AI health check, offer to view it
-  if(p.ai_analysis&&p.ai_analysis.status){
-    var sCol = p.ai_analysis.status==="critical" ? "var(--ac)" : (p.ai_analysis.status==="concern" ? "var(--wn)" : "var(--ok)");
-    var sEmoji = p.ai_analysis.status==="critical" ? "🔴" : (p.ai_analysis.status==="concern" ? "🟡" : "🟢");
-    h+='<button class="btn btn-s" style="width:100%;margin-top:10px;background:color-mix(in srgb,'+sCol+' 12%,transparent);color:'+sCol+';border:1px solid color-mix(in srgb,'+sCol+' 35%,transparent)" onclick="_plShowHealthModal(_plState.photosCache['+plantId+'].find(function(x){return x.id==='+p.id+'}).ai_analysis,'+plantId+')">'+sEmoji+' '+tr("pl_h_view")+'</button>';
-  }
   h+='<div style="display:flex;gap:8px;margin-top:18px">';
   h+='<button class="btn btn-s" style="flex:1;background:transparent;color:var(--ac);border:1px solid color-mix(in srgb,var(--ac) 40%,transparent)" onclick="_plPhotoDelete('+p.id+','+plantId+')">🗑 '+tr("btn_delete")+'</button>';
   h+='<button class="btn" style="flex:1.5" onclick="_plPhotoSaveCaption('+p.id+','+plantId+')">'+tr("btn_save")+'</button>';

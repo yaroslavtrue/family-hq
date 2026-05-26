@@ -3176,13 +3176,14 @@ PLANTS_TIMELINE_DIR = os.path.join(PLANTS_IMG_DIR, "timeline")
 
 @app.get("/api/plants/{pid}/photos")
 def plants_photos_list(pid: int, user=Depends(get_uf), db=Depends(get_db)):
-    """Chronological photos for one plant — OLDEST first (v8.49.3).
-    The strip in the UI reads left→right as a timeline, so the original
-    creation photo lands at the left and the most recent Update at the right."""
+    """Chronological photos for one plant — NEWEST first (v8.49.5).
+    The Update button is pinned on the left of the strip; newest photos sit
+    right next to it and the strip scrolls horizontally toward older entries.
+    (v8.49.3 had this ASC — UX feedback in v8.49.5 reverted to DESC.)"""
     row = db.execute("SELECT id FROM plants WHERE id=? AND family_id=?", (pid, user["family_id"])).fetchone()
     if not row: raise HTTPException(404)
     rows = db.execute(
-        "SELECT id, caption, taken_at, added_by, ai_analysis FROM plant_photos WHERE plant_id=? ORDER BY taken_at ASC, id ASC",
+        "SELECT id, caption, taken_at, added_by, ai_analysis FROM plant_photos WHERE plant_id=? ORDER BY taken_at DESC, id DESC",
         (pid,)).fetchall()
     out = []
     for r in rows:
@@ -3621,7 +3622,9 @@ def dishes_image_get(did: int):
 
 
 # ─── Debug & Serve ───────────────────────────────────────────────────────
-APP_VERSION = "v8.49.4"
+APP_VERSION = "v8.49.5"
+# v8.49.5 — Plant strip: newest-first, horizontal-scroll with pinned Update button,
+#           AI health tip rendered inline in photo view, cover-bust survives /api/plants reloads.
 # v8.49.4 — Plant Update: in-app camera via getUserMedia + source-chooser modal.
 #           Bypasses Telegram Android's missing-Camera-option chooser gap.
 # v8.49.3 — Plant Update: latest photo becomes cover; original kept as first
