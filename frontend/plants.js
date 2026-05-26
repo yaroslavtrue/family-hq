@@ -46,7 +46,8 @@ function _rPlantsWidget(){
   h+='<div class="hpw" onclick="go(\'plants\')">';
   h+='<div class="hpw-track">';
   list.forEach(function(p){
-    var img=p.has_image?'<img src="/static/plants/'+p.id+'.jpg?t='+(p.last_watered?Date.parse(p.last_watered)||"":"x")+'" alt="" onerror="this.remove()">':'';
+    var _ct=p._cover_v||(p.last_watered?Date.parse(p.last_watered)||"":"x");
+    var img=p.has_image?'<img src="/static/plants/'+p.id+'.jpg?t='+_ct+'" alt="" onerror="this.remove()">':'';
     var ph=img?"":'<span class="hpw-ph">🪴</span>';
     var dotColor=_plStatusColor(p.status);
     var statusLbl=_plStatusLabel(p.status);
@@ -72,7 +73,8 @@ function rPlants(){
   h+='<button class="pl-av pl-av-add" onclick="_plOpenAdd()" aria-label="Add plant"><div class="pl-av-pic pl-av-plus">'+icon("pl",22,2.5)+'</div><div class="pl-av-l">'+tr("pl_add")+'</div></button>';
   list.forEach(function(p){
     var sel=(p.id===_plState.selectedId)?"s":"";
-    var img=p.has_image?'<img src="/static/plants/'+p.id+'.jpg?t='+(p.last_watered?Date.parse(p.last_watered)||"":"x")+'" alt="" onerror="this.remove()">':'';
+    var _ct=p._cover_v||(p.last_watered?Date.parse(p.last_watered)||"":"x");
+    var img=p.has_image?'<img src="/static/plants/'+p.id+'.jpg?t='+_ct+'" alt="" onerror="this.remove()">':'';
     var ph=img?"":'<span class="pl-av-ph">🪴</span>';
     h+='<button class="pl-av '+sel+'" onclick="_plSelect('+p.id+')"><div class="pl-av-pic">'+img+ph+'<span class="pl-av-dot" style="background:'+_plStatusColor(p.status)+'"></span></div><div class="pl-av-l">'+es(p.custom_name||p.species||"Plant")+'</div></button>';
   });
@@ -81,7 +83,8 @@ function rPlants(){
   if(!cur){
     h+='<div class="emp" style="padding:50px 14px"><div class="emp-i" style="font-size:46px">🪴</div><div class="emp-t">'+tr("pl_no_plants_t")+'</div><div style="font-size:13px;color:var(--ht);margin-top:6px">'+tr("pl_no_plants_s")+'</div></div>';
   }else{
-    var imgUrl=cur.has_image?'/static/plants/'+cur.id+'.jpg?t='+(cur.last_watered?Date.parse(cur.last_watered)||"":"x"):'';
+    var _curCt=cur._cover_v||(cur.last_watered?Date.parse(cur.last_watered)||"":"x");
+    var imgUrl=cur.has_image?'/static/plants/'+cur.id+'.jpg?t='+_curCt:'';
     h+='<div class="pl-card">';
     h+='<div class="pl-card-bg" style="'+(imgUrl?'background-image:url(\''+imgUrl+'\')':'')+'"></div>';
     if(!imgUrl)h+='<div class="pl-card-noimg">🪴</div>';
@@ -193,7 +196,12 @@ async function _plLoadPhotos(pid){
 function _plPhotoPick(pid){
   hp("light");
   var input=document.createElement("input");
-  input.type="file";input.accept="image/*";input.capture="environment";
+  input.type="file";input.accept="image/*";
+  // v8.49.3: `capture="environment"` REMOVED. On Telegram Android it routes the
+  // user to the system camera intent, which suspends the WebView. When control
+  // returns Telegram can't always resume the mini-app and kicks the user back
+  // to the chat list. The plain file input keeps the picker INSIDE Telegram
+  // (gallery + camera options as a chooser) which is reliable.
   input.style.cssText="position:fixed;left:-9999px;top:-9999px;opacity:0;pointer-events:none";
   document.body.appendChild(input);
   var done=false;
@@ -206,7 +214,9 @@ function _plPhotoPick(pid){
       if(f.size>15*1024*1024){toast(tr("ts_too_large"));return}
       // Visible immediately so user knows something is happening — Sonnet call is 3-6s.
       toast(tr("pl_analyzing"));
-      f=await _downscaleImage(f);
+      // Aggressive downscale to 1024px max — fits well within Android low-RAM
+      // WebView budget while still being plenty for Claude Vision plant ID.
+      f=await _downscaleImage(f, 1024, 0.78);
       var fd=new FormData();
       fd.append("file",f);
       fd.append("caption","");           // no caption prompt — "Update" is photo-only
@@ -224,8 +234,16 @@ function _plPhotoPick(pid){
       var p=await r.json();
       hp("ok");
       var arr=_plState.photosCache[pid]||[];
-      arr.unshift(p);
+      // v8.49.3: keep timeline sorted oldest-first (so original cover appears
+      // first in the strip). Append the new photo to the end.
+      arr.push(p);
       _plState.photosCache[pid]=arr;
+      // Cover photo file was overwritten on the backend — refresh the plant
+      // row so the carousel/big card re-fetches with a busted cache key.
+      var pl=(D.plants||[]).find(function(x){return x.id===pid});
+      if(pl){pl.last_watered=pl.last_watered||new Date().toISOString();pl._cover_v=Date.now()}
+      // Also reload plants so other clients (same family) eventually see the new cover.
+      A("GET","/api/plants").then(function(d){if(d&&d.plants)D.plants=d.plants;ren()});
       ren();
       if(p.ai_analysis){
         _plShowHealthModal(p.ai_analysis, pid);

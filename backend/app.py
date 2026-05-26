@@ -1,7 +1,7 @@
 """
 🏠 Family HQ v5 — Backend API
 """
-import os, sqlite3, hashlib, hmac, json, logging, random, re, time, secrets
+import os, sqlite3, hashlib, hmac, json, logging, random, re, time, secrets, shutil
 from datetime import datetime, timedelta, date
 from calendar import monthrange
 from urllib.parse import parse_qs
@@ -2932,6 +2932,21 @@ def _create_plant_from_info(db, family_id: int, user_id: int, info: dict, custom
     os.makedirs(PLANTS_IMG_DIR, exist_ok=True)
     with open(os.path.join(PLANTS_IMG_DIR, f"{pid}.jpg"), "wb") as f:
         f.write(image_bytes)
+    # v8.49.3: also drop the creation photo into the timeline so it shows up as
+    # the first chronological entry alongside future "Update" snaps. The cover
+    # may later be overwritten by Updates (latest = cover); the timeline keeps
+    # the original.
+    try:
+        os.makedirs(PLANTS_TIMELINE_DIR, exist_ok=True)
+        orig_cur = db.execute(
+            "INSERT INTO plant_photos (plant_id, caption, added_by) VALUES (?, ?, ?)",
+            (pid, "", user_id)
+        )
+        orig_phid = orig_cur.lastrowid
+        with open(os.path.join(PLANTS_TIMELINE_DIR, f"{orig_phid}.jpg"), "wb") as f:
+            f.write(image_bytes)
+    except Exception as e:
+        log.warning(f"plant initial timeline photo failed for {pid}: {e}")
     _schedule_first_reminder(db, pid, family_id, int(info.get("water_interval_days") or 7))
     db.commit()
     row = db.execute("SELECT * FROM plants WHERE id=?", (pid,)).fetchone()
@@ -3161,11 +3176,13 @@ PLANTS_TIMELINE_DIR = os.path.join(PLANTS_IMG_DIR, "timeline")
 
 @app.get("/api/plants/{pid}/photos")
 def plants_photos_list(pid: int, user=Depends(get_uf), db=Depends(get_db)):
-    """Chronological photos for one plant (newest first)."""
+    """Chronological photos for one plant — OLDEST first (v8.49.3).
+    The strip in the UI reads left→right as a timeline, so the original
+    creation photo lands at the left and the most recent Update at the right."""
     row = db.execute("SELECT id FROM plants WHERE id=? AND family_id=?", (pid, user["family_id"])).fetchone()
     if not row: raise HTTPException(404)
     rows = db.execute(
-        "SELECT id, caption, taken_at, added_by, ai_analysis FROM plant_photos WHERE plant_id=? ORDER BY taken_at DESC, id DESC",
+        "SELECT id, caption, taken_at, added_by, ai_analysis FROM plant_photos WHERE plant_id=? ORDER BY taken_at ASC, id ASC",
         (pid,)).fetchall()
     out = []
     for r in rows:
@@ -3201,24 +3218,63 @@ async def plants_photos_add(
     data = await file.read()
     if not data or len(data) > 5 * 1024 * 1024:
         raise HTTPException(400, "empty or too large (max 5 MB)")
-    # Run Sonnet check first (before INSERT) — if it fails, we still save the photo without analysis.
+    row_d = dict(row)
+
+    # ─── v8.49.3: latest-becomes-cover, original-preserved-in-timeline ────────
+    # Behaviour: the plant's hero image (/static/plants/<pid>.jpg) is overwritten
+    # with the newly-uploaded photo so the carousel/big-card always shows the
+    # most recent state. The previous cover is preserved as a timeline entry
+    # tagged with the plant's added_at, so the timeline strip can show "first by
+    # chronology" with the original date.
+    #
+    # On first Update for a pre-v8.49.3 plant, plant_photos is empty but a cover
+    # file exists from creation — we migrate that cover into a timeline row
+    # (copy file, INSERT row with taken_at = plant.added_at) BEFORE overwriting.
+    cover_path = os.path.join(PLANTS_IMG_DIR, f"{pid}.jpg")
+    os.makedirs(PLANTS_TIMELINE_DIR, exist_ok=True)
+
+    photo_count = db.execute(
+        "SELECT COUNT(*) AS n FROM plant_photos WHERE plant_id=?", (pid,)
+    ).fetchone()["n"]
+    if photo_count == 0 and os.path.isfile(cover_path):
+        # Backfill the original cover as the very first timeline entry.
+        orig_cur = db.execute(
+            "INSERT INTO plant_photos (plant_id, caption, taken_at, added_by) VALUES (?, ?, ?, ?)",
+            (pid, "", row_d.get("added_at") or None, row_d.get("added_by"))
+        )
+        orig_pid = orig_cur.lastrowid
+        try:
+            shutil.copyfile(cover_path, os.path.join(PLANTS_TIMELINE_DIR, f"{orig_pid}.jpg"))
+        except Exception as e:
+            log.warning(f"cover-to-timeline backfill failed for plant {pid}: {e}")
+
+    # Run Sonnet check on the NEW photo (before INSERT) — if it fails we still save the photo.
     analysis = None
     if analyze == "1":
-        # Resolve user language from family_members so advice comes back in their UI lang.
         lang_row = db.execute("SELECT lang FROM family_members WHERE user_id=?", (user["id"],)).fetchone()
         ulang = (lang_row["lang"] if lang_row and lang_row["lang"] else "en")
-        analysis = await _assess_plant_health(dict(row), data, language=ulang)
+        analysis = await _assess_plant_health(row_d, data, language=ulang)
+
+    # Save NEW photo: timeline row + file
     cur = db.execute(
         "INSERT INTO plant_photos (plant_id, caption, added_by, ai_analysis) VALUES (?, ?, ?, ?)",
         (pid, (caption or "").strip(), user["id"], _json_mod.dumps(analysis) if analysis else None))
     photo_id = cur.lastrowid
-    os.makedirs(PLANTS_TIMELINE_DIR, exist_ok=True)
     with open(os.path.join(PLANTS_TIMELINE_DIR, f"{photo_id}.jpg"), "wb") as f:
         f.write(data)
+    # Promote new photo to cover. Best-effort — if write fails, the timeline row
+    # is still saved so the user doesn't lose the upload.
+    try:
+        with open(cover_path, "wb") as f:
+            f.write(data)
+    except Exception as e:
+        log.warning(f"cover overwrite failed for plant {pid}: {e}")
+
     db.commit()
     fresh = db.execute("SELECT id, caption, taken_at, added_by FROM plant_photos WHERE id=?", (photo_id,)).fetchone()
     out = dict(fresh)
-    out["ai_analysis"] = analysis  # dict or None; frontend keys off this for the result modal
+    out["ai_analysis"] = analysis
+    out["cover_updated"] = True  # frontend uses this to bust cover image cache
     return out
 
 
@@ -3565,7 +3621,10 @@ def dishes_image_get(did: int):
 
 
 # ─── Debug & Serve ───────────────────────────────────────────────────────
-APP_VERSION = "v8.49.2"
+APP_VERSION = "v8.49.3"
+# v8.49.3 — Plant Update: latest photo becomes cover; original kept as first
+#           timeline entry. Removed camera-capture intent (Android Telegram crash).
+#           Timeline order ASC. Downscale target 1024px.
 # v8.49.2 — frontend-only: memory-safe image downscale (Telegram Android WebView OOM).
 #           Uses createImageBitmap with resize-during-decode; default maxDim 1920→1280.
 # v8.49.1 — hotfix: added "cooking" to _VALID_NAV_TABS so nav-picker Save works.
