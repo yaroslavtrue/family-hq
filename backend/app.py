@@ -3621,7 +3621,9 @@ def dishes_image_get(did: int):
 
 
 # ─── Debug & Serve ───────────────────────────────────────────────────────
-APP_VERSION = "v8.49.3"
+APP_VERSION = "v8.49.4"
+# v8.49.4 — Plant Update: in-app camera via getUserMedia + source-chooser modal.
+#           Bypasses Telegram Android's missing-Camera-option chooser gap.
 # v8.49.3 — Plant Update: latest photo becomes cover; original kept as first
 #           timeline entry. Removed camera-capture intent (Android Telegram crash).
 #           Timeline order ASC. Downscale target 1024px.

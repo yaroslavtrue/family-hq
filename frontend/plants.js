@@ -193,65 +193,44 @@ async function _plLoadPhotos(pid){
 //
 // iOS Telegram WebView quirk: detached <input> sometimes doesn't fire `change`.
 // We append the element to body (off-screen) and use addEventListener.
+// v8.49.4: source-chooser modal. Telegram Android WebView only offers Gallery
+// from a plain <input>, so we need a dedicated in-WebView camera path. Tapping
+// 🩺 Update opens this chooser — Camera launches getUserMedia (no intent
+// handoff, no WebView suspension), Gallery launches the plain file picker.
 function _plPhotoPick(pid){
   hp("light");
+  var h = '<div class="pl-src-grid">';
+  h +=   '<button class="pl-src-btn" onclick="_plOpenCamera('+pid+')">';
+  h +=     '<span class="pl-src-ic">📷</span>';
+  h +=     '<span class="pl-src-l">'+tr("pl_take_photo")+'</span>';
+  h +=     '<span class="pl-src-d">'+tr("pl_take_photo_d")+'</span>';
+  h +=   '</button>';
+  h +=   '<button class="pl-src-btn" onclick="_plOpenGallery('+pid+')">';
+  h +=     '<span class="pl-src-ic">🖼️</span>';
+  h +=     '<span class="pl-src-l">'+tr("pl_from_gallery")+'</span>';
+  h +=     '<span class="pl-src-d">'+tr("pl_from_gallery_d")+'</span>';
+  h +=   '</button>';
+  h += '</div>';
+  oMC(tr("pl_update"), h, {ic:"camera"});
+}
+
+// Plain file picker. Used as the "Gallery" branch and as a fallback if the
+// in-app camera fails to initialize.
+function _plOpenGallery(pid){
+  cMo();  // close the source-chooser modal first
   var input=document.createElement("input");
   input.type="file";input.accept="image/*";
-  // v8.49.3: `capture="environment"` REMOVED. On Telegram Android it routes the
-  // user to the system camera intent, which suspends the WebView. When control
-  // returns Telegram can't always resume the mini-app and kicks the user back
-  // to the chat list. The plain file input keeps the picker INSIDE Telegram
-  // (gallery + camera options as a chooser) which is reliable.
   input.style.cssText="position:fixed;left:-9999px;top:-9999px;opacity:0;pointer-events:none";
   document.body.appendChild(input);
   var done=false;
-  // Robust handler — wrapped in try/catch so a thrown error inside still cleans up the DOM node.
   var handle=async function(){
     if(done)return;done=true;
     try{
       var f=input.files&&input.files[0];
-      if(!f){toast("No photo selected");return}
-      if(f.size>15*1024*1024){toast(tr("ts_too_large"));return}
-      // Visible immediately so user knows something is happening — Sonnet call is 3-6s.
-      toast(tr("pl_analyzing"));
-      // Aggressive downscale to 1024px max — fits well within Android low-RAM
-      // WebView budget while still being plenty for Claude Vision plant ID.
-      f=await _downscaleImage(f, 1024, 0.78);
-      var fd=new FormData();
-      fd.append("file",f);
-      fd.append("caption","");           // no caption prompt — "Update" is photo-only
-      fd.append("analyze","1");          // request Sonnet health check
-      var headers={};
-      if(iD)headers["X-Telegram-Init-Data"]=iD;
-      var sess=_getSess();if(sess)headers["X-Session-Token"]=sess;
-      var r=await fetch("/api/plants/"+pid+"/photos",{method:"POST",headers:headers,body:fd});
-      if(!r.ok){
-        var errText="";try{errText=await r.text()}catch(e){}
-        toast(tr("ts_upload_failed")+" ("+r.status+")");
-        console.error("[plants] upload failed",r.status,errText);
-        return;
-      }
-      var p=await r.json();
-      hp("ok");
-      var arr=_plState.photosCache[pid]||[];
-      // v8.49.3: keep timeline sorted oldest-first (so original cover appears
-      // first in the strip). Append the new photo to the end.
-      arr.push(p);
-      _plState.photosCache[pid]=arr;
-      // Cover photo file was overwritten on the backend — refresh the plant
-      // row so the carousel/big card re-fetches with a busted cache key.
-      var pl=(D.plants||[]).find(function(x){return x.id===pid});
-      if(pl){pl.last_watered=pl.last_watered||new Date().toISOString();pl._cover_v=Date.now()}
-      // Also reload plants so other clients (same family) eventually see the new cover.
-      A("GET","/api/plants").then(function(d){if(d&&d.plants)D.plants=d.plants;ren()});
-      ren();
-      if(p.ai_analysis){
-        _plShowHealthModal(p.ai_analysis, pid);
-      } else {
-        toast(tr("ts_photo_added"));
-      }
+      if(!f){return}
+      await _plUploadUpdatePhoto(pid, f);
     }catch(e){
-      console.error("[plants] update flow error",e);
+      console.error("[plants] gallery flow error",e);
       toast(tr("ts_network"));
     }finally{
       try{input.parentNode&&input.parentNode.removeChild(input)}catch(e){}
@@ -259,6 +238,139 @@ function _plPhotoPick(pid){
   };
   input.addEventListener("change",handle);
   input.click();
+}
+
+// In-app camera via getUserMedia — no Activity intent, no WebView suspension.
+// Works on iOS Safari 11+ and Android Chrome (which Telegram's WebView is
+// based on). Falls back to the gallery picker if permission is denied or no
+// camera is available.
+var _plCamStream = null;
+var _plCamFacing = "environment";
+var _plCamPid = null;
+
+async function _plOpenCamera(pid){
+  cMo();
+  _plCamPid = pid;
+  hp("light");
+  // Build fullscreen camera overlay
+  var ov = document.createElement("div");
+  ov.id = "pl-cam-ov";
+  ov.className = "pl-cam-ov";
+  ov.innerHTML =
+    '<video id="pl-cam-vid" autoplay playsinline muted></video>'+
+    '<div class="pl-cam-top">'+
+      '<button class="pl-cam-icbtn" onclick="_plCamClose()" aria-label="Close">✕</button>'+
+    '</div>'+
+    '<div class="pl-cam-bottom">'+
+      '<div class="pl-cam-spacer"></div>'+
+      '<button class="pl-cam-shot" onclick="_plCamShoot()" aria-label="Capture"><span></span></button>'+
+      '<button class="pl-cam-icbtn" onclick="_plCamFlip()" aria-label="Flip camera">⟳</button>'+
+    '</div>';
+  document.body.appendChild(ov);
+  try{
+    await _plCamStart();
+  }catch(e){
+    console.error("[plants] camera init failed",e);
+    _plCamClose();
+    toast(tr("pl_camera_unavail"));
+    _plOpenGallery(pid);
+  }
+}
+
+async function _plCamStart(){
+  // Stop previous stream if reconfiguring (Flip).
+  if(_plCamStream){try{_plCamStream.getTracks().forEach(function(t){t.stop()})}catch(e){}_plCamStream=null}
+  if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia){
+    throw new Error("getUserMedia not available");
+  }
+  _plCamStream = await navigator.mediaDevices.getUserMedia({
+    video: {
+      facingMode: { ideal: _plCamFacing },
+      width:  { ideal: 1280 },
+      height: { ideal: 1280 },
+    },
+    audio: false,
+  });
+  var vid = document.getElementById("pl-cam-vid");
+  if(vid){ vid.srcObject = _plCamStream; }
+}
+
+function _plCamFlip(){
+  _plCamFacing = (_plCamFacing === "environment") ? "user" : "environment";
+  _plCamStart().catch(function(){toast(tr("pl_camera_unavail"))});
+}
+
+function _plCamClose(){
+  if(_plCamStream){try{_plCamStream.getTracks().forEach(function(t){t.stop()})}catch(e){}_plCamStream=null}
+  var ov = document.getElementById("pl-cam-ov");
+  if(ov && ov.parentNode){ ov.parentNode.removeChild(ov); }
+}
+
+async function _plCamShoot(){
+  var vid = document.getElementById("pl-cam-vid");
+  var pid = _plCamPid;
+  if(!vid || !vid.videoWidth){ toast(tr("pl_camera_unavail")); return; }
+  hp("med");
+  // Capture current frame to a canvas, then encode as JPEG.
+  var canvas = document.createElement("canvas");
+  canvas.width = vid.videoWidth;
+  canvas.height = vid.videoHeight;
+  var ctx = canvas.getContext("2d");
+  ctx.drawImage(vid, 0, 0);
+  var blob = await new Promise(function(res){ canvas.toBlob(res, "image/jpeg", 0.9) });
+  // Free canvas eagerly — Android WebView memory is tight.
+  canvas.width = 0; canvas.height = 0;
+  _plCamClose();
+  if(!blob){ toast(tr("ts_error")); return; }
+  var f = new File([blob], "capture.jpg", { type: "image/jpeg", lastModified: Date.now() });
+  await _plUploadUpdatePhoto(pid, f);
+}
+
+// Shared upload + Sonnet flow — called by both the camera path and the
+// gallery path. Keeps the post-upload logic in one place.
+async function _plUploadUpdatePhoto(pid, f){
+  try{
+    if(f.size > 15*1024*1024){ toast(tr("ts_too_large")); return; }
+    toast(tr("pl_analyzing"));
+    // Memory-safe downscale (Android WebView heap budget).
+    f = await _downscaleImage(f, 1024, 0.78);
+    var fd = new FormData();
+    fd.append("file", f);
+    fd.append("caption", "");
+    fd.append("analyze", "1");
+    var headers = {};
+    if(iD) headers["X-Telegram-Init-Data"] = iD;
+    var sess = _getSess(); if(sess) headers["X-Session-Token"] = sess;
+    var r = await fetch("/api/plants/"+pid+"/photos", {method:"POST", headers:headers, body:fd});
+    if(!r.ok){
+      var errText=""; try{ errText = await r.text() }catch(e){}
+      toast(tr("ts_upload_failed")+" ("+r.status+")");
+      console.error("[plants] upload failed", r.status, errText);
+      return;
+    }
+    var p = await r.json();
+    hp("ok");
+    var arr = _plState.photosCache[pid] || [];
+    // Timeline order is oldest-first (v8.49.3), so append new photo to the end.
+    arr.push(p);
+    _plState.photosCache[pid] = arr;
+    // Cover was overwritten on the backend — bust the image cache via _cover_v.
+    var pl = (D.plants||[]).find(function(x){ return x.id===pid });
+    if(pl){
+      pl._cover_v = Date.now();
+      pl.has_image = true;
+    }
+    A("GET","/api/plants").then(function(d){ if(d&&d.plants) D.plants = d.plants; ren() });
+    ren();
+    if(p.ai_analysis){
+      _plShowHealthModal(p.ai_analysis, pid);
+    } else {
+      toast(tr("ts_photo_added"));
+    }
+  }catch(e){
+    console.error("[plants] upload flow error", e);
+    toast(tr("ts_network"));
+  }
 }
 
 // Show Sonnet's health assessment in a modal (status pill + summary + issues + advice).

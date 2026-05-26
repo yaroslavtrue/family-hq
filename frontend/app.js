@@ -156,7 +156,9 @@ translate:'<path d="m16 3 4 4-4 4"/><path d="M20 7H4"/><path d="m8 21-4-4 4-4"/>
 flower:'<circle cx="12" cy="12" r="2.5"/><circle cx="12" cy="5.5" r="3"/><circle cx="18.5" cy="12" r="3"/><circle cx="12" cy="18.5" r="3"/><circle cx="5.5" cy="12" r="3"/>',
 leaf:'<path d="M11 20A7 7 0 0 1 9.8 6.1C15.5 5 17 4.48 19 2c1 2 2 4.18 2 8 0 5.5-4.78 10-10 10Z"/><path d="M2 21c0-3 1.85-5.36 5.08-6"/>',
 // chef = fork + knife (utensils). Used in the Cooking tab nav + hamburger.
-chef:'<path d="M3 2v7c0 1.1.9 2 2 2h0v11"/><path d="M7 2v7c0 1.1-.9 2-2 2"/><path d="M7 2v20"/><path d="M21 15V2a5 5 0 0 0-3 4.5V12h3Z"/><path d="M18 15v7"/>'
+chef:'<path d="M3 2v7c0 1.1.9 2 2 2h0v11"/><path d="M7 2v7c0 1.1-.9 2-2 2"/><path d="M7 2v20"/><path d="M21 15V2a5 5 0 0 0-3 4.5V12h3Z"/><path d="M18 15v7"/>',
+// camera = source-chooser modal icon for the Plants Update flow (v8.49.4)
+camera:'<path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3Z"/><circle cx="12" cy="13" r="3.5"/>'
 };
 // Wrappers — pre-built default sizes for the most-used icons
 const I={
