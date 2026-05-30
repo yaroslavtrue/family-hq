@@ -3622,7 +3622,8 @@ def dishes_image_get(did: int):
 
 
 # ─── Debug & Serve ───────────────────────────────────────────────────────
-APP_VERSION = "v8.49.6"
+APP_VERSION = "v8.49.7"
+# v8.49.7 — Tasks: in-bucket chronological sort (nearest date first).
 # v8.49.6 — Schema v29: one-time backfill of original plant cover photo into
 #           the timeline for plants that pre-date v8.49.3 (so their original
 #           shows as the first chronological entry with the creation date).

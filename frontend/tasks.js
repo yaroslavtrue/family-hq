@@ -28,6 +28,19 @@ if(!all.length)return h+em(icon("clipboard",48,1.8),tr("es_no_tasks_t"),tr("es_n
 var todayStr=td();var _7d=new Date();_7d.setDate(_7d.getDate()+7);var weekStr=_7d.getFullYear()+"-"+String(_7d.getMonth()+1).padStart(2,"0")+"-"+String(_7d.getDate()).padStart(2,"0");
 var overdue=[],high=[],week=[],rest=[];
 pend.forEach(function(t){var dd=(t.due_date||"").split(" ")[0];if(dd&&dd<todayStr){overdue.push(t)}else if(t.priority==="high"){high.push(t)}else if(dd&&dd<=weekStr){week.push(t)}else{rest.push(t)}});
+// v8.49.7: sort each group chronologically (nearest date on top, undated last).
+// API can return tasks in arbitrary order; in-page sort makes the strip read
+// like a real to-do list — today's tasks above tomorrow's above next week's.
+function _tkSortByDate(a,b){
+  var da=(a.due_date||"").split(" ")[0],db=(b.due_date||"").split(" ")[0];
+  if(!da&&!db)return (a.id||0)-(b.id||0);   // stable fallback for equal undated rows
+  if(!da)return 1; if(!db)return -1;        // undated sinks to the bottom of its bucket
+  return da<db?-1:da>db?1:(a.id||0)-(b.id||0);
+}
+overdue.sort(_tkSortByDate);
+high.sort(_tkSortByDate);
+week.sort(_tkSortByDate);
+rest.sort(_tkSortByDate);
 function _tkCard(tk,overdueDate){var rmC=tk.reminders&&tk.reminders.length?'<span class="pdate">'+icon("bl",10,2)+tk.reminders.length+'</span>':"";
 var priLabel=tk.priority==="high"?tr("p_high"):tk.priority==="low"?tr("p_low"):tr("p_normal");
 var priCls=tk.priority==="high"?"hi":tk.priority==="low"?"lo":"md";
