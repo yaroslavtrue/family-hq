@@ -3622,7 +3622,10 @@ def dishes_image_get(did: int):
 
 
 # ─── Debug & Serve ───────────────────────────────────────────────────────
-APP_VERSION = "v8.49.5"
+APP_VERSION = "v8.49.6"
+# v8.49.6 — Schema v29: one-time backfill of original plant cover photo into
+#           the timeline for plants that pre-date v8.49.3 (so their original
+#           shows as the first chronological entry with the creation date).
 # v8.49.5 — Plant strip: newest-first, horizontal-scroll with pinned Update button,
 #           AI health tip rendered inline in photo view, cover-bust survives /api/plants reloads.
 # v8.49.4 — Plant Update: in-app camera via getUserMedia + source-chooser modal.

@@ -2,13 +2,77 @@
 Database migration system. Runs on app startup.
 Creates tables and adds columns without losing data.
 """
-import sqlite3, logging
+import sqlite3, logging, os, shutil
 
 log = logging.getLogger("uvicorn.error")
 
 def safe_add_col(con, table, col, ctype):
     try: con.execute(f"ALTER TABLE {table} ADD COLUMN {col} {ctype}"); con.commit()
     except: pass
+
+
+def _backfill_original_cover_timeline(con):
+    """v29 — one-time data backfill.
+
+    Pre-v8.49.3 plants never had their creation photo inserted into the
+    plant_photos timeline table — the cover lived ONLY at
+    /static/plants/<id>.jpg and updates appended new timeline entries
+    without referencing the original.
+
+    v8.49.3 added auto-backfill on the *first post-v8.49.3 Update* but
+    GATED on `photo_count == 0` — which already failed for any plant that
+    had earlier updates pre-v8.49.3. So those plants still have a gap:
+    their first timeline entry is dated after creation, and there's no
+    timeline row representing the cover.
+
+    This migration plugs that gap: for every plant whose timeline lacks
+    an entry within ~1 hour of plant.added_at, we insert one dated to
+    added_at and copy the current cover file into timeline storage.
+
+    Caveat: if the plant already had a post-v8.49.3 Update, the cover
+    file has already been overwritten by that update — so the backfilled
+    photo is the latest, not strictly the original. We can't recover the
+    real original from disk (it's gone). But the user gets timeline
+    structure restored either way, and most plants haven't been updated
+    yet so this preserves the actual first cover for them.
+    """
+    plants_img_dir = os.environ.get("PLANTS_IMG_DIR", "/app/frontend/plants")
+    timeline_dir = os.path.join(plants_img_dir, "timeline")
+    try:
+        os.makedirs(timeline_dir, exist_ok=True)
+    except Exception:
+        return  # disk problems — bail; not worth blocking startup
+    backfilled = 0
+    for row in con.execute("SELECT id, added_at, added_by FROM plants").fetchall():
+        pid = row[0]
+        added_at = row[1]
+        added_by = row[2]
+        cover_path = os.path.join(plants_img_dir, f"{pid}.jpg")
+        if not os.path.isfile(cover_path):
+            continue
+        # Already has a near-creation timeline entry? Skip.
+        existing = con.execute(
+            """SELECT id FROM plant_photos
+               WHERE plant_id=?
+                 AND ABS(julianday(taken_at) - julianday(?)) < 0.04
+               LIMIT 1""", (pid, added_at)
+        ).fetchone()
+        if existing:
+            continue
+        cur = con.execute(
+            "INSERT INTO plant_photos (plant_id, caption, taken_at, added_by) VALUES (?, ?, ?, ?)",
+            (pid, "", added_at, added_by)
+        )
+        new_pid = cur.lastrowid
+        try:
+            shutil.copyfile(cover_path, os.path.join(timeline_dir, f"{new_pid}.jpg"))
+            backfilled += 1
+        except Exception as e:
+            # Roll back the DB row if we couldn't copy the file
+            con.execute("DELETE FROM plant_photos WHERE id=?", (new_pid,))
+            log.warning(f"v29 backfill: file copy failed for plant {pid}: {e}")
+    if backfilled:
+        log.info(f"v29 backfill inserted {backfilled} original-cover timeline entries")
 
 DEFAULT_EXERCISES = [
     ("Bench Press", "🪑", "chest", 120),
@@ -608,6 +672,12 @@ def migrate(db_path):
             );
             CREATE INDEX IF NOT EXISTS idx_dish_ingredients_dish ON dish_ingredients(dish_id, sort_order);
         """),
+        # v29: one-time backfill — insert the original cover photo as the first
+        # plant_photos entry for any plant whose timeline lacks a near-creation
+        # row. Fixes plants that were updated before v8.49.3 (whose original was
+        # never timelined) so the strip can show them as the first chronological
+        # entry with the creation date. See _backfill_original_cover_timeline.
+        lambda c: _backfill_original_cover_timeline(c),
     ]
 
     for i, mig in enumerate(migrations):
