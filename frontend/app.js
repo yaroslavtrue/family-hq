@@ -621,6 +621,8 @@ h+=_rPlantsWidget();
 // Upcoming 7d — grouped by type (Tasks / Events / Subscriptions / Birthdays)
 var todayStr=td();
 var upTasks=[],upEvents=[],upSubs=[],upBdays=[];
+// v8.49.8: each upcoming row carries (type,id) so a tap can open the same
+// detail popup the calendar uses (showCalEv) — edit, mark-done, more info.
 D.tasks.forEach(function(t){
   if(t.done) return;
   var dd=(t.due_date||"").split(" ")[0]; if(!dd) return;
@@ -628,18 +630,18 @@ D.tasks.forEach(function(t){
   if(diff<0||diff>7) return;
   var acc=t.priority==="high"?"acc-ac":"acc-pr";
   var ico=t.priority==="high"?"⚠️":"📋";
-  upTasks.push({days:diff,icon:ico,title:es(t.text),sub:fD(t.due_date).full,accClass:acc});
+  upTasks.push({days:diff,icon:ico,title:es(t.text),sub:fD(t.due_date).full,accClass:acc,type:"task",id:t.id});
 });
 D.events.forEach(function(ev){
   var eDate=(ev.event_date||"").split(" ")[0]; if(!eDate) return;
   var diff=Math.round((new Date(eDate)-new Date(todayStr))/86400000);
-  if(diff>=0&&diff<=7) upEvents.push({days:diff,icon:"📅",title:es(ev.text),sub:fD(ev.event_date).full,accClass:"acc-ok"});
+  if(diff>=0&&diff<=7) upEvents.push({days:diff,icon:"📅",title:es(ev.text),sub:fD(ev.event_date).full,accClass:"acc-ok",type:"event",id:ev.id});
 });
 D.subs.forEach(function(s){
-  if(s.days_until>=0&&s.days_until<=7) upSubs.push({days:s.days_until,icon:s.emoji,title:es(s.name),sub:s.amount+" "+s.currency,accClass:""});
+  if(s.days_until>=0&&s.days_until<=7) upSubs.push({days:s.days_until,icon:s.emoji,title:es(s.name),sub:s.amount+" "+s.currency,accClass:"",type:"subscription",id:s.id});
 });
 D.birthdays.forEach(function(b){
-  if(b.days_until>=0&&b.days_until<=7) upBdays.push({days:b.days_until,icon:b.emoji,title:es(b.name),sub:b.days_until===0?tr("g_today_bday"):trn("g_in_days_full",b.days_until),accClass:"acc-wn"});
+  if(b.days_until>=0&&b.days_until<=7) upBdays.push({days:b.days_until,icon:b.emoji,title:es(b.name),sub:b.days_until===0?tr("g_today_bday"):trn("g_in_days_full",b.days_until),accClass:"acc-wn",type:"birthday",id:b.id});
 });
 [upTasks,upEvents,upSubs,upBdays].forEach(function(arr){arr.sort(function(a,b){return a.days-b.days})});
 var totalUp=upTasks.length+upEvents.length+upSubs.length+upBdays.length;
@@ -648,7 +650,10 @@ function _upRow(u){
   var dayLabel=u.days===0?tr("g_today"):u.days===1?tr("g_tomorrow"):dN[_ud.getDay()]+" "+_ud.getDate()+" "+mNS[_ud.getMonth()];
   var tone=u.days===0?"tone-ac":u.days<=2?"tone-wn":"tone-ok";
   var rightPill=u.days===0?'<span class="lc-rt '+tone+'">'+tr("g_today")+'</span>':'<span class="lc-rt '+tone+'">'+trn("g_in_days_short",u.days)+'</span>';
-  return '<div class="lc"><div class="lc-i '+(u.accClass||"")+'">'+u.icon+'</div><div class="lc-bd"><div class="lc-tt">'+u.title+'</div><div class="lc-mt">'+dayLabel+' · '+u.sub+'</div></div>'+rightPill+'</div>';
+  // Tap-handler reuses showCalEv — same detail popup as the calendar day view
+  // (edit, mark-done for tasks, info for events/subs/birthdays).
+  var click=(u.type&&u.id!=null)?' onclick="showCalEv(\''+u.type+'\','+u.id+')" style="cursor:pointer"':'';
+  return '<div class="lc"'+click+'><div class="lc-i '+(u.accClass||"")+'">'+u.icon+'</div><div class="lc-bd"><div class="lc-tt">'+u.title+'</div><div class="lc-mt">'+dayLabel+' · '+u.sub+'</div></div>'+rightPill+'</div>';
 }
 function _upGroup(label,color,arr){
   if(!arr.length) return '';
@@ -1154,7 +1159,10 @@ h+='<button class="btn btn-s" style="flex:1" onclick="closeCalEv()">Close</butto
 h+='</div>';
 h+='</div></div>';
 var el=document.createElement("div");el.id="cal-ev-detail";el.innerHTML=h;
-document.getElementById("cal-mo").appendChild(el)
+// v8.49.8: fall back to body when there's no calendar modal open — lets the
+// same popup be triggered from anywhere (Home upcoming list, etc.). The
+// overlay is fixed-positioned, so it covers the screen regardless of parent.
+(document.getElementById("cal-mo")||document.body).appendChild(el)
 }
 function closeCalEv(e){var el=document.getElementById("cal-ev-detail");if(el)el.remove()}
 

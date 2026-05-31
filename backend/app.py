@@ -3622,7 +3622,8 @@ def dishes_image_get(did: int):
 
 
 # ─── Debug & Serve ───────────────────────────────────────────────────────
-APP_VERSION = "v8.49.7"
+APP_VERSION = "v8.49.8"
+# v8.49.8 — Home: upcoming rows tap into the calendar detail popup.
 # v8.49.7 — Tasks: in-bucket chronological sort (nearest date first).
 # v8.49.6 — Schema v29: one-time backfill of original plant cover photo into
 #           the timeline for plants that pre-date v8.49.3 (so their original
