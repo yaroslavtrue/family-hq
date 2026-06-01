@@ -3637,7 +3637,9 @@ def dishes_image_get(did: int):
 
 
 # ─── Debug & Serve ───────────────────────────────────────────────────────
-APP_VERSION = "v8.50.0"
+APP_VERSION = "v8.50.1"
+# v8.50.1 — Login: retry bot-info (4× backoff) + Retry button. Fixes transient
+#           "Bot not configured" when PWA opens during the post-deploy boot window.
 # v8.50.0 — Money: balance is now a RUNNING account total (carries over between
 #           months); income/expense still reset to 0 each month. opening_balance + net added.
 # v8.49.11 — Cooking: sort (recent/name/cost) + favorites-only filter. What's New refreshed.

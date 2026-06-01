@@ -46,18 +46,42 @@ async function _logoutPwa() {
 var _loginMode = "bot";
 var _botCode = null, _botPollTimer = null;
 
+// Fetch bot-info with retries. The container has a brief startup window after a
+// deploy where the API answers but bot_username may still be empty (or the whole
+// request races the boot and fails). A single fetch that lands in that window
+// would otherwise dead-end the login screen on "Bot not configured" with no
+// recovery. Retry a few times with a short backoff before giving up.
+async function _fetchBotInfo(attempts) {
+  attempts = attempts || 4;
+  for (var i = 0; i < attempts; i++) {
+    try {
+      var r = await fetch("/api/auth/bot-info", { cache: "no-store" });
+      if (r.ok) {
+        var info = await r.json();
+        if (info && info.bot_username) return info.bot_username;
+      }
+    } catch (e) { /* network blip — fall through to retry */ }
+    if (i < attempts - 1) await new Promise(function (res) { setTimeout(res, 800 + i * 700) });
+  }
+  return null;
+}
+
 async function rLogin() {
   document.getElementById("fab").classList.add("hidden");
   document.querySelectorAll(".ni").forEach(function (e) { e.style.opacity = ".3" });
-  var info = null;
-  try { var r = await fetch("/api/auth/bot-info"); info = await r.json() } catch (e) {}
-  var bot = info && info.bot_username;
   var ct = document.getElementById("ct");
+  // Show a brief connecting state while we (re)try bot-info, so the user doesn't
+  // see a flash of the scary error during the normal startup window.
+  ct.innerHTML = '<div class="onb"><div class="onb-e">🔐</div>' +
+    '<div class="onb-t">Sign in with Telegram</div>' +
+    '<div class="onb-s" style="opacity:.7">' + tr("auth_connecting") + '</div></div>';
+  var bot = await _fetchBotInfo();
   var h = '<div class="onb"><div class="onb-e">🔐</div>' +
     '<div class="onb-t">Sign in with Telegram</div>' +
     '<div class="onb-s">Family HQ uses your Telegram account so all data stays in sync.</div>';
   if (!bot) {
     h += '<div style="color:var(--ac);font-size:13px;text-align:center;padding:16px">⚠️ ' + tr("auth_bot_not_configured") + '. Try opening this app from inside Telegram.</div>';
+    h += '<button class="onb-b s2" style="margin-top:6px" onclick="rLogin()">↻ ' + tr("btn_retry") + '</button>';
   } else {
     h += '<div style="display:flex;gap:8px;margin:16px 0 10px">';
     h += '<button class="ob ' + (_loginMode === "bot" ? "s" : "") + '" style="flex:1" onclick="_loginMode=\'bot\';rLogin()">📨 Via Bot (recommended)</button>';
