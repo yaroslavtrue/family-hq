@@ -1159,10 +1159,14 @@ h+='<button class="btn btn-s" style="flex:1" onclick="closeCalEv()">Close</butto
 h+='</div>';
 h+='</div></div>';
 var el=document.createElement("div");el.id="cal-ev-detail";el.innerHTML=h;
-// v8.49.8: fall back to body when there's no calendar modal open — lets the
-// same popup be triggered from anywhere (Home upcoming list, etc.). The
-// overlay is fixed-positioned, so it covers the screen regardless of parent.
-(document.getElementById("cal-mo")||document.body).appendChild(el)
+// v8.49.9: #cal-mo always exists (it's the calendar modal container in
+// index.html) but is display:none unless `.open`. Earlier `|| document.body`
+// fallback never triggered, so popups invoked from Home were silently
+// inserted into a hidden subtree. Pick body unless the calendar is actually
+// open.
+var _calMo=document.getElementById("cal-mo");
+var _ovParent=(_calMo&&_calMo.classList.contains("open"))?_calMo:document.body;
+_ovParent.appendChild(el)
 }
 function closeCalEv(e){var el=document.getElementById("cal-ev-detail");if(el)el.remove()}
 
