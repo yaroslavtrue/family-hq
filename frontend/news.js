@@ -14,6 +14,59 @@
 
 var WHATS_NEW = [
   {
+    version: "v8.49.11",
+    date: "2026-06-01",
+    icon: "⭐",
+    title_en: "Cooking: sort & favorites",
+    title_ru: "Кухня: сортировка и избранное",
+    items_en: [
+      "Tap the ♥ on any dish to favorite it.",
+      "Filter the list to favorites only with the heart chip.",
+      "Sort by Recent, Name, Cheapest, or Priciest per serving.",
+    ],
+    items_ru: [
+      "Нажми ♥ на блюде, чтобы добавить в избранное.",
+      "Фильтруй список по избранному кнопкой-сердечком.",
+      "Сортируй: Новые, По имени, Дешевле, Дороже за порцию.",
+    ],
+  },
+  {
+    version: "v8.49.8",
+    date: "2026-05-31",
+    icon: "🏠",
+    title_en: "Smarter Home screen",
+    title_ru: "Умнее главный экран",
+    items_en: [
+      "Tap any task in “Upcoming” to edit, mark done, or see details — no need to open Tasks.",
+      "Upcoming now shows only YOUR tasks (and shared ones), not your partner’s.",
+      "Tasks are sorted by date — nearest deadlines on top.",
+    ],
+    items_ru: [
+      "Нажми на задачу в «Скоро», чтобы отредактировать, отметить или посмотреть детали — без перехода в Задачи.",
+      "В «Скоро» теперь только ВАШИ задачи (и общие), без задач партнёра.",
+      "Задачи отсортированы по дате — ближайшие сверху.",
+    ],
+  },
+  {
+    version: "v8.49.4",
+    date: "2026-05-26",
+    icon: "📷",
+    title_en: "Plants: take photos in-app",
+    title_ru: "Цветы: фото прямо в приложении",
+    items_en: [
+      "Tap Update → take a photo with the built-in camera (or pick from gallery).",
+      "Your newest photo becomes the plant’s cover automatically.",
+      "Swipe the photo strip to browse the full growth history with dates.",
+      "Claude’s health advice now shows inline under each photo.",
+    ],
+    items_ru: [
+      "Нажми Update → сделай фото встроенной камерой (или выбери из галереи).",
+      "Самое свежее фото автоматически становится обложкой растения.",
+      "Листай ленту фото, чтобы видеть всю историю роста с датами.",
+      "Советы Claude по здоровью теперь показываются прямо под каждым фото.",
+    ],
+  },
+  {
     version: "v8.48.0",
     date: "2026-05-25",
     icon: "🍳",

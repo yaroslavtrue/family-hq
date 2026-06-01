@@ -12,11 +12,24 @@
 
 // ─── State ────────────────────────────────────────────────────
 var _ckSearch = "";
+// Sort mode (v8.49.11): "recent" (newest first) | "name" (A-Z) |
+// "cost_low" (cheapest/serving) | "cost_high" (priciest/serving).
+var _ckSort = "recent";
+// Favorites-only filter toggle (v8.49.11).
+var _ckFavOnly = false;
 // Edit-modal draft. Cleared on cMo() or save.
 //   { id: int|null, name, description, servings, cook_time_min, ingredients: [{name,quantity,unit,price}] , pendingImage: Blob|null }
 var _ckDraft = null;
 // Currently-open detail dish id — so the after-edit reload knows what to re-open.
 var _ckDetailId = null;
+
+// Sort option catalog — label keys resolved via tr() at render time.
+var CK_SORTS = [
+  {id:"recent",    key:"ck_sort_recent"},
+  {id:"name",      key:"ck_sort_name"},
+  {id:"cost_low",  key:"ck_sort_cost_low"},
+  {id:"cost_high", key:"ck_sort_cost_high"},
+];
 
 // ─── List render ──────────────────────────────────────────────
 function rCooking(){
@@ -28,7 +41,15 @@ function rCooking(){
   h += '<div class="ck-search-row" style="margin-top:6px"><div class="ck-search">'+icon("home",16,2)
        .replace('viewBox="0 0 24 24"','viewBox="0 0 24 24" style="opacity:.55"')+
        '<input type="text" id="ck-q" placeholder="'+tr("ck_search_ph")+'" value="'+es(_ckSearch)+'" oninput="_ckOnSearch(this.value)"></div></div>';
+  // Sub-header: "My Dishes" + count on the left, Favorites toggle + Sort on the right.
+  h += '<div class="ck-subrow">';
   h += '<div class="ck-sub" id="ck-sub"></div>';
+  h += '<div class="ck-controls">';
+  h += '<button class="ck-favchip'+(_ckFavOnly?' ck-favchip-on':'')+'" onclick="_ckToggleFavOnly()" aria-label="Favorites only">'+_ckHeart()+'</button>';
+  var curSort = CK_SORTS.find(function(s){return s.id===_ckSort})||CK_SORTS[0];
+  h += '<button class="ck-sortbtn" onclick="_ckOpenSort()">'+icon("list",13,2.2)+'<span>'+tr(curSort.key)+'</span></button>';
+  h += '</div>';
+  h += '</div>';
   h += '</div>';
   // Body container — re-renders independently on search so the input keeps focus
   h += '<div id="ck-body">'+_ckBodyHtml()+'</div>';
@@ -38,9 +59,53 @@ function rCooking(){
 }
 
 function _ckFiltered(){
-  var list = D.dishes || [];
+  var list = (D.dishes || []).slice();
   var q = (_ckSearch || "").trim().toLowerCase();
-  return q ? list.filter(function(d){ return (d.name||"").toLowerCase().indexOf(q) >= 0 }) : list;
+  if(q) list = list.filter(function(d){ return (d.name||"").toLowerCase().indexOf(q) >= 0 });
+  if(_ckFavOnly) list = list.filter(function(d){ return !!d.favorite });
+  // Sort. Stable tie-break by id so equal keys keep a deterministic order.
+  list.sort(function(a,b){
+    switch(_ckSort){
+      case "name":
+        return (a.name||"").localeCompare(b.name||"") || (b.id||0)-(a.id||0);
+      case "cost_low":
+        return (a.cost_per_serving||0)-(b.cost_per_serving||0) || (b.id||0)-(a.id||0);
+      case "cost_high":
+        return (b.cost_per_serving||0)-(a.cost_per_serving||0) || (b.id||0)-(a.id||0);
+      default: // "recent" — newest first (server returns favorite DESC, id DESC;
+               // we re-sort purely by id so the favorite-pinning doesn't fight the
+               // explicit sort the user picked).
+        return (b.id||0)-(a.id||0);
+    }
+  });
+  return list;
+}
+
+// Favorites-only toggle — re-render body + sub-header.
+function _ckToggleFavOnly(){
+  _ckFavOnly = !_ckFavOnly;
+  hp("sel");
+  var c = document.getElementById("ct"); if(c) c.innerHTML = rCooking();
+}
+
+// Sort picker — small modal list of the four sort modes.
+function _ckOpenSort(){
+  var h = '<div class="ck-sortlist">';
+  CK_SORTS.forEach(function(s){
+    var on = s.id===_ckSort;
+    h += '<button class="ck-sortopt'+(on?' ck-sortopt-on':'')+'" onclick="_ckSetSort(\''+s.id+'\')">'+
+         '<span>'+tr(s.key)+'</span>'+(on?'<span class="ck-sortopt-ck">'+icon("ck",15,2.5)+'</span>':'')+
+         '</button>';
+  });
+  h += '</div>';
+  oMC(tr("ck_sort_by"), h, {ic:"list"});
+}
+
+function _ckSetSort(id){
+  _ckSort = id;
+  hp("sel");
+  cMo();
+  var c = document.getElementById("ct"); if(c) c.innerHTML = rCooking();
 }
 
 function _ckUpdateSub(){
@@ -56,6 +121,10 @@ function _ckBodyHtml(){
   if(!filtered.length){
     if(!list.length){
       return '<div class="emp" style="padding:50px 14px"><div class="emp-i" style="font-size:46px">🍜</div><div class="emp-t">'+tr("ck_no_dishes_t")+'</div><div style="font-size:13px;color:var(--ht);margin-top:6px">'+tr("ck_no_dishes_s")+'</div></div>';
+    }
+    // Favorites filter on but nothing matches → guide the user back.
+    if(_ckFavOnly && !(_ckSearch||"").trim()){
+      return '<div class="emp" style="padding:34px 14px;color:var(--ht);text-align:center"><div style="font-size:34px;margin-bottom:8px">🤍</div>'+tr("ck_no_favs")+'</div>';
     }
     return '<div class="emp" style="padding:30px 14px;color:var(--ht);text-align:center">'+tr("ck_no_match")+'</div>';
   }

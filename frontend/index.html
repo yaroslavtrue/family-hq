@@ -967,8 +967,22 @@ body.no-scroll .mx{touch-action:pan-y}
 .ck-search{display:flex;align-items:center;gap:8px;padding:11px 14px;background:var(--cd);border:1px solid var(--bd);border-radius:14px}
 .ck-search input{flex:1;border:none;background:transparent;outline:none;color:var(--tx);font-size:14px;font-weight:500}
 .ck-search input::placeholder{color:var(--ht)}
-.ck-sub{display:flex;align-items:center;gap:8px;padding:10px 4px 6px;font-size:15px;font-weight:700;color:var(--tx)}
+.ck-sub{display:flex;align-items:center;gap:8px;font-size:15px;font-weight:700;color:var(--tx)}
 .ck-cnt{display:inline-flex;align-items:center;justify-content:center;min-width:22px;height:22px;padding:0 7px;border-radius:11px;background:color-mix(in srgb,var(--pr) 14%,transparent);color:var(--pr);font-size:11px;font-weight:700}
+/* v8.49.11: sub-header row holds title+count (left) and fav/sort controls (right) */
+.ck-subrow{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:10px 4px 6px}
+.ck-controls{display:flex;align-items:center;gap:6px;flex-shrink:0}
+.ck-favchip{display:inline-flex;align-items:center;justify-content:center;width:32px;height:32px;border-radius:10px;background:var(--cd);border:1px solid var(--bd);color:var(--ht);cursor:pointer;transition:transform .12s,color .15s,border-color .15s}
+.ck-favchip:active{transform:scale(.92)}
+.ck-favchip-on{color:var(--ac);border-color:color-mix(in srgb,var(--ac) 45%,transparent);background:color-mix(in srgb,var(--ac) 10%,transparent)}
+.ck-sortbtn{display:inline-flex;align-items:center;gap:5px;height:32px;padding:0 11px;border-radius:10px;background:var(--cd);border:1px solid var(--bd);color:var(--tx);font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap;transition:transform .12s,border-color .15s}
+.ck-sortbtn:active{transform:scale(.96)}
+.ck-sortbtn svg{opacity:.6}
+.ck-sortlist{display:flex;flex-direction:column;gap:6px}
+.ck-sortopt{display:flex;align-items:center;justify-content:space-between;padding:13px 15px;border-radius:13px;background:var(--cd);border:1px solid var(--bd);color:var(--tx);font-size:14px;font-weight:600;cursor:pointer;transition:transform .12s,border-color .15s}
+.ck-sortopt:active{transform:scale(.98)}
+.ck-sortopt-on{border-color:color-mix(in srgb,var(--pr) 50%,transparent);background:color-mix(in srgb,var(--pr) 8%,transparent);color:var(--pr)}
+.ck-sortopt-ck{display:inline-flex;align-items:center;color:var(--pr)}
 .ck-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;padding:4px 14px 96px}
 .ck-c{display:flex;flex-direction:column;background:var(--cd);border:1px solid var(--bd);border-radius:18px;overflow:hidden;text-align:left;cursor:pointer;padding:0;transition:transform .15s ease,box-shadow .2s ease}
 .ck-c:active{transform:scale(.98)}
@@ -1128,18 +1142,18 @@ body.no-scroll .mx{touch-action:pan-y}
 <!-- Load JS -->
 <!-- Load order: data (lang.js) → engines (theme.js, auth.js, weather.js) → main (app.js). -->
 <!-- All share globals; extracted modules use `var`/`function` declarations so they're true window-scope. -->
-<script src="/static/lang.js?v=216"></script>
-<script src="/static/theme.js?v=216"></script>
-<script src="/static/auth.js?v=216"></script>
-<script src="/static/weather.js?v=216"></script>
-<script src="/static/words.js?v=216"></script>
-<script src="/static/plants.js?v=216"></script>
-<script src="/static/trainings.js?v=216"></script>
-<script src="/static/money.js?v=216"></script>
-<script src="/static/tasks.js?v=216"></script>
-<script src="/static/cooking.js?v=216"></script>
-<script src="/static/news.js?v=216"></script>
-<script src="/static/settings.js?v=216"></script>
-<script src="/static/app.js?v=216"></script>
+<script src="/static/lang.js?v=217"></script>
+<script src="/static/theme.js?v=217"></script>
+<script src="/static/auth.js?v=217"></script>
+<script src="/static/weather.js?v=217"></script>
+<script src="/static/words.js?v=217"></script>
+<script src="/static/plants.js?v=217"></script>
+<script src="/static/trainings.js?v=217"></script>
+<script src="/static/money.js?v=217"></script>
+<script src="/static/tasks.js?v=217"></script>
+<script src="/static/cooking.js?v=217"></script>
+<script src="/static/news.js?v=217"></script>
+<script src="/static/settings.js?v=217"></script>
+<script src="/static/app.js?v=217"></script>
 </body>
 </html>
