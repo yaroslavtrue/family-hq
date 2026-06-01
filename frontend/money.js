@@ -37,7 +37,10 @@ var monthLbl=s?new Date(s.month+"-01T00:00:00").toLocaleString("en-US",{month:"l
 var h='';
 if(monthLbl)h+='<div style="text-align:center;font-size:10px;color:var(--ht);font-weight:700;letter-spacing:.6px;text-transform:uppercase;margin-bottom:8px">'+monthLbl+'</div>';
 function _tv(v){return v===null?'<span style="opacity:.4">…</span>':'€'+v.toFixed(0)}
-function _bv(v){if(v===null)return _tv(null);return (v>=0?"+":"−")+'€'+Math.abs(v).toFixed(0)}
+// Balance is a running account total (v8.50.0) — show plain "€X", only a
+// minus sign when overdrawn. The leading "+" that suited a per-month delta
+// would read oddly for an account balance.
+function _bv(v){if(v===null)return _tv(null);return (v<0?"−€":"€")+Math.abs(v).toFixed(0)}
 h+='<div class="sts sts-3">';
 h+='<div class="st st-mn"><div class="st-ico tone-ok">'+icon("trendUp",16,2.2)+'</div><div class="st-lb">'+tr("m_income_label")+'</div><div class="st-vl pos">'+_tv(tInc)+'</div></div>';
 h+='<div class="st st-mn"><div class="st-ico tone-ac">'+icon("trendDown",16,2.2)+'</div><div class="st-lb">'+tr("m_expense_label")+'</div><div class="st-vl neg">'+_tv(tExp)+'</div></div>';
@@ -318,8 +321,15 @@ function _anaTilesHtml(){
   var h='<div class="sts sts-3">';
   h+='<div class="st st-mn"><div class="st-ico tone-ok">'+icon("trendUp",16,2.2)+'</div><div class="st-lb">'+tr("m_income_label")+'</div><div class="st-vl pos">€'+s.income.toFixed(0)+'</div></div>';
   h+='<div class="st st-mn"><div class="st-ico tone-ac">'+icon("trendDown",16,2.2)+'</div><div class="st-lb">'+tr("m_expense_label")+'</div><div class="st-vl neg">€'+s.expense.toFixed(0)+'</div></div>';
-  h+='<div class="st st-mn"><div class="st-ico tone-pr">'+icon("wallet",16,2.2)+'</div><div class="st-lb">'+tr("m_balance_label")+'</div><div class="st-vl '+(s.balance>=0?"pos":"neg")+'">'+(s.balance>=0?"+":"−")+'€'+Math.abs(s.balance).toFixed(0)+'</div></div>';
+  h+='<div class="st st-mn"><div class="st-ico tone-pr">'+icon("wallet",16,2.2)+'</div><div class="st-lb">'+tr("m_balance_label")+'</div><div class="st-vl '+(s.balance>=0?"pos":"neg")+'">'+(s.balance<0?"−€":"€")+Math.abs(s.balance).toFixed(0)+'</div></div>';
   h+='</div>';
+  // v8.50.0: show the carried-over opening balance + this month's net delta so
+  // it's clear the balance is a running account total, not a monthly figure.
+  if(s.opening_balance!=null){
+    var net=s.net!=null?s.net:(s.income-s.expense);
+    var netStr=(net>=0?"+€":"−€")+Math.abs(net).toFixed(0);
+    h+='<div class="cat-row" style="margin-bottom:14px;margin-top:6px"><div class="cat-row-h"><span class="nm">'+icon("wallet",14,2.2)+' '+tr("m_carried_over")+'</span><span class="vl" style="color:var(--ht)">'+(s.opening_balance<0?"−€":"€")+Math.abs(s.opening_balance).toFixed(0)+' <span style="opacity:.6">·</span> '+tr("m_this_month")+' '+netStr+'</span></div></div>';
+  }
   if(s.subs_eur)h+='<div class="cat-row" style="margin-bottom:14px;margin-top:6px"><div class="cat-row-h"><span class="nm">'+icon("card",14,2.2)+' Subscriptions this month</span><span class="vl" style="color:var(--pr)">€'+s.subs_eur.toFixed(0)+'</span></div></div>';
   return h;
 }

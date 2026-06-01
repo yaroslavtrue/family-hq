@@ -1195,9 +1195,19 @@ def money_summary(month: str | None = None, user=Depends(get_uf), db=Depends(get
         sel_month = month
     sy, sm = int(sel_month[:4]), int(sel_month[5:7])
     is_current = (sel_month == cur_month)
-    # Selected month totals
+    # Selected month totals (income & expense reset to 0 at the start of each month)
     inc = db.execute("SELECT COALESCE(SUM(amount_eur),0) s FROM transactions WHERE family_id=? AND type='income' AND date LIKE ?", (f, sel_month+"%")).fetchone()["s"]
     exp = db.execute("SELECT COALESCE(SUM(amount_eur),0) s FROM transactions WHERE family_id=? AND type='expense' AND date LIKE ?", (f, sel_month+"%")).fetchone()["s"]
+    # v8.50.0: balance is a RUNNING account balance, not a per-month delta.
+    # opening_balance = everything (income − expense) from BEFORE this month —
+    # i.e. the money already on the account when the month started. Then the
+    # closing balance = opening + this month's income − this month's expense.
+    # Subscriptions are projected costs, not real transactions, so they stay out.
+    month_start = f"{sy:04d}-{sm:02d}-01"
+    opening_inc = db.execute("SELECT COALESCE(SUM(amount_eur),0) s FROM transactions WHERE family_id=? AND type='income' AND date < ?", (f, month_start)).fetchone()["s"]
+    opening_exp = db.execute("SELECT COALESCE(SUM(amount_eur),0) s FROM transactions WHERE family_id=? AND type='expense' AND date < ?", (f, month_start)).fetchone()["s"]
+    opening_balance = opening_inc - opening_exp
+    closing_balance = opening_balance + inc - exp
     # Subs as monthly expense (flat, not month-dependent)
     subs_eur = db.execute("SELECT COALESCE(SUM(amount_eur),0) s FROM subscriptions WHERE family_id=?", (f,)).fetchone()["s"]
     # By category (selected month)
@@ -1231,7 +1241,12 @@ def money_summary(month: str | None = None, user=Depends(get_uf), db=Depends(get
     return {
         "month": sel_month, "is_current": is_current,
         "income": round(inc, 2), "expense": round(exp, 2),
-        "subs_eur": round(subs_eur, 2), "balance": round(inc - exp, 2),
+        "subs_eur": round(subs_eur, 2),
+        # balance = running account balance through end of selected month.
+        # opening_balance = carried over from previous months. net = this month's delta.
+        "balance": round(closing_balance, 2),
+        "opening_balance": round(opening_balance, 2),
+        "net": round(inc - exp, 2),
         "by_category": by_cat, "months": months, "limits": limits,
         "week_expense": round(week_exp, 2),
     }
@@ -3622,7 +3637,9 @@ def dishes_image_get(did: int):
 
 
 # ─── Debug & Serve ───────────────────────────────────────────────────────
-APP_VERSION = "v8.49.11"
+APP_VERSION = "v8.50.0"
+# v8.50.0 — Money: balance is now a RUNNING account total (carries over between
+#           months); income/expense still reset to 0 each month. opening_balance + net added.
 # v8.49.11 — Cooking: sort (recent/name/cost) + favorites-only filter. What's New refreshed.
 # v8.49.10 — Home Upcoming: show only my tasks (+ unassigned). Other types stay family-wide.
 # v8.49.9 — Hotfix: showCalEv popup from Home was inserted into hidden #cal-mo.

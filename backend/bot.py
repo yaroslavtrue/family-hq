@@ -662,7 +662,16 @@ def _get_status(family_id: int) -> str:
     income = con.execute(
         "SELECT COALESCE(SUM(amount_eur),0) as s FROM transactions WHERE family_id=? AND type='income' AND date>=?",
         (family_id, month_start)).fetchone()["s"]
+    # v8.50.0: balance is the running account total (all income − all expense),
+    # not this month's delta. Month figures reset to 0 at the start of each month.
+    all_income = con.execute(
+        "SELECT COALESCE(SUM(amount_eur),0) as s FROM transactions WHERE family_id=? AND type='income'",
+        (family_id,)).fetchone()["s"]
+    all_expense = con.execute(
+        "SELECT COALESCE(SUM(amount_eur),0) as s FROM transactions WHERE family_id=? AND type='expense'",
+        (family_id,)).fetchone()["s"]
     con.close()
+    balance = all_income - all_expense
 
     return (
         f"📊 <b>Family Status</b>\n\n"
@@ -670,7 +679,7 @@ def _get_status(family_id: int) -> str:
         f"🛒 Shopping items: <b>{shop}</b>\n"
         f"💸 Expenses (this month): <b>€{expenses:.2f}</b>\n"
         f"💰 Income (this month): <b>€{income:.2f}</b>\n"
-        f"💎 Balance: <b>€{income - expenses:.2f}</b>"
+        f"💎 Balance (account total): <b>€{balance:.2f}</b>"
     )
 
 

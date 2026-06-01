@@ -300,6 +300,7 @@ window.LANG = {
     sh_delete_folder: "Delete Folder",
     // Money widgets / receipts
     m_balance_label: "Balance", m_monthly_total: "Monthly total",
+    m_carried_over: "Carried over", m_this_month: "this month:",
     m_monthly: "Monthly", m_edit_tx: "Edit Transaction",
     m_item_name: "Item name", m_edit_receipt_item: "Edit Item",
     // Subtasks
@@ -581,6 +582,7 @@ window.LANG = {
     sh_edit_folder: "Изменить папку", sh_folder_none: "Без папки", sh_total: "Итого",
     sh_delete_folder: "Удалить папку",
     m_balance_label: "Баланс", m_monthly_total: "В месяц",
+    m_carried_over: "Перенос", m_this_month: "в этом месяце:",
     m_monthly: "По месяцам", m_edit_tx: "Изменить транзакцию",
     m_item_name: "Название", m_edit_receipt_item: "Изменить позицию",
     su_add_step: "Добавить шаг…", su_add: "Добавить",
