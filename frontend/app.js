@@ -623,8 +623,12 @@ var todayStr=td();
 var upTasks=[],upEvents=[],upSubs=[],upBdays=[];
 // v8.49.8: each upcoming row carries (type,id) so a tap can open the same
 // detail popup the calendar uses (showCalEv) — edit, mark-done, more info.
+// v8.49.10: filter tasks to MINE (assigned_to == me) + unassigned. Events /
+// subs / birthdays stay family-wide. fS.my_id comes from /api/family/status.
+var _meId=fS&&fS.my_id;
 D.tasks.forEach(function(t){
   if(t.done) return;
+  if(_meId&&t.assigned_to&&t.assigned_to!==_meId) return; // hide other members' tasks
   var dd=(t.due_date||"").split(" ")[0]; if(!dd) return;
   var diff=Math.round((new Date(dd)-new Date(todayStr))/86400000);
   if(diff<0||diff>7) return;

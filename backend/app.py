@@ -3622,7 +3622,8 @@ def dishes_image_get(did: int):
 
 
 # ─── Debug & Serve ───────────────────────────────────────────────────────
-APP_VERSION = "v8.49.9"
+APP_VERSION = "v8.49.10"
+# v8.49.10 — Home Upcoming: show only my tasks (+ unassigned). Other types stay family-wide.
 # v8.49.9 — Hotfix: showCalEv popup from Home was inserted into hidden #cal-mo.
 # v8.49.8 — Home: upcoming rows tap into the calendar detail popup.
 # v8.49.7 — Tasks: in-bucket chronological sort (nearest date first).
