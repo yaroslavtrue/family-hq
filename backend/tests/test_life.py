@@ -155,6 +155,25 @@ def test_family_spheres_are_editable(client_as):
     assert any(a["id"] == key for a in s["areas"])
 
 
+def test_journey_stats(client_as):
+    client = client_as(user_id=820, family_id=1)
+    # One habit, logged today.
+    hid = client.post("/api/life/habits", json={"area_id": "health", "name": "Walk"}).json()["id"]
+    client.post(f"/api/life/habits/{hid}/log")
+
+    j = client.get("/api/life/journey?days=14").json()
+    assert j["scope"] == "personal"
+    assert len(j["areas"]) == 8
+    assert len(j["daily"]) == 14
+    assert j["daily"][-1]["count"] == 1          # today has one completion
+    assert j["stats"]["habits"] == 1
+    assert j["stats"]["done_today"] == 1
+    assert j["stats"]["completions_7d"] == 1
+    assert j["stats"]["best_streak"] == 1
+    health = next(a for a in j["areas"] if a["id"] == "health")
+    assert health["brightness"] == 1.0
+
+
 def test_suggest_validates_area_and_requires_ai(client_as, app_module):
     client = client_as(user_id=804, family_id=1)
     # Cross-scope area id is rejected before any AI call.

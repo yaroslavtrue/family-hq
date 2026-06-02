@@ -33,6 +33,9 @@ var _lifeSettleUntil = 0;
 var _lifeEditMode = false;
 var _lifeBg = null;             // background press tracking
 var _lifeBgTimer = null;
+// Journey (v8.54.0 · Phase 2): a stats view over the same owner scope — balance,
+// per-area bars, an activity sparkline, headline counters.
+var _lifeJourney = false;
 
 // ─── Entry: shell HTML (ren() injects this into #ct) ──────────
 function rLife(){
@@ -41,7 +44,8 @@ function rLife(){
   // Canvas fills the whole area below the header; the filter row and hint float
   // as absolute overlays ON the canvas (no separate black strips).
   var h = '<div class="life-wrap">';
-  h += '<div class="life-stage"><svg id="life-svg" viewBox="0 0 100 100" preserveAspectRatio="xMidYMid meet"></svg></div>';
+  h += '<div class="life-stage"><svg id="life-svg" viewBox="0 0 100 100" preserveAspectRatio="xMidYMid meet"></svg>';
+  h += '<div class="life-journey" id="life-journey" style="display:none"></div></div>';
   h += '<div class="life-top" id="life-top"></div>';
   h += '<div class="life-hint" id="life-hint"></div>';
   h += '</div>';
@@ -64,7 +68,7 @@ function lifeMount(){
 }
 
 function lifeUnmount(){
-  _lifeEditMode = false;
+  _lifeEditMode = false; _lifeJourney = false;
   if(_lifeRAF){ cancelAnimationFrame(_lifeRAF); _lifeRAF = null; }
   if(_lifeLongTimer){ clearTimeout(_lifeLongTimer); _lifeLongTimer = null; }
   if(_lifeBgTimer){ clearTimeout(_lifeBgTimer); _lifeBgTimer = null; }
@@ -77,22 +81,28 @@ function lifeUnmount(){
 // filter row beneath it, like the member-filter rows in Tasks/Money.
 function _lifeRenderTopBar(){
   var el = document.getElementById("life-top"); if(!el) return;
+  var chips = function(){
+    var c = '<div class="life-chips">';
+    (D.members||[]).forEach(function(m){
+      var on = _lifeOwner === String(m.user_id);
+      c += '<button class="life-chip'+(on?' on':'')+'" onclick="_lifeSetOwner(\''+m.user_id+'\')">'+mAv(m.user_id,24)+'</button>';
+    });
+    c += '<button class="life-chip life-chip-fam'+(_lifeOwner==="family"?' on':'')+'" onclick="_lifeSetOwner(\'family\')">❤️</button>';
+    return c + '</div>';
+  };
   var h = '';
-  if(_lifeView === "area"){
+  if(_lifeJourney){
+    h += '<button class="life-back" onclick="_lifeToggleJourney()" aria-label="Back">‹</button>';
+    h += '<div class="life-areaname">'+tr("life_journey")+'</div>';
+    h += '<div style="flex:1"></div>'+chips();
+  } else if(_lifeView === "area"){
     h += '<button class="life-back" onclick="_lifeBack()" aria-label="Back">‹</button>';
     var a = _lifeData && (_lifeData.areas||[]).find(function(x){return x.id===_lifeAreaId});
     h += '<div class="life-areaname">'+(a?a.emoji+' '+es(a.name):tr("nav_life"))+'</div>';
     h += '<div style="flex:1"></div>';
   } else {
-    h += '<div style="flex:1"></div>';
-    h += '<div class="life-chips">';
-    (D.members||[]).forEach(function(m){
-      var on = _lifeOwner === String(m.user_id);
-      h += '<button class="life-chip'+(on?' on':'')+'" onclick="_lifeSetOwner(\''+m.user_id+'\')">'+mAv(m.user_id,24)+'</button>';
-    });
-    var famOn = _lifeOwner === "family";
-    h += '<button class="life-chip life-chip-fam'+(famOn?' on':'')+'" onclick="_lifeSetOwner(\'family\')">❤️</button>';
-    h += '</div>';
+    h += '<button class="life-journey-btn" onclick="_lifeToggleJourney()" aria-label="Journey">📈</button>';
+    h += '<div style="flex:1"></div>'+chips();
   }
   el.innerHTML = h;
   _lifeSizeStage();
@@ -144,9 +154,91 @@ function _lifeRelayout(){
 function _lifeSetOwner(o){
   if(_lifeOwner === o) return;
   _lifeOwner = o; _lifeEditMode = false; hp("sel");
-  _lifeView = "constellation"; _lifeAreaId = null;
   _lifeRenderTopBar();
+  if(_lifeJourney){ _lifeLoadJourney(); return; }  // stay in Journey, reload for the new owner
+  _lifeView = "constellation"; _lifeAreaId = null;
   _lifeLoadSummary();
+}
+
+// ─── Journey (stats over the owner scope) ─────────────────────
+function _lifeToggleJourney(){
+  _lifeJourney = !_lifeJourney;
+  hp(_lifeJourney ? "med" : "light");
+  var jv = document.getElementById("life-journey"), svg = document.getElementById("life-svg");
+  if(_lifeJourney){
+    if(_lifeRAF){ cancelAnimationFrame(_lifeRAF); _lifeRAF = null; }  // pause the graph
+    _lifeEditMode = false; _lifeView = "constellation"; _lifeAreaId = null;
+    if(jv){ jv.style.display = "block"; jv.innerHTML = '<div class="life-jload">…</div>'; }
+    if(svg) svg.style.display = "none";
+    _lifeSetHint("");
+    _lifeRenderTopBar();
+    _lifeLoadJourney();
+  } else {
+    if(jv) jv.style.display = "none";
+    if(svg) svg.style.display = "block";
+    _lifeRenderTopBar();
+    _lifeBuildConstellation();
+    _lifeSetHint(_lifeData && _lifeData.scope==="family" ? tr("life_hint_family") : tr("life_hint_personal"));
+  }
+}
+async function _lifeLoadJourney(){
+  var j = await A("GET","/api/life/journey?owner="+encodeURIComponent(_lifeOwner)+"&days=30");
+  if(!j || !_lifeJourney || tab!=="life") return;
+  _lifeRenderJourney(j);
+}
+function _lifeSpark(daily, color){
+  var n = daily.length; if(n < 2) return '';
+  var mx = Math.max(1, daily.reduce(function(m,d){return Math.max(m,d.count)},0));
+  var H = 30, pts = daily.map(function(d,i){ return ((i/(n-1))*100).toFixed(1)+','+(H-(d.count/mx)*H).toFixed(1) }).join(' ');
+  return '<svg class="life-spark" viewBox="0 0 100 '+H+'" preserveAspectRatio="none">'+
+    '<defs><linearGradient id="lspk" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="'+color+'" stop-opacity="0.35"/><stop offset="100%" stop-color="'+color+'" stop-opacity="0"/></linearGradient></defs>'+
+    '<polygon points="0,'+H+' '+pts+' 100,'+H+'" fill="url(#lspk)"/>'+
+    '<polyline points="'+pts+'" fill="none" stroke="'+color+'" stroke-width="1.4" vector-effect="non-scaling-stroke" stroke-linejoin="round"/>'+
+  '</svg>';
+}
+function _lifeRenderJourney(j){
+  var jv = document.getElementById("life-journey"); if(!jv) return;
+  var isFam = j.scope === "family";
+  var accent = isFam ? "#E06A8A" : "#7FB069";
+  var balPct = Math.round((j.balance||0)*100);
+  var st = j.stats || {};
+  var h = '';
+  // Hero
+  h += '<div class="life-jhero">';
+  h += '<div class="life-jbal" style="color:'+accent+'">'+balPct+'%</div>';
+  h += '<div class="life-jlabel">'+(isFam ? tr("life_connection") : tr("life_balance"))+'</div>';
+  h += '</div>';
+  // Activity sparkline
+  if((j.stats||{}).habits){
+    h += '<div class="life-jsec">'+tr("life_j_activity")+'</div>';
+    h += '<div class="life-jspark-wrap">'+_lifeSpark(j.daily||[], accent)+'</div>';
+  }
+  // Stat tiles
+  h += '<div class="life-jstats">';
+  [[st.habits||0, tr("life_j_habits")],[st.done_today||0, tr("life_j_done_today")],
+   [st.completions_7d||0, tr("life_j_this_week")],[st.best_streak||0, tr("life_j_best_streak")]
+  ].forEach(function(t){
+    h += '<div class="life-jstat"><div class="life-jstat-v">'+t[0]+'</div><div class="life-jstat-l">'+t[1]+'</div></div>';
+  });
+  h += '</div>';
+  // Per-area bars
+  if((j.areas||[]).length){
+    h += '<div class="life-jsec">'+(isFam ? tr("nav_life") : tr("life_journey"))+'</div>';
+    h += '<div class="life-jbars">';
+    (j.areas||[]).slice().sort(function(a,b){return (b.brightness||0)-(a.brightness||0)}).forEach(function(a){
+      var pct = Math.round((a.brightness||0)*100);
+      h += '<div class="life-jbar">';
+      h += '<div class="life-jbar-name">'+es(a.emoji)+' '+es(a.name)+'</div>';
+      h += '<div class="life-jbar-track"><div class="life-jbar-fill" style="width:'+pct+'%;background:'+a.color+'"></div></div>';
+      h += '<div class="life-jbar-pct">'+pct+'%</div>';
+      h += '</div>';
+    });
+    h += '</div>';
+  }
+  if(!(j.stats||{}).habits){
+    h += '<div class="life-jempty">'+tr("life_j_empty")+'</div>';
+  }
+  jv.innerHTML = h;
 }
 
 function _lifeBack(){

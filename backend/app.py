@@ -4189,8 +4189,62 @@ async def life_suggest(body: LifeSuggestBody, user=Depends(get_uf), db=Depends(g
         raise HTTPException(502, "AI request failed")
 
 
+# ─── Journey — balance/bond trend over time (v8.54.0 · Phase 2) ───────────
+@app.get("/api/life/journey")
+def life_journey(owner: str | None = None, days: int = 30, user=Depends(get_uf), db=Depends(get_db)):
+    """Stats view for one scope: current balance (bond for family), per-area
+    brightness bars, a daily-completions sparkline, and headline counters."""
+    f = user["family_id"]
+    owner = _life_resolve_owner(owner, user, db)
+    ulang = _life_user_lang(db, user["id"])
+    days = max(7, min(120, days))
+    today = datetime.now(ZoneInfo(TIMEZONE)).date()
+    since = (today - timedelta(days=days - 1)).isoformat()
+
+    habits = [dict(h) for h in db.execute(
+        "SELECT * FROM habits WHERE family_id=? AND owner=? AND archived=0", (f, owner)).fetchall()]
+    hids = [h["id"] for h in habits]
+    hstats = {h["id"]: _life_habit_stats(db, h) for h in habits}
+
+    areas = _life_effective_areas(db, f, owner, ulang)
+    out_areas = []
+    for a in areas:
+        cons = [hstats[h["id"]]["consistency"] for h in habits if h["area_id"] == a["id"]]
+        bright = round(sum(cons) / len(cons), 2) if cons else 0.0
+        out_areas.append({"id": a["id"], "name": a["name"], "emoji": a["emoji"],
+                          "color": a["color"], "brightness": bright,
+                          "habit_count": sum(1 for h in habits if h["area_id"] == a["id"])})
+    balance = round(sum(x["brightness"] for x in out_areas) / len(out_areas), 2) if out_areas else 0.0
+
+    daily_map = {}
+    if hids:
+        qmarks = ",".join("?" * len(hids))
+        rows = db.execute(
+            f"SELECT date, COUNT(*) c FROM habit_logs WHERE done=1 AND date>=? AND habit_id IN ({qmarks}) GROUP BY date",
+            [since] + hids).fetchall()
+        daily_map = {r["date"]: r["c"] for r in rows}
+    daily = []
+    for i in range(days):
+        d = (today - timedelta(days=days - 1 - i)).isoformat()
+        daily.append({"date": d, "count": daily_map.get(d, 0)})
+
+    return {
+        "owner": owner, "scope": ("family" if owner == "family" else "personal"),
+        "balance": balance, "areas": out_areas, "daily": daily,
+        "stats": {
+            "habits": len(habits),
+            "done_today": sum(1 for s in hstats.values() if s["done_today"]),
+            "completions_7d": sum(x["count"] for x in daily[-7:]),
+            "completions_30d": sum(x["count"] for x in daily[-30:]),
+            "best_streak": max([s["streak"] for s in hstats.values()], default=0),
+        },
+    }
+
+
 # ─── Debug & Serve ───────────────────────────────────────────────────────
-APP_VERSION = "v8.53.0"
+APP_VERSION = "v8.54.0"
+# v8.54.0 — Life Phase 2: Journey — balance/bond %, activity sparkline, per-area
+#           bars, headline counters. GET /api/life/journey. 📈 toggle in Life.
 # v8.53.0 — Plants: AI now identifies SEEDS/pits/cuttings/sprouts (avocado pit in
 #           water etc.) instead of rejecting them, with grow-from-stage tips.
 #           Schema v32 (plants.stage) + stage badge + editable stage.
