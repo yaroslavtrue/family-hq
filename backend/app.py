@@ -4242,7 +4242,9 @@ def life_journey(owner: str | None = None, days: int = 30, user=Depends(get_uf),
 
 
 # ─── Debug & Serve ───────────────────────────────────────────────────────
-APP_VERSION = "v8.54.0"
+APP_VERSION = "v8.54.1"
+# v8.54.1 — Life Journey: clip the activity sparkline + spacing so it no longer
+#           overlaps the stat tiles below.
 # v8.54.0 — Life Phase 2: Journey — balance/bond %, activity sparkline, per-area
 #           bars, headline counters. GET /api/life/journey. 📈 toggle in Life.
 # v8.53.0 — Plants: AI now identifies SEEDS/pits/cuttings/sprouts (avocado pit in
