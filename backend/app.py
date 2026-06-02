@@ -4057,7 +4057,9 @@ async def life_suggest(body: LifeSuggestBody, user=Depends(get_uf), db=Depends(g
 
 
 # ─── Debug & Serve ───────────────────────────────────────────────────────
-APP_VERSION = "v8.52.0"
+APP_VERSION = "v8.52.1"
+# v8.52.1 — Life: iOS-style edit mode (long-press canvas → nodes wiggle → tap to
+#           edit). Adds full habit editing (name/emoji/type/frequency/delete).
 # v8.52.0 — Life Phase 2: AI habit suggestions per area (Claude Haiku). A dashed
 #           ✨ node inside each area asks Claude for tailored new habits; tap to
 #           plant any of them. POST /api/life/suggest.

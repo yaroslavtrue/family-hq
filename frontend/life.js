@@ -27,6 +27,12 @@ var _lifeRAF = null;
 var _lifeDrag = null;           // {id, moved}
 var _lifeLongTimer = null;
 var _lifeSettleUntil = 0;
+// iOS-style edit mode (v8.52.1): long-press the empty canvas → nodes wiggle and
+// a tap edits the node (area → rename/emoji, habit → full edit). Tap background
+// to finish.
+var _lifeEditMode = false;
+var _lifeBg = null;             // background press tracking
+var _lifeBgTimer = null;
 
 // ─── Entry: shell HTML (ren() injects this into #ct) ──────────
 function rLife(){
@@ -58,8 +64,10 @@ function lifeMount(){
 }
 
 function lifeUnmount(){
+  _lifeEditMode = false;
   if(_lifeRAF){ cancelAnimationFrame(_lifeRAF); _lifeRAF = null; }
   if(_lifeLongTimer){ clearTimeout(_lifeLongTimer); _lifeLongTimer = null; }
+  if(_lifeBgTimer){ clearTimeout(_lifeBgTimer); _lifeBgTimer = null; }
   if(_lifeResizeBound){ window.removeEventListener("resize", _lifeResizeBound); _lifeResizeBound = null; }
   _lifeDrag = null;
 }
@@ -135,7 +143,7 @@ function _lifeRelayout(){
 
 function _lifeSetOwner(o){
   if(_lifeOwner === o) return;
-  _lifeOwner = o; hp("sel");
+  _lifeOwner = o; _lifeEditMode = false; hp("sel");
   _lifeView = "constellation"; _lifeAreaId = null;
   _lifeRenderTopBar();
   _lifeLoadSummary();
@@ -143,6 +151,7 @@ function _lifeSetOwner(o){
 
 function _lifeBack(){
   hp("light");
+  _lifeEditMode = false;
   _lifeView = "constellation"; _lifeAreaId = null;
   _lifeRenderTopBar();
   _lifeBuildConstellation();
@@ -395,23 +404,42 @@ function _lifeNodeSvg(n){
   }
   var doneRing = (n.type==="habit"&&n.done) ? '<circle cx="'+n.x+'" cy="'+n.y+'" r="'+(n.r+1.2)+'" fill="none" stroke="'+n.color+'" stroke-width="0.6" stroke-opacity="0.9"/>' : '';
   var bd = 'style="animation-delay:-'+delay.toFixed(2)+'s"';
-  return '<g class="life-node" data-id="'+n.id+'">'+
+  // iOS-style wiggle on editable nodes while in edit mode. Per-node delay desyncs
+  // them; transform-origin at the node centre keeps the jiggle in place.
+  var editable = (n.type==="area" || n.type==="habit");
+  var cls = "life-node", gStyle = "";
+  if(_lifeEditMode && editable){
+    cls += " life-wiggle";
+    gStyle = ' style="animation-delay:-'+(delay*0.5).toFixed(2)+'s;transform-origin:'+n.x+'px '+n.y+'px"';
+  }
+  return '<g class="'+cls+'"'+gStyle+' data-id="'+n.id+'">'+
     '<circle class="life-glow life-breathe" '+bd+' cx="'+n.x+'" cy="'+n.y+'" r="'+glowR+'" fill="url(#'+_lifeGradId(n.color)+')"/>'+
     '<circle class="life-core life-breathe" '+bd+' cx="'+n.x+'" cy="'+n.y+'" r="'+n.r+'" fill="'+n.color+'" fill-opacity="'+fillOpacity.toFixed(2)+'" stroke="'+n.color+'" stroke-width="'+ringW+'"'+dash+'/>'+
     doneRing + label + cap +
   '</g>';
 }
 
-// ─── Pointer: tap / drag / long-press(1s) + spring coupling ──
+// ─── Pointer: bg long-press (edit mode) · node tap / drag / long-press ──
 function _lifeBindPointer(svg){
   svg.onpointerdown = function(ev){
-    var g = ev.target.closest && ev.target.closest(".life-node"); if(!g) return;
+    var g = ev.target.closest && ev.target.closest(".life-node");
+    var p = _lifeToSvg(svg, ev.clientX, ev.clientY);
+    if(!g){
+      // Empty canvas: a long-press toggles edit mode.
+      _lifeBg = {sx:p.x, sy:p.y, moved:false};
+      _lifeBgTimer = setTimeout(function(){
+        _lifeBgTimer = null;
+        if(_lifeBg && !_lifeBg.moved){ _lifeBg.fired = true; _lifeSetEdit(!_lifeEditMode); }
+      }, 650);
+      return;
+    }
     var id = g.getAttribute("data-id");
     var node = _lifeNodeById(id); if(!node) return;
-    var p = _lifeToSvg(svg, ev.clientX, ev.clientY);
     _lifeDrag = {id:id, moved:false, sx:p.x, sy:p.y, t:Date.now()};
     try{ svg.setPointerCapture(ev.pointerId) }catch(e){}
-    // long-press (1s) → edit, only for area nodes in constellation
+    // In edit mode a node tap edits it — no drag, no per-node long-press.
+    if(_lifeEditMode) return;
+    // Normal mode: long-press (1s) on an area node → quick rename.
     if(node.type==="area"){
       _lifeLongTimer = setTimeout(function(){
         _lifeLongTimer = null;
@@ -420,8 +448,14 @@ function _lifeBindPointer(svg){
     }
   };
   svg.onpointermove = function(ev){
-    if(!_lifeDrag) return;
     var p = _lifeToSvg(svg, ev.clientX, ev.clientY);
+    if(_lifeBg){
+      var bdx=p.x-_lifeBg.sx, bdy=p.y-_lifeBg.sy;
+      if(bdx*bdx+bdy*bdy > 6){ _lifeBg.moved = true; if(_lifeBgTimer){clearTimeout(_lifeBgTimer);_lifeBgTimer=null;} }
+      return;
+    }
+    if(!_lifeDrag) return;
+    if(_lifeEditMode) return;  // no dragging in edit mode
     if(!_lifeDrag.moved){
       var dx=p.x-_lifeDrag.sx, dy=p.y-_lifeDrag.sy;
       if(dx*dx+dy*dy > 4){
@@ -436,13 +470,44 @@ function _lifeBindPointer(svg){
     }
   };
   svg.onpointerup = function(ev){
+    if(_lifeBgTimer){ clearTimeout(_lifeBgTimer); _lifeBgTimer=null; }
+    if(_lifeBg){
+      var bg=_lifeBg; _lifeBg=null;
+      // Short tap on the background while editing → finish edit mode.
+      if(!bg.fired && !bg.moved && _lifeEditMode) _lifeSetEdit(false);
+      return;
+    }
     if(_lifeLongTimer){ clearTimeout(_lifeLongTimer); _lifeLongTimer=null; }
     if(!_lifeDrag) return;
     var d = _lifeDrag; _lifeDrag = null;
+    if(_lifeEditMode){ _lifeEditNode(d.id); return; }
     if(d.moved){ _lifeSettleUntil = Date.now()+450; _lifeStartSim(); }
     else { _lifeTapNode(d.id); }
   };
-  svg.onpointercancel = function(){ if(_lifeLongTimer){clearTimeout(_lifeLongTimer);_lifeLongTimer=null;} _lifeDrag=null; };
+  svg.onpointercancel = function(){
+    if(_lifeLongTimer){clearTimeout(_lifeLongTimer);_lifeLongTimer=null;}
+    if(_lifeBgTimer){clearTimeout(_lifeBgTimer);_lifeBgTimer=null;}
+    _lifeDrag=null; _lifeBg=null;
+  };
+}
+
+// Toggle edit mode — rebuild so nodes get/lose the wiggle, refresh the hint.
+function _lifeSetEdit(on){
+  if(_lifeEditMode === on) return;
+  _lifeEditMode = on;
+  hp(on ? "med" : "light");
+  if(_lifeView==="area") _lifeBuildArea(); else _lifeBuildConstellation();
+  if(on) _lifeSetHint(tr("life_edit_on"));
+}
+
+// In edit mode, tapping a node opens its editor.
+function _lifeEditNode(id){
+  var n = _lifeNodeById(id); if(!n) return;
+  hp("light");
+  if(n.type==="area"){ _lifeOpenNodeEdit(n.id); }
+  else if(n.type==="habit"){ _lifeOpenHabitEdit(n.hid); }
+  else if(n.type==="add"){ _lifeOpenAddHabit(); }
+  else if(n.type==="ideas"){ _lifeSuggest(); }
 }
 
 // Convert client coords → SVG user units via the inverse CTM.
@@ -555,15 +620,25 @@ function _lifeApplyPositions(){
   }
 }
 
-// ─── Add habit (inside an area) ───────────────────────────────
+// ─── Add / edit habit (inside an area) ────────────────────────
 var _lifeHabitDraft = null;
 function _lifeOpenAddHabit(){
   var area = (_lifeData.areas||[]).find(function(x){return x.id===_lifeAreaId});
-  _lifeHabitDraft = {emoji:"🌱", name:"", type:"build", freq:"daily", intent:""};
+  _lifeHabitDraft = {id:null, emoji:"🌱", name:"", type:"build", freq:"daily", intent:""};
   oMC(tr("life_new_habit")+(area?" · "+area.emoji+" "+es(area.name):""), _lifeHabitFormHtml(), {ic:"life"});
+}
+function _lifeOpenHabitEdit(hid){
+  var hb = _lifeAreaHabits.find(function(x){return x.id===hid}); if(!hb) return;
+  _lifeHabitDraft = {
+    id: hb.id, emoji: hb.emoji||"🌱", name: hb.name||"", type: hb.type||"build",
+    freq: (Array.isArray(hb.frequency)? hb.frequency.slice() : "daily"),
+    intent: hb.intent||"",
+  };
+  oMC(tr("life_edit_habit"), _lifeHabitFormHtml(), {ic:"life"});
 }
 function _lifeHabitFormHtml(){
   var d = _lifeHabitDraft;
+  var isDays = Array.isArray(d.freq);
   var h = '';
   h += '<div style="display:flex;gap:10px;align-items:flex-end">';
   h += '<div><div class="lb">'+tr("g_emoji")+'</div><input class="inp" id="lf-e" value="'+es(d.emoji)+'" style="width:64px;text-align:center;font-size:20px"></div>';
@@ -575,13 +650,17 @@ function _lifeHabitFormHtml(){
   });
   h += '</div>';
   h += '<div class="lb">'+tr("life_frequency")+'</div><div class="or" id="lf-days">';
-  h += '<button class="ob '+(d.freq==="daily"?"s":"")+'" onclick="_lifeFreqDaily(this)">'+tr("life_daily")+'</button>';
+  h += '<button class="ob '+(!isDays?"s":"")+'" onclick="_lifeFreqDaily(this)">'+tr("life_daily")+'</button>';
   // data-d uses Python weekday() convention: 0=Mon .. 6=Sun (matches backend).
   ["mon","tue","wed","thu","fri","sat","sun"].forEach(function(dn,i){
-    h += '<button class="ob lf-day" data-d="'+i+'" onclick="_lifeFreqToggle(this)">'+tr("dow_short_"+dn)+'</button>';
+    var on = isDays && d.freq.indexOf(i)>=0;
+    h += '<button class="ob lf-day'+(on?" s":"")+'" data-d="'+i+'" onclick="_lifeFreqToggle(this)">'+tr("dow_short_"+dn)+'</button>';
   });
   h += '</div>';
-  h += '<button class="btn" style="margin-top:14px" onclick="_lifeSaveHabit()">'+tr("btn_add")+'</button>';
+  h += '<button class="btn" style="margin-top:14px" onclick="_lifeSaveHabit()">'+(d.id?tr("btn_save"):tr("btn_add"))+'</button>';
+  if(d.id){
+    h += '<button class="btn btn-s" style="margin-top:8px;background:transparent;color:var(--ac);border:1px solid color-mix(in srgb,var(--ac) 40%,transparent)" onclick="_lifeDeleteHabit('+d.id+')">🗑 '+tr("btn_delete")+'</button>';
+  }
   return h;
 }
 function _lifeFreqDaily(btn){
@@ -601,10 +680,12 @@ async function _lifeSaveHabit(){
   d.emoji = (document.getElementById("lf-e")||{}).value || d.emoji;
   d.name = ((document.getElementById("lf-n")||{}).value||"").trim();
   if(!d.name){ toast(tr("life_name_required")); return }
-  var r = await A("POST","/api/life/habits",{
-    owner:_lifeOwner, area_id:_lifeAreaId, name:d.name, emoji:d.emoji,
-    type:d.type, frequency:d.freq, intent:d.intent||""
-  });
+  var r;
+  if(d.id){
+    r = await A("PATCH","/api/life/habits/"+d.id, {name:d.name, emoji:d.emoji, type:d.type, frequency:d.freq});
+  } else {
+    r = await A("POST","/api/life/habits", {owner:_lifeOwner, area_id:_lifeAreaId, name:d.name, emoji:d.emoji, type:d.type, frequency:d.freq, intent:d.intent||""});
+  }
   if(!r || !r.id){ toast(tr("ts_save_failed")); return }
   hp("ok"); cMo(); _lifeHabitDraft=null;
   await _lifeLoadArea(_lifeAreaId);

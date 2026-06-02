@@ -58,6 +58,8 @@ window.LANG = {
     life_edit_node: "Edit area", life_node_name: "Name", life_node_reset: "Reset to default",
     life_ideas: "Ideas", life_ideas_sub: "Tap + to plant any of these",
     life_thinking: "Thinking of ideas for you…", life_no_ideas: "Couldn't get ideas right now — try again",
+    life_edit_habit: "Edit habit",
+    life_edit_on: "Editing — tap a node to edit · tap empty space to finish",
     // Page headers (title + subtitle)
     tt_home_t: "Family HQ", tt_home_s: "Everything at a glance",
     tt_tasks_t: "Tasks", tt_tasks_s: "Manage & assign",
@@ -379,6 +381,8 @@ window.LANG = {
     life_edit_node: "Изменить область", life_node_name: "Название", life_node_reset: "Сбросить к дефолту",
     life_ideas: "Идеи", life_ideas_sub: "Нажми + чтобы посадить любую",
     life_thinking: "Придумываю идеи для тебя…", life_no_ideas: "Не удалось получить идеи — попробуй ещё раз",
+    life_edit_habit: "Изменить привычку",
+    life_edit_on: "Редактирование — тапни узел чтобы изменить · тапни фон чтобы выйти",
     tt_home_t: "Family HQ", tt_home_s: "Всё в одном месте",
     tt_tasks_t: "Задачи", tt_tasks_s: "Управление и назначение",
     tt_shop_t: "Покупки", tt_shop_s: "Общий список",
