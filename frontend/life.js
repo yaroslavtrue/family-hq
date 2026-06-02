@@ -422,22 +422,19 @@ function _lifeNodeSvg(n){
     '<circle class="life-glow life-breathe" '+bd+' cx="'+n.x+'" cy="'+n.y+'" r="'+glowR+'" fill="url(#'+_lifeGradId(n.color)+')"/>'+
     '<circle class="life-core life-breathe" '+bd+' cx="'+n.x+'" cy="'+n.y+'" r="'+n.r+'" fill="'+n.color+'" fill-opacity="'+fillOpacity.toFixed(2)+'" stroke="'+n.color+'" stroke-width="'+ringW+'"'+dash+'/>'+
     doneRing + label + cap;
-  // Wiggle lives on an INNER group so it never fights the outer group's translate
-  // (drag/orbit). Editable nodes wiggle gently at rest (.life-idle) and harder
-  // in edit mode (.life-wiggle); per-node delay desyncs them; transform-origin
-  // at the node centre keeps it in place.
+  // Wiggle / grow live on an INNER group so they never fight the outer group's
+  // translate (drag / orbit / the smooth edit-mode relayout). Editable nodes
+  // wiggle gently at rest (.life-idle) and harder in edit mode (.life-wiggle).
+  // Seeds scale-grow in place — the spring slides them out from the centre while
+  // the inner scale makes them grow along the way.
   var editable = (n.type==="area" || n.type==="habit");
   if(editable){
     var wcls = _lifeEditMode ? "life-wiggle" : "life-idle";
     content = '<g class="'+wcls+'" style="animation-delay:-'+(delay*0.5).toFixed(2)+'s;transform-origin:'+n.x+'px '+n.y+'px">'+content+'</g>';
+  } else if(isSeed){
+    content = '<g class="life-grow" style="transform-box:view-box;transform-origin:'+n.x+'px '+n.y+'px">'+content+'</g>';
   }
-  // Seeds grow out of the hub centre (outer group — they never drag).
-  var outerCls = "life-node", outerStyle = "";
-  if(isSeed){
-    outerCls += " life-grow";
-    outerStyle = ' style="transform-box:view-box;transform-origin:'+_lifeCx()+'px '+_lifeCy()+'px"';
-  }
-  return '<g class="'+outerCls+'"'+outerStyle+' data-id="'+n.id+'">'+content+'</g>';
+  return '<g class="life-node" data-id="'+n.id+'">'+content+'</g>';
 }
 
 // ─── Pointer: bg long-press (edit mode) · node tap / drag / long-press ──
@@ -512,12 +509,27 @@ function _lifeBindPointer(svg){
   };
 }
 
-// Toggle edit mode — rebuild so nodes get/lose the wiggle, refresh the hint.
+// Toggle edit mode — rebuild, then ANIMATE the relayout: existing nodes start
+// from where they were, brand-new seeds start at the hub centre, and the spring
+// sim eases everything to the new homes. So the circles glide aside and the "+"
+// grows out of the centre with its spoke instead of everything snapping.
 function _lifeSetEdit(on){
   if(_lifeEditMode === on) return;
+  var prev = {}; _lifeNodes.forEach(function(n){ prev[n.id] = {x:n.x, y:n.y}; });
   _lifeEditMode = on;
   hp(on ? "med" : "light");
   if(_lifeView==="area") _lifeBuildArea(); else _lifeBuildConstellation();
+  var cx = _lifeCx(), cy = _lifeCy();
+  _lifeNodes.forEach(function(n){
+    if(n.id==="_hub" || n.type==="avatar") return; // hub/avatars keep their own motion
+    var p = prev[n.id];
+    if(p){ n.x = p.x; n.y = p.y; }   // existing → start from old spot, ease to new
+    else { n.x = cx; n.y = cy; }     // new seed → grow/spring out of the centre
+    n.vx = 0; n.vy = 0;
+  });
+  _lifeApplyPositions();             // paint the start frame (no snap/flash)
+  _lifeSettleUntil = Date.now() + 700;
+  _lifeStartSim();
   if(on) _lifeSetHint(tr("life_edit_on"));
 }
 
