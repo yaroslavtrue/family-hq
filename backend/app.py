@@ -485,9 +485,9 @@ def update_my_lang(body: LangUpdate, user=Depends(get_uf), db=Depends(get_db)):
 
 # Per-member bottom-navigation preference (v8.47.0).
 # tabs: array of tab ids in display order, 3-5 items. null/empty resets to default.
-_VALID_NAV_TABS = {"home", "tasks", "shop", "cooking", "trainings", "words",
-                   "plants", "money", "profile", "events", "birthdays",
-                   "clean", "settings", "subs"}
+_VALID_NAV_TABS = {"home", "tasks", "shop", "cooking", "life", "trainings",
+                   "words", "plants", "money", "profile", "events",
+                   "birthdays", "clean", "settings", "subs"}
 
 class NavTabsUpdate(BaseModel):
     tabs: list[str] | None = None
@@ -3636,8 +3636,331 @@ def dishes_image_get(did: int):
     return r
 
 
+# ═════════════════════════════════════════════════════════════════════════
+# 🌱 LIFE — habit / balance network (v8.51.0)
+# ═════════════════════════════════════════════════════════════════════════
+# Two area sets live here as code constants (no `areas` table). Each habit
+# feeds exactly one area and belongs to an owner: a member's user_id (personal
+# growth) or the literal 'family' (relationship layer). Node name/emoji can be
+# customized per (owner, area) via node_overrides (long-press edit) — defaults
+# below are the fallback.
+#
+# To re-theme the six nodes later, edit these constants — nothing else depends
+# on the specific ids beyond the override/habit rows that reference them.
+
+PERSONAL_AREAS = [
+    {"id": "focus",     "name": "Focus",     "emoji": "🎯", "color": "#8B7BE8"},
+    {"id": "energy",    "name": "Energy",    "emoji": "⚡", "color": "#E8A24A"},
+    {"id": "health",    "name": "Health",    "emoji": "🌿", "color": "#5FB37A"},
+    {"id": "mind",      "name": "Mind",      "emoji": "🧠", "color": "#6B8FD4"},
+    {"id": "learning",  "name": "Learning",  "emoji": "📚", "color": "#C77DBB"},
+    {"id": "happiness", "name": "Happiness", "emoji": "😊", "color": "#E8C54A"},
+]
+RELATIONSHIP_AREAS = [
+    {"id": "rel_time",      "name": "Time Together", "emoji": "🕯", "color": "#E8A24A"},
+    {"id": "rel_comm",      "name": "Communication", "emoji": "💬", "color": "#6B8FD4"},
+    {"id": "rel_affection", "name": "Affection",     "emoji": "❤️", "color": "#E06A8A"},
+    {"id": "rel_goals",     "name": "Shared Goals",  "emoji": "🎯", "color": "#8B7BE8"},
+    {"id": "rel_joy",       "name": "Joy",           "emoji": "✨", "color": "#E8C54A"},
+    {"id": "rel_care",      "name": "Care",          "emoji": "🤝", "color": "#5FB37A"},
+]
+_PERSONAL_IDS = {a["id"] for a in PERSONAL_AREAS}
+_REL_IDS = {a["id"] for a in RELATIONSHIP_AREAS}
+_VALID_HABIT_TYPES = {"build", "maintain", "reduce"}
+
+
+def _life_resolve_owner(owner: str | None, user: dict, db) -> str:
+    """Normalize the owner param. Defaults to the current user. 'family' is
+    allowed as-is. A numeric owner must be a real member of this family."""
+    if not owner:
+        return str(user["id"])
+    if owner == "family":
+        return "family"
+    if not owner.isdigit():
+        raise HTTPException(400, "bad owner")
+    row = db.execute("SELECT user_id FROM family_members WHERE user_id=? AND family_id=?",
+                     (int(owner), user["family_id"])).fetchone()
+    if not row:
+        raise HTTPException(404, "owner not in family")
+    return owner
+
+
+def _life_areas_for(owner: str) -> list[dict]:
+    return RELATIONSHIP_AREAS if owner == "family" else PERSONAL_AREAS
+
+
+def _life_due_on(freq, d) -> bool:
+    """Is the habit scheduled on date d? freq is None/'daily' → every day,
+    or a list of weekday ints (0=Mon..6=Sun, matching date.weekday())."""
+    if not freq or freq == "daily":
+        return True
+    if isinstance(freq, list):
+        return d.weekday() in freq
+    return True
+
+
+def _life_habit_stats(db, habit: dict) -> dict:
+    """Compute streak, 30-day consistency, and done-today for one habit."""
+    today = datetime.now(ZoneInfo(TIMEZONE)).date()
+    try:
+        freq = _json_mod.loads(habit["frequency"]) if habit.get("frequency") else "daily"
+    except Exception:
+        freq = "daily"
+    try:
+        created = datetime.fromisoformat((habit.get("created_at") or "").split(" ")[0].split("T")[0]).date()
+    except Exception:
+        created = today - timedelta(days=30)
+    # Pull last ~40 days of completions in one query.
+    since = (today - timedelta(days=40)).isoformat()
+    rows = db.execute("SELECT date FROM habit_logs WHERE habit_id=? AND done=1 AND date>=?",
+                      (habit["id"], since)).fetchall()
+    done_set = {r["date"] for r in rows}
+    done_today = today.isoformat() in done_set
+    # Consistency: over the scheduled days in the last 30 (from created_at onward).
+    scheduled = 0
+    completed = 0
+    for i in range(30):
+        d = today - timedelta(days=i)
+        if d < created:
+            continue
+        if _life_due_on(freq, d):
+            scheduled += 1
+            if d.isoformat() in done_set:
+                completed += 1
+    consistency = round(completed / scheduled, 2) if scheduled else (1.0 if done_set else 0.0)
+    # Streak: consecutive scheduled completions ending at the most recent due day.
+    # If today is due but not yet done, don't break — start counting from yesterday.
+    streak = 0
+    d = today
+    if _life_due_on(freq, d) and not done_today:
+        d = today - timedelta(days=1)
+    guard = 0
+    while guard < 400:
+        guard += 1
+        if d < created:
+            break
+        if _life_due_on(freq, d):
+            if d.isoformat() in done_set:
+                streak += 1
+            else:
+                break
+        d -= timedelta(days=1)
+    return {"streak": streak, "consistency": consistency, "done_today": done_today}
+
+
+def _life_habit_view(db, habit: dict) -> dict:
+    stats = _life_habit_stats(db, habit)
+    try:
+        freq = _json_mod.loads(habit["frequency"]) if habit.get("frequency") else "daily"
+    except Exception:
+        freq = "daily"
+    return {
+        "id": habit["id"],
+        "owner": habit["owner"],
+        "area_id": habit["area_id"],
+        "name": habit.get("name") or "",
+        "emoji": habit.get("emoji") or "",
+        "type": habit.get("type") or "build",
+        "intent": habit.get("intent") or "",
+        "frequency": freq,
+        "created_at": habit.get("created_at"),
+        "streak": stats["streak"],
+        "consistency": stats["consistency"],
+        "done_today": stats["done_today"],
+    }
+
+
+@app.get("/api/life/summary")
+def life_summary(owner: str | None = None, user=Depends(get_uf), db=Depends(get_db)):
+    """Constellation for one scope (a member's user_id, or 'family'). Returns the
+    six area nodes with resolved name/emoji (override → default) plus brightness
+    (avg consistency of feeding habits) and counts so the client can size/glow them."""
+    f = user["family_id"]
+    owner = _life_resolve_owner(owner, user, db)
+    areas = _life_areas_for(owner)
+    # Override rows for this (family, owner).
+    ov = {r["area_id"]: r for r in db.execute(
+        "SELECT area_id, name, emoji FROM node_overrides WHERE family_id=? AND owner=?",
+        (f, owner)).fetchall()}
+    out = []
+    for a in areas:
+        habits = [dict(h) for h in db.execute(
+            "SELECT * FROM habits WHERE family_id=? AND owner=? AND area_id=? AND archived=0",
+            (f, owner, a["id"])).fetchall()]
+        cons = [_life_habit_stats(db, h)["consistency"] for h in habits]
+        brightness = round(sum(cons) / len(cons), 2) if cons else 0.0
+        o = ov.get(a["id"])
+        out.append({
+            "id": a["id"],
+            "name": (o["name"] if o and o["name"] else a["name"]),
+            "emoji": (o["emoji"] if o and o["emoji"] else a["emoji"]),
+            "color": a["color"],
+            "brightness": brightness,
+            "habit_count": len(habits),
+            "customized": bool(o),
+        })
+    # Family scope also reports overall bond strength = avg of area brightness.
+    bond = round(sum(a["brightness"] for a in out) / len(out), 2) if out else 0.0
+    members = [dict(m) for m in db.execute(
+        "SELECT user_id, user_name, emoji, color, photo_url FROM family_members WHERE family_id=?",
+        (f,)).fetchall()]
+    return {"owner": owner, "scope": ("family" if owner == "family" else "personal"),
+            "areas": out, "bond": bond, "members": members}
+
+
+@app.get("/api/life/habits")
+def life_habits(owner: str | None = None, area_id: str | None = None,
+                user=Depends(get_uf), db=Depends(get_db)):
+    """Habits inside one area for one owner, with streak/consistency/done_today."""
+    f = user["family_id"]
+    owner = _life_resolve_owner(owner, user, db)
+    q = "SELECT * FROM habits WHERE family_id=? AND owner=? AND archived=0"
+    params = [f, owner]
+    if area_id:
+        q += " AND area_id=?"
+        params.append(area_id)
+    rows = [dict(r) for r in db.execute(q + " ORDER BY id", params).fetchall()]
+    return {"owner": owner, "area_id": area_id, "habits": [_life_habit_view(db, r) for r in rows]}
+
+
+class HabitCreate(BaseModel):
+    owner: str | None = None         # '<user_id>' | 'family' | None (→ me)
+    area_id: str
+    name: str
+    emoji: str | None = ""
+    type: str = "build"
+    intent: str | None = ""
+    frequency: list[int] | str | None = "daily"  # 'daily' or [0..6]
+
+
+def _life_validate_area(owner: str, area_id: str):
+    valid = _REL_IDS if owner == "family" else _PERSONAL_IDS
+    if area_id not in valid:
+        raise HTTPException(400, f"area_id '{area_id}' not valid for this scope")
+
+
+@app.post("/api/life/habits")
+def life_habit_create(body: HabitCreate, user=Depends(get_uf), db=Depends(get_db)):
+    f = user["family_id"]
+    owner = _life_resolve_owner(body.owner, user, db)
+    _life_validate_area(owner, body.area_id)
+    name = (body.name or "").strip()
+    if not name:
+        raise HTTPException(400, "name required")
+    htype = body.type if body.type in _VALID_HABIT_TYPES else "build"
+    freq = body.frequency if body.frequency else "daily"
+    if isinstance(freq, list):
+        freq = sorted({int(x) for x in freq if 0 <= int(x) <= 6})
+        if not freq:
+            freq = "daily"
+    freq_json = _json_mod.dumps(freq)
+    cur = db.execute(
+        """INSERT INTO habits (family_id, owner, area_id, name, emoji, type, intent, frequency)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+        (f, owner, body.area_id, name, (body.emoji or "").strip(), htype,
+         (body.intent or "").strip(), freq_json))
+    hid = cur.lastrowid
+    db.commit()
+    row = dict(db.execute("SELECT * FROM habits WHERE id=?", (hid,)).fetchone())
+    return _life_habit_view(db, row)
+
+
+class HabitEdit(BaseModel):
+    name: str | None = None
+    emoji: str | None = None
+    type: str | None = None
+    intent: str | None = None
+    frequency: list[int] | str | None = None
+
+
+@app.patch("/api/life/habits/{hid}")
+def life_habit_edit(hid: int, body: HabitEdit, user=Depends(get_uf), db=Depends(get_db)):
+    f = user["family_id"]
+    row = db.execute("SELECT * FROM habits WHERE id=? AND family_id=?", (hid, f)).fetchone()
+    if not row:
+        raise HTTPException(404)
+    payload = body.dict(exclude_unset=True)
+    if "type" in payload and payload["type"] not in _VALID_HABIT_TYPES:
+        del payload["type"]
+    if "frequency" in payload:
+        fr = payload["frequency"] or "daily"
+        if isinstance(fr, list):
+            fr = sorted({int(x) for x in fr if 0 <= int(x) <= 6}) or "daily"
+        payload["frequency"] = _json_mod.dumps(fr)
+    for k in ("name", "emoji", "intent"):
+        if k in payload and isinstance(payload[k], str):
+            payload[k] = payload[k].strip()
+    if payload:
+        sets, params = [], []
+        for k, v in payload.items():
+            sets.append(f"{k}=?"); params.append(v)
+        params.append(hid)
+        db.execute(f"UPDATE habits SET {','.join(sets)} WHERE id=?", params)
+        db.commit()
+    fresh = dict(db.execute("SELECT * FROM habits WHERE id=?", (hid,)).fetchone())
+    return _life_habit_view(db, fresh)
+
+
+@app.delete("/api/life/habits/{hid}")
+def life_habit_delete(hid: int, user=Depends(get_uf), db=Depends(get_db)):
+    f = user["family_id"]
+    row = db.execute("SELECT id FROM habits WHERE id=? AND family_id=?", (hid, f)).fetchone()
+    if not row:
+        raise HTTPException(404)
+    db.execute("DELETE FROM habit_logs WHERE habit_id=?", (hid,))
+    db.execute("DELETE FROM habits WHERE id=?", (hid,))
+    db.commit()
+    return {"ok": True}
+
+
+@app.post("/api/life/habits/{hid}/log")
+def life_habit_log(hid: int, user=Depends(get_uf), db=Depends(get_db)):
+    """Toggle today's completion. Returns the refreshed habit view (new streak etc.)."""
+    f = user["family_id"]
+    row = db.execute("SELECT * FROM habits WHERE id=? AND family_id=?", (hid, f)).fetchone()
+    if not row:
+        raise HTTPException(404)
+    today = datetime.now(ZoneInfo(TIMEZONE)).date().isoformat()
+    existing = db.execute("SELECT id FROM habit_logs WHERE habit_id=? AND date=?", (hid, today)).fetchone()
+    if existing:
+        db.execute("DELETE FROM habit_logs WHERE id=?", (existing["id"],))
+    else:
+        db.execute("INSERT INTO habit_logs (habit_id, date, done) VALUES (?, ?, 1)", (hid, today))
+    db.commit()
+    return _life_habit_view(db, dict(row))
+
+
+class NodeOverride(BaseModel):
+    name: str | None = None
+    emoji: str | None = None
+
+
+@app.put("/api/life/nodes/{area_id}")
+def life_node_override(area_id: str, body: NodeOverride, owner: str | None = None,
+                       user=Depends(get_uf), db=Depends(get_db)):
+    """Long-press edit of a node's name/emoji. Empty name+emoji clears the override
+    (falls back to the code default)."""
+    f = user["family_id"]
+    owner = _life_resolve_owner(owner, user, db)
+    _life_validate_area(owner, area_id)
+    name = (body.name or "").strip()
+    emoji = (body.emoji or "").strip()
+    if not name and not emoji:
+        db.execute("DELETE FROM node_overrides WHERE family_id=? AND owner=? AND area_id=?",
+                   (f, owner, area_id))
+        db.commit()
+        return {"ok": True, "cleared": True}
+    db.execute(
+        """INSERT INTO node_overrides (family_id, owner, area_id, name, emoji)
+           VALUES (?, ?, ?, ?, ?)
+           ON CONFLICT(family_id, owner, area_id) DO UPDATE SET name=?, emoji=?""",
+        (f, owner, area_id, name or None, emoji or None, name or None, emoji or None))
+    db.commit()
+    return {"ok": True, "name": name, "emoji": emoji}
+
+
 # ─── Debug & Serve ───────────────────────────────────────────────────────
-APP_VERSION = "v8.50.1"
+APP_VERSION = "v8.51.0"
 # v8.50.1 — Login: retry bot-info (4× backoff) + Retry button. Fixes transient
 #           "Bot not configured" when PWA opens during the post-deploy boot window.
 # v8.50.0 — Money: balance is now a RUNNING account total (carries over between

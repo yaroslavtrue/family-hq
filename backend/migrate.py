@@ -678,6 +678,48 @@ def migrate(db_path):
         # never timelined) so the strip can show them as the first chronological
         # entry with the creation date. See _backfill_original_cover_timeline.
         lambda c: _backfill_original_cover_timeline(c),
+        # v30: Life — habit/balance network (v8.51.0). Two area sets live as code
+        # constants (PERSONAL_AREAS + RELATIONSHIP_AREAS in app.py), so no `areas`
+        # table. Each habit feeds exactly one area and belongs to an `owner`
+        # ('<user_id>' for personal, 'family' for relationship habits).
+        #   - habits: the nodes you plant inside an area
+        #   - habit_logs: one row per (habit, day) completion → drives streak/consistency
+        #   - node_overrides: sparse per-(owner,area) name/emoji customization
+        #     (long-press edit). Empty row → fall back to the code default.
+        lambda c: c.executescript("""
+            CREATE TABLE IF NOT EXISTS habits (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                family_id INTEGER NOT NULL,
+                owner TEXT NOT NULL,              -- '<user_id>' | 'family'
+                area_id TEXT NOT NULL,            -- 'focus' | ... | 'rel_time' | ...
+                name TEXT NOT NULL,
+                emoji TEXT,
+                type TEXT NOT NULL DEFAULT 'build',  -- build | maintain | reduce
+                intent TEXT,
+                frequency TEXT,                  -- JSON: 'daily' or [0..6] weekdays
+                created_at TEXT DEFAULT (datetime('now')),
+                archived INTEGER NOT NULL DEFAULT 0
+            );
+            CREATE INDEX IF NOT EXISTS idx_habits_scope ON habits(family_id, owner, area_id, archived);
+
+            CREATE TABLE IF NOT EXISTS habit_logs (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                habit_id INTEGER NOT NULL,
+                date TEXT NOT NULL,              -- YYYY-MM-DD (local TZ)
+                done INTEGER NOT NULL DEFAULT 1
+            );
+            CREATE UNIQUE INDEX IF NOT EXISTS idx_habit_logs_unique ON habit_logs(habit_id, date);
+
+            CREATE TABLE IF NOT EXISTS node_overrides (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                family_id INTEGER NOT NULL,
+                owner TEXT NOT NULL,             -- whose customization: '<user_id>' | 'family'
+                area_id TEXT NOT NULL,
+                name TEXT,
+                emoji TEXT
+            );
+            CREATE UNIQUE INDEX IF NOT EXISTS idx_node_overrides_unique ON node_overrides(family_id, owner, area_id);
+        """),
     ]
 
     for i, mig in enumerate(migrations):

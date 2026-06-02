@@ -325,6 +325,49 @@ input[type="date"]:focus,input[type="time"]:focus,input[type="number"]:focus,sel
 /* Words / Vocabulary mode — full-screen takeover. Standard .hd is hidden via body.words-mode */
 body.words-mode .hd{display:none}
 body.words-mode .ct{padding-top:max(10px, calc(env(safe-area-inset-top, 0px) + 6px))}
+
+/* ─── Life — immersive balance network (v8.51.0) ─────────────── */
+body.life-mode .hd{display:none}
+body.life-mode .ct{padding:0}
+body.life-mode{background:radial-gradient(120% 90% at 50% 18%, #15161f 0%, #0c0d12 60%, #090a0e 100%)}
+.life-wrap{display:flex;flex-direction:column;height:calc(100vh - var(--nh) - env(safe-area-inset-bottom,0px));min-height:480px}
+.life-top{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:max(12px,calc(env(safe-area-inset-top,0px) + 6px)) 16px 6px}
+.life-title{font-size:19px;font-weight:800;letter-spacing:-.3px;color:#EDEAE0}
+.life-chips{display:flex;align-items:center;gap:6px}
+.life-chip{display:inline-flex;align-items:center;justify-content:center;width:34px;height:34px;border-radius:50%;background:rgba(255,255,255,.05);border:1.5px solid transparent;cursor:pointer;padding:0;transition:transform .12s,border-color .15s;font-size:16px}
+.life-chip.on{border-color:color-mix(in srgb,#E8C54A 70%,transparent);background:rgba(232,197,74,.12)}
+.life-chip:active{transform:scale(.92)}
+.life-chip-fam.on{border-color:#E06A8A;background:rgba(224,106,138,.14)}
+.life-back{width:34px;height:34px;border-radius:12px;background:rgba(255,255,255,.06);border:none;color:#EDEAE0;font-size:24px;line-height:1;cursor:pointer;display:flex;align-items:center;justify-content:center}
+.life-back:active{transform:scale(.92)}
+.life-stage{flex:1;min-height:0;position:relative;touch-action:none}
+#life-svg{width:100%;height:100%;display:block;overflow:visible}
+.life-hint{text-align:center;font-size:12px;color:rgba(237,234,224,.45);padding:4px 24px max(14px,env(safe-area-inset-bottom,0px));line-height:1.4;min-height:18px}
+
+/* SVG node bits (units = viewBox 0..100) */
+.life-edge{stroke:#9b96a8}
+.life-node{cursor:pointer}
+.life-breathe{animation:lifeBreathe 4.6s ease-in-out infinite}
+@keyframes lifeBreathe{0%,100%{transform:scale(1)}50%{transform:scale(1.04)}}
+.life-core,.life-glow{transform-box:fill-box;transform-origin:center}
+.life-emoji{font-size:4.6px;text-anchor:middle;dominant-baseline:central}
+.life-add-plus{font-size:6px;font-weight:700;fill:#EDEAE0;text-anchor:middle;dominant-baseline:central;opacity:.7}
+.life-cap{font-size:3.1px;font-weight:700;fill:#EDEAE0;text-anchor:middle;dominant-baseline:central;opacity:.9}
+.life-cap-hub{font-size:3.4px;opacity:.95}
+.life-sub{font-size:2.5px;fill:#EDEAE0;text-anchor:middle;dominant-baseline:central;opacity:.5}
+.life-ripple{animation:lifeRipple .7s ease-out forwards;transform-box:fill-box;transform-origin:center}
+@keyframes lifeRipple{0%{transform:scale(1);stroke-opacity:.9}100%{transform:scale(3.2);stroke-opacity:0}}
+@media (prefers-reduced-motion: reduce){.life-breathe{animation:none}}
+
+/* Life detail / forms */
+.life-d{display:flex;flex-direction:column;align-items:center;text-align:center}
+.life-d-emoji{width:64px;height:64px;border-radius:20px;display:flex;align-items:center;justify-content:center;font-size:32px;margin-bottom:10px}
+.life-d-name{font-size:20px;font-weight:800;color:var(--tx)}
+.life-d-type{font-size:12px;color:var(--ht);margin-top:2px;text-transform:capitalize}
+.life-d-stats{display:flex;gap:30px;margin:16px 0}
+.life-d-stat{display:flex;flex-direction:column;gap:2px}
+.life-d-v{font-size:26px;font-weight:800;color:var(--tx);line-height:1}
+.life-d-l{font-size:11px;color:var(--ht)}
 .wd-hd{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:4px 0 16px;border-bottom:1px solid var(--bd);margin-bottom:18px}
 .wd-iconbtn{background:none;border:none;color:var(--tx);cursor:pointer;padding:8px;border-radius:11px;display:inline-flex;align-items:center;justify-content:center;transition:background .15s,transform .12s}
 .wd-iconbtn:active{background:var(--cd);transform:scale(.94)}
@@ -1142,18 +1185,18 @@ body.no-scroll .mx{touch-action:pan-y}
 <!-- Load JS -->
 <!-- Load order: data (lang.js) → engines (theme.js, auth.js, weather.js) → main (app.js). -->
 <!-- All share globals; extracted modules use `var`/`function` declarations so they're true window-scope. -->
-<script src="/static/lang.js?v=219"></script>
-<script src="/static/theme.js?v=219"></script>
-<script src="/static/auth.js?v=219"></script>
-<script src="/static/weather.js?v=219"></script>
-<script src="/static/words.js?v=219"></script>
-<script src="/static/plants.js?v=219"></script>
-<script src="/static/trainings.js?v=219"></script>
-<script src="/static/money.js?v=219"></script>
-<script src="/static/tasks.js?v=219"></script>
-<script src="/static/cooking.js?v=219"></script>
-<script src="/static/news.js?v=219"></script>
-<script src="/static/settings.js?v=219"></script>
-<script src="/static/app.js?v=219"></script>
+<script src="/static/lang.js?v=220"></script>
+<script src="/static/theme.js?v=220"></script>
+<script src="/static/auth.js?v=220"></script>
+<script src="/static/weather.js?v=220"></script>
+<script src="/static/words.js?v=220"></script>
+<script src="/static/plants.js?v=220"></script>
+<script src="/static/trainings.js?v=220"></script>
+<script src="/static/money.js?v=220"></script>
+<script src="/static/tasks.js?v=220"></script>
+<script src="/static/cooking.js?v=220"></script>
+<script src="/static/news.js?v=220"></script>
+<script src="/static/settings.js?v=220"></script>
+<script src="/static/app.js?v=220"></script>
 </body>
 </html>

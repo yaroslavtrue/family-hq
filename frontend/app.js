@@ -158,7 +158,9 @@ leaf:'<path d="M11 20A7 7 0 0 1 9.8 6.1C15.5 5 17 4.48 19 2c1 2 2 4.18 2 8 0 5.5
 // chef = fork + knife (utensils). Used in the Cooking tab nav + hamburger.
 chef:'<path d="M3 2v7c0 1.1.9 2 2 2h0v11"/><path d="M7 2v7c0 1.1-.9 2-2 2"/><path d="M7 2v20"/><path d="M21 15V2a5 5 0 0 0-3 4.5V12h3Z"/><path d="M18 15v7"/>',
 // camera = source-chooser modal icon for the Plants Update flow (v8.49.4)
-camera:'<path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3Z"/><circle cx="12" cy="13" r="3.5"/>'
+camera:'<path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3Z"/><circle cx="12" cy="13" r="3.5"/>',
+// life = constellation of connected nodes (Life tab, v8.51.0)
+life:'<circle cx="12" cy="5" r="2"/><circle cx="5" cy="17" r="2"/><circle cx="19" cy="17" r="2"/><circle cx="12" cy="13" r="2.4"/><path d="M12 7.2v3.4M10.3 14.4 6.4 16.2M13.7 14.4l3.9 1.8"/>'
 };
 // Wrappers — pre-built default sizes for the most-used icons
 const I={
@@ -380,7 +382,8 @@ async function aSu(t,pid){var i=document.getElementById("si-"+t+"-"+pid);if(!i||
 // NAVIGATION — customizable per-member bottom nav (v8.47.0) + hamburger
 // ═══════════════════════════════════════════════════════════
 // TT — tab title/subtitle catalog. Used by go() to set the header per tab.
-const TT={home:{i:"home",t:"Family HQ",s:"Everything at a glance"},tasks:{i:"clipboard",t:"Tasks",s:"Manage & assign"},shop:{i:"cart",t:"Shopping",s:"Shared list"},trainings:{i:"dumbbell",t:"Trainings",s:"Workouts & progress"},words:{i:"book",t:"Words",s:"Vocabulary learning"},plants:{i:"flower",t:"Plants",s:"Care & watering"},cooking:{i:"chef",t:"Cooking",s:"Dishes & ingredient costs"},money:{i:"dollar",t:"Money",s:"Budget & subs"},profile:{i:"user",t:"Profile",s:"Personal stats"},events:{i:"clock",t:"Events",s:"Schedule"},birthdays:{i:"cake",t:"Birthdays",s:"Never forget"},clean:{i:"broom",t:"Cleaning",s:"Apartment zones"},settings:{i:"cog",t:"Settings",s:"Customize"},subs:{i:"card",t:"Subscriptions",s:"Monthly payments"}};
+const TT={home:{i:"home",t:"Family HQ",s:"Everything at a glance"},tasks:{i:"clipboard",t:"Tasks",s:"Manage & assign"},shop:{i:"cart",t:"Shopping",s:"Shared list"},trainings:{i:"dumbbell",t:"Trainings",s:"Workouts & progress"},words:{i:"book",t:"Words",s:"Vocabulary learning"},plants:{i:"flower",t:"Plants",s:"Care & watering"},cooking:{i:"chef",t:"Cooking",s:"Dishes & ingredient costs"},
+life:{i:"life",t:"Life",s:"Your living balance"},money:{i:"dollar",t:"Money",s:"Budget & subs"},profile:{i:"user",t:"Profile",s:"Personal stats"},events:{i:"clock",t:"Events",s:"Schedule"},birthdays:{i:"cake",t:"Birthdays",s:"Never forget"},clean:{i:"broom",t:"Cleaning",s:"Apartment zones"},settings:{i:"cog",t:"Settings",s:"Customize"},subs:{i:"card",t:"Subscriptions",s:"Monthly payments"}};
 
 // NV_ALL — every tab that's eligible for the bottom nav. Per-icon `sv` field
 // holds the same inline SVG as old NV; for new tabs we fall back to icon().
@@ -395,6 +398,7 @@ const NV_ALL=[
   // consistent with the same glyphs the hamburger menu uses for these features.
   {id:"shop",       icon_name:"cart"},
   {id:"cooking",    icon_name:"chef"},
+  {id:"life",       icon_name:"life"},
   {id:"trainings",  icon_name:"dumbbell"},
   {id:"plants",     icon_name:"flower"},
   {id:"birthdays",  icon_name:"cake"},
@@ -437,7 +441,10 @@ function _buildNav(){
 }
 _buildNav();
 
-function go(tabId){tab=tabId;filt=null;searchQ="";menuOpen=false;
+function go(tabId){
+// Stop the Life graph RAF when leaving the tab (frees the animation loop).
+if(tab==="life"&&tabId!=="life"&&typeof lifeUnmount==="function")lifeUnmount();
+tab=tabId;filt=null;searchQ="";menuOpen=false;
 document.getElementById("menu-overlay").classList.remove("open");
 var si=document.getElementById("si");if(si)si.value="";
 document.querySelectorAll(".ni").forEach(function(e){e.classList.toggle("a",e.dataset.t===tabId)});
@@ -457,11 +464,13 @@ if(tabId==="tasks"&&taskTab&&taskTab!=="active"){
 // resolves to the global i18n helper function. noFab.indexOf(function) → -1 →
 // FAB never hidden; t==="words" → false → `words-mode` class never set → Words
 // tab loses its full-screen takeover and scrolls vertically.
-var noFab=["home","settings","clean","events","birthdays","subs","profile","trainings","words","plants"];
+var noFab=["home","settings","clean","events","birthdays","subs","profile","trainings","words","plants","life"];
 var hideFab=noFab.indexOf(tabId)>=0||(tabId==="tasks"&&taskTab==="events");
 document.getElementById("fab").classList.toggle("hidden",hideFab);
-// Words mode renders its own header — hide the global one
+// Words mode renders its own header — hide the global one. Life does the same:
+// full-bleed immersive graph canvas with its own in-canvas chrome.
 document.body.classList.toggle("words-mode",tabId==="words");
+document.body.classList.toggle("life-mode",tabId==="life");
 if(tabId==="home")_firstHomeRender=true;
 if(tabId==="events")_evtsFirstRender=true;
 if(tabId==="profile")_profStats=null;
@@ -471,7 +480,33 @@ if(tabId==="cooking"){
   // Lazy first-load: fetch dishes if we haven't yet (or after a saved edit cleared them).
   A("GET","/api/dishes").then(function(r){if(r&&r.dishes){D.dishes=r.dishes;if(tab==="cooking")ren()}});
 }
+if(tabId==="life"){
+  // Lazy-load the graph engine on first Life visit — keeps initial app load light
+  // (the SVG engine + physics shouldn't ship to users who never open Life).
+  // `had` guards against a double-render: if life.js was already loaded, the
+  // main ren() below handles it; the callback only fires the re-render on the
+  // very first load (when rLife wasn't available during that ren()).
+  var _hadLife=(typeof rLife==="function");
+  _ensureLife(function(){ if(!_hadLife && tab==="life") ren(); });
+}
 ren();hp("sel")}
+
+// Dynamic <script> loader for life.js — loaded once, on demand.
+var _lifeLoading=false,_lifeReady=(typeof rLife==="function");
+function _ensureLife(cb){
+  if(_lifeReady||typeof rLife==="function"){_lifeReady=true;cb&&cb();return}
+  if(_lifeLoading){var iv=setInterval(function(){if(typeof rLife==="function"){clearInterval(iv);_lifeReady=true;cb&&cb()}},60);return}
+  _lifeLoading=true;
+  // Reuse the cache-buster the page was loaded with so life.js stays in lockstep
+  // with the rest of the bundle (derived from app.js's own <script src> ?v=N).
+  var ver="1";
+  try{var m=(document.querySelector('script[src*="/static/app.js"]')||{}).src||"";var mm=m.match(/[?&]v=([^&]+)/);if(mm)ver=mm[1]}catch(e){}
+  var s=document.createElement("script");
+  s.src="/static/life.js?v="+ver;
+  s.onload=function(){_lifeReady=true;_lifeLoading=false;cb&&cb()};
+  s.onerror=function(){_lifeLoading=false;console.error("[life] failed to load life.js")};
+  document.head.appendChild(s);
+}
 
 // Hamburger menu
 function toggleMenu(){menuOpen=!menuOpen;document.getElementById("menu-overlay").classList.toggle("open",menuOpen)}
@@ -526,7 +561,7 @@ case"home":c.innerHTML=rH();if(_firstHomeRender){_firstHomeRender=false;FX.count
 case"shop":c.innerHTML=rSh();break;case"money":c.innerHTML=rMoney();break;
 case"trainings":c.innerHTML=rTrain();break;
 case"events":c.innerHTML=rEvts();break;case"birthdays":c.innerHTML=rBdays();break;
-case"clean":c.innerHTML=rC();break;case"settings":c.innerHTML=rSet();break;case"subs":c.innerHTML=rSubsList();break;case"profile":c.innerHTML=rProfile();break;case"words":c.innerHTML=rWords();break;case"plants":c.innerHTML=rPlants();break;case"cooking":c.innerHTML=rCooking();break}}
+case"clean":c.innerHTML=rC();break;case"settings":c.innerHTML=rSet();break;case"subs":c.innerHTML=rSubsList();break;case"profile":c.innerHTML=rProfile();break;case"words":c.innerHTML=rWords();break;case"plants":c.innerHTML=rPlants();break;case"cooking":c.innerHTML=rCooking();break;case"life":c.innerHTML=(typeof rLife==="function"?rLife():'');break}}
 function sB(t,n){var e=document.getElementById("b-"+t);if(!e)return;if(n>0){e.textContent=n;e.classList.remove("hidden")}else e.classList.add("hidden")}
 
 // Hamburger menu — dynamically rendered with counters.
@@ -558,6 +593,7 @@ money:     {ic:"dollar"},
 profile:   {ic:"user"},
 shop:      {ic:"cart",      cntKey:"shop"},
 cooking:   {ic:"chef"},
+life:      {ic:"life"},
 trainings: {ic:"dumbbell"},
 plants:    {ic:"flower",    cntKey:"plants"},
 birthdays: {ic:"cake",      cntKey:"birthdays"},
@@ -565,7 +601,7 @@ clean:     {ic:"broom",     cntKey:"clean"},
 subs:      {ic:"card",      cntKey:"subs"},
 settings:  {ic:"cog"},
 };
-var HM_CORE=["shop","cooking","trainings","plants","birthdays","clean","subs","tasks","words","money","profile","home"];
+var HM_CORE=["shop","cooking","life","trainings","plants","birthdays","clean","subs","tasks","words","money","profile","home"];
 // Tabs currently shown in the bottom nav — exclude them here so we don't duplicate.
 var inNav={};_currentNavIds().forEach(function(id){inNav[id]=true});
 var rendered=[];
