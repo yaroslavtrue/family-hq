@@ -3960,7 +3960,9 @@ def life_node_override(area_id: str, body: NodeOverride, owner: str | None = Non
 
 
 # ─── Debug & Serve ───────────────────────────────────────────────────────
-APP_VERSION = "v8.51.2"
+APP_VERSION = "v8.51.3"
+# v8.51.3 — Life: stage height measured from the real nav position (no black gap
+#           at the bottom on Telegram WebView's dynamic viewport).
 # v8.51.2 — Life: full-bleed canvas (dropped the inner panel frame) + elliptical
 #           node layout that fills the portrait stage (no more letterbox air).
 # v8.51.1 — Life polish: avatar in personal hub, two orbiting avatars for family,

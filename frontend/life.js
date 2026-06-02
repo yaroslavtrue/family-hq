@@ -50,6 +50,9 @@ function lifeMount(){
   _lifeSizeStage();
   _lifeView = "constellation"; _lifeAreaId = null;
   _lifeLoadSummary();
+  // Telegram WebView can finalize its viewport a beat after mount — recompute
+  // once it settles so the stage fills cleanly with no black gap at the bottom.
+  setTimeout(function(){ if(tab==="life") _lifeRelayout() }, 280);
 }
 
 function lifeUnmount(){
@@ -108,12 +111,14 @@ function _lifeAvatarSvg(m, cx, cy, r){
 // Runs on mount + resize (header height varies by device, so measure, don't guess).
 function _lifeSizeStage(){
   var st = document.querySelector(".life-stage"); if(!st) return;
-  var navH = parseInt(getComputedStyle(document.documentElement).getPropertyValue("--nh")) || 64;
-  var sb = parseInt(getComputedStyle(document.body).getPropertyValue("padding-bottom")) || 0;
-  var top = st.getBoundingClientRect().top;
-  // Full-bleed: stage fills right down to the nav. The hint floats as an overlay
-  // at the bottom of the stage (no separate flow space needed).
-  var h = window.innerHeight - top - navH - sb;
+  // Measure the ACTUAL rendered positions of the stage top and the nav top —
+  // this avoids fragile --nh + safe-area math (Telegram WebView's dynamic
+  // viewport makes window.innerHeight unreliable, leaving a black gap). The
+  // stage fills exactly from its top down to where the nav begins.
+  var stTop = st.getBoundingClientRect().top;
+  var nav = document.querySelector(".nv");
+  var navTop = nav ? nav.getBoundingClientRect().top : window.innerHeight;
+  var h = navTop - stTop;
   st.style.height = Math.max(300, h) + "px";
 }
 var _lifeResizeBound = null;
