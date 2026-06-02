@@ -3960,7 +3960,9 @@ def life_node_override(area_id: str, body: NodeOverride, owner: str | None = Non
 
 
 # ─── Debug & Serve ───────────────────────────────────────────────────────
-APP_VERSION = "v8.51.4"
+APP_VERSION = "v8.51.5"
+# v8.51.5 — Life: node ring is now a true circle (rx==ry) centred with symmetric
+#           air top/bottom, instead of a vertically-stretched ellipse.
 # v8.51.4 — Life: filter chips overlay the canvas (no top black strip); more air
 #           around edge nodes; Phase 1b — glowing BOND line between the two
 #           family avatars (brightness + closeness scale with bond strength).

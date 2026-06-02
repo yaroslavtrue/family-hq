@@ -179,9 +179,11 @@ function _lifeCy(){ return _lifeVbH/2; }
 // for node radius + caption).
 function _lifeRing(n, startDeg){
   var cx = _lifeCx(), cy = _lifeCy();
-  // Leave generous air top/bottom (ry) and sides (rx) so edge nodes + captions
-  // breathe instead of crowding the screen edges.
-  var rx = 33, ry = Math.max(22, _lifeVbH/2 - 24);
+  // True CIRCLE (rx == ry in user units → visually round since scale is uniform).
+  // The constellation sits centred with symmetric air above/below instead of
+  // stretching to the edges. Clamped so it never overflows a short stage.
+  var R = Math.min(33, _lifeVbH/2 - 16);
+  var rx = R, ry = R;
   var out = [], start = (startDeg==null? -90 : startDeg) * Math.PI/180;
   for(var i=0;i<n;i++){
     var ang = start + i*(2*Math.PI/Math.max(1,n));
