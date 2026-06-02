@@ -25,7 +25,7 @@ def test_create_log_and_summary_brightness(client_as):
     assert health["habit_count"] == 1
     assert health["brightness"] == 0.0
     assert s["scope"] == "personal"
-    assert len(s["areas"]) == 6
+    assert len(s["areas"]) == 8
 
     # Log today → done_today True, streak 1, consistency 1.0 (1 scheduled day, 1 done).
     r = client.post(f"/api/life/habits/{hid}/log").json()
@@ -46,23 +46,23 @@ def test_create_log_and_summary_brightness(client_as):
 def test_node_override_set_and_clear(client_as):
     client = client_as(user_id=801, family_id=1)
 
-    # Override the 'focus' node name + emoji.
-    r = client.put("/api/life/nodes/focus", json={"name": "Deep Work", "emoji": "🛠"})
+    # Override the 'career' node name + emoji.
+    r = client.put("/api/life/nodes/career", json={"name": "My Work", "emoji": "🛠"})
     assert r.status_code == 200, r.text
 
     s = client.get("/api/life/summary").json()
-    focus = next(a for a in s["areas"] if a["id"] == "focus")
-    assert focus["name"] == "Deep Work"
-    assert focus["emoji"] == "🛠"
-    assert focus["customized"] is True
+    career = next(a for a in s["areas"] if a["id"] == "career")
+    assert career["name"] == "My Work"
+    assert career["emoji"] == "🛠"
+    assert career["customized"] is True
 
-    # Clear override → falls back to code default.
-    r = client.put("/api/life/nodes/focus", json={"name": "", "emoji": ""})
+    # Clear override → falls back to code default (English for a user with no lang).
+    r = client.put("/api/life/nodes/career", json={"name": "", "emoji": ""})
     assert r.json().get("cleared") is True
     s = client.get("/api/life/summary").json()
-    focus = next(a for a in s["areas"] if a["id"] == "focus")
-    assert focus["name"] == "Focus"
-    assert focus["customized"] is False
+    career = next(a for a in s["areas"] if a["id"] == "career")
+    assert career["name"] == "Career"
+    assert career["customized"] is False
 
 
 def test_family_scope_uses_relationship_areas(client_as):

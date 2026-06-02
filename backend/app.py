@@ -3648,13 +3648,18 @@ def dishes_image_get(did: int):
 # To re-theme the six nodes later, edit these constants — nothing else depends
 # on the specific ids beyond the override/habit rows that reference them.
 
+# Personal life areas (v8.52.3). Bilingual names — the display name follows the
+# VIEWER's UI language (name_en / name_ru). `health` keeps its id so any habits
+# created under the old set survive.
 PERSONAL_AREAS = [
-    {"id": "focus",     "name": "Focus",     "emoji": "🎯", "color": "#8B7BE8"},
-    {"id": "energy",    "name": "Energy",    "emoji": "⚡", "color": "#E8A24A"},
-    {"id": "health",    "name": "Health",    "emoji": "🌿", "color": "#5FB37A"},
-    {"id": "mind",      "name": "Mind",      "emoji": "🧠", "color": "#6B8FD4"},
-    {"id": "learning",  "name": "Learning",  "emoji": "📚", "color": "#C77DBB"},
-    {"id": "happiness", "name": "Happiness", "emoji": "😊", "color": "#E8C54A"},
+    {"id": "fun",      "name_en": "Fun",         "name_ru": "Развлечения",  "emoji": "🎉",  "color": "#E8714A"},
+    {"id": "rest",     "name_en": "Rest",        "name_ru": "Отдых",        "emoji": "🛋️", "color": "#6BB0D4"},
+    {"id": "hobby",    "name_en": "Hobby",       "name_ru": "Хобби",        "emoji": "🎨",  "color": "#C77DBB"},
+    {"id": "friends",  "name_en": "Friends",     "name_ru": "Друзья",       "emoji": "👥",  "color": "#E8A24A"},
+    {"id": "health",   "name_en": "Health",      "name_ru": "Здоровье",     "emoji": "🌿",  "color": "#5FB37A"},
+    {"id": "selfdev",  "name_en": "Self-growth", "name_ru": "Саморазвитие", "emoji": "📈",  "color": "#8B7BE8"},
+    {"id": "career",   "name_en": "Career",      "name_ru": "Карьера",      "emoji": "💼",  "color": "#6B8FD4"},
+    {"id": "family",   "name_en": "Family",      "name_ru": "Семья",        "emoji": "🏡",  "color": "#E8C54A"},
 ]
 RELATIONSHIP_AREAS = [
     {"id": "rel_time",      "name": "Time Together", "emoji": "🕯", "color": "#E8A24A"},
@@ -3687,6 +3692,21 @@ def _life_resolve_owner(owner: str | None, user: dict, db) -> str:
 
 def _life_areas_for(owner: str) -> list[dict]:
     return RELATIONSHIP_AREAS if owner == "family" else PERSONAL_AREAS
+
+
+def _life_area_name(area: dict, lang: str = "en") -> str:
+    """Display name for an area in the viewer's language. Personal areas carry
+    name_en/name_ru; relationship areas (untouched) still use a single `name`."""
+    if lang == "ru" and area.get("name_ru"):
+        return area["name_ru"]
+    if area.get("name_en"):
+        return area["name_en"]
+    return area.get("name") or area["id"]
+
+
+def _life_user_lang(db, user_id: int) -> str:
+    row = db.execute("SELECT lang FROM family_members WHERE user_id=?", (user_id,)).fetchone()
+    return (row["lang"] if row and row["lang"] else "en")
 
 
 def _life_due_on(freq, d) -> bool:
@@ -3778,6 +3798,7 @@ def life_summary(owner: str | None = None, user=Depends(get_uf), db=Depends(get_
     f = user["family_id"]
     owner = _life_resolve_owner(owner, user, db)
     areas = _life_areas_for(owner)
+    ulang = _life_user_lang(db, user["id"])  # display names follow the viewer's language
     # Override rows for this (family, owner).
     ov = {r["area_id"]: r for r in db.execute(
         "SELECT area_id, name, emoji FROM node_overrides WHERE family_id=? AND owner=?",
@@ -3792,7 +3813,7 @@ def life_summary(owner: str | None = None, user=Depends(get_uf), db=Depends(get_
         o = ov.get(a["id"])
         out.append({
             "id": a["id"],
-            "name": (o["name"] if o and o["name"] else a["name"]),
+            "name": (o["name"] if o and o["name"] else _life_area_name(a, ulang)),
             "emoji": (o["emoji"] if o and o["emoji"] else a["emoji"]),
             "color": a["color"],
             "brightness": brightness,
@@ -3967,11 +3988,11 @@ def life_node_override(area_id: str, body: NodeOverride, owner: str | None = Non
 _LIFE_SUGGEST_MODEL = "claude-haiku-4-5-20251001"
 
 
-def _life_resolved_area_name(db, family_id: int, owner: str, area: dict) -> str:
+def _life_resolved_area_name(db, family_id: int, owner: str, area: dict, lang: str = "en") -> str:
     row = db.execute(
         "SELECT name FROM node_overrides WHERE family_id=? AND owner=? AND area_id=?",
         (family_id, owner, area["id"])).fetchone()
-    return (row["name"] if row and row["name"] else area["name"])
+    return (row["name"] if row and row["name"] else _life_area_name(area, lang))
 
 
 class LifeSuggestBody(BaseModel):
@@ -3990,12 +4011,11 @@ async def life_suggest(body: LifeSuggestBody, user=Depends(get_uf), db=Depends(g
     area = next((a for a in _life_areas_for(owner) if a["id"] == body.area_id), None)
     if not area:
         raise HTTPException(404)
-    area_name = _life_resolved_area_name(db, f, owner, area)
+    ulang = _life_user_lang(db, user["id"])
+    area_name = _life_resolved_area_name(db, f, owner, area, ulang)
     existing = [r["name"] for r in db.execute(
         "SELECT name FROM habits WHERE family_id=? AND owner=? AND area_id=? AND archived=0",
         (f, owner, body.area_id)).fetchall()]
-    lang_row = db.execute("SELECT lang FROM family_members WHERE user_id=?", (user["id"],)).fetchone()
-    ulang = (lang_row["lang"] if lang_row and lang_row["lang"] else "en")
     lang_name = "Russian" if ulang == "ru" else "English"
 
     scope_desc = (
@@ -4057,7 +4077,9 @@ async def life_suggest(body: LifeSuggestBody, user=Depends(get_uf), db=Depends(g
 
 
 # ─── Debug & Serve ───────────────────────────────────────────────────────
-APP_VERSION = "v8.52.2"
+APP_VERSION = "v8.52.3"
+# v8.52.3 — Life: new default personal areas (8): Fun/Rest/Hobby/Friends/Health/
+#           Self-growth/Career/Family. Bilingual names (follow viewer's lang).
 # v8.52.2 — Life: Add/Ideas seeds hidden by default — they grow out of the hub
 #           centre only in edit mode. Area shows just its habits otherwise.
 # v8.52.1 — Life: iOS-style edit mode (long-press canvas → nodes wiggle → tap to
