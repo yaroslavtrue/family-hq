@@ -2907,6 +2907,7 @@ def _plant_view(p: dict) -> dict:
         "status": _plant_status(p),
         "watered_today": _watered_today(p),
         "voice_overrides": voice_ov,
+        "stage": p.get("stage") or None,
         "has_image": os.path.isfile(os.path.join(PLANTS_IMG_DIR, f"{p['id']}.jpg")),
     }
 
@@ -2935,14 +2936,15 @@ def _create_plant_from_info(db, family_id: int, user_id: int, info: dict, custom
     Returns the freshly-created plant view."""
     info = _apply_species_cache(db, info)
     tips_json = _json_mod.dumps(info.get("care_tips") or [], ensure_ascii=False)
+    stage = info.get("stage") if info.get("stage") in ("seed", "sprout", "young", "mature") else None
     cur = db.execute(
-        """INSERT INTO plants (family_id, custom_name, species, latin_name, water_interval_days, light, care_tips, added_by)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+        """INSERT INTO plants (family_id, custom_name, species, latin_name, water_interval_days, light, care_tips, added_by, stage)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
         (family_id, (custom_name or "").strip(),
          info["species"].strip(), info["latin_name"].strip(),
          int(info.get("water_interval_days") or 7),
          (info.get("light") or "").strip(),
-         tips_json, user_id))
+         tips_json, user_id, stage))
     pid = cur.lastrowid
     os.makedirs(PLANTS_IMG_DIR, exist_ok=True)
     with open(os.path.join(PLANTS_IMG_DIR, f"{pid}.jpg"), "wb") as f:
@@ -3046,6 +3048,7 @@ class PlantEdit(BaseModel):
     light: str | None = None
     care_tips: list[str] | None = None
     notes: str | None = None
+    stage: str | None = None  # seed | sprout | young | mature
     voice_overrides: dict | None = None  # {ok?, soon?, thirsty?} — any subset
 
 
@@ -3055,6 +3058,8 @@ def plants_update(pid: int, body: PlantEdit, user=Depends(get_uf), db=Depends(ge
     row = db.execute("SELECT * FROM plants WHERE id=? AND family_id=?", (pid, user["family_id"])).fetchone()
     if not row: raise HTTPException(404)
     payload = body.dict(exclude_unset=True)
+    if "stage" in payload and payload["stage"] not in ("seed", "sprout", "young", "mature", None):
+        del payload["stage"]
     if "care_tips" in payload and payload["care_tips"] is not None:
         payload["care_tips"] = _json_mod.dumps(payload["care_tips"], ensure_ascii=False)
     if "voice_overrides" in payload:
@@ -4185,7 +4190,10 @@ async def life_suggest(body: LifeSuggestBody, user=Depends(get_uf), db=Depends(g
 
 
 # ─── Debug & Serve ───────────────────────────────────────────────────────
-APP_VERSION = "v8.52.8"
+APP_VERSION = "v8.53.0"
+# v8.53.0 — Plants: AI now identifies SEEDS/pits/cuttings/sprouts (avocado pit in
+#           water etc.) instead of rejecting them, with grow-from-stage tips.
+#           Schema v32 (plants.stage) + stage badge + editable stage.
 # v8.52.8 — Life: idle wiggle now actually visible (±1.5°); smooth edit-mode
 #           transition — nodes spring from old spots to new, "+" grows from centre.
 # v8.52.7 — Life: gentle idle wiggle on area/habit nodes (much subtler than edit

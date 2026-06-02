@@ -90,7 +90,9 @@ function rPlants(){
     if(!imgUrl)h+='<div class="pl-card-noimg">🪴</div>';
     h+='<div class="pl-card-over">';
     h+='<div class="pl-card-top">';
-    h+='<div class="pl-card-titles"><div class="pl-card-name"><span>'+es(cur.custom_name||cur.species||"Plant")+'</span><button class="bi" onclick="_plOpenEdit('+cur.id+')" aria-label="Edit" style="color:#fff;opacity:.8">'+I.ed+'</button></div><div class="pl-card-sub">'+es(cur.latin_name||cur.species||"")+'</div></div>';
+    var _stMap={seed:"🌰",sprout:"🌱",young:"🪴"}; // mature = no badge (it's the end state)
+    var _stB=(cur.stage&&_stMap[cur.stage])?'<span class="pl-stage">'+_stMap[cur.stage]+' '+tr("pl_stage_"+cur.stage)+'</span>':'';
+    h+='<div class="pl-card-titles"><div class="pl-card-name"><span>'+es(cur.custom_name||cur.species||"Plant")+'</span><button class="bi" onclick="_plOpenEdit('+cur.id+')" aria-label="Edit" style="color:#fff;opacity:.8">'+I.ed+'</button></div><div class="pl-card-sub">'+es(cur.latin_name||cur.species||"")+_stB+'</div></div>';
     h+='<div class="pl-pill" style="background:'+_plStatusColor(cur.status)+'"><span class="pl-pill-dot"></span>'+_plStatusLabel(cur.status)+'</div>';
     h+='</div>';
     // Speech bubble (text only — no mascot)
@@ -662,6 +664,13 @@ function _plOpenEdit(pid){
   h+='<div class="lb" style="margin-top:12px">'+tr("pl_species")+'</div><input class="inp" id="ple-species" value="'+es(p.species||"")+'">';
   h+='<div class="lb" style="margin-top:12px">'+tr("pl_latin")+'</div><input class="inp" id="ple-latin" value="'+es(p.latin_name||"")+'">';
   h+='<div class="dr"><div><div class="dl">'+tr("pl_water_every_days")+'</div><input class="inp" type="number" min="1" max="60" id="ple-int" value="'+(p.water_interval_days||7)+'"></div><div><div class="dl">'+tr("pl_light")+'</div><input class="inp" id="ple-light" value="'+es(p.light||"")+'"></div></div>';
+  // Growth stage — bump it as the plant matures (seed → sprout → young → mature).
+  window._plStage = p.stage||"";
+  h+='<div class="lb" style="margin-top:12px">'+tr("pl_stage")+'</div><div class="or" id="ple-stage">';
+  [["seed","🌰"],["sprout","🌱"],["young","🪴"],["mature","🌳"]].forEach(function(s){
+    h+='<button class="ob '+(p.stage===s[0]?"s":"")+'" onclick="window._plStage=\''+s[0]+'\';this.parentNode.querySelectorAll(\'.ob\').forEach(function(b){b.classList.remove(\'s\')});this.classList.add(\'s\')">'+s[1]+' '+tr("pl_stage_"+s[0])+'</button>';
+  });
+  h+='</div>';
   h+='<div class="lb" style="margin-top:12px">'+tr("f_notes")+'</div><input class="inp" id="ple-notes" value="'+es(p.notes||"")+'" placeholder="'+tr("pl_notes_placeholder")+'">';
   // Custom voice — speech bubble phrases per status. Any field left empty falls back to bank.
   var vo=p.voice_overrides||{};
@@ -682,6 +691,7 @@ async function _plSaveEdit(pid){
     water_interval_days:parseInt(v("ple-int"))||7,
     light:v("ple-light").trim(),
     notes:v("ple-notes").trim(),
+    stage:window._plStage||null,
     voice_overrides:{ok:v("ple-v-ok").trim(),soon:v("ple-v-soon").trim(),thirsty:v("ple-v-thirsty").trim()}
   };
   if(!body.species||!body.latin_name){toast("Species & Latin name required");return}

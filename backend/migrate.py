@@ -738,6 +738,10 @@ def migrate(db_path):
             );
             CREATE UNIQUE INDEX IF NOT EXISTS idx_life_areas_uq ON life_areas(family_id, owner, area_key);
         """),
+        # v32: Plants — growth stage (seed | sprout | young | mature). Set by the
+        # AI on add (seeds/pits/cuttings now identify instead of being rejected),
+        # editable as the plant grows. NULL = unknown/mature for pre-v32 plants.
+        lambda c: safe_add_col(c, "plants", "stage", "TEXT"),
     ]
 
     for i, mig in enumerate(migrations):

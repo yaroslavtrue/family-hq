@@ -343,6 +343,7 @@ window.LANG = {
     // Plant edit modal
     pl_nickname: "Nickname", pl_species: "Species", pl_latin: "Latin name",
     pl_water_every_days: "Water every (days)", pl_light: "Light",
+    pl_stage: "Growth stage", pl_stage_seed: "Seed", pl_stage_sprout: "Sprout", pl_stage_young: "Young", pl_stage_mature: "Mature",
     pl_notes_placeholder: "Personal reminders, anniversaries…",
     pl_nickname_placeholder: "e.g. Yuki",
     pl_loading: "Loading…", pl_snap_photo: "Snap a photo",
@@ -650,6 +651,7 @@ window.LANG = {
     tr_no_template: "Шаблонов пока нет", tr_no_template_s: "Нажми + чтобы создать",
     pl_nickname: "Имя", pl_species: "Вид", pl_latin: "Латинское название",
     pl_water_every_days: "Поливать каждые (дней)", pl_light: "Свет",
+    pl_stage: "Стадия роста", pl_stage_seed: "Семя", pl_stage_sprout: "Росток", pl_stage_young: "Молодое", pl_stage_mature: "Взрослое",
     pl_notes_placeholder: "Личные напоминания, события…",
     pl_nickname_placeholder: "напр. Юки",
     pl_loading: "Загрузка…", pl_snap_photo: "Сфотографируй",

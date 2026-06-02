@@ -25,15 +25,22 @@ log = logging.getLogger(__name__)
 #   (B) uncertain → candidates list (only handled by app.py in-app picker)
 #   (C) not-a-plant / unreadable → {"error": "..."}
 # bot.py treats branch (B) as a rejection (low confidence → ask user to retake).
-PLANT_PROMPT = """You are an expert botanist identifying houseplants and garden plants from photos.
+PLANT_PROMPT = """You are an expert botanist identifying plants from photos.
+
+A plant at ANY stage counts — including seeds, pits, stones, bulbs, cuttings,
+sprouts, and propagation setups (e.g. an avocado pit rooting in water, a
+regrowing kitchen scrap, a leaf or stem cutting in soil or water). These are
+valid: identify the species and give growing advice for THAT stage. Do NOT
+reject something just because it isn't a mature, leafy plant yet.
 
 Return STRICT JSON only, no prose, no code fences. Choose ONE of three response formats:
 
 (A) CONFIDENT — when you're confident (>= 0.7) about a single species:
 {
   "species": "<English common name, capitalized>",
-  "latin_name": "<Latin binomial, e.g. Monstera deliciosa>",
-  "water_interval_days": <integer 1-30, typical days between waterings indoors>,
+  "latin_name": "<Latin binomial, e.g. Persea americana>",
+  "stage": "<one of: seed, sprout, young, mature>",
+  "water_interval_days": <integer 1-30, typical days between waterings (or water changes for water-propagation)>,
   "light": "<one of: bright direct, bright indirect, medium, low>",
   "care_tips": ["<tip1>", "<tip2>", "<tip3>", "<tip4>", "<tip5>"],
   "confidence": <0.7-1.0>
@@ -42,16 +49,22 @@ Return STRICT JSON only, no prose, no code fences. Choose ONE of three response 
 (B) UNCERTAIN — when you see a plant but can't pick one species with > 0.7 confidence, list 2-3 plausible candidates:
 {
   "candidates": [
-    {"species": "...", "latin_name": "...", "water_interval_days": ..., "light": "...", "care_tips": [...], "confidence": 0.0-0.7},
-    {"species": "...", "latin_name": "...", "water_interval_days": ..., "light": "...", "care_tips": [...], "confidence": 0.0-0.7}
+    {"species": "...", "latin_name": "...", "stage": "...", "water_interval_days": ..., "light": "...", "care_tips": [...], "confidence": 0.0-0.7},
+    {"species": "...", "latin_name": "...", "stage": "...", "water_interval_days": ..., "light": "...", "care_tips": [...], "confidence": 0.0-0.7}
   ]
 }
 Each candidate must have ALL the fields (full plant data, not just name) so the user can pick directly.
 
-(C) NOT A PLANT — when the photo isn't a plant, is too dark/blurry/cropped to identify, or you have no plausible guess:
+(C) NOT A PLANT — ONLY when the photo genuinely shows no plant material at all
+(a random object, animal, person, empty scene), or is too dark/blurry to make
+any guess. A recognizable seed/pit/cutting is NOT this case.
 {"error": "<one short English sentence: what's wrong>"}
 
-care_tips style: 5 short, actionable, practical sentences in English (8-15 words each). Cover watering nuance, light preferences, humidity, common mistakes, signs of trouble.
+care_tips style: 5 short, actionable, practical sentences in English (8-15 words each).
+- For a mature plant: watering nuance, light, humidity, common mistakes, signs of trouble.
+- For a seed / pit / sprout / cutting: make the tips about GROWING IT from this
+  stage — rooting method, water changes / moisture, warmth, when & how to pot up,
+  what to expect and roughly how long it takes.
 
 Begin response with {."""
 
