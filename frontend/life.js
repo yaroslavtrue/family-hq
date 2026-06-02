@@ -307,7 +307,10 @@ function _lifeNodeSvg(n){
       // bond line lives inside the rotating group so it always joins the pair.
       var bond = Math.max(0, Math.min(1, _lifeData.bond || 0));
       var mems = (_lifeData.members || []).slice(0, 2);
-      var orbit = 5.4 - bond*1.4, ar = 4.7, dur = "26s";
+      // Two DISTINCT avatars with a clear gap between them (bond line bridges it)
+      // — they read as two objects "stuck together", not one blob. They drift a
+      // little closer as the bond grows.
+      var orbit = 7.0 - bond*1.0, ar = 4.3, dur = "26s";
       var ax = n.x - orbit, ay = n.y, bx = n.x + orbit, by = n.y;
       var spin = function(cx, cy, dir){
         return '<animateTransform attributeName="transform" type="rotate" from="0 '+cx+' '+cy+'" to="'+dir+'360 '+cx+' '+cy+'" dur="'+dur+'" repeatCount="indefinite"/>';
@@ -384,7 +387,14 @@ function _lifeBindPointer(svg){
     var p = _lifeToSvg(svg, ev.clientX, ev.clientY);
     if(!_lifeDrag.moved){
       var dx=p.x-_lifeDrag.sx, dy=p.y-_lifeDrag.sy;
-      if(dx*dx+dy*dy > 4){ _lifeDrag.moved = true; if(_lifeLongTimer){clearTimeout(_lifeLongTimer);_lifeLongTimer=null;} _lifeStartSim(); }
+      if(dx*dx+dy*dy > 4){
+        _lifeDrag.moved = true;
+        if(_lifeLongTimer){clearTimeout(_lifeLongTimer);_lifeLongTimer=null;}
+        // Freeze the orbit (SMIL) while dragging so the family pair moves as one
+        // rigid object with the centre instead of swinging like satellites.
+        try{ svg.pauseAnimations() }catch(e){}
+        _lifeStartSim();
+      }
     }
     if(_lifeDrag.moved){
       var nd = _lifeNodeById(_lifeDrag.id);
@@ -395,10 +405,11 @@ function _lifeBindPointer(svg){
     if(_lifeLongTimer){ clearTimeout(_lifeLongTimer); _lifeLongTimer=null; }
     if(!_lifeDrag) return;
     var d = _lifeDrag; _lifeDrag = null;
+    try{ svg.unpauseAnimations() }catch(e){}   // resume orbit
     if(d.moved){ _lifeSettleUntil = Date.now()+450; _lifeStartSim(); }
     else { _lifeTapNode(d.id); }
   };
-  svg.onpointercancel = function(){ if(_lifeLongTimer){clearTimeout(_lifeLongTimer);_lifeLongTimer=null;} _lifeDrag=null; };
+  svg.onpointercancel = function(){ if(_lifeLongTimer){clearTimeout(_lifeLongTimer);_lifeLongTimer=null;} try{ svg.unpauseAnimations() }catch(e){} _lifeDrag=null; };
 }
 
 // Convert client coords → SVG user units via the inverse CTM.

@@ -3960,7 +3960,10 @@ def life_node_override(area_id: str, body: NodeOverride, owner: str | None = Non
 
 
 # ─── Debug & Serve ───────────────────────────────────────────────────────
-APP_VERSION = "v8.51.5"
+APP_VERSION = "v8.51.6"
+# v8.51.6 — Life family hub: two avatars now clearly separated (read as two
+#           objects joined by the bond line); orbit freezes (SMIL pause) during
+#           drag so the pair moves as one rigid object with the centre.
 # v8.51.5 — Life: node ring is now a true circle (rx==ry) centred with symmetric
 #           air top/bottom, instead of a vertically-stretched ellipse.
 # v8.51.4 — Life: filter chips overlay the canvas (no top black strip); more air
