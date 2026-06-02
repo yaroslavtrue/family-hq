@@ -382,7 +382,10 @@ body.life-mode .ct{padding:0;background:#0a0b10}
 /* iOS-style edit wiggle (transform-box:view-box → transform-origin is in viewBox units) */
 .life-wiggle{transform-box:view-box;animation:lifeWiggle .32s ease-in-out infinite}
 @keyframes lifeWiggle{0%,100%{transform:rotate(-2.2deg)}50%{transform:rotate(2.2deg)}}
-@media (prefers-reduced-motion: reduce){.life-breathe,.life-wiggle{animation:none}}
+/* Add/Ideas seeds grow out of the hub centre when edit mode opens. */
+.life-grow{animation:lifeGrow .34s cubic-bezier(.2,.85,.3,1.25) both}
+@keyframes lifeGrow{0%{transform:scale(0);opacity:0}60%{opacity:1}100%{transform:scale(1);opacity:1}}
+@media (prefers-reduced-motion: reduce){.life-breathe,.life-wiggle,.life-grow{animation:none}}
 
 /* Life detail / forms */
 .life-d{display:flex;flex-direction:column;align-items:center;text-align:center}
@@ -1210,18 +1213,18 @@ body.no-scroll .mx{touch-action:pan-y}
 <!-- Load JS -->
 <!-- Load order: data (lang.js) → engines (theme.js, auth.js, weather.js) → main (app.js). -->
 <!-- All share globals; extracted modules use `var`/`function` declarations so they're true window-scope. -->
-<script src="/static/lang.js?v=229"></script>
-<script src="/static/theme.js?v=229"></script>
-<script src="/static/auth.js?v=229"></script>
-<script src="/static/weather.js?v=229"></script>
-<script src="/static/words.js?v=229"></script>
-<script src="/static/plants.js?v=229"></script>
-<script src="/static/trainings.js?v=229"></script>
-<script src="/static/money.js?v=229"></script>
-<script src="/static/tasks.js?v=229"></script>
-<script src="/static/cooking.js?v=229"></script>
-<script src="/static/news.js?v=229"></script>
-<script src="/static/settings.js?v=229"></script>
-<script src="/static/app.js?v=229"></script>
+<script src="/static/lang.js?v=230"></script>
+<script src="/static/theme.js?v=230"></script>
+<script src="/static/auth.js?v=230"></script>
+<script src="/static/weather.js?v=230"></script>
+<script src="/static/words.js?v=230"></script>
+<script src="/static/plants.js?v=230"></script>
+<script src="/static/trainings.js?v=230"></script>
+<script src="/static/money.js?v=230"></script>
+<script src="/static/tasks.js?v=230"></script>
+<script src="/static/cooking.js?v=230"></script>
+<script src="/static/news.js?v=230"></script>
+<script src="/static/settings.js?v=230"></script>
+<script src="/static/app.js?v=230"></script>
 </body>
 </html>

@@ -271,7 +271,10 @@ function _lifeBuildArea(){
   _lifeComputeVb();
   var cx = _lifeCx(), cy = _lifeCy();
   var habits = _lifeAreaHabits || [];
-  var n = habits.length + 2; // +1 Add node, +1 ✨ Ideas node
+  // The "+" Add and "✨ Ideas" seeds only appear in edit mode (they grow out of
+  // the centre). In normal mode the area just shows its habits.
+  var withSeeds = _lifeEditMode;
+  var n = habits.length + (withSeeds ? 2 : 0);
   var pts = _lifeRing(n, -90);
   _lifeNodes = [];
   _lifeNodes.push({
@@ -286,11 +289,12 @@ function _lifeBuildArea(){
       label:hb.name, emoji:hb.emoji||"•", bright:hb.consistency, done:done, streak:hb.streak,
     });
   });
-  // Two dashed "seed" nodes in the last slots: Add (+) and Ideas (✨).
-  var ap = pts[n-2];
-  _lifeNodes.push({id:"_add", type:"add", hx:ap.x, hy:ap.y, x:ap.x, y:ap.y, vx:0, vy:0, r:5.4, color:area.color});
-  var ip = pts[n-1];
-  _lifeNodes.push({id:"_ideas", type:"ideas", hx:ip.x, hy:ip.y, x:ip.x, y:ip.y, vx:0, vy:0, r:5.4, color:area.color});
+  if(withSeeds){
+    var ap = pts[n-2];
+    _lifeNodes.push({id:"_add", type:"add", hx:ap.x, hy:ap.y, x:ap.x, y:ap.y, vx:0, vy:0, r:5.4, color:area.color});
+    var ip = pts[n-1];
+    _lifeNodes.push({id:"_ideas", type:"ideas", hx:ip.x, hy:ip.y, x:ip.x, y:ip.y, vx:0, vy:0, r:5.4, color:area.color});
+  }
   _lifeEdges = _lifeNodes.filter(function(nd){return nd.id!=="_hub"}).map(function(nd){return ["_hub", nd.id]});
   _lifeDraw();
   _lifeSetHint(habits.length ? tr("life_hint_area") : tr("life_hint_area_empty"));
@@ -411,6 +415,10 @@ function _lifeNodeSvg(n){
   if(_lifeEditMode && editable){
     cls += " life-wiggle";
     gStyle = ' style="animation-delay:-'+(delay*0.5).toFixed(2)+'s;transform-origin:'+n.x+'px '+n.y+'px"';
+  } else if(isSeed){
+    // Add / Ideas seeds grow out of the hub centre when edit mode opens.
+    cls += " life-grow";
+    gStyle = ' style="transform-box:view-box;transform-origin:'+_lifeCx()+'px '+_lifeCy()+'px"';
   }
   return '<g class="'+cls+'"'+gStyle+' data-id="'+n.id+'">'+
     '<circle class="life-glow life-breathe" '+bd+' cx="'+n.x+'" cy="'+n.y+'" r="'+glowR+'" fill="url(#'+_lifeGradId(n.color)+')"/>'+
