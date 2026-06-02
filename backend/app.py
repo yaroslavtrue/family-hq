@@ -4185,7 +4185,9 @@ async def life_suggest(body: LifeSuggestBody, user=Depends(get_uf), db=Depends(g
 
 
 # ─── Debug & Serve ───────────────────────────────────────────────────────
-APP_VERSION = "v8.52.6"
+APP_VERSION = "v8.52.7"
+# v8.52.7 — Life: gentle idle wiggle on area/habit nodes (much subtler than edit
+#           mode). Wiggle moved to an inner group so it never fights drag/orbit.
 # v8.52.6 — Life: family spheres are now editable too (add/delete), same as
 #           personal. Both scopes seed from constants into life_areas.
 # v8.52.5 — Life: editable personal spheres — add a custom sphere via the growing

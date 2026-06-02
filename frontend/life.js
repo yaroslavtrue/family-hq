@@ -418,23 +418,26 @@ function _lifeNodeSvg(n){
   }
   var doneRing = (n.type==="habit"&&n.done) ? '<circle cx="'+n.x+'" cy="'+n.y+'" r="'+(n.r+1.2)+'" fill="none" stroke="'+n.color+'" stroke-width="0.6" stroke-opacity="0.9"/>' : '';
   var bd = 'style="animation-delay:-'+delay.toFixed(2)+'s"';
-  // iOS-style wiggle on editable nodes while in edit mode. Per-node delay desyncs
-  // them; transform-origin at the node centre keeps the jiggle in place.
-  var editable = (n.type==="area" || n.type==="habit");
-  var cls = "life-node", gStyle = "";
-  if(_lifeEditMode && editable){
-    cls += " life-wiggle";
-    gStyle = ' style="animation-delay:-'+(delay*0.5).toFixed(2)+'s;transform-origin:'+n.x+'px '+n.y+'px"';
-  } else if(isSeed){
-    // Add / Ideas seeds grow out of the hub centre when edit mode opens.
-    cls += " life-grow";
-    gStyle = ' style="transform-box:view-box;transform-origin:'+_lifeCx()+'px '+_lifeCy()+'px"';
-  }
-  return '<g class="'+cls+'"'+gStyle+' data-id="'+n.id+'">'+
+  var content =
     '<circle class="life-glow life-breathe" '+bd+' cx="'+n.x+'" cy="'+n.y+'" r="'+glowR+'" fill="url(#'+_lifeGradId(n.color)+')"/>'+
     '<circle class="life-core life-breathe" '+bd+' cx="'+n.x+'" cy="'+n.y+'" r="'+n.r+'" fill="'+n.color+'" fill-opacity="'+fillOpacity.toFixed(2)+'" stroke="'+n.color+'" stroke-width="'+ringW+'"'+dash+'/>'+
-    doneRing + label + cap +
-  '</g>';
+    doneRing + label + cap;
+  // Wiggle lives on an INNER group so it never fights the outer group's translate
+  // (drag/orbit). Editable nodes wiggle gently at rest (.life-idle) and harder
+  // in edit mode (.life-wiggle); per-node delay desyncs them; transform-origin
+  // at the node centre keeps it in place.
+  var editable = (n.type==="area" || n.type==="habit");
+  if(editable){
+    var wcls = _lifeEditMode ? "life-wiggle" : "life-idle";
+    content = '<g class="'+wcls+'" style="animation-delay:-'+(delay*0.5).toFixed(2)+'s;transform-origin:'+n.x+'px '+n.y+'px">'+content+'</g>';
+  }
+  // Seeds grow out of the hub centre (outer group — they never drag).
+  var outerCls = "life-node", outerStyle = "";
+  if(isSeed){
+    outerCls += " life-grow";
+    outerStyle = ' style="transform-box:view-box;transform-origin:'+_lifeCx()+'px '+_lifeCy()+'px"';
+  }
+  return '<g class="'+outerCls+'"'+outerStyle+' data-id="'+n.id+'">'+content+'</g>';
 }
 
 // ─── Pointer: bg long-press (edit mode) · node tap / drag / long-press ──
