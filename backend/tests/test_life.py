@@ -91,3 +91,14 @@ def test_personal_scope_rejects_relationship_area(client_as):
     client = client_as(user_id=803, family_id=1)
     bad = client.post("/api/life/habits", json={"area_id": "rel_time", "name": "nope"})
     assert bad.status_code == 400
+
+
+def test_suggest_validates_area_and_requires_ai(client_as, app_module):
+    client = client_as(user_id=804, family_id=1)
+    # Cross-scope area id is rejected before any AI call.
+    bad = client.post("/api/life/suggest", json={"area_id": "rel_time"})
+    assert bad.status_code == 400
+    # Valid area but AI not configured → 503 (blank the key on the loaded module).
+    app_module.ANTHROPIC_API_KEY = ""
+    r = client.post("/api/life/suggest", json={"area_id": "health"})
+    assert r.status_code == 503

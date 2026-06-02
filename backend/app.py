@@ -3959,8 +3959,108 @@ def life_node_override(area_id: str, body: NodeOverride, owner: str | None = Non
     return {"ok": True, "name": name, "emoji": emoji}
 
 
+# ─── AI habit suggestions (v8.52.0 · Phase 2) ────────────────────────────
+# Tap "✨ Ideas" inside an area → Claude Haiku suggests a few NEW, concrete
+# habits/rituals tailored to that sphere, aware of what's already there and
+# whether it's a personal-growth area or a relationship dimension. Each
+# suggestion is one tap away from becoming a real node.
+_LIFE_SUGGEST_MODEL = "claude-haiku-4-5-20251001"
+
+
+def _life_resolved_area_name(db, family_id: int, owner: str, area: dict) -> str:
+    row = db.execute(
+        "SELECT name FROM node_overrides WHERE family_id=? AND owner=? AND area_id=?",
+        (family_id, owner, area["id"])).fetchone()
+    return (row["name"] if row and row["name"] else area["name"])
+
+
+class LifeSuggestBody(BaseModel):
+    owner: str | None = None
+    area_id: str
+
+
+@app.post("/api/life/suggest")
+async def life_suggest(body: LifeSuggestBody, user=Depends(get_uf), db=Depends(get_db)):
+    f = user["family_id"]
+    owner = _life_resolve_owner(body.owner, user, db)
+    _life_validate_area(owner, body.area_id)
+    if not ANTHROPIC_API_KEY:
+        raise HTTPException(503, "AI not configured")
+    is_family = (owner == "family")
+    area = next((a for a in _life_areas_for(owner) if a["id"] == body.area_id), None)
+    if not area:
+        raise HTTPException(404)
+    area_name = _life_resolved_area_name(db, f, owner, area)
+    existing = [r["name"] for r in db.execute(
+        "SELECT name FROM habits WHERE family_id=? AND owner=? AND area_id=? AND archived=0",
+        (f, owner, body.area_id)).fetchall()]
+    lang_row = db.execute("SELECT lang FROM family_members WHERE user_id=?", (user["id"],)).fetchone()
+    ulang = (lang_row["lang"] if lang_row and lang_row["lang"] else "en")
+    lang_name = "Russian" if ulang == "ru" else "English"
+
+    scope_desc = (
+        "a dimension of their romantic relationship with their partner (suggest shared rituals the couple can do together)"
+        if is_family else
+        "a personal life area they want to grow"
+    )
+    existing_str = ", ".join(existing) if existing else "(none yet)"
+    system = (
+        f"You are a warm, practical habits coach. The user wants to strengthen \"{area_name}\", which is {scope_desc}. "
+        f"They already have these habits there: {existing_str}. "
+        f"Suggest 4 NEW, small, concrete, actionable habits or rituals that genuinely nurture this area. "
+        f"Do NOT repeat existing ones. Keep each name short (max 4 words), specific, and doable. "
+        f"Write the name and the one-line reason in {lang_name}. "
+        f"Reply with ONLY a JSON array, each item: "
+        f'{{"emoji": "<single emoji>", "name": "<short name>", "type": "build|maintain|reduce", "why": "<one short line>"}}'
+    )
+    try:
+        async with httpx.AsyncClient(timeout=40) as c:
+            r = await c.post("https://api.anthropic.com/v1/messages", headers={
+                "x-api-key": ANTHROPIC_API_KEY,
+                "anthropic-version": "2023-06-01",
+                "content-type": "application/json",
+            }, json={
+                "model": _LIFE_SUGGEST_MODEL,
+                "max_tokens": 600,
+                "system": system,
+                "messages": [{"role": "user", "content": "Suggest habits. JSON array only."}],
+            })
+            data = r.json()
+            text = (data.get("content", [{}])[0].get("text") or "").strip()
+            if text.startswith("```"):
+                text = text.split("\n", 1)[-1].rsplit("```", 1)[0].strip()
+            parsed = _json_mod.loads(text)
+            out = []
+            seen = {e.lower() for e in existing}
+            for it in (parsed or [])[:5]:
+                name = str(it.get("name") or "").strip()[:40]
+                if not name or name.lower() in seen:
+                    continue
+                seen.add(name.lower())
+                htype = it.get("type")
+                if htype not in _VALID_HABIT_TYPES:
+                    htype = "build"
+                out.append({
+                    "emoji": (str(it.get("emoji") or "🌱").strip() or "🌱")[:4],
+                    "name": name,
+                    "type": htype,
+                    "why": str(it.get("why") or "").strip()[:120],
+                })
+            if not out:
+                raise HTTPException(502, "no suggestions")
+            return {"area_id": body.area_id, "area_name": area_name, "suggestions": out[:4]}
+    except HTTPException:
+        raise
+    except Exception as e:
+        log.error(f"life suggest failed: {e}")
+        raise HTTPException(502, "AI request failed")
+
+
 # ─── Debug & Serve ───────────────────────────────────────────────────────
-APP_VERSION = "v8.51.7"
+APP_VERSION = "v8.52.0"
+# v8.52.0 — Life Phase 2: AI habit suggestions per area (Claude Haiku). A dashed
+#           ✨ node inside each area asks Claude for tailored new habits; tap to
+#           plant any of them. POST /api/life/suggest.
 # v8.51.7 — Life family hub: avatars are now real physics nodes (orbit + springs
 #           to the hub and to each other) instead of a rigid SMIL pair — they
 #           wobble elastically and tug each other when dragged.

@@ -262,7 +262,7 @@ function _lifeBuildArea(){
   _lifeComputeVb();
   var cx = _lifeCx(), cy = _lifeCy();
   var habits = _lifeAreaHabits || [];
-  var n = habits.length + 1; // +1 for the Add node
+  var n = habits.length + 2; // +1 Add node, +1 ✨ Ideas node
   var pts = _lifeRing(n, -90);
   _lifeNodes = [];
   _lifeNodes.push({
@@ -277,9 +277,11 @@ function _lifeBuildArea(){
       label:hb.name, emoji:hb.emoji||"•", bright:hb.consistency, done:done, streak:hb.streak,
     });
   });
-  // Add node (dashed) in the last slot
-  var ap = pts[n-1];
+  // Two dashed "seed" nodes in the last slots: Add (+) and Ideas (✨).
+  var ap = pts[n-2];
   _lifeNodes.push({id:"_add", type:"add", hx:ap.x, hy:ap.y, x:ap.x, y:ap.y, vx:0, vy:0, r:5.4, color:area.color});
+  var ip = pts[n-1];
+  _lifeNodes.push({id:"_ideas", type:"ideas", hx:ip.x, hy:ip.y, x:ip.x, y:ip.y, vx:0, vy:0, r:5.4, color:area.color});
   _lifeEdges = _lifeNodes.filter(function(nd){return nd.id!=="_hub"}).map(function(nd){return ["_hub", nd.id]});
   _lifeDraw();
   _lifeSetHint(habits.length ? tr("life_hint_area") : tr("life_hint_area_empty"));
@@ -361,21 +363,26 @@ function _lifeNodeSvg(n){
     var av = _lifeAvatarSvg(_lifeMember(_lifeOwner), n.x, n.y, n.r);
     return '<g class="life-node" data-id="'+n.id+'">'+glow+av+'</g>';
   }
-  var dash = n.type==="add" ? ' stroke-dasharray="2 2"' : '';
-  var fillOpacity = n.type==="add" ? 0.04 : (0.18 + (n.bright||0)*0.5);
-  var ringW = n.type==="add" ? 0.6 : 0.7;
+  var isSeed = (n.type==="add" || n.type==="ideas");  // dashed "seed" placeholders
+  var dash = isSeed ? ' stroke-dasharray="2 2"' : '';
+  var fillOpacity = isSeed ? 0.04 : (0.18 + (n.bright||0)*0.5);
+  var ringW = isSeed ? 0.6 : 0.7;
   // breathing delay varies per node for an organic feel
   var delay = ((n.x*7+n.y*3)%40)/10;
   var label = '';
   if(n.type==="add"){
     label = '<text class="life-add-plus" x="'+n.x+'" y="'+(n.y+0.1)+'">+</text>';
+  } else if(n.type==="ideas"){
+    label = '<text class="life-emoji" x="'+n.x+'" y="'+(n.y+0.2)+'" style="font-size:5px">✨</text>';
   } else {
     var em = n.emoji ? '<text class="life-emoji" x="'+n.x+'" y="'+(n.y+0.2)+'">'+n.emoji+'</text>' : '';
     label = em;
   }
   // caption below node
   var cap = '';
-  if(n.type!=="add"){
+  if(n.type==="ideas"){
+    cap = '<text class="life-cap" x="'+n.x+'" y="'+(n.y+n.r+4.2)+'" style="opacity:.6">'+tr("life_ideas")+'</text>';
+  } else if(n.type!=="add"){
     var capY = n.y + n.r + 4.2;
     var nm = n.label || "";
     cap = '<text class="life-cap'+(n.type==="hub"||n.type==="areahub"?" life-cap-hub":"")+'" x="'+n.x+'" y="'+capY+'">'+es(nm.length>14?nm.slice(0,13)+"…":nm)+'</text>';
@@ -452,6 +459,7 @@ function _lifeTapNode(id){
     if(n.type==="area"){ hp("light"); _lifeOpenArea(n.id); }
   } else {
     if(n.type==="add"){ hp("light"); _lifeOpenAddHabit(); }
+    else if(n.type==="ideas"){ hp("light"); _lifeSuggest(); }
     else if(n.type==="habit"){ hp("light"); _lifeOpenHabit(n.hid); }
   }
 }
@@ -643,6 +651,52 @@ async function _lifeDeleteHabit(hid){
   hp("warn"); cMo();
   _lifeAreaHabits = _lifeAreaHabits.filter(function(x){return x.id!==hid});
   _lifeBuildArea(); _lifeLoadSummary();
+}
+
+// ─── AI suggestions (v8.52.0 · Phase 2) ───────────────────────
+// Tap ✨ inside an area → Claude suggests new habits to grow that sphere,
+// each one tap away from becoming a real node.
+var _lifeSuggestions = [];
+async function _lifeSuggest(){
+  if(!_lifeAreaId) return;
+  hp("light");
+  oMC(tr("life_ideas"), '<div class="life-thinking">✨ '+tr("life_thinking")+'</div>', {ic:"life"});
+  var r;
+  try{ r = await A("POST","/api/life/suggest", {owner:_lifeOwner, area_id:_lifeAreaId}); }
+  catch(e){ r = null; }
+  var mb = document.getElementById("mb");
+  if(!r || !r.suggestions || !r.suggestions.length){
+    if(mb) mb.innerHTML = '<div style="text-align:center;color:var(--ht);padding:24px 12px">'+tr("life_no_ideas")+'</div><button class="btn btn-s" style="background:transparent;border:1px solid var(--bd);color:var(--tx)" onclick="cMo()">'+tr("btn_close")+'</button>';
+    return;
+  }
+  _lifeSuggestions = r.suggestions.map(function(s){ s._added=false; return s });
+  _lifeRenderSuggestions();
+}
+function _lifeRenderSuggestions(){
+  var mb = document.getElementById("mb"); if(!mb) return;
+  var area = (_lifeData.areas||[]).find(function(x){return x.id===_lifeAreaId});
+  var col = area ? area.color : "var(--pr)";
+  var h = '<div class="life-sugg-sub">'+tr("life_ideas_sub")+'</div><div class="life-sugg-list">';
+  _lifeSuggestions.forEach(function(s,i){
+    h += '<div class="life-sugg">';
+    h += '<div class="life-sugg-em" style="background:color-mix(in srgb,'+col+' 16%,transparent);border:1px solid color-mix(in srgb,'+col+' 35%,transparent)">'+es(s.emoji||"🌱")+'</div>';
+    h += '<div class="life-sugg-bd"><div class="life-sugg-n">'+es(s.name)+'</div>'+(s.why?'<div class="life-sugg-w">'+es(s.why)+'</div>':'')+'</div>';
+    if(s._added) h += '<span class="life-sugg-ok" style="color:'+col+'">'+icon("ck",16,2.5)+'</span>';
+    else h += '<button class="life-sugg-add" style="background:'+col+'" onclick="_lifeAddSuggested('+i+')">'+icon("pl",13,2.5)+'</button>';
+    h += '</div>';
+  });
+  h += '</div>';
+  h += '<button class="btn btn-s" style="margin-top:12px;background:transparent;border:1px solid var(--bd);color:var(--tx)" onclick="cMo()">'+tr("btn_done")+'</button>';
+  mb.innerHTML = h;
+}
+async function _lifeAddSuggested(i){
+  var s = _lifeSuggestions[i]; if(!s || s._added) return;
+  var r = await A("POST","/api/life/habits", {owner:_lifeOwner, area_id:_lifeAreaId, name:s.name, emoji:s.emoji, type:s.type, frequency:"daily"});
+  if(!r || !r.id){ toast(tr("ts_save_failed")); return }
+  hp("ok"); s._added = true;
+  _lifeRenderSuggestions();
+  await _lifeLoadArea(_lifeAreaId);   // node appears under the modal
+  _lifeLoadSummary();
 }
 
 // One-shot ripple ring expanding from a node — reinforces "system impact".
