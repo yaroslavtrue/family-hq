@@ -93,6 +93,54 @@ def test_personal_scope_rejects_relationship_area(client_as):
     assert bad.status_code == 400
 
 
+def test_add_and_delete_personal_sphere(client_as):
+    client = client_as(user_id=810, family_id=1)
+
+    # Add a custom sphere.
+    r = client.post("/api/life/areas", json={"name": "Travel", "emoji": "✈️"})
+    assert r.status_code == 200, r.text
+    key = r.json()["id"]
+    assert r.json()["is_custom"] is True
+
+    s = client.get("/api/life/summary").json()
+    assert len(s["areas"]) == 9
+    travel = next(a for a in s["areas"] if a["id"] == key)
+    assert travel["name"] == "Travel" and travel["is_custom"] is True
+
+    # Plant a habit in it.
+    h = client.post("/api/life/habits", json={"area_id": key, "name": "Plan a trip"})
+    assert h.status_code == 200, h.text
+    hid = h.json()["id"]
+
+    # Delete the sphere → it + its habit are gone.
+    d = client.delete(f"/api/life/areas/{key}")
+    assert d.status_code == 200 and d.json()["deleted_habits"] == 1
+    s = client.get("/api/life/summary").json()
+    assert len(s["areas"]) == 8
+    assert all(a["id"] != key for a in s["areas"])
+    # The habit no longer lists.
+    hl = client.get(f"/api/life/habits?area_id={key}").json()
+    assert hl["habits"] == []
+
+
+def test_delete_default_sphere(client_as):
+    client = client_as(user_id=811, family_id=1)
+    client.get("/api/life/summary")  # seed
+    d = client.delete("/api/life/areas/fun")
+    assert d.status_code == 200, d.text
+    s = client.get("/api/life/summary").json()
+    assert len(s["areas"]) == 7
+    assert all(a["id"] != "fun" for a in s["areas"])
+
+
+def test_family_spheres_are_fixed(client_as):
+    client = client_as(user_id=812, family_id=1)
+    bad_add = client.post("/api/life/areas", json={"owner": "family", "name": "X"})
+    assert bad_add.status_code == 400
+    bad_del = client.delete("/api/life/areas/rel_time?owner=family")
+    assert bad_del.status_code == 400
+
+
 def test_suggest_validates_area_and_requires_ai(client_as, app_module):
     client = client_as(user_id=804, family_id=1)
     # Cross-scope area id is rejected before any AI call.

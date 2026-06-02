@@ -214,10 +214,14 @@ function _lifeBuildConstellation(){
   _lifeComputeVb();
   var cx = _lifeCx(), cy = _lifeCy();
   var areas = _lifeData.areas || [];
-  var pts = _lifeRing(areas.length, -90);
+  var isFam = _lifeData.scope === "family";
+  // Personal spheres are editable: in edit mode a "+" seed grows out to add a
+  // new sphere (relationship spheres are fixed → no seed).
+  var addSphere = _lifeEditMode && !isFam;
+  var n = areas.length + (addSphere ? 1 : 0);
+  var pts = _lifeRing(n, -90);
   _lifeNodes = [];
   // Center hub
-  var isFam = _lifeData.scope === "family";
   _lifeNodes.push({
     id:"_hub", type:"hub", hx:cx, hy:cy, x:cx, y:cy, vx:0, vy:0,
     r: isFam ? 9.5 : 8.5,
@@ -229,10 +233,14 @@ function _lifeBuildConstellation(){
     _lifeNodes.push({
       id:a.id, type:"area", hx:pts[i].x, hy:pts[i].y, x:pts[i].x, y:pts[i].y, vx:0, vy:0,
       r:_lifeNodeR(a.brightness, a.habit_count), color:a.color,
-      label:a.name, emoji:a.emoji, bright:a.brightness, count:a.habit_count,
+      label:a.name, emoji:a.emoji, bright:a.brightness, count:a.habit_count, is_custom:a.is_custom,
     });
   });
-  _lifeEdges = areas.map(function(a){ return ["_hub", a.id] });
+  if(addSphere){
+    var sp = pts[n-1];
+    _lifeNodes.push({id:"_addarea", type:"addarea", hx:sp.x, hy:sp.y, x:sp.x, y:sp.y, vx:0, vy:0, r:5.6, color:"#A9A48F"});
+  }
+  _lifeEdges = _lifeNodes.filter(function(nd){return nd.id!=="_hub" && nd.type!=="avatar"}).map(function(nd){return ["_hub", nd.id]});
   _lifeAvEdges = [];
   _lifeOrbiting = false;
   if(isFam){
@@ -376,14 +384,14 @@ function _lifeNodeSvg(n){
     var av = _lifeAvatarSvg(_lifeMember(_lifeOwner), n.x, n.y, n.r);
     return '<g class="life-node" data-id="'+n.id+'">'+glow+av+'</g>';
   }
-  var isSeed = (n.type==="add" || n.type==="ideas");  // dashed "seed" placeholders
+  var isSeed = (n.type==="add" || n.type==="ideas" || n.type==="addarea");  // dashed placeholders
   var dash = isSeed ? ' stroke-dasharray="2 2"' : '';
   var fillOpacity = isSeed ? 0.04 : (0.18 + (n.bright||0)*0.5);
   var ringW = isSeed ? 0.6 : 0.7;
   // breathing delay varies per node for an organic feel
   var delay = ((n.x*7+n.y*3)%40)/10;
   var label = '';
-  if(n.type==="add"){
+  if(n.type==="add" || n.type==="addarea"){
     label = '<text class="life-add-plus" x="'+n.x+'" y="'+(n.y+0.1)+'">+</text>';
   } else if(n.type==="ideas"){
     label = '<text class="life-emoji" x="'+n.x+'" y="'+(n.y+0.2)+'" style="font-size:5px">✨</text>';
@@ -395,6 +403,8 @@ function _lifeNodeSvg(n){
   var cap = '';
   if(n.type==="ideas"){
     cap = '<text class="life-cap" x="'+n.x+'" y="'+(n.y+n.r+4.2)+'" style="opacity:.6">'+tr("life_ideas")+'</text>';
+  } else if(n.type==="addarea"){
+    cap = '<text class="life-cap" x="'+n.x+'" y="'+(n.y+n.r+4.2)+'" style="opacity:.6">'+tr("life_new_sphere")+'</text>';
   } else if(n.type!=="add"){
     var capY = n.y + n.r + 4.2;
     var nm = n.label || "";
@@ -516,6 +526,7 @@ function _lifeEditNode(id){
   else if(n.type==="habit"){ _lifeOpenHabitEdit(n.hid); }
   else if(n.type==="add"){ _lifeOpenAddHabit(); }
   else if(n.type==="ideas"){ _lifeSuggest(); }
+  else if(n.type==="addarea"){ _lifeOpenAddArea(); }
 }
 
 // Convert client coords → SVG user units via the inverse CTM.
@@ -812,7 +823,46 @@ function _lifeOpenNodeEdit(areaId){
   h += '</div>';
   h += '<button class="btn" style="margin-top:14px" onclick="_lifeSaveNode()">'+tr("btn_save")+'</button>';
   if(a.customized) h += '<button class="btn btn-s" style="margin-top:8px;background:transparent;color:var(--ht);border:1px solid var(--bd)" onclick="_lifeResetNode()">'+tr("life_node_reset")+'</button>';
+  // Personal spheres can be deleted (with their habits). Relationship spheres are fixed.
+  if(_lifeOwner !== "family"){
+    h += '<button class="btn btn-s" style="margin-top:8px;background:transparent;color:var(--ac);border:1px solid color-mix(in srgb,var(--ac) 40%,transparent)" onclick="_lifeDeleteArea(\''+areaId+'\')">🗑 '+tr("life_delete_sphere")+'</button>';
+  }
   oMC(tr("life_edit_node"), h, {ic:"life"});
+}
+async function _lifeDeleteArea(areaId){
+  if(!confirm(tr("life_delete_sphere_confirm"))) return;
+  var r = await A("DELETE","/api/life/areas/"+encodeURIComponent(areaId)+"?owner="+encodeURIComponent(_lifeOwner));
+  if(!r || !r.ok){ toast(tr("ts_error")); return }
+  hp("warn"); cMo(); await _lifeLoadSummary();
+}
+
+// ─── Add a new personal sphere (L0 edit "+") ──────────────────
+var _lifeAreaDraft = null;
+var LIFE_AREA_COLORS = ["#8B7BE8","#E8A24A","#5FB37A","#6B8FD4","#C77DBB","#E8C54A","#E8714A","#6BB0D4","#E06A8A","#7FB069"];
+function _lifeOpenAddArea(){
+  _lifeAreaDraft = {emoji:"🌱", name:"", color:LIFE_AREA_COLORS[0]};
+  var h = '';
+  h += '<div style="display:flex;gap:10px;align-items:flex-end">';
+  h += '<div><div class="lb">'+tr("g_emoji")+'</div><input class="inp" id="la-e" value="🌱" style="width:64px;text-align:center;font-size:20px"></div>';
+  h += '<div style="flex:1"><div class="lb">'+tr("life_node_name")+'</div><input class="inp" id="la-n" placeholder="'+tr("life_sphere_ph")+'"></div>';
+  h += '</div>';
+  h += '<div class="lb">'+tr("life_color")+'</div><div class="life-colors" id="la-colors">';
+  LIFE_AREA_COLORS.forEach(function(c,i){
+    h += '<button class="life-color'+(i===0?" on":"")+'" data-c="'+c+'" style="background:'+c+'" onclick="_lifeAreaDraft.color=\''+c+'\';document.querySelectorAll(\'#la-colors .life-color\').forEach(function(b){b.classList.remove(\'on\')});this.classList.add(\'on\')"></button>';
+  });
+  h += '</div>';
+  h += '<button class="btn" style="margin-top:14px" onclick="_lifeSaveArea()">'+tr("life_add_sphere")+'</button>';
+  oMC(tr("life_new_sphere"), h, {ic:"life"});
+}
+async function _lifeSaveArea(){
+  var d = _lifeAreaDraft;
+  d.emoji = (document.getElementById("la-e")||{}).value || d.emoji;
+  d.name = ((document.getElementById("la-n")||{}).value||"").trim();
+  if(!d.name){ toast(tr("life_name_required")); return }
+  var r = await A("POST","/api/life/areas",{owner:_lifeOwner, name:d.name, emoji:d.emoji, color:d.color});
+  if(!r || !r.id){ toast(tr("ts_save_failed")); return }
+  hp("ok"); cMo(); _lifeAreaDraft=null;
+  await _lifeLoadSummary();  // stays in edit mode → new sphere + the "+" both show
 }
 async function _lifeSaveNode(){
   var name=((document.getElementById("ln-n")||{}).value||"").trim();

@@ -720,6 +720,24 @@ def migrate(db_path):
             );
             CREATE UNIQUE INDEX IF NOT EXISTS idx_node_overrides_unique ON node_overrides(family_id, owner, area_id);
         """),
+        # v31: Life — per-member editable PERSONAL spheres (add/delete). Relationship
+        # (family) areas stay code constants. Rows here define which personal areas an
+        # owner has + custom-area metadata. Default seeds have NULL name/emoji/color
+        # (resolved from PERSONAL_AREAS constants, keeping bilingual names); custom
+        # areas store their own. Renames still ride on node_overrides. Seeded lazily
+        # on first access per (family, owner). See _life_effective_areas in app.py.
+        lambda c: c.executescript("""
+            CREATE TABLE IF NOT EXISTS life_areas (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                family_id INTEGER NOT NULL,
+                owner TEXT NOT NULL,
+                area_key TEXT NOT NULL,
+                name TEXT, emoji TEXT, color TEXT,
+                is_custom INTEGER NOT NULL DEFAULT 0,
+                sort_order INTEGER NOT NULL DEFAULT 0
+            );
+            CREATE UNIQUE INDEX IF NOT EXISTS idx_life_areas_uq ON life_areas(family_id, owner, area_key);
+        """),
     ]
 
     for i, mig in enumerate(migrations):

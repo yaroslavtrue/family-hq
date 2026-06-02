@@ -3670,8 +3670,73 @@ RELATIONSHIP_AREAS = [
     {"id": "rel_care",      "name": "Care",          "emoji": "🤝", "color": "#5FB37A"},
 ]
 _PERSONAL_IDS = {a["id"] for a in PERSONAL_AREAS}
+_PERSONAL_BY_ID = {a["id"]: a for a in PERSONAL_AREAS}
 _REL_IDS = {a["id"] for a in RELATIONSHIP_AREAS}
 _VALID_HABIT_TYPES = {"build", "maintain", "reduce"}
+# Palette offered for custom spheres (must be a hex the frontend picker also shows).
+_LIFE_AREA_COLORS = ["#8B7BE8", "#E8A24A", "#5FB37A", "#6B8FD4", "#C77DBB",
+                     "#E8C54A", "#E8714A", "#6BB0D4", "#E06A8A", "#7FB069"]
+
+
+def _life_seed_personal(db, family_id: int, owner: str):
+    """Seed an owner's personal area set from the defaults on first access.
+    Default rows carry NULL name/emoji/color so they keep resolving from the
+    PERSONAL_AREAS constants (incl. bilingual names)."""
+    has = db.execute("SELECT 1 FROM life_areas WHERE family_id=? AND owner=? LIMIT 1",
+                     (family_id, owner)).fetchone()
+    if has:
+        return
+    for i, a in enumerate(PERSONAL_AREAS):
+        db.execute(
+            "INSERT OR IGNORE INTO life_areas (family_id, owner, area_key, is_custom, sort_order) "
+            "VALUES (?, ?, ?, 0, ?)", (family_id, owner, a["id"], i))
+    db.commit()
+
+
+def _life_effective_areas(db, family_id: int, owner: str, lang: str = "en") -> list[dict]:
+    """The owner's area set with display name/emoji/color resolved.
+    Family scope → relationship constants + node_overrides (rename only).
+    Personal scope → life_areas rows (seeded) + per-row base + node_overrides."""
+    ov = {r["area_id"]: r for r in db.execute(
+        "SELECT area_id, name, emoji FROM node_overrides WHERE family_id=? AND owner=?",
+        (family_id, owner)).fetchall()}
+    out = []
+    if owner == "family":
+        for a in RELATIONSHIP_AREAS:
+            o = ov.get(a["id"])
+            out.append({
+                "id": a["id"],
+                "name": (o["name"] if o and o["name"] else _life_area_name(a, lang)),
+                "emoji": (o["emoji"] if o and o["emoji"] else a["emoji"]),
+                "color": a["color"], "customized": bool(o), "is_custom": False,
+            })
+        return out
+    _life_seed_personal(db, family_id, owner)
+    rows = db.execute(
+        "SELECT area_key, name, emoji, color, is_custom FROM life_areas "
+        "WHERE family_id=? AND owner=? ORDER BY sort_order, id", (family_id, owner)).fetchall()
+    for r in rows:
+        key = r["area_key"]
+        const = _PERSONAL_BY_ID.get(key)
+        if r["is_custom"] or not const:
+            base_name, base_emoji, base_color = (r["name"] or key), (r["emoji"] or "🌱"), (r["color"] or "#8B7BE8")
+        else:
+            base_name, base_emoji, base_color = _life_area_name(const, lang), const["emoji"], const["color"]
+        o = ov.get(key)
+        out.append({
+            "id": key,
+            "name": (o["name"] if o and o["name"] else base_name),
+            "emoji": (o["emoji"] if o and o["emoji"] else base_emoji),
+            "color": base_color,
+            "customized": bool(o), "is_custom": bool(r["is_custom"]),
+        })
+    return out
+
+
+def _life_valid_area_ids(db, family_id: int, owner: str) -> set:
+    if owner == "family":
+        return set(_REL_IDS)
+    return {a["id"] for a in _life_effective_areas(db, family_id, owner)}
 
 
 def _life_resolve_owner(owner: str | None, user: dict, db) -> str:
@@ -3797,12 +3862,8 @@ def life_summary(owner: str | None = None, user=Depends(get_uf), db=Depends(get_
     (avg consistency of feeding habits) and counts so the client can size/glow them."""
     f = user["family_id"]
     owner = _life_resolve_owner(owner, user, db)
-    areas = _life_areas_for(owner)
     ulang = _life_user_lang(db, user["id"])  # display names follow the viewer's language
-    # Override rows for this (family, owner).
-    ov = {r["area_id"]: r for r in db.execute(
-        "SELECT area_id, name, emoji FROM node_overrides WHERE family_id=? AND owner=?",
-        (f, owner)).fetchall()}
+    areas = _life_effective_areas(db, f, owner, ulang)
     out = []
     for a in areas:
         habits = [dict(h) for h in db.execute(
@@ -3810,15 +3871,12 @@ def life_summary(owner: str | None = None, user=Depends(get_uf), db=Depends(get_
             (f, owner, a["id"])).fetchall()]
         cons = [_life_habit_stats(db, h)["consistency"] for h in habits]
         brightness = round(sum(cons) / len(cons), 2) if cons else 0.0
-        o = ov.get(a["id"])
         out.append({
             "id": a["id"],
-            "name": (o["name"] if o and o["name"] else _life_area_name(a, ulang)),
-            "emoji": (o["emoji"] if o and o["emoji"] else a["emoji"]),
-            "color": a["color"],
+            "name": a["name"], "emoji": a["emoji"], "color": a["color"],
             "brightness": brightness,
             "habit_count": len(habits),
-            "customized": bool(o),
+            "customized": a["customized"], "is_custom": a["is_custom"],
         })
     # Family scope also reports overall bond strength = avg of area brightness.
     bond = round(sum(a["brightness"] for a in out) / len(out), 2) if out else 0.0
@@ -3854,9 +3912,8 @@ class HabitCreate(BaseModel):
     frequency: list[int] | str | None = "daily"  # 'daily' or [0..6]
 
 
-def _life_validate_area(owner: str, area_id: str):
-    valid = _REL_IDS if owner == "family" else _PERSONAL_IDS
-    if area_id not in valid:
+def _life_validate_area(db, family_id: int, owner: str, area_id: str):
+    if area_id not in _life_valid_area_ids(db, family_id, owner):
         raise HTTPException(400, f"area_id '{area_id}' not valid for this scope")
 
 
@@ -3864,7 +3921,7 @@ def _life_validate_area(owner: str, area_id: str):
 def life_habit_create(body: HabitCreate, user=Depends(get_uf), db=Depends(get_db)):
     f = user["family_id"]
     owner = _life_resolve_owner(body.owner, user, db)
-    _life_validate_area(owner, body.area_id)
+    _life_validate_area(db, f, owner, body.area_id)
     name = (body.name or "").strip()
     if not name:
         raise HTTPException(400, "name required")
@@ -3963,7 +4020,7 @@ def life_node_override(area_id: str, body: NodeOverride, owner: str | None = Non
     (falls back to the code default)."""
     f = user["family_id"]
     owner = _life_resolve_owner(owner, user, db)
-    _life_validate_area(owner, area_id)
+    _life_validate_area(db, f, owner, area_id)
     name = (body.name or "").strip()
     emoji = (body.emoji or "").strip()
     if not name and not emoji:
@@ -3978,6 +4035,62 @@ def life_node_override(area_id: str, body: NodeOverride, owner: str | None = Non
         (f, owner, area_id, name or None, emoji or None, name or None, emoji or None))
     db.commit()
     return {"ok": True, "name": name, "emoji": emoji}
+
+
+# ─── Add / delete personal spheres (v8.52.5) ─────────────────────────────
+# Personal areas are editable per member: add a custom sphere or delete any.
+# Relationship (family) areas stay fixed constants.
+
+class AreaCreate(BaseModel):
+    owner: str | None = None
+    name: str
+    emoji: str | None = "🌱"
+    color: str | None = None
+
+
+@app.post("/api/life/areas")
+def life_area_create(body: AreaCreate, user=Depends(get_uf), db=Depends(get_db)):
+    f = user["family_id"]
+    owner = _life_resolve_owner(body.owner, user, db)
+    if owner == "family":
+        raise HTTPException(400, "relationship spheres are fixed")
+    name = (body.name or "").strip()
+    if not name:
+        raise HTTPException(400, "name required")
+    _life_seed_personal(db, f, owner)
+    color = body.color if (body.color in _LIFE_AREA_COLORS) else _LIFE_AREA_COLORS[0]
+    key = "u" + secrets.token_hex(4)  # stable, collision-safe custom key
+    mx = db.execute("SELECT COALESCE(MAX(sort_order),0) m FROM life_areas WHERE family_id=? AND owner=?",
+                    (f, owner)).fetchone()["m"]
+    db.execute(
+        "INSERT INTO life_areas (family_id, owner, area_key, name, emoji, color, is_custom, sort_order) "
+        "VALUES (?, ?, ?, ?, ?, ?, 1, ?)",
+        (f, owner, key, name, (body.emoji or "🌱").strip(), color, mx + 1))
+    db.commit()
+    return {"ok": True, "id": key, "name": name, "emoji": (body.emoji or "🌱"), "color": color, "is_custom": True}
+
+
+@app.delete("/api/life/areas/{area_key}")
+def life_area_delete(area_key: str, owner: str | None = None, user=Depends(get_uf), db=Depends(get_db)):
+    f = user["family_id"]
+    owner = _life_resolve_owner(owner, user, db)
+    if owner == "family":
+        raise HTTPException(400, "relationship spheres are fixed")
+    _life_seed_personal(db, f, owner)
+    row = db.execute("SELECT id FROM life_areas WHERE family_id=? AND owner=? AND area_key=?",
+                     (f, owner, area_key)).fetchone()
+    if not row:
+        raise HTTPException(404)
+    # Cascade: drop the sphere, its rename-override, and all its habits (+ logs).
+    hids = [r["id"] for r in db.execute(
+        "SELECT id FROM habits WHERE family_id=? AND owner=? AND area_id=?", (f, owner, area_key)).fetchall()]
+    for hid in hids:
+        db.execute("DELETE FROM habit_logs WHERE habit_id=?", (hid,))
+    db.execute("DELETE FROM habits WHERE family_id=? AND owner=? AND area_id=?", (f, owner, area_key))
+    db.execute("DELETE FROM node_overrides WHERE family_id=? AND owner=? AND area_id=?", (f, owner, area_key))
+    db.execute("DELETE FROM life_areas WHERE family_id=? AND owner=? AND area_key=?", (f, owner, area_key))
+    db.commit()
+    return {"ok": True, "deleted_habits": len(hids)}
 
 
 # ─── AI habit suggestions (v8.52.0 · Phase 2) ────────────────────────────
@@ -4004,15 +4117,15 @@ class LifeSuggestBody(BaseModel):
 async def life_suggest(body: LifeSuggestBody, user=Depends(get_uf), db=Depends(get_db)):
     f = user["family_id"]
     owner = _life_resolve_owner(body.owner, user, db)
-    _life_validate_area(owner, body.area_id)
+    _life_validate_area(db, f, owner, body.area_id)
     if not ANTHROPIC_API_KEY:
         raise HTTPException(503, "AI not configured")
     is_family = (owner == "family")
-    area = next((a for a in _life_areas_for(owner) if a["id"] == body.area_id), None)
+    ulang = _life_user_lang(db, user["id"])
+    area = next((a for a in _life_effective_areas(db, f, owner, ulang) if a["id"] == body.area_id), None)
     if not area:
         raise HTTPException(404)
-    ulang = _life_user_lang(db, user["id"])
-    area_name = _life_resolved_area_name(db, f, owner, area, ulang)
+    area_name = area["name"]
     existing = [r["name"] for r in db.execute(
         "SELECT name FROM habits WHERE family_id=? AND owner=? AND area_id=? AND archived=0",
         (f, owner, body.area_id)).fetchall()]
@@ -4077,7 +4190,10 @@ async def life_suggest(body: LifeSuggestBody, user=Depends(get_uf), db=Depends(g
 
 
 # ─── Debug & Serve ───────────────────────────────────────────────────────
-APP_VERSION = "v8.52.4"
+APP_VERSION = "v8.52.5"
+# v8.52.5 — Life: editable personal spheres — add a custom sphere via the growing
+#           "+" at L0 (edit mode), delete any sphere (+ its habits). Schema v31
+#           (life_areas). Relationship spheres stay fixed.
 # v8.52.4 — Life: disable text selection / iOS long-press callout on the canvas
 #           so holding a node no longer selects the emoji glyph as text.
 # v8.52.3 — Life: new default personal areas (8): Fun/Rest/Hobby/Friends/Health/

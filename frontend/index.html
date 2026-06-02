@@ -358,6 +358,11 @@ body.life-mode .ct{padding:0;background:#0a0b10}
 .life-sugg-add{flex-shrink:0;width:34px;height:34px;border-radius:50%;border:none;color:#fff;display:flex;align-items:center;justify-content:center;cursor:pointer}
 .life-sugg-add:active{transform:scale(.9)}
 .life-sugg-ok{flex-shrink:0;width:34px;height:34px;display:flex;align-items:center;justify-content:center}
+/* Sphere colour picker (new-sphere modal) */
+.life-colors{display:flex;flex-wrap:wrap;gap:10px;margin-top:4px}
+.life-color{width:34px;height:34px;border-radius:50%;border:2px solid transparent;cursor:pointer;padding:0;transition:transform .12s}
+.life-color:active{transform:scale(.9)}
+.life-color.on{box-shadow:0 0 0 2px var(--bg),0 0 0 4px #fff}
 /* Full-bleed night-sky canvas — no frame, edge to edge, fills to the nav. */
 /* Disable text selection + the iOS long-press callout so holding a node (emoji
    labels are SVG <text>) enters edit mode instead of selecting the glyph. */
@@ -1216,18 +1221,18 @@ body.no-scroll .mx{touch-action:pan-y}
 <!-- Load JS -->
 <!-- Load order: data (lang.js) → engines (theme.js, auth.js, weather.js) → main (app.js). -->
 <!-- All share globals; extracted modules use `var`/`function` declarations so they're true window-scope. -->
-<script src="/static/lang.js?v=231"></script>
-<script src="/static/theme.js?v=231"></script>
-<script src="/static/auth.js?v=231"></script>
-<script src="/static/weather.js?v=231"></script>
-<script src="/static/words.js?v=231"></script>
-<script src="/static/plants.js?v=231"></script>
-<script src="/static/trainings.js?v=231"></script>
-<script src="/static/money.js?v=231"></script>
-<script src="/static/tasks.js?v=231"></script>
-<script src="/static/cooking.js?v=231"></script>
-<script src="/static/news.js?v=231"></script>
-<script src="/static/settings.js?v=231"></script>
-<script src="/static/app.js?v=231"></script>
+<script src="/static/lang.js?v=232"></script>
+<script src="/static/theme.js?v=232"></script>
+<script src="/static/auth.js?v=232"></script>
+<script src="/static/weather.js?v=232"></script>
+<script src="/static/words.js?v=232"></script>
+<script src="/static/plants.js?v=232"></script>
+<script src="/static/trainings.js?v=232"></script>
+<script src="/static/money.js?v=232"></script>
+<script src="/static/tasks.js?v=232"></script>
+<script src="/static/cooking.js?v=232"></script>
+<script src="/static/news.js?v=232"></script>
+<script src="/static/settings.js?v=232"></script>
+<script src="/static/app.js?v=232"></script>
 </body>
 </html>
