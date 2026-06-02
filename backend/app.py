@@ -3960,7 +3960,9 @@ def life_node_override(area_id: str, body: NodeOverride, owner: str | None = Non
 
 
 # ─── Debug & Serve ───────────────────────────────────────────────────────
-APP_VERSION = "v8.51.1"
+APP_VERSION = "v8.51.2"
+# v8.51.2 — Life: full-bleed canvas (dropped the inner panel frame) + elliptical
+#           node layout that fills the portrait stage (no more letterbox air).
 # v8.51.1 — Life polish: avatar in personal hub, two orbiting avatars for family,
 #           restored the global app header (graph now in a night-sky panel below it).
 # v8.50.1 — Login: retry bot-info (4× backoff) + Retry button. Fixes transient

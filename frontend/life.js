@@ -45,7 +45,7 @@ function rLife(){
 function lifeMount(){
   if(tab !== "life") return;
   if(!_lifeOwner) _lifeOwner = String((fS && fS.my_id) || (D.members[0] && D.members[0].user_id) || "");
-  if(!_lifeResizeBound){ _lifeResizeBound = function(){ _lifeSizeStage() }; window.addEventListener("resize", _lifeResizeBound); }
+  if(!_lifeResizeBound){ _lifeResizeBound = function(){ _lifeRelayout() }; window.addEventListener("resize", _lifeResizeBound); }
   _lifeRenderTopBar();
   _lifeSizeStage();
   _lifeView = "constellation"; _lifeAreaId = null;
@@ -111,11 +111,20 @@ function _lifeSizeStage(){
   var navH = parseInt(getComputedStyle(document.documentElement).getPropertyValue("--nh")) || 64;
   var sb = parseInt(getComputedStyle(document.body).getPropertyValue("padding-bottom")) || 0;
   var top = st.getBoundingClientRect().top;
-  // Leave ~54px below the stage for the hint line + the bottom safe area.
-  var h = window.innerHeight - top - navH - sb - 54;
+  // Full-bleed: stage fills right down to the nav. The hint floats as an overlay
+  // at the bottom of the stage (no separate flow space needed).
+  var h = window.innerHeight - top - navH - sb;
   st.style.height = Math.max(300, h) + "px";
 }
 var _lifeResizeBound = null;
+
+// Resize/rotate → recompute the viewBox aspect + relayout the current view so
+// the ellipse keeps filling the stage and circles stay round.
+function _lifeRelayout(){
+  _lifeSizeStage();
+  if(!_lifeData) return;
+  if(_lifeView === "area") _lifeBuildArea(); else _lifeBuildConstellation();
+}
 
 function _lifeSetOwner(o){
   if(_lifeOwner === o) return;
@@ -147,12 +156,27 @@ async function _lifeLoadArea(areaId){
 }
 
 // ─── Layout helpers ───────────────────────────────────────────
-// Radial layout in a 0..100 viewBox. Center hub at (50,50); satellites on a ring.
-function _lifeRing(n, radius, startDeg){
+// The viewBox width is fixed at 100 units; the HEIGHT adapts to the stage's
+// pixel aspect ratio so 1 unit = same px in x and y (uniform scale → node
+// circles stay round). Satellites sit on an ellipse that fills the portrait
+// space, so there's no letterbox "air" above/below (v8.51.2).
+var _lifeVbH = 130;
+function _lifeComputeVb(){
+  var st = document.querySelector(".life-stage");
+  var w = st ? st.clientWidth : 360, h = st ? st.clientHeight : 520;
+  _lifeVbH = Math.max(104, Math.min(210, Math.round(100 * h / Math.max(1, w))));
+}
+function _lifeCx(){ return 50; }
+function _lifeCy(){ return _lifeVbH/2; }
+// Ellipse ring around the centre. rx fills width, ry fills height (minus padding
+// for node radius + caption).
+function _lifeRing(n, startDeg){
+  var cx = _lifeCx(), cy = _lifeCy();
+  var rx = 35, ry = Math.max(24, _lifeVbH/2 - 17);
   var out = [], start = (startDeg==null? -90 : startDeg) * Math.PI/180;
   for(var i=0;i<n;i++){
     var ang = start + i*(2*Math.PI/Math.max(1,n));
-    out.push({x: 50 + radius*Math.cos(ang), y: 50 + radius*Math.sin(ang)});
+    out.push({x: cx + rx*Math.cos(ang), y: cy + ry*Math.sin(ang)});
   }
   return out;
 }
@@ -166,13 +190,15 @@ function _lifeNodeR(brightness, count){
 // ─── Build: constellation (L0) ────────────────────────────────
 function _lifeBuildConstellation(){
   if(!_lifeData) return;
+  _lifeComputeVb();
+  var cx = _lifeCx(), cy = _lifeCy();
   var areas = _lifeData.areas || [];
-  var pts = _lifeRing(areas.length, 33, -90);
+  var pts = _lifeRing(areas.length, -90);
   _lifeNodes = [];
   // Center hub
   var isFam = _lifeData.scope === "family";
   _lifeNodes.push({
-    id:"_hub", type:"hub", hx:50, hy:50, x:50, y:50, vx:0, vy:0,
+    id:"_hub", type:"hub", hx:cx, hy:cy, x:cx, y:cy, vx:0, vy:0,
     r: isFam ? 9.5 : 8.5,
     color: isFam ? "#E06A8A" : "#A9A48F",
     label: isFam ? tr("life_us") : tr("life_you"),
@@ -194,12 +220,14 @@ function _lifeBuildConstellation(){
 function _lifeBuildArea(){
   var area = _lifeData && (_lifeData.areas||[]).find(function(x){return x.id===_lifeAreaId});
   if(!area) return;
+  _lifeComputeVb();
+  var cx = _lifeCx(), cy = _lifeCy();
   var habits = _lifeAreaHabits || [];
   var n = habits.length + 1; // +1 for the Add node
-  var pts = _lifeRing(n, 33, -90);
+  var pts = _lifeRing(n, -90);
   _lifeNodes = [];
   _lifeNodes.push({
-    id:"_hub", type:"areahub", hx:50, hy:50, x:50, y:50, vx:0, vy:0,
+    id:"_hub", type:"areahub", hx:cx, hy:cy, x:cx, y:cy, vx:0, vy:0,
     r:10, color:area.color, label:area.name, emoji:area.emoji, bright:area.brightness,
   });
   habits.forEach(function(hb, i){
@@ -225,6 +253,7 @@ function _lifeSetHint(t){ var el=document.getElementById("life-hint"); if(el) el
 // ─── SVG draw ─────────────────────────────────────────────────
 function _lifeDraw(){
   var svg = document.getElementById("life-svg"); if(!svg) return;
+  svg.setAttribute("viewBox", "0 0 100 "+_lifeVbH);
   var NS = "http://www.w3.org/2000/svg";
   // defs: one radial gradient per distinct color for cheap glow
   var colors = {}; _lifeNodes.forEach(function(n){ colors[n.color]=1 });

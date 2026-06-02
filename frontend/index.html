@@ -329,9 +329,9 @@ body.words-mode .ct{padding-top:max(10px, calc(env(safe-area-inset-top, 0px) + 6
 /* ─── Life — balance network (v8.51.0; header restored v8.51.1) ── */
 /* Keeps the familiar global header. The graph lives in a dark "night sky"
    panel below a slim Me/partner/Family filter row. */
-body.life-mode .ct{padding:0}
-.life-wrap{display:flex;flex-direction:column}
-.life-top{display:flex;align-items:center;gap:10px;padding:10px 14px 8px;min-height:34px}
+body.life-mode .ct{padding:0;background:#0a0b10}
+.life-wrap{display:flex;flex-direction:column;position:relative}
+.life-top{display:flex;align-items:center;gap:10px;padding:10px 14px 8px;min-height:34px;background:#0a0b10}
 .life-areaname{font-size:15px;font-weight:700;color:var(--tx)}
 .life-chips{display:flex;align-items:center;gap:6px}
 .life-chip{display:inline-flex;align-items:center;justify-content:center;width:36px;height:36px;border-radius:50%;background:var(--cd);border:1.5px solid var(--bd);cursor:pointer;padding:0;transition:transform .12s,border-color .15s;font-size:16px;overflow:hidden}
@@ -342,9 +342,10 @@ body.life-mode .ct{padding:0}
 .life-chip-fam.on{border-color:#E06A8A;box-shadow:0 0 0 2px rgba(224,106,138,.25)}
 .life-back{width:34px;height:34px;border-radius:12px;background:var(--cd);border:1px solid var(--bd);color:var(--tx);font-size:24px;line-height:1;cursor:pointer;display:flex;align-items:center;justify-content:center}
 .life-back:active{transform:scale(.92)}
-.life-stage{position:relative;margin:0 12px;border-radius:24px;overflow:hidden;touch-action:none;background:radial-gradient(120% 90% at 50% 22%, #15161f 0%, #0d0e13 62%, #090a0e 100%);border:1px solid rgba(255,255,255,.06);box-shadow:inset 0 1px 0 rgba(255,255,255,.04), 0 8px 30px rgba(0,0,0,.35)}
+/* Full-bleed night-sky canvas — no frame, edge to edge, fills to the nav. */
+.life-stage{position:relative;touch-action:none;overflow:hidden;background:radial-gradient(120% 80% at 50% 30%, #14151e 0%, #0c0d12 60%, #0a0b10 100%)}
 #life-svg{width:100%;height:100%;display:block;overflow:visible}
-.life-hint{text-align:center;font-size:12px;color:var(--ht);padding:10px 24px max(14px,env(safe-area-inset-bottom,0px));line-height:1.4;min-height:18px}
+.life-hint{position:absolute;left:0;right:0;bottom:8px;text-align:center;font-size:12px;color:rgba(237,234,224,.42);padding:0 24px;line-height:1.4;pointer-events:none}
 
 /* SVG node bits (units = viewBox 0..100) */
 .life-edge{stroke:#9b96a8}
@@ -1187,18 +1188,18 @@ body.no-scroll .mx{touch-action:pan-y}
 <!-- Load JS -->
 <!-- Load order: data (lang.js) → engines (theme.js, auth.js, weather.js) → main (app.js). -->
 <!-- All share globals; extracted modules use `var`/`function` declarations so they're true window-scope. -->
-<script src="/static/lang.js?v=221"></script>
-<script src="/static/theme.js?v=221"></script>
-<script src="/static/auth.js?v=221"></script>
-<script src="/static/weather.js?v=221"></script>
-<script src="/static/words.js?v=221"></script>
-<script src="/static/plants.js?v=221"></script>
-<script src="/static/trainings.js?v=221"></script>
-<script src="/static/money.js?v=221"></script>
-<script src="/static/tasks.js?v=221"></script>
-<script src="/static/cooking.js?v=221"></script>
-<script src="/static/news.js?v=221"></script>
-<script src="/static/settings.js?v=221"></script>
-<script src="/static/app.js?v=221"></script>
+<script src="/static/lang.js?v=222"></script>
+<script src="/static/theme.js?v=222"></script>
+<script src="/static/auth.js?v=222"></script>
+<script src="/static/weather.js?v=222"></script>
+<script src="/static/words.js?v=222"></script>
+<script src="/static/plants.js?v=222"></script>
+<script src="/static/trainings.js?v=222"></script>
+<script src="/static/money.js?v=222"></script>
+<script src="/static/tasks.js?v=222"></script>
+<script src="/static/cooking.js?v=222"></script>
+<script src="/static/news.js?v=222"></script>
+<script src="/static/settings.js?v=222"></script>
+<script src="/static/app.js?v=222"></script>
 </body>
 </html>
