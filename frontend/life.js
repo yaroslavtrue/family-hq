@@ -215,9 +215,9 @@ function _lifeBuildConstellation(){
   var cx = _lifeCx(), cy = _lifeCy();
   var areas = _lifeData.areas || [];
   var isFam = _lifeData.scope === "family";
-  // Personal spheres are editable: in edit mode a "+" seed grows out to add a
-  // new sphere (relationship spheres are fixed → no seed).
-  var addSphere = _lifeEditMode && !isFam;
+  // Spheres are editable in edit mode (personal AND family): a "+" seed grows
+  // out of the centre to add a new one.
+  var addSphere = _lifeEditMode;
   var n = areas.length + (addSphere ? 1 : 0);
   var pts = _lifeRing(n, -90);
   _lifeNodes = [];
@@ -823,10 +823,8 @@ function _lifeOpenNodeEdit(areaId){
   h += '</div>';
   h += '<button class="btn" style="margin-top:14px" onclick="_lifeSaveNode()">'+tr("btn_save")+'</button>';
   if(a.customized) h += '<button class="btn btn-s" style="margin-top:8px;background:transparent;color:var(--ht);border:1px solid var(--bd)" onclick="_lifeResetNode()">'+tr("life_node_reset")+'</button>';
-  // Personal spheres can be deleted (with their habits). Relationship spheres are fixed.
-  if(_lifeOwner !== "family"){
-    h += '<button class="btn btn-s" style="margin-top:8px;background:transparent;color:var(--ac);border:1px solid color-mix(in srgb,var(--ac) 40%,transparent)" onclick="_lifeDeleteArea(\''+areaId+'\')">🗑 '+tr("life_delete_sphere")+'</button>';
-  }
+  // Any sphere can be deleted (with its habits) — personal or family.
+  h += '<button class="btn btn-s" style="margin-top:8px;background:transparent;color:var(--ac);border:1px solid color-mix(in srgb,var(--ac) 40%,transparent)" onclick="_lifeDeleteArea(\''+areaId+'\')">🗑 '+tr("life_delete_sphere")+'</button>';
   oMC(tr("life_edit_node"), h, {ic:"life"});
 }
 async function _lifeDeleteArea(areaId){

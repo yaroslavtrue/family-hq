@@ -3672,21 +3672,31 @@ RELATIONSHIP_AREAS = [
 _PERSONAL_IDS = {a["id"] for a in PERSONAL_AREAS}
 _PERSONAL_BY_ID = {a["id"]: a for a in PERSONAL_AREAS}
 _REL_IDS = {a["id"] for a in RELATIONSHIP_AREAS}
+_REL_BY_ID = {a["id"]: a for a in RELATIONSHIP_AREAS}
 _VALID_HABIT_TYPES = {"build", "maintain", "reduce"}
+
+
+def _life_default_areas_for(owner: str) -> list[dict]:
+    """The seed/default constant set for a scope."""
+    return RELATIONSHIP_AREAS if owner == "family" else PERSONAL_AREAS
+
+
+def _life_const_by_id(owner: str) -> dict:
+    return _REL_BY_ID if owner == "family" else _PERSONAL_BY_ID
 # Palette offered for custom spheres (must be a hex the frontend picker also shows).
 _LIFE_AREA_COLORS = ["#8B7BE8", "#E8A24A", "#5FB37A", "#6B8FD4", "#C77DBB",
                      "#E8C54A", "#E8714A", "#6BB0D4", "#E06A8A", "#7FB069"]
 
 
-def _life_seed_personal(db, family_id: int, owner: str):
-    """Seed an owner's personal area set from the defaults on first access.
-    Default rows carry NULL name/emoji/color so they keep resolving from the
-    PERSONAL_AREAS constants (incl. bilingual names)."""
+def _life_seed_areas(db, family_id: int, owner: str):
+    """Seed an owner's area set from the scope defaults on first access (personal
+    → PERSONAL_AREAS, family → RELATIONSHIP_AREAS). Default rows carry NULL
+    name/emoji/color so they keep resolving from the constants."""
     has = db.execute("SELECT 1 FROM life_areas WHERE family_id=? AND owner=? LIMIT 1",
                      (family_id, owner)).fetchone()
     if has:
         return
-    for i, a in enumerate(PERSONAL_AREAS):
+    for i, a in enumerate(_life_default_areas_for(owner)):
         db.execute(
             "INSERT OR IGNORE INTO life_areas (family_id, owner, area_key, is_custom, sort_order) "
             "VALUES (?, ?, ?, 0, ?)", (family_id, owner, a["id"], i))
@@ -3694,30 +3704,21 @@ def _life_seed_personal(db, family_id: int, owner: str):
 
 
 def _life_effective_areas(db, family_id: int, owner: str, lang: str = "en") -> list[dict]:
-    """The owner's area set with display name/emoji/color resolved.
-    Family scope → relationship constants + node_overrides (rename only).
-    Personal scope → life_areas rows (seeded) + per-row base + node_overrides."""
+    """The owner's area set with display name/emoji/color resolved. Both scopes
+    are data-backed (life_areas, seeded from constants). Renames ride on
+    node_overrides; default rows fall back to the scope constant."""
     ov = {r["area_id"]: r for r in db.execute(
         "SELECT area_id, name, emoji FROM node_overrides WHERE family_id=? AND owner=?",
         (family_id, owner)).fetchall()}
+    _life_seed_areas(db, family_id, owner)
+    const_by_id = _life_const_by_id(owner)
     out = []
-    if owner == "family":
-        for a in RELATIONSHIP_AREAS:
-            o = ov.get(a["id"])
-            out.append({
-                "id": a["id"],
-                "name": (o["name"] if o and o["name"] else _life_area_name(a, lang)),
-                "emoji": (o["emoji"] if o and o["emoji"] else a["emoji"]),
-                "color": a["color"], "customized": bool(o), "is_custom": False,
-            })
-        return out
-    _life_seed_personal(db, family_id, owner)
     rows = db.execute(
         "SELECT area_key, name, emoji, color, is_custom FROM life_areas "
         "WHERE family_id=? AND owner=? ORDER BY sort_order, id", (family_id, owner)).fetchall()
     for r in rows:
         key = r["area_key"]
-        const = _PERSONAL_BY_ID.get(key)
+        const = const_by_id.get(key)
         if r["is_custom"] or not const:
             base_name, base_emoji, base_color = (r["name"] or key), (r["emoji"] or "🌱"), (r["color"] or "#8B7BE8")
         else:
@@ -3734,8 +3735,6 @@ def _life_effective_areas(db, family_id: int, owner: str, lang: str = "en") -> l
 
 
 def _life_valid_area_ids(db, family_id: int, owner: str) -> set:
-    if owner == "family":
-        return set(_REL_IDS)
     return {a["id"] for a in _life_effective_areas(db, family_id, owner)}
 
 
@@ -4052,12 +4051,10 @@ class AreaCreate(BaseModel):
 def life_area_create(body: AreaCreate, user=Depends(get_uf), db=Depends(get_db)):
     f = user["family_id"]
     owner = _life_resolve_owner(body.owner, user, db)
-    if owner == "family":
-        raise HTTPException(400, "relationship spheres are fixed")
     name = (body.name or "").strip()
     if not name:
         raise HTTPException(400, "name required")
-    _life_seed_personal(db, f, owner)
+    _life_seed_areas(db, f, owner)
     color = body.color if (body.color in _LIFE_AREA_COLORS) else _LIFE_AREA_COLORS[0]
     key = "u" + secrets.token_hex(4)  # stable, collision-safe custom key
     mx = db.execute("SELECT COALESCE(MAX(sort_order),0) m FROM life_areas WHERE family_id=? AND owner=?",
@@ -4074,9 +4071,7 @@ def life_area_create(body: AreaCreate, user=Depends(get_uf), db=Depends(get_db))
 def life_area_delete(area_key: str, owner: str | None = None, user=Depends(get_uf), db=Depends(get_db)):
     f = user["family_id"]
     owner = _life_resolve_owner(owner, user, db)
-    if owner == "family":
-        raise HTTPException(400, "relationship spheres are fixed")
-    _life_seed_personal(db, f, owner)
+    _life_seed_areas(db, f, owner)
     row = db.execute("SELECT id FROM life_areas WHERE family_id=? AND owner=? AND area_key=?",
                      (f, owner, area_key)).fetchone()
     if not row:
@@ -4190,7 +4185,9 @@ async def life_suggest(body: LifeSuggestBody, user=Depends(get_uf), db=Depends(g
 
 
 # ─── Debug & Serve ───────────────────────────────────────────────────────
-APP_VERSION = "v8.52.5"
+APP_VERSION = "v8.52.6"
+# v8.52.6 — Life: family spheres are now editable too (add/delete), same as
+#           personal. Both scopes seed from constants into life_areas.
 # v8.52.5 — Life: editable personal spheres — add a custom sphere via the growing
 #           "+" at L0 (edit mode), delete any sphere (+ its habits). Schema v31
 #           (life_areas). Relationship spheres stay fixed.

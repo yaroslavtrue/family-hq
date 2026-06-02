@@ -133,12 +133,26 @@ def test_delete_default_sphere(client_as):
     assert all(a["id"] != "fun" for a in s["areas"])
 
 
-def test_family_spheres_are_fixed(client_as):
+def test_family_spheres_are_editable(client_as):
     client = client_as(user_id=812, family_id=1)
-    bad_add = client.post("/api/life/areas", json={"owner": "family", "name": "X"})
-    assert bad_add.status_code == 400
-    bad_del = client.delete("/api/life/areas/rel_time?owner=family")
-    assert bad_del.status_code == 400
+    # Family scope starts seeded with the 6 relationship spheres.
+    s = client.get("/api/life/summary?owner=family").json()
+    assert len(s["areas"]) == 6 and any(a["id"] == "rel_time" for a in s["areas"])
+
+    # Add a custom family sphere.
+    r = client.post("/api/life/areas", json={"owner": "family", "name": "Travel Together", "emoji": "✈️"})
+    assert r.status_code == 200, r.text
+    key = r.json()["id"]
+    s = client.get("/api/life/summary?owner=family").json()
+    assert len(s["areas"]) == 7
+
+    # Delete a default family sphere.
+    d = client.delete("/api/life/areas/rel_time?owner=family")
+    assert d.status_code == 200, d.text
+    s = client.get("/api/life/summary?owner=family").json()
+    assert len(s["areas"]) == 6
+    assert all(a["id"] != "rel_time" for a in s["areas"])
+    assert any(a["id"] == key for a in s["areas"])
 
 
 def test_suggest_validates_area_and_requires_ai(client_as, app_module):
