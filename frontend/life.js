@@ -201,6 +201,7 @@ function _lifeNodeR(brightness, count){
 // ─── Build: constellation (L0) ────────────────────────────────
 function _lifeBuildConstellation(){
   if(!_lifeData) return;
+  if(_lifeRAF){ cancelAnimationFrame(_lifeRAF); _lifeRAF=null; } // drop any stale loop
   _lifeComputeVb();
   var cx = _lifeCx(), cy = _lifeCy();
   var areas = _lifeData.areas || [];
@@ -223,14 +224,41 @@ function _lifeBuildConstellation(){
     });
   });
   _lifeEdges = areas.map(function(a){ return ["_hub", a.id] });
+  _lifeAvEdges = [];
+  _lifeOrbiting = false;
+  if(isFam){
+    // Two avatars as real physics nodes: they orbit the centre AND spring toward
+    // their moving anchor + toward each other, so dragging anything makes the
+    // pair wobble elastically instead of staying rigidly locked.
+    _lifeBond = Math.max(0, Math.min(1, _lifeData.bond || 0));
+    _lifeOrbitR = 7.0 - _lifeBond*1.0;
+    var mems = (_lifeData.members || []).slice(0, 2);
+    var a0 = _lifeOrbitAngle, a1 = a0 + Math.PI;
+    _lifeNodes.push({ id:"_av0", type:"avatar", member:mems[0],
+      hx:cx+_lifeOrbitR*Math.cos(a0), hy:cy+_lifeOrbitR*Math.sin(a0),
+      x:cx+_lifeOrbitR*Math.cos(a0), y:cy+_lifeOrbitR*Math.sin(a0),
+      vx:0, vy:0, r:4.3, khome:0.10 });
+    _lifeNodes.push({ id:"_av1", type:"avatar", member:mems[1]||mems[0],
+      hx:cx+_lifeOrbitR*Math.cos(a1), hy:cy+_lifeOrbitR*Math.sin(a1),
+      x:cx+_lifeOrbitR*Math.cos(a1), y:cy+_lifeOrbitR*Math.sin(a1),
+      vx:0, vy:0, r:4.3, khome:0.10 });
+    // Physics edges: each avatar to the hub, and the two avatars to each other
+    // (the inter-avatar spring is what makes them feel connected).
+    _lifeAvEdges = [["_hub","_av0"], ["_hub","_av1"], ["_av0","_av1"]];
+    _lifeOrbiting = true;
+  }
   _lifeDraw();
   _lifeSetHint(isFam ? tr("life_hint_family") : tr("life_hint_personal"));
+  // Family runs a continuous (cheap) sim for the orbit + avatar springs.
+  if(_lifeOrbiting) _lifeStartSim();
 }
 
 // ─── Build: inside an area (L1) ───────────────────────────────
 function _lifeBuildArea(){
   var area = _lifeData && (_lifeData.areas||[]).find(function(x){return x.id===_lifeAreaId});
   if(!area) return;
+  if(_lifeRAF){ cancelAnimationFrame(_lifeRAF); _lifeRAF=null; }
+  _lifeOrbiting = false; _lifeAvEdges = [];
   _lifeComputeVb();
   var cx = _lifeCx(), cy = _lifeCy();
   var habits = _lifeAreaHabits || [];
@@ -257,7 +285,14 @@ function _lifeBuildArea(){
   _lifeSetHint(habits.length ? tr("life_hint_area") : tr("life_hint_area_empty"));
 }
 
-var _lifeEdges = [];
+var _lifeEdges = [];      // drawn gray spokes (hub → satellites)
+var _lifeAvEdges = [];    // physics-only edges among the family avatars (hub↔av, av↔av)
+// Family orbit state — the two avatars are real physics nodes that slowly orbit
+// AND spring toward their moving orbit anchor + toward each other (v8.51.7).
+var _lifeOrbiting = false;
+var _lifeOrbitAngle = -Math.PI/2;
+var _lifeOrbitR = 7;
+var _lifeBond = 0;
 
 function _lifeSetHint(t){ var el=document.getElementById("life-hint"); if(el) el.textContent = t||""; }
 
@@ -273,13 +308,26 @@ function _lifeDraw(){
     defs += '<radialGradient id="'+_lifeGradId(c)+'"><stop offset="0%" stop-color="'+c+'" stop-opacity="0.55"/><stop offset="70%" stop-color="'+c+'" stop-opacity="0.10"/><stop offset="100%" stop-color="'+c+'" stop-opacity="0"/></radialGradient>';
   });
   defs += '</defs>';
-  // edges
+  // Anchor each node's DRAW position (the sim translates the <g> by current −
+  // anchor; for orbiting avatars the home moves, so we must remember where the
+  // element was actually rendered).
+  _lifeNodes.forEach(function(n){ n.ox = n.x; n.oy = n.y; });
+  // edges (gray spokes)
   var eh = '';
   _lifeEdges.forEach(function(e){
     var a=_lifeNodeById(e[0]), b=_lifeNodeById(e[1]); if(!a||!b) return;
     var strength = Math.max(a.bright||0, b.bright||0);
     eh += '<line class="life-edge" x1="'+a.x+'" y1="'+a.y+'" x2="'+b.x+'" y2="'+b.y+'" stroke-opacity="'+(0.12+strength*0.4).toFixed(2)+'" data-a="'+e[0]+'" data-b="'+e[1]+'"/>';
   });
+  // bond line between the two family avatars (glow + core), updated each frame.
+  if(_lifeOrbiting){
+    var a0=_lifeNodeById("_av0"), a1=_lifeNodeById("_av1");
+    if(a0&&a1){
+      var b = _lifeBond;
+      eh += '<line id="life-bondglow" x1="'+a0.x+'" y1="'+a0.y+'" x2="'+a1.x+'" y2="'+a1.y+'" stroke="#E06A8A" stroke-width="'+(2.2+b*2.6).toFixed(2)+'" stroke-opacity="'+(0.12+b*0.28).toFixed(2)+'" stroke-linecap="round"/>';
+      eh += '<line id="life-bondcore" x1="'+a0.x+'" y1="'+a0.y+'" x2="'+a1.x+'" y2="'+a1.y+'" stroke="#E06A8A" stroke-width="'+(0.5+b*1.1).toFixed(2)+'" stroke-opacity="'+(0.45+b*0.5).toFixed(2)+'" stroke-linecap="round"/>';
+    }
+  }
   // nodes
   var nh = '';
   _lifeNodes.forEach(function(n, i){
@@ -294,40 +342,22 @@ function _lifeNodeById(id){ for(var i=0;i<_lifeNodes.length;i++) if(_lifeNodes[i
 
 function _lifeNodeSvg(n){
   var glowR = n.r * 2.5;
-  // ─── Center hub gets avatar(s) instead of a label (v8.51.1) ─────
+  // ─── Family avatar satellites (v8.51.7) — real physics nodes. The avatar is
+  // drawn at the node's own position; the spring sim moves the <g> via translate
+  // (pure translation → stays upright, no counter-rotation needed). ───
+  if(n.type==="avatar"){
+    return '<g class="life-node" data-id="'+n.id+'">'+_lifeAvatarSvg(n.member, n.x, n.y, n.r)+'</g>';
+  }
+  // ─── Center hub: personal → owner avatar; family → bond-scaled glow only
+  // (the two avatars are separate physics nodes; the bond line is drawn in
+  // _lifeDraw and updated each frame). ───
   if(n.type==="hub"){
-    var glow = '<circle class="life-glow life-breathe" cx="'+n.x+'" cy="'+n.y+'" r="'+glowR+'" fill="url(#'+_lifeGradId(n.color)+')"/>';
     if(_lifeData && _lifeData.scope === "family"){
-      // Two avatars orbiting the centre like twin suns, joined by a glowing
-      // BOND line (v8.51.4 · Phase 1b). Bond strength = avg of the 6 relationship
-      // areas: the stronger you nurture them, the closer + brighter you two are.
-      //   - line opacity/width scale with bond
-      //   - avatars sit slightly closer when bond is high
-      // Parent group rotates; each avatar counter-rotates to stay upright. The
-      // bond line lives inside the rotating group so it always joins the pair.
       var bond = Math.max(0, Math.min(1, _lifeData.bond || 0));
-      var mems = (_lifeData.members || []).slice(0, 2);
-      // Two DISTINCT avatars with a clear gap between them (bond line bridges it)
-      // — they read as two objects "stuck together", not one blob. They drift a
-      // little closer as the bond grows.
-      var orbit = 7.0 - bond*1.0, ar = 4.3, dur = "26s";
-      var ax = n.x - orbit, ay = n.y, bx = n.x + orbit, by = n.y;
-      var spin = function(cx, cy, dir){
-        return '<animateTransform attributeName="transform" type="rotate" from="0 '+cx+' '+cy+'" to="'+dir+'360 '+cx+' '+cy+'" dur="'+dur+'" repeatCount="indefinite"/>';
-      };
-      // Bond line: a soft wide glow stroke + a brighter thin core stroke.
-      var bondCol = "#E06A8A";
-      var bondGlow = '<line x1="'+ax+'" y1="'+ay+'" x2="'+bx+'" y2="'+by+'" stroke="'+bondCol+'" stroke-width="'+(2.2+bond*2.6).toFixed(2)+'" stroke-opacity="'+(0.12+bond*0.28).toFixed(2)+'" stroke-linecap="round"/>';
-      var bondCore = '<line class="life-bond" x1="'+ax+'" y1="'+ay+'" x2="'+bx+'" y2="'+by+'" stroke="'+bondCol+'" stroke-width="'+(0.5+bond*1.1).toFixed(2)+'" stroke-opacity="'+(0.45+bond*0.5).toFixed(2)+'" stroke-linecap="round"/>';
-      var inner = '<g>'+spin(n.x, n.y, "")+ bondGlow + bondCore +
-        '<g>'+spin(ax, ay, "-")+_lifeAvatarSvg(mems[0], ax, ay, ar)+'</g>'+
-        '<g>'+spin(bx, by, "-")+_lifeAvatarSvg(mems[1] || mems[0], bx, by, ar)+'</g>'+
-      '</g>';
-      // Bond-scaled central glow (pinker + brighter as the connection grows).
-      var bondGlowCircle = '<circle class="life-glow life-breathe" cx="'+n.x+'" cy="'+n.y+'" r="'+(glowR*(0.85+bond*0.5))+'" fill="url(#'+_lifeGradId(n.color)+')" opacity="'+(0.5+bond*0.5).toFixed(2)+'"/>';
-      return '<g class="life-node" data-id="'+n.id+'">'+bondGlowCircle+inner+'</g>';
+      var gC = '<circle class="life-glow life-breathe" cx="'+n.x+'" cy="'+n.y+'" r="'+(glowR*(0.85+bond*0.5))+'" fill="url(#'+_lifeGradId(n.color)+')" opacity="'+(0.5+bond*0.5).toFixed(2)+'"/>';
+      return '<g class="life-node" data-id="'+n.id+'">'+gC+'</g>';
     }
-    // Personal: single avatar of the current owner.
+    var glow = '<circle class="life-glow life-breathe" cx="'+n.x+'" cy="'+n.y+'" r="'+glowR+'" fill="url(#'+_lifeGradId(n.color)+')"/>';
     var av = _lifeAvatarSvg(_lifeMember(_lifeOwner), n.x, n.y, n.r);
     return '<g class="life-node" data-id="'+n.id+'">'+glow+av+'</g>';
   }
@@ -390,9 +420,6 @@ function _lifeBindPointer(svg){
       if(dx*dx+dy*dy > 4){
         _lifeDrag.moved = true;
         if(_lifeLongTimer){clearTimeout(_lifeLongTimer);_lifeLongTimer=null;}
-        // Freeze the orbit (SMIL) while dragging so the family pair moves as one
-        // rigid object with the centre instead of swinging like satellites.
-        try{ svg.pauseAnimations() }catch(e){}
         _lifeStartSim();
       }
     }
@@ -405,11 +432,10 @@ function _lifeBindPointer(svg){
     if(_lifeLongTimer){ clearTimeout(_lifeLongTimer); _lifeLongTimer=null; }
     if(!_lifeDrag) return;
     var d = _lifeDrag; _lifeDrag = null;
-    try{ svg.unpauseAnimations() }catch(e){}   // resume orbit
     if(d.moved){ _lifeSettleUntil = Date.now()+450; _lifeStartSim(); }
     else { _lifeTapNode(d.id); }
   };
-  svg.onpointercancel = function(){ if(_lifeLongTimer){clearTimeout(_lifeLongTimer);_lifeLongTimer=null;} try{ svg.unpauseAnimations() }catch(e){} _lifeDrag=null; };
+  svg.onpointercancel = function(){ if(_lifeLongTimer){clearTimeout(_lifeLongTimer);_lifeLongTimer=null;} _lifeDrag=null; };
 }
 
 // Convert client coords → SVG user units via the inverse CTM.
@@ -445,14 +471,27 @@ function _lifeStartSim(){
     var settling = Date.now() < _lifeSettleUntil;
     var kHome = 0.018, kEdge = 0.010, damp = 0.86, dt = 1;
     var energy = 0;
+    // Family orbit: advance the angle and move the two avatars' home anchors
+    // around the hub's CURRENT position, so the spring sim makes them chase the
+    // orbit (and the dragged hub) with a little elastic lag.
+    if(_lifeOrbiting){
+      _lifeOrbitAngle += 0.005;  // ~21s per turn (spring lag makes it feel calmer)
+      var hub = _lifeNodeById("_hub");
+      var av0 = _lifeNodeById("_av0"), av1 = _lifeNodeById("_av1");
+      if(hub && av0){ av0.hx = hub.x + _lifeOrbitR*Math.cos(_lifeOrbitAngle);        av0.hy = hub.y + _lifeOrbitR*Math.sin(_lifeOrbitAngle); }
+      if(hub && av1){ av1.hx = hub.x + _lifeOrbitR*Math.cos(_lifeOrbitAngle+Math.PI); av1.hy = hub.y + _lifeOrbitR*Math.sin(_lifeOrbitAngle+Math.PI); }
+    }
     // forces
     _lifeNodes.forEach(function(n){ n.fx=0; n.fy=0; });
     _lifeNodes.forEach(function(n){
       if(_lifeDrag && _lifeDrag.id===n.id && dragging) return; // dragged is pinned
-      n.fx += (n.hx - n.x)*kHome;
-      n.fy += (n.hy - n.y)*kHome;
+      var k = n.khome || kHome;
+      n.fx += (n.hx - n.x)*k;
+      n.fy += (n.hy - n.y)*k;
     });
-    _lifeEdges.forEach(function(e){
+    // spring edges — gray spokes + (family) the avatar coupling springs
+    var allEdges = _lifeAvEdges.length ? _lifeEdges.concat(_lifeAvEdges) : _lifeEdges;
+    allEdges.forEach(function(e){
       var a=_lifeNodeById(e[0]), b=_lifeNodeById(e[1]); if(!a||!b) return;
       var dx=b.x-a.x, dy=b.y-a.y;
       var rest = Math.hypot(a.hx-b.hx, a.hy-b.hy) || 1;
@@ -469,7 +508,7 @@ function _lifeStartSim(){
       energy += Math.abs(n.vx)+Math.abs(n.vy);
     });
     _lifeApplyPositions();
-    if(dragging || settling || energy > 0.04){
+    if(dragging || settling || _lifeOrbiting || energy > 0.04){
       _lifeRAF = requestAnimationFrame(step);
     } else {
       _lifeRAF = null;
@@ -479,20 +518,33 @@ function _lifeStartSim(){
 }
 
 // Move existing SVG elements instead of re-rendering — cheap per frame.
+// Translate is relative to each node's DRAW anchor (ox,oy), not its (possibly
+// moving) home, so orbiting avatars track correctly and stay upright.
 function _lifeApplyPositions(){
   var svg = document.getElementById("life-svg"); if(!svg) return;
   _lifeNodes.forEach(function(n){
     var g = svg.querySelector('.life-node[data-id="'+n.id+'"]'); if(!g) return;
-    var dx = n.x - n.hx, dy = n.y - n.hy;
-    g.setAttribute("transform","translate("+dx.toFixed(2)+" "+dy.toFixed(2)+")");
+    var ax = (n.ox==null?n.hx:n.ox), ay = (n.oy==null?n.hy:n.oy);
+    g.setAttribute("transform","translate("+(n.x-ax).toFixed(2)+" "+(n.y-ay).toFixed(2)+")");
   });
-  // edges follow
+  // gray spoke edges follow their endpoints
   var lines = svg.querySelectorAll(".life-edge");
   lines.forEach(function(ln){
     var a=_lifeNodeById(ln.getAttribute("data-a")), b=_lifeNodeById(ln.getAttribute("data-b"));
     if(a){ ln.setAttribute("x1",a.x.toFixed(2)); ln.setAttribute("y1",a.y.toFixed(2)); }
     if(b){ ln.setAttribute("x2",b.x.toFixed(2)); ln.setAttribute("y2",b.y.toFixed(2)); }
   });
+  // bond line tracks the two avatars
+  if(_lifeOrbiting){
+    var a0=_lifeNodeById("_av0"), a1=_lifeNodeById("_av1");
+    if(a0&&a1){
+      ["life-bondglow","life-bondcore"].forEach(function(id){
+        var ln=document.getElementById(id); if(!ln) return;
+        ln.setAttribute("x1",a0.x.toFixed(2)); ln.setAttribute("y1",a0.y.toFixed(2));
+        ln.setAttribute("x2",a1.x.toFixed(2)); ln.setAttribute("y2",a1.y.toFixed(2));
+      });
+    }
+  }
 }
 
 // ─── Add habit (inside an area) ───────────────────────────────

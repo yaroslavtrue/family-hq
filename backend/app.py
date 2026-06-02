@@ -3960,7 +3960,10 @@ def life_node_override(area_id: str, body: NodeOverride, owner: str | None = Non
 
 
 # ─── Debug & Serve ───────────────────────────────────────────────────────
-APP_VERSION = "v8.51.6"
+APP_VERSION = "v8.51.7"
+# v8.51.7 — Life family hub: avatars are now real physics nodes (orbit + springs
+#           to the hub and to each other) instead of a rigid SMIL pair — they
+#           wobble elastically and tug each other when dragged.
 # v8.51.6 — Life family hub: two avatars now clearly separated (read as two
 #           objects joined by the bond line); orbit freezes (SMIL pause) during
 #           drag so the pair moves as one rigid object with the centre.
