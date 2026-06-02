@@ -45,7 +45,9 @@ function rLife(){
 function lifeMount(){
   if(tab !== "life") return;
   if(!_lifeOwner) _lifeOwner = String((fS && fS.my_id) || (D.members[0] && D.members[0].user_id) || "");
+  if(!_lifeResizeBound){ _lifeResizeBound = function(){ _lifeSizeStage() }; window.addEventListener("resize", _lifeResizeBound); }
   _lifeRenderTopBar();
+  _lifeSizeStage();
   _lifeView = "constellation"; _lifeAreaId = null;
   _lifeLoadSummary();
 }
@@ -53,31 +55,67 @@ function lifeMount(){
 function lifeUnmount(){
   if(_lifeRAF){ cancelAnimationFrame(_lifeRAF); _lifeRAF = null; }
   if(_lifeLongTimer){ clearTimeout(_lifeLongTimer); _lifeLongTimer = null; }
+  if(_lifeResizeBound){ window.removeEventListener("resize", _lifeResizeBound); _lifeResizeBound = null; }
   _lifeDrag = null;
 }
 
 // ─── Top bar: owner filter (Me / partner / Family) + back ─────
+// The global app header is visible again (v8.51.1) — this is just the slim
+// filter row beneath it, like the member-filter rows in Tasks/Money.
 function _lifeRenderTopBar(){
   var el = document.getElementById("life-top"); if(!el) return;
   var h = '';
   if(_lifeView === "area"){
     h += '<button class="life-back" onclick="_lifeBack()" aria-label="Back">‹</button>';
     var a = _lifeData && (_lifeData.areas||[]).find(function(x){return x.id===_lifeAreaId});
-    h += '<div class="life-title">'+(a?a.emoji+' '+es(a.name):tr("nav_life"))+'</div>';
-    h += '<div style="width:34px"></div>';
+    h += '<div class="life-areaname">'+(a?a.emoji+' '+es(a.name):tr("nav_life"))+'</div>';
+    h += '<div style="flex:1"></div>';
   } else {
-    h += '<div class="life-title">'+tr("nav_life")+'</div>';
+    h += '<div style="flex:1"></div>';
     h += '<div class="life-chips">';
     (D.members||[]).forEach(function(m){
       var on = _lifeOwner === String(m.user_id);
-      h += '<button class="life-chip'+(on?' on':'')+'" onclick="_lifeSetOwner(\''+m.user_id+'\')">'+mAv(m.user_id,22)+'</button>';
+      h += '<button class="life-chip'+(on?' on':'')+'" onclick="_lifeSetOwner(\''+m.user_id+'\')">'+mAv(m.user_id,24)+'</button>';
     });
     var famOn = _lifeOwner === "family";
     h += '<button class="life-chip life-chip-fam'+(famOn?' on':'')+'" onclick="_lifeSetOwner(\'family\')">❤️</button>';
     h += '</div>';
   }
   el.innerHTML = h;
+  _lifeSizeStage();
 }
+
+// Member lookup within the loaded summary.
+function _lifeMember(uid){
+  return ((_lifeData && _lifeData.members) || []).find(function(m){ return String(m.user_id) === String(uid) });
+}
+
+// Avatar rendered in SVG user units: clipped photo if available, else a colored
+// disc with the member's emoji. Mirrors mAv()'s fallback logic.
+function _lifeAvatarSvg(m, cx, cy, r){
+  var col = (m && m.color) || "#A9A48F";
+  var ring = '<circle cx="'+cx+'" cy="'+cy+'" r="'+(r+0.5)+'" fill="none" stroke="'+col+'" stroke-width="0.7" stroke-opacity="0.95"/>';
+  if(m && m.photo_url){
+    var clip = "avc_"+(m.user_id)+"_"+Math.round(cx*10)+"_"+Math.round(cy*10);
+    return '<clipPath id="'+clip+'"><circle cx="'+cx+'" cy="'+cy+'" r="'+r+'"/></clipPath>'+
+      '<image href="'+es(m.photo_url)+'" x="'+(cx-r)+'" y="'+(cy-r)+'" width="'+(2*r)+'" height="'+(2*r)+'" clip-path="url(#'+clip+')" preserveAspectRatio="xMidYMid slice"/>'+ring;
+  }
+  return '<circle cx="'+cx+'" cy="'+cy+'" r="'+r+'" fill="'+col+'" fill-opacity="0.22" stroke="'+col+'" stroke-width="0.7"/>'+
+    '<text x="'+cx+'" y="'+(cy+0.2)+'" class="life-emoji" style="font-size:'+(r*1.05).toFixed(1)+'px">'+((m&&m.emoji)||"👤")+'</text>';
+}
+
+// Size the night-sky stage to fill from below the filter row to above the nav.
+// Runs on mount + resize (header height varies by device, so measure, don't guess).
+function _lifeSizeStage(){
+  var st = document.querySelector(".life-stage"); if(!st) return;
+  var navH = parseInt(getComputedStyle(document.documentElement).getPropertyValue("--nh")) || 64;
+  var sb = parseInt(getComputedStyle(document.body).getPropertyValue("padding-bottom")) || 0;
+  var top = st.getBoundingClientRect().top;
+  // Leave ~54px below the stage for the hint line + the bottom safe area.
+  var h = window.innerHeight - top - navH - sb - 54;
+  st.style.height = Math.max(300, h) + "px";
+}
+var _lifeResizeBound = null;
 
 function _lifeSetOwner(o){
   if(_lifeOwner === o) return;
@@ -216,6 +254,29 @@ function _lifeNodeById(id){ for(var i=0;i<_lifeNodes.length;i++) if(_lifeNodes[i
 
 function _lifeNodeSvg(n){
   var glowR = n.r * 2.5;
+  // ─── Center hub gets avatar(s) instead of a label (v8.51.1) ─────
+  if(n.type==="hub"){
+    var glow = '<circle class="life-glow life-breathe" cx="'+n.x+'" cy="'+n.y+'" r="'+glowR+'" fill="url(#'+_lifeGradId(n.color)+')"/>';
+    if(_lifeData && _lifeData.scope === "family"){
+      // Two avatars orbiting the centre like twin suns — parent group rotates,
+      // each avatar counter-rotates around its own centre to stay upright (SMIL,
+      // reliable across WebViews; no CSS transform-origin ambiguity).
+      var mems = (_lifeData.members || []).slice(0, 2);
+      var orbit = 4.6, ar = 4.7, dur = "26s";
+      var ax = n.x - orbit, ay = n.y, bx = n.x + orbit, by = n.y;
+      var spin = function(cx, cy, dir){
+        return '<animateTransform attributeName="transform" type="rotate" from="0 '+cx+' '+cy+'" to="'+dir+'360 '+cx+' '+cy+'" dur="'+dur+'" repeatCount="indefinite"/>';
+      };
+      var inner = '<g>'+spin(n.x, n.y, "")+
+        '<g>'+spin(ax, ay, "-")+_lifeAvatarSvg(mems[0], ax, ay, ar)+'</g>'+
+        '<g>'+spin(bx, by, "-")+_lifeAvatarSvg(mems[1] || mems[0], bx, by, ar)+'</g>'+
+      '</g>';
+      return '<g class="life-node" data-id="'+n.id+'">'+glow+inner+'</g>';
+    }
+    // Personal: single avatar of the current owner.
+    var av = _lifeAvatarSvg(_lifeMember(_lifeOwner), n.x, n.y, n.r);
+    return '<g class="life-node" data-id="'+n.id+'">'+glow+av+'</g>';
+  }
   var dash = n.type==="add" ? ' stroke-dasharray="2 2"' : '';
   var fillOpacity = n.type==="add" ? 0.04 : (0.18 + (n.bright||0)*0.5);
   var ringW = n.type==="add" ? 0.6 : 0.7;
