@@ -330,7 +330,7 @@ body.words-mode .ct{padding-top:max(10px, calc(env(safe-area-inset-top, 0px) + 6
 /* Keeps the familiar global header. The graph lives in a dark "night sky"
    panel below a slim Me/partner/Family filter row. */
 body.life-mode .ct{padding:0;background:#0a0b10}
-.life-wrap{position:relative}
+.life-wrap{position:relative;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
 /* Filter row floats OVER the canvas (top-right) — no separate black strip.
    pointer-events pass through the empty bar to the canvas; only chips catch taps. */
 .life-top{position:absolute;top:0;left:0;right:0;display:flex;align-items:center;gap:10px;padding:10px 14px;z-index:3;pointer-events:none}
@@ -359,7 +359,10 @@ body.life-mode .ct{padding:0;background:#0a0b10}
 .life-sugg-add:active{transform:scale(.9)}
 .life-sugg-ok{flex-shrink:0;width:34px;height:34px;display:flex;align-items:center;justify-content:center}
 /* Full-bleed night-sky canvas — no frame, edge to edge, fills to the nav. */
-.life-stage{position:relative;touch-action:none;overflow:hidden;background:radial-gradient(120% 80% at 50% 38%, #14151e 0%, #0c0d12 60%, #0a0b10 100%)}
+/* Disable text selection + the iOS long-press callout so holding a node (emoji
+   labels are SVG <text>) enters edit mode instead of selecting the glyph. */
+.life-stage{position:relative;touch-action:none;overflow:hidden;background:radial-gradient(120% 80% at 50% 38%, #14151e 0%, #0c0d12 60%, #0a0b10 100%);user-select:none;-webkit-user-select:none;-webkit-touch-callout:none}
+.life-stage text{user-select:none;-webkit-user-select:none}
 #life-svg{width:100%;height:100%;display:block;overflow:visible}
 .life-hint{position:absolute;left:0;right:0;bottom:8px;text-align:center;font-size:12px;color:rgba(237,234,224,.42);padding:0 24px;line-height:1.4;pointer-events:none;z-index:3}
 
@@ -1213,18 +1216,18 @@ body.no-scroll .mx{touch-action:pan-y}
 <!-- Load JS -->
 <!-- Load order: data (lang.js) → engines (theme.js, auth.js, weather.js) → main (app.js). -->
 <!-- All share globals; extracted modules use `var`/`function` declarations so they're true window-scope. -->
-<script src="/static/lang.js?v=230"></script>
-<script src="/static/theme.js?v=230"></script>
-<script src="/static/auth.js?v=230"></script>
-<script src="/static/weather.js?v=230"></script>
-<script src="/static/words.js?v=230"></script>
-<script src="/static/plants.js?v=230"></script>
-<script src="/static/trainings.js?v=230"></script>
-<script src="/static/money.js?v=230"></script>
-<script src="/static/tasks.js?v=230"></script>
-<script src="/static/cooking.js?v=230"></script>
-<script src="/static/news.js?v=230"></script>
-<script src="/static/settings.js?v=230"></script>
-<script src="/static/app.js?v=230"></script>
+<script src="/static/lang.js?v=231"></script>
+<script src="/static/theme.js?v=231"></script>
+<script src="/static/auth.js?v=231"></script>
+<script src="/static/weather.js?v=231"></script>
+<script src="/static/words.js?v=231"></script>
+<script src="/static/plants.js?v=231"></script>
+<script src="/static/trainings.js?v=231"></script>
+<script src="/static/money.js?v=231"></script>
+<script src="/static/tasks.js?v=231"></script>
+<script src="/static/cooking.js?v=231"></script>
+<script src="/static/news.js?v=231"></script>
+<script src="/static/settings.js?v=231"></script>
+<script src="/static/app.js?v=231"></script>
 </body>
 </html>

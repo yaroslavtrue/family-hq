@@ -4077,7 +4077,9 @@ async def life_suggest(body: LifeSuggestBody, user=Depends(get_uf), db=Depends(g
 
 
 # ─── Debug & Serve ───────────────────────────────────────────────────────
-APP_VERSION = "v8.52.3"
+APP_VERSION = "v8.52.4"
+# v8.52.4 — Life: disable text selection / iOS long-press callout on the canvas
+#           so holding a node no longer selects the emoji glyph as text.
 # v8.52.3 — Life: new default personal areas (8): Fun/Rest/Hobby/Friends/Health/
 #           Self-growth/Career/Family. Bilingual names (follow viewer's lang).
 # v8.52.2 — Life: Add/Ideas seeds hidden by default — they grow out of the hub
