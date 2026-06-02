@@ -32,9 +32,11 @@ var _lifeSettleUntil = 0;
 function rLife(){
   // life-mode (body class set by app.js go()) hides the global header; we render
   // our own top bar with the owner filter and an in-canvas back button.
+  // Canvas fills the whole area below the header; the filter row and hint float
+  // as absolute overlays ON the canvas (no separate black strips).
   var h = '<div class="life-wrap">';
-  h += '<div class="life-top" id="life-top"></div>';
   h += '<div class="life-stage"><svg id="life-svg" viewBox="0 0 100 100" preserveAspectRatio="xMidYMid meet"></svg></div>';
+  h += '<div class="life-top" id="life-top"></div>';
   h += '<div class="life-hint" id="life-hint"></div>';
   h += '</div>';
   setTimeout(lifeMount, 0);
@@ -177,7 +179,9 @@ function _lifeCy(){ return _lifeVbH/2; }
 // for node radius + caption).
 function _lifeRing(n, startDeg){
   var cx = _lifeCx(), cy = _lifeCy();
-  var rx = 35, ry = Math.max(24, _lifeVbH/2 - 17);
+  // Leave generous air top/bottom (ry) and sides (rx) so edge nodes + captions
+  // breathe instead of crowding the screen edges.
+  var rx = 33, ry = Math.max(22, _lifeVbH/2 - 24);
   var out = [], start = (startDeg==null? -90 : startDeg) * Math.PI/180;
   for(var i=0;i<n;i++){
     var ang = start + i*(2*Math.PI/Math.max(1,n));
@@ -292,20 +296,31 @@ function _lifeNodeSvg(n){
   if(n.type==="hub"){
     var glow = '<circle class="life-glow life-breathe" cx="'+n.x+'" cy="'+n.y+'" r="'+glowR+'" fill="url(#'+_lifeGradId(n.color)+')"/>';
     if(_lifeData && _lifeData.scope === "family"){
-      // Two avatars orbiting the centre like twin suns — parent group rotates,
-      // each avatar counter-rotates around its own centre to stay upright (SMIL,
-      // reliable across WebViews; no CSS transform-origin ambiguity).
+      // Two avatars orbiting the centre like twin suns, joined by a glowing
+      // BOND line (v8.51.4 · Phase 1b). Bond strength = avg of the 6 relationship
+      // areas: the stronger you nurture them, the closer + brighter you two are.
+      //   - line opacity/width scale with bond
+      //   - avatars sit slightly closer when bond is high
+      // Parent group rotates; each avatar counter-rotates to stay upright. The
+      // bond line lives inside the rotating group so it always joins the pair.
+      var bond = Math.max(0, Math.min(1, _lifeData.bond || 0));
       var mems = (_lifeData.members || []).slice(0, 2);
-      var orbit = 4.6, ar = 4.7, dur = "26s";
+      var orbit = 5.4 - bond*1.4, ar = 4.7, dur = "26s";
       var ax = n.x - orbit, ay = n.y, bx = n.x + orbit, by = n.y;
       var spin = function(cx, cy, dir){
         return '<animateTransform attributeName="transform" type="rotate" from="0 '+cx+' '+cy+'" to="'+dir+'360 '+cx+' '+cy+'" dur="'+dur+'" repeatCount="indefinite"/>';
       };
-      var inner = '<g>'+spin(n.x, n.y, "")+
+      // Bond line: a soft wide glow stroke + a brighter thin core stroke.
+      var bondCol = "#E06A8A";
+      var bondGlow = '<line x1="'+ax+'" y1="'+ay+'" x2="'+bx+'" y2="'+by+'" stroke="'+bondCol+'" stroke-width="'+(2.2+bond*2.6).toFixed(2)+'" stroke-opacity="'+(0.12+bond*0.28).toFixed(2)+'" stroke-linecap="round"/>';
+      var bondCore = '<line class="life-bond" x1="'+ax+'" y1="'+ay+'" x2="'+bx+'" y2="'+by+'" stroke="'+bondCol+'" stroke-width="'+(0.5+bond*1.1).toFixed(2)+'" stroke-opacity="'+(0.45+bond*0.5).toFixed(2)+'" stroke-linecap="round"/>';
+      var inner = '<g>'+spin(n.x, n.y, "")+ bondGlow + bondCore +
         '<g>'+spin(ax, ay, "-")+_lifeAvatarSvg(mems[0], ax, ay, ar)+'</g>'+
         '<g>'+spin(bx, by, "-")+_lifeAvatarSvg(mems[1] || mems[0], bx, by, ar)+'</g>'+
       '</g>';
-      return '<g class="life-node" data-id="'+n.id+'">'+glow+inner+'</g>';
+      // Bond-scaled central glow (pinker + brighter as the connection grows).
+      var bondGlowCircle = '<circle class="life-glow life-breathe" cx="'+n.x+'" cy="'+n.y+'" r="'+(glowR*(0.85+bond*0.5))+'" fill="url(#'+_lifeGradId(n.color)+')" opacity="'+(0.5+bond*0.5).toFixed(2)+'"/>';
+      return '<g class="life-node" data-id="'+n.id+'">'+bondGlowCircle+inner+'</g>';
     }
     // Personal: single avatar of the current owner.
     var av = _lifeAvatarSvg(_lifeMember(_lifeOwner), n.x, n.y, n.r);

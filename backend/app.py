@@ -3960,7 +3960,10 @@ def life_node_override(area_id: str, body: NodeOverride, owner: str | None = Non
 
 
 # ─── Debug & Serve ───────────────────────────────────────────────────────
-APP_VERSION = "v8.51.3"
+APP_VERSION = "v8.51.4"
+# v8.51.4 — Life: filter chips overlay the canvas (no top black strip); more air
+#           around edge nodes; Phase 1b — glowing BOND line between the two
+#           family avatars (brightness + closeness scale with bond strength).
 # v8.51.3 — Life: stage height measured from the real nav position (no black gap
 #           at the bottom on Telegram WebView's dynamic viewport).
 # v8.51.2 — Life: full-bleed canvas (dropped the inner panel frame) + elliptical
