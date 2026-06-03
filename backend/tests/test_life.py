@@ -318,6 +318,13 @@ def test_love_points(client_as):
     # Unknown recipient rejected.
     assert a.post("/api/love", json={"to_user": 99999, "reason": "x"}).status_code == 400
 
+    # History: current month carries the net per member, oldest→newest, members present.
+    hist = a.get("/api/love/history?months=6").json()
+    assert len(hist["months"]) == 6
+    assert len(hist["members"]) == 2
+    cur = hist["months"][-1]  # newest = current month
+    assert cur["scores"]["860"] == 1 and cur["scores"]["861"] == -1
+
 
 def test_suggest_validates_area_and_requires_ai(client_as, app_module):
     client = client_as(user_id=804, family_id=1)

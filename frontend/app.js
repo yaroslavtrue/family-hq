@@ -455,11 +455,64 @@ function _loveRefresh(){
   if(document.getElementById("love-prof"))_loveCard("love-prof");
   if(document.getElementById("love-home"))_loveCard("love-home");
 }
+// ── Love Points history — monthly bars (me=blue / partner=pink) + per-month log
+var _loveHist=null,_loveHistYM=null;
+// Per-person accent for this view: ME → blue, partner → pink (overrides avatar
+// colours, as requested). The ±1 entry values stay green/red by sign.
+function _loveColor(uid){ return (fS && uid===fS.my_id) ? "#5B9BFF" : "#FF7EB6"; }
+function _loveCurYM(){ var d=new Date(); return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0"); }
+function _loveMonShort(ym){
+  var p=String(ym).split("-"), dt=new Date(+p[0],+p[1]-1,1);
+  return dt.toLocaleDateString((_lang==="ru")?"ru-RU":"en-US",{month:"short"});
+}
 async function _loveStats(){
   hp("light");
-  var d=null;try{d=await A("GET","/api/love/stats")}catch(e){}
+  var hist=null;try{hist=await A("GET","/api/love/history?months=6")}catch(e){}
+  _loveHist=hist;
+  var months=(hist&&hist.months)||[];
+  _loveHistYM=months.length?months[months.length-1].ym:_loveCurYM();
+  oMC(tr("love_stats_title"), _loveHistHtml());
+  _loveLoadMonth(_loveHistYM);
+}
+// Bar chart: one column-group per month, two bars (me blue / partner pink).
+function _loveHistHtml(){
+  var months=(_loveHist&&_loveHist.months)||[], mem=(_loveHist&&_loveHist.members)||[];
+  var ids=mem.map(function(x){return x.user_id});
+  var mx=1;
+  months.forEach(function(mo){ ids.forEach(function(id){ mx=Math.max(mx,Math.abs((mo.scores||{})[String(id)]||0)) }) });
+  var h='<div class="lh-chart">';
+  months.forEach(function(mo){
+    var sel=(mo.ym===_loveHistYM);
+    h+='<div class="lh-mcol'+(sel?' a':'')+'" onclick="_loveHistPick(\''+mo.ym+'\')"><div class="lh-bars">';
+    ids.forEach(function(id){
+      var v=(mo.scores||{})[String(id)]||0, col=_loveColor(id);
+      var hgt=Math.round(58*Math.max(0,v)/mx);
+      h+='<div class="lh-barw"><div class="lh-bval" style="color:'+col+'">'+(v||"")+'</div><div class="lh-bar" style="height:'+hgt+'px;background:'+col+'"></div></div>';
+    });
+    h+='</div><div class="lh-mlbl">'+_loveMonShort(mo.ym)+'</div></div>';
+  });
+  h+='</div><div id="love-month-body"></div>';
+  return h;
+}
+function _loveHistPick(ym){
+  _loveHistYM=ym; hp("sel");
+  var mb=document.getElementById("mb"); if(mb)mb.innerHTML=_loveHistHtml();
+  _loveLoadMonth(ym);
+}
+// Selected month: per-person totals + the entry log (categories analog).
+async function _loveLoadMonth(ym){
+  var d=null;try{d=await A("GET","/api/love/stats?ym="+ym)}catch(e){}
+  var el=document.getElementById("love-month-body"); if(!el)return;
   var ents=(d&&d.entries)||[];
-  var h='<div class="love-log">';
+  var mo=((_loveHist&&_loveHist.months)||[]).find(function(x){return x.ym===ym})||{scores:{}};
+  var mem=(_loveHist&&_loveHist.members)||[];
+  var h='<div class="lh-tot">';
+  mem.forEach(function(m){
+    var v=(mo.scores||{})[String(m.user_id)]||0, col=_loveColor(m.user_id);
+    h+='<div class="lh-tot-c">'+mAv(m.user_id,32)+'<div class="lh-tot-n" style="color:'+col+'">'+v+'</div><div class="lh-tot-l">'+es(m.user_name)+'</div></div>';
+  });
+  h+='</div>';
+  h+='<div class="love-log">';
   if(!ents.length)h+='<div class="love-log-empty">'+tr("love_no_points")+'</div>';
   ents.forEach(function(e){
     var neg=(e.delta||1)<0;
@@ -469,7 +522,7 @@ async function _loveStats(){
        '<div class="love-log-d">'+(neg?'−1':'+1')+'</div></div>';
   });
   h+='</div>';
-  oMC(tr("love_stats_title"),h);
+  el.innerHTML=h;
 }
 function _loveAgo(iso){
   if(!iso)return"";

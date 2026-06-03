@@ -4580,6 +4580,33 @@ def love_delete(pid: int, user=Depends(get_uf), db=Depends(get_db)):
     return {"ok": True}
 
 
+@app.get("/api/love/history")
+def love_history(months: int = 6, user=Depends(get_uf), db=Depends(get_db)):
+    """Per-month net points per member, oldest→newest, for the history bars."""
+    f = user["family_id"]
+    months = max(1, min(24, months))
+    now = datetime.now(ZoneInfo(TIMEZONE))
+    yms, y, m = [], now.year, now.month
+    for _ in range(months):
+        yms.append(f"{y:04d}-{m:02d}")
+        m -= 1
+        if m == 0:
+            m = 12; y -= 1
+    yms.reverse()  # oldest → newest
+    ph = ",".join("?" * len(yms))
+    rows = db.execute(
+        f"SELECT ym, to_user, COALESCE(SUM(delta),0) c FROM love_points "
+        f"WHERE family_id=? AND ym IN ({ph}) GROUP BY ym, to_user",
+        (f, *yms)).fetchall()
+    bucket = {ym: {} for ym in yms}
+    for r in rows:
+        bucket[r["ym"]][str(r["to_user"])] = r["c"]
+    members = [dict(mm) for mm in db.execute(
+        "SELECT user_id, user_name, emoji, color, photo_url FROM family_members "
+        "WHERE family_id=? ORDER BY user_id", (f,)).fetchall()]
+    return {"members": members, "months": [{"ym": ym, "scores": bucket[ym]} for ym in yms]}
+
+
 class ChallengeSuggestBody(BaseModel):
     owner: str | None = None
 
@@ -4646,7 +4673,10 @@ async def life_challenge_suggest(body: ChallengeSuggestBody, user=Depends(get_uf
 
 
 # ─── Debug & Serve ───────────────────────────────────────────────────────
-APP_VERSION = "v8.60.0"
+APP_VERSION = "v8.61.0"
+# v8.61.0 — Love Points: monthly history view (Money-style). Bars per month
+#           (me=blue / partner=pink), tap to switch month, per-month entry log
+#           below with +1/−1 green/red. New GET /api/love/history.
 # v8.60.0 — Love Points: "−" now also asks why — deductions carry a reason +
 #           emoji, just like awards. Signed entries (delta ±1), score = SUM(delta),
 #           stats log shows +1/−1. Schema v39 (love_points.delta).
