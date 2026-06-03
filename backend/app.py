@@ -4644,7 +4644,11 @@ async def life_challenge_suggest(body: ChallengeSuggestBody, user=Depends(get_uf
 
 
 # ─── Debug & Serve ───────────────────────────────────────────────────────
-APP_VERSION = "v8.58.0"
+APP_VERSION = "v8.59.0"
+# v8.59.0 — What's New is now a multi-slide carousel (Next + dots) instead of a
+#           single card. Added slides for Life and Love Points; marquee features
+#           flagged big:true. Frontend-only (news.js/lang.js/index.html); seen-key
+#           bumped to _v2 so the tour shows once for everyone.
 # v8.58.0 — Love Points: dedicated monthly couple scoreboard (its own entity in
 #           Profile), separate from challenges. Points given with reason + emoji,
 #           tallied per calendar month, Stats log (who/what/when). Schema v37

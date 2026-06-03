@@ -14,6 +14,46 @@
 
 var WHATS_NEW = [
   {
+    version: "v8.58.0",
+    date: "2026-06-03",
+    icon: "💕",
+    big: true,
+    title_en: "Love Points",
+    title_ru: "Очки любви",
+    items_en: [
+      "A monthly love scoreboard for the two of you, on your Profile.",
+      "Tap + to give your partner a point — say what it’s for and pick an emoji.",
+      "Points are tallied per month; whoever leads wears a 👑.",
+      "Tap Stats to see who gave what, and when.",
+    ],
+    items_ru: [
+      "Ежемесячное «табло любви» для вас двоих — в Профиле.",
+      "Жми + чтобы дать партнёру очко — поясни за что и выбери эмодзи.",
+      "Очки считаются за месяц; у лидера — 👑.",
+      "Кнопка Stats покажет, кто за что и когда дал очко.",
+    ],
+  },
+  {
+    version: "v8.57.0",
+    date: "2026-06-02",
+    icon: "🌌",
+    big: true,
+    title_en: "Life — balance & habits",
+    title_ru: "Life — баланс и привычки",
+    items_en: [
+      "A new Life tab: a living graph of your life spheres — health, rest, career, relationship and more.",
+      "Add habits to each sphere; checking them in lights up the graph and builds streaks.",
+      "Journey shows your stats; Challenges let you set goals — solo, shared, or a manual +/− scoreboard.",
+      "Active challenges also appear as a scoreboard on Home and Profile.",
+    ],
+    items_ru: [
+      "Новая вкладка Life: живой граф сфер жизни — здоровье, отдых, карьера, отношения и другие.",
+      "Добавляй привычки в сферы; отмечая их, ты зажигаешь граф и копишь серии.",
+      "Journey показывает статистику; Challenges — цели: соло, общие или ручное табло со счётом +/−.",
+      "Активные челленджи видны как табло на Главной и в Профиле.",
+    ],
+  },
+  {
     version: "v8.49.11",
     date: "2026-06-01",
     icon: "⭐",
@@ -67,7 +107,7 @@ var WHATS_NEW = [
     ],
   },
   {
-    version: "v8.48.0",
+    version: "v8.48.0", big: true,
     date: "2026-05-25",
     icon: "🍳",
     title_en: "Cooking tab",
@@ -120,7 +160,7 @@ var WHATS_NEW = [
     ],
   },
   {
-    version: "v8.42.0",
+    version: "v8.42.0", big: true,
     date: "2026-05-20",
     icon: "🪴",
     title_en: "Plants tab",
@@ -137,7 +177,7 @@ var WHATS_NEW = [
     ],
   },
   {
-    version: "v8.39.0",
+    version: "v8.39.0", big: true,
     date: "2026-05-15",
     icon: "📚",
     title_en: "Vocabulary tab",
@@ -169,7 +209,7 @@ var WHATS_NEW = [
     ],
   },
   {
-    version: "v8.0.0",
+    version: "v8.0.0", big: true,
     date: "2026-04-25",
     icon: "🏋️",
     title_en: "Trainings tab",
@@ -189,39 +229,57 @@ var WHATS_NEW = [
 
 // Read/write of the "last seen" version. localStorage isn't critical here —
 // worst case the modal shows once more, no big deal.
+// Key bumped to _v2 with the carousel (v8.59.0) so the new multi-slide tour of
+// big features shows once for everyone, even users who'd seen the old single card.
 function _newsSeenVersion(){
-  try { return localStorage.getItem("fhq_seen_news") || "" } catch(e){ return "" }
+  try { return localStorage.getItem("fhq_seen_news_v2") || "" } catch(e){ return "" }
 }
 function _newsSetSeen(v){
-  try { localStorage.setItem("fhq_seen_news", v||"") } catch(e){}
+  try { localStorage.setItem("fhq_seen_news_v2", v||"") } catch(e){}
 }
 
-// Returns the latest entry the user hasn't seen yet, or null if already current.
-function _newsPendingEntry(){
-  if(!WHATS_NEW.length) return null;
-  var latest = WHATS_NEW[0];
+// Entries the user hasn't seen yet (newer than their last-seen version),
+// ordered OLDEST→NEWEST so the carousel progresses chronologically and ends on
+// the latest release. For a brand-new user (no seen marker) we show only the
+// marquee features (big:true) to avoid a 12-slide wall. Capped at 6.
+function _newsUnseenEntries(){
+  if(!WHATS_NEW.length) return [];
   var seen = _newsSeenVersion();
-  if(seen === latest.version) return null;
-  return latest;
+  var unseen = [];
+  for(var i=0;i<WHATS_NEW.length;i++){
+    if(WHATS_NEW[i].version === seen) break;  // reached what they've seen
+    unseen.push(WHATS_NEW[i]);
+  }
+  if(!seen){                                   // brand-new user → big ones only
+    var big = unseen.filter(function(e){ return e.big });
+    if(big.length) unseen = big;
+  }
+  return unseen.slice(0, 6).reverse();         // oldest → newest
 }
 
-// Show the "What's New" modal for the latest unseen release. Called from
-// app.js init() once family/status loaded. Skips if already seen.
+// Carousel state.
+var _nwSlides = [], _nwIdx = 0;
+
+// Show the "What's New" carousel for unseen releases. Called from app.js init()
+// once family/status loaded. Skips if everything's already been seen.
 function maybeShowWhatsNew(){
-  // Tiny delay so the boot render settles before the modal pops.
   setTimeout(function(){
-    var entry = _newsPendingEntry();
-    if(!entry) return;
-    showWhatsNewEntry(entry, /*markSeen*/true);
+    var list = _newsUnseenEntries();
+    if(!list.length) return;
+    _nwSlides = list; _nwIdx = 0;
+    // Stamp the latest as seen up-front so it won't re-pop even if closed early.
+    _newsSetSeen(WHATS_NEW[0].version);
+    oMC(tr("news_whatsnew"), _newsSlideHtml(), {ic:"bolt"});
   }, 600);
 }
 
-// Render a single release entry as a focused modal.
-function showWhatsNewEntry(entry, markSeen){
+// Render the current slide (body only — reused on every navigation).
+function _newsSlideHtml(){
+  var entry = _nwSlides[_nwIdx], n = _nwSlides.length, last = (_nwIdx === n-1);
   var lang = (_lang === "ru") ? "ru" : "en";
-  var title  = entry["title_"+lang] || entry.title_en || "";
-  var items  = entry["items_"+lang] || entry.items_en || [];
-  var h = '';
+  var title = entry["title_"+lang] || entry.title_en || "";
+  var items = entry["items_"+lang] || entry.items_en || [];
+  var h = '<div class="nw-slide">';
   h += '<div class="nw-hero"><div class="nw-icon">'+(entry.icon||"✨")+'</div>';
   h += '<div class="nw-eyebrow">'+tr("news_whatsnew")+' · '+es(entry.version)+'</div>';
   h += '<div class="nw-title">'+es(title)+'</div>';
@@ -230,12 +288,29 @@ function showWhatsNewEntry(entry, markSeen){
   h += '<ul class="nw-list">';
   items.forEach(function(it){ h += '<li>'+es(it)+'</li>' });
   h += '</ul>';
-  h += '<div class="nw-actions">';
-  h += '<button class="btn-sec" onclick="showAllNews()">'+tr("news_see_all")+'</button>';
-  h += '<button class="btn" onclick="_newsDismiss(\''+entry.version+'\')">'+tr("news_got_it")+'</button>';
   h += '</div>';
-  oMC(tr("news_whatsnew"), h, {ic:"bolt"});
-  if(markSeen) _newsSetSeen(entry.version);
+  // Dots — one per slide, current highlighted, tappable.
+  if(n > 1){
+    h += '<div class="nw-dots">';
+    for(var i=0;i<n;i++) h += '<span class="nw-dot'+(i===_nwIdx?' a':'')+'" onclick="_newsGoto('+i+')"></span>';
+    h += '</div>';
+  }
+  h += '<div class="nw-actions">';
+  if(_nwIdx > 0) h += '<button class="btn-sec" onclick="_newsGoto('+(_nwIdx-1)+')">'+tr("news_back")+'</button>';
+  else h += '<button class="btn-sec" onclick="showAllNews()">'+tr("news_see_all")+'</button>';
+  if(last) h += '<button class="btn" onclick="_newsDismiss()">'+tr("news_got_it")+'</button>';
+  else h += '<button class="btn" onclick="_newsGoto('+(_nwIdx+1)+')">'+tr("news_next")+'</button>';
+  h += '</div>';
+  return h;
+}
+
+// Navigate to slide i (re-renders just the modal body).
+function _newsGoto(i){
+  if(i < 0 || i >= _nwSlides.length) return;
+  _nwIdx = i;
+  if(typeof hp === "function") hp("sel");
+  var mb = document.getElementById("mb");
+  if(mb) mb.innerHTML = _newsSlideHtml();
 }
 
 // Settings → Tips & News opens this — full release history (newest first).

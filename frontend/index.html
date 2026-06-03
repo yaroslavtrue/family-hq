@@ -1245,6 +1245,12 @@ body.no-scroll .mx{touch-action:pan-y}
 .nw-actions{display:flex;gap:8px;margin-top:8px}
 .nw-actions .btn-sec{flex:1;display:inline-flex;align-items:center;justify-content:center;padding:13px;background:transparent;color:var(--ht);border:1px solid var(--bd);border-radius:14px;font-size:14px;font-weight:600;cursor:pointer}
 .nw-actions .btn{flex:1}
+/* What's New carousel */
+.nw-slide{animation:nwIn .28s ease-out}
+@keyframes nwIn{from{opacity:0;transform:translateX(14px)}to{opacity:1;transform:none}}
+.nw-dots{display:flex;justify-content:center;gap:7px;margin:14px 0 4px}
+.nw-dot{width:7px;height:7px;border-radius:50%;background:color-mix(in srgb,var(--tx) 18%,transparent);cursor:pointer;transition:all .2s}
+.nw-dot.a{background:var(--pr);width:20px;border-radius:4px}
 
 .nw-tl{display:flex;flex-direction:column}
 .nw-tl-row{display:flex;gap:14px;padding:6px 0}
@@ -1333,18 +1339,18 @@ body.no-scroll .mx{touch-action:pan-y}
 <!-- Load JS -->
 <!-- Load order: data (lang.js) → engines (theme.js, auth.js, weather.js) → main (app.js). -->
 <!-- All share globals; extracted modules use `var`/`function` declarations so they're true window-scope. -->
-<script src="/static/lang.js?v=244"></script>
-<script src="/static/theme.js?v=244"></script>
-<script src="/static/auth.js?v=244"></script>
-<script src="/static/weather.js?v=244"></script>
-<script src="/static/words.js?v=244"></script>
-<script src="/static/plants.js?v=244"></script>
-<script src="/static/trainings.js?v=244"></script>
-<script src="/static/money.js?v=244"></script>
-<script src="/static/tasks.js?v=244"></script>
-<script src="/static/cooking.js?v=244"></script>
-<script src="/static/news.js?v=244"></script>
-<script src="/static/settings.js?v=244"></script>
-<script src="/static/app.js?v=244"></script>
+<script src="/static/lang.js?v=245"></script>
+<script src="/static/theme.js?v=245"></script>
+<script src="/static/auth.js?v=245"></script>
+<script src="/static/weather.js?v=245"></script>
+<script src="/static/words.js?v=245"></script>
+<script src="/static/plants.js?v=245"></script>
+<script src="/static/trainings.js?v=245"></script>
+<script src="/static/money.js?v=245"></script>
+<script src="/static/tasks.js?v=245"></script>
+<script src="/static/cooking.js?v=245"></script>
+<script src="/static/news.js?v=245"></script>
+<script src="/static/settings.js?v=245"></script>
+<script src="/static/app.js?v=245"></script>
 </body>
 </html>
