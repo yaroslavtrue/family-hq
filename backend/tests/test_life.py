@@ -241,6 +241,38 @@ def test_challenge_participants_per_person(client_as):
     assert any(c["id"] == ch["id"] for c in fam["challenges"])
 
 
+def test_score_challenge_bump(client_as):
+    a = client_as(user_id=850, family_id=1)
+    b = client_as(user_id=851, family_id=1)  # register second member
+    a = client_as(user_id=850, family_id=1)
+    r = a.post("/api/life/challenges", json={
+        "title": "Love Points", "emoji": "💕", "kind": "score", "target": 0,
+        "participants": [850, 851], "period_days": 30})
+    assert r.status_code == 200, r.text
+    ch = r.json()
+    cid = ch["id"]
+    assert ch["kind"] == "score" and ch["owner"] == "family"
+    by = {p["user_id"]: p for p in ch["participants"]}
+    assert by[850]["progress"] == 0 and by[851]["progress"] == 0
+
+    # +2 for 850, +1 for 851, then -1 for 850.
+    a.post(f"/api/life/challenges/{cid}/score", json={"user_id": 850, "delta": 1})
+    a.post(f"/api/life/challenges/{cid}/score", json={"user_id": 850, "delta": 1})
+    a.post(f"/api/life/challenges/{cid}/score", json={"user_id": 851, "delta": 1})
+    res = a.post(f"/api/life/challenges/{cid}/score", json={"user_id": 850, "delta": -1}).json()
+    by = {p["user_id"]: p for p in res["participants"]}
+    assert by[850]["progress"] == 1 and by[851]["progress"] == 1
+
+    # Clamps at 0.
+    res = a.post(f"/api/life/challenges/{cid}/score", json={"user_id": 851, "delta": -5}).json()
+    by = {p["user_id"]: p for p in res["participants"]}
+    assert by[851]["progress"] == 0
+
+    # Shows up in /active.
+    act = a.get("/api/life/active").json()
+    assert any(c["id"] == cid for c in act["challenges"])
+
+
 def test_suggest_validates_area_and_requires_ai(client_as, app_module):
     client = client_as(user_id=804, family_id=1)
     # Cross-scope area id is rejected before any AI call.

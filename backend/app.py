@@ -4242,7 +4242,7 @@ def life_journey(owner: str | None = None, days: int = 30, user=Depends(get_uf),
 
 
 # ─── Challenges — time-bound goals (v8.55.0 · Phase 3) ───────────────────
-_VALID_CHALLENGE_KINDS = {"count", "streak"}
+_VALID_CHALLENGE_KINDS = {"count", "streak", "score"}
 _CHALLENGE_SUGGEST_MODEL = "claude-haiku-4-5-20251001"
 
 
@@ -4314,18 +4314,36 @@ def _life_challenge_view(db, ch: dict, family_id: int, owner: str, lang: str) ->
         "days_left": max(0, (end - today).days),
     }
 
+    is_score = (ch.get("kind") == "score")
+    scores = {}
+    if is_score and ch.get("scores"):
+        try: scores = {str(k): int(v) for k, v in _json_mod.loads(ch["scores"]).items()}
+        except Exception: scores = {}
+
     if parts:
         rows = []
         for uid in parts:
-            prog = _life_challenge_progress(db, ch, family_id, str(uid), start, window_end)
-            rows.append({"user_id": uid, "progress": prog, "done": prog >= target})
-        all_done = bool(rows) and all(r["done"] for r in rows)
-        status = "done" if all_done else ("failed" if closed else "active")
+            prog = scores.get(str(uid), 0) if is_score else _life_challenge_progress(db, ch, family_id, str(uid), start, window_end)
+            rows.append({"user_id": uid, "progress": prog, "done": (target > 0 and prog >= target)})
+        if is_score:
+            status = "active" if not closed else "done"     # a tally: runs until the date
+        else:
+            all_done = bool(rows) and all(r["done"] for r in rows)
+            status = "done" if all_done else ("failed" if closed else "active")
         base.update({
             "participants": rows,
             "progress": max([r["progress"] for r in rows], default=0),
             "status": status,
         })
+        return base
+
+    if is_score:
+        # Solo score challenge: a single manual tally under the owner.
+        prog = scores.get(str(owner) if not str(owner).isalpha() else owner, 0)
+        if not prog and scores:
+            prog = next(iter(scores.values()), 0)
+        base.update({"participants": None, "progress": prog,
+                     "status": ("active" if not closed else "done")})
         return base
 
     progress = _life_challenge_progress(db, ch, family_id, owner, start, window_end)
@@ -4398,11 +4416,17 @@ def life_challenge_create(body: ChallengeCreate, user=Depends(get_uf), db=Depend
         if not r:
             raise HTTPException(400, "bad habit_id")
         habit_id = body.habit_id
+    # Score (manual tally) starts every participant at 0. No habit/area binding.
+    scores_json = None
+    if kind == "score":
+        habit_id = None; area_id = None
+        keys = parts if parts else [user["id"]]
+        scores_json = _json_mod.dumps({str(k): 0 for k in keys})
     today = datetime.now(ZoneInfo(TIMEZONE)).date().isoformat()
     cur = db.execute(
-        """INSERT INTO life_challenges (family_id, owner, title, emoji, kind, target, habit_id, area_id, period_days, start_date, participants)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-        (f, owner, title, (body.emoji or "🏆").strip(), kind, target, habit_id, area_id, period, today, participants_json))
+        """INSERT INTO life_challenges (family_id, owner, title, emoji, kind, target, habit_id, area_id, period_days, start_date, participants, scores)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+        (f, owner, title, (body.emoji or "🏆").strip(), kind, target, habit_id, area_id, period, today, participants_json, scores_json))
     db.commit()
     row = dict(db.execute("SELECT * FROM life_challenges WHERE id=?", (cur.lastrowid,)).fetchone())
     return _life_challenge_view(db, row, f, owner, _life_user_lang(db, user["id"]))
@@ -4417,6 +4441,54 @@ def life_challenge_delete(cid: int, user=Depends(get_uf), db=Depends(get_db)):
     db.execute("DELETE FROM life_challenges WHERE id=?", (cid,))
     db.commit()
     return {"ok": True}
+
+
+class ScoreBump(BaseModel):
+    user_id: int
+    delta: int = 1
+
+
+@app.post("/api/life/challenges/{cid}/score")
+def life_challenge_score(cid: int, body: ScoreBump, user=Depends(get_uf), db=Depends(get_db)):
+    """+/- a participant's manual score on a 'score' challenge (clamped ≥ 0)."""
+    f = user["family_id"]
+    row = db.execute("SELECT * FROM life_challenges WHERE id=? AND family_id=?", (cid, f)).fetchone()
+    if not row:
+        raise HTTPException(404)
+    ch = dict(row)
+    if ch.get("kind") != "score":
+        raise HTTPException(400, "not a score challenge")
+    try:
+        scores = {str(k): int(v) for k, v in _json_mod.loads(ch.get("scores") or "{}").items()}
+    except Exception:
+        scores = {}
+    key = str(body.user_id)
+    scores[key] = max(0, scores.get(key, 0) + int(body.delta))
+    db.execute("UPDATE life_challenges SET scores=? WHERE id=?", (_json_mod.dumps(scores), cid))
+    db.commit()
+    fresh = dict(db.execute("SELECT * FROM life_challenges WHERE id=?", (cid,)).fetchone())
+    return _life_challenge_view(db, fresh, f, ch["owner"], _life_user_lang(db, user["id"]))
+
+
+@app.get("/api/life/active")
+def life_active_challenges(user=Depends(get_uf), db=Depends(get_db)):
+    """Active challenges relevant to the caller — their personal ones + the
+    family's — for the Home / Profile scoreboard widget."""
+    f = user["family_id"]
+    me = str(user["id"])
+    lang = _life_user_lang(db, me)
+    rows = db.execute(
+        "SELECT * FROM life_challenges WHERE family_id=? AND owner IN (?, 'family') ORDER BY id DESC",
+        (f, me)).fetchall()
+    out = []
+    for r in rows:
+        v = _life_challenge_view(db, dict(r), f, r["owner"], lang)
+        if v["status"] == "active":
+            out.append(v)
+    members = [dict(m) for m in db.execute(
+        "SELECT user_id, user_name, emoji, color, photo_url FROM family_members WHERE family_id=?",
+        (f,)).fetchall()]
+    return {"challenges": out, "members": members}
 
 
 class ChallengeSuggestBody(BaseModel):
@@ -4485,7 +4557,10 @@ async def life_challenge_suggest(body: ChallengeSuggestBody, user=Depends(get_uf
 
 
 # ─── Debug & Serve ───────────────────────────────────────────────────────
-APP_VERSION = "v8.56.1"
+APP_VERSION = "v8.57.0"
+# v8.57.0 — Life: 'score' challenges (manual +/- scoreboard), custom period via
+#           date picker, Home/Profile scoreboard widget, example couple seed.
+#           Schema v35 (scores) + v36 (example). POST .../score, GET /life/active.
 # v8.56.1 — Life: participant chips in the create-challenge modal are flex now
 #           (avatar + name aligned, no baseline skew).
 # v8.56.0 — Life Challenges: participants — pick members, each tracked separately

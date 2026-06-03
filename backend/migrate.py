@@ -2,13 +2,45 @@
 Database migration system. Runs on app startup.
 Creates tables and adds columns without losing data.
 """
-import sqlite3, logging, os, shutil
+import sqlite3, logging, os, shutil, json as _json
+from datetime import datetime as _dt
 
 log = logging.getLogger("uvicorn.error")
 
 def safe_add_col(con, table, col, ctype):
     try: con.execute(f"ALTER TABLE {table} ADD COLUMN {col} {ctype}"); con.commit()
     except: pass
+
+
+def _seed_example_score_challenge(con):
+    """One-time example: a couple score-challenge for family 1 (Yaroslav + Ella),
+    so the new scoreboard widget isn't empty. Skips unless both members exist and
+    no score challenge is present yet."""
+    YAR, ELLA, FAM = 425342813, 5063035495, 1
+    try:
+        fam = con.execute("SELECT id FROM families WHERE id=?", (FAM,)).fetchone()
+        if not fam:
+            return
+        have = {r[0] for r in con.execute(
+            "SELECT user_id FROM family_members WHERE family_id=? AND user_id IN (?, ?)",
+            (FAM, YAR, ELLA)).fetchall()}
+        if YAR not in have or ELLA not in have:
+            return
+        existing = con.execute(
+            "SELECT 1 FROM life_challenges WHERE family_id=? AND kind='score' LIMIT 1", (FAM,)).fetchone()
+        if existing:
+            return
+        today = _dt.now().strftime("%Y-%m-%d")
+        con.execute(
+            """INSERT INTO life_challenges
+               (family_id, owner, title, emoji, kind, target, period_days, start_date, participants, scores)
+               VALUES (?, 'family', ?, ?, 'score', ?, ?, ?, ?, ?)""",
+            (FAM, "Love Points", "💕", 21, 30, today,
+             _json.dumps([YAR, ELLA]), _json.dumps({str(YAR): 0, str(ELLA): 0})))
+        con.commit()
+        log.info("v36 seeded example score challenge for family 1")
+    except Exception as e:
+        log.warning(f"v36 example score challenge seed failed: {e}")
 
 
 def _backfill_original_cover_timeline(con):
@@ -768,6 +800,13 @@ def migrate(db_path):
         # under owner='family' (both see it) and progress is computed per
         # participant from THEIR own habits — a little leaderboard.
         lambda c: safe_add_col(c, "life_challenges", "participants", "TEXT"),
+        # v35: 'score' challenge kind — a manual scoreboard. Per-participant scores
+        # bumped by +/- (JSON {user_id: int}), not auto-computed from habits.
+        lambda c: safe_add_col(c, "life_challenges", "scores", "TEXT"),
+        # v36: seed ONE example couple score-challenge so the scoreboard widget has
+        # something to show. Guarded: only for family 1 with both Yaroslav+Ella as
+        # members, and only if no score challenge exists yet. Idempotent.
+        lambda c: _seed_example_score_challenge(c),
     ]
 
     for i, mig in enumerate(migrations):

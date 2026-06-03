@@ -422,6 +422,34 @@ body.life-mode .ct{padding:0;background:#0a0b10}
 .life-chparts{display:flex;flex-direction:column;gap:8px;margin-top:11px}
 .life-chpart{display:flex;align-items:center;gap:9px}
 .life-chpart .av,.life-chpart .av-em{width:22px;height:22px;border-radius:50%;flex-shrink:0}
+/* Manual scoreboard rows (+/-) */
+.life-score{display:flex;flex-direction:column;gap:9px;margin-top:12px}
+.life-score-row{display:flex;align-items:center;gap:10px}
+.life-score-row .av,.life-score-row .av-em{width:26px;height:26px;border-radius:50%;flex-shrink:0}
+.life-score-name{flex:1;min-width:0;font-size:13px;font-weight:600;color:#EDEAE0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.life-score-b{width:30px;height:30px;border-radius:9px;border:1px solid rgba(255,255,255,.14);background:rgba(255,255,255,.06);color:#EDEAE0;font-size:18px;font-weight:700;line-height:1;cursor:pointer;flex-shrink:0;display:flex;align-items:center;justify-content:center}
+.life-score-b:active{transform:scale(.9)}
+.life-score-v{min-width:30px;text-align:center;font-size:22px;font-weight:800;flex-shrink:0}
+/* Life challenge widget on Home/Profile (themed — football-scoreboard feel) */
+.lcw{border-radius:18px;padding:14px;margin-bottom:10px;border:1px solid var(--bd);box-shadow:var(--shadow-1);animation:ci .3s ease-out}
+.lcw-title{font-size:14px;font-weight:700;color:var(--tx);display:flex;align-items:center;gap:6px;margin-bottom:12px}
+.lcw-days{margin-left:auto;font-size:11px;font-weight:600;color:var(--ht)}
+.lcw-board{display:flex;align-items:flex-start;gap:8px}
+.lcw-side{flex:1;display:flex;flex-direction:column;align-items:center;gap:4px}
+.lcw-side .av,.lcw-side .av-em{width:34px;height:34px;border-radius:50%}
+.lcw-name{font-size:12px;font-weight:600;color:var(--tx);max-width:96px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.lcw-num{font-size:36px;font-weight:800;line-height:1;letter-spacing:-1px}
+.lcw-vs{font-size:24px;font-weight:800;color:var(--ht);opacity:.45;align-self:center;padding-top:18px}
+.lcw-ctrl{display:flex;gap:6px;margin-top:4px}
+.lcw-b{width:30px;height:30px;border-radius:9px;border:1px solid var(--bd);background:var(--cd);color:var(--tx);font-size:18px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;line-height:1}
+.lcw-b:active{transform:scale(.9)}
+.lcw-mini{display:flex;align-items:center;gap:11px;background:var(--cd)}
+.lcw-mini-em{width:38px;height:38px;border-radius:11px;background:color-mix(in srgb,var(--pr) 10%,transparent);display:flex;align-items:center;justify-content:center;font-size:19px;flex-shrink:0}
+.lcw-mini-bd{flex:1;min-width:0}
+.lcw-mini-t{font-size:13px;font-weight:700;color:var(--tx);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.lcw-mini-bar{height:6px;border-radius:3px;background:color-mix(in srgb,var(--tx) 10%,transparent);margin-top:6px;overflow:hidden}
+.lcw-mini-bar>div{height:100%;border-radius:3px}
+.lcw-mini-r{font-size:13px;font-weight:700;color:var(--tx);flex-shrink:0}
 
 /* SVG node bits (units = viewBox 0..100) */
 .life-edge{stroke:#9b96a8;pointer-events:none}
@@ -1277,18 +1305,18 @@ body.no-scroll .mx{touch-action:pan-y}
 <!-- Load JS -->
 <!-- Load order: data (lang.js) → engines (theme.js, auth.js, weather.js) → main (app.js). -->
 <!-- All share globals; extracted modules use `var`/`function` declarations so they're true window-scope. -->
-<script src="/static/lang.js?v=242"></script>
-<script src="/static/theme.js?v=242"></script>
-<script src="/static/auth.js?v=242"></script>
-<script src="/static/weather.js?v=242"></script>
-<script src="/static/words.js?v=242"></script>
-<script src="/static/plants.js?v=242"></script>
-<script src="/static/trainings.js?v=242"></script>
-<script src="/static/money.js?v=242"></script>
-<script src="/static/tasks.js?v=242"></script>
-<script src="/static/cooking.js?v=242"></script>
-<script src="/static/news.js?v=242"></script>
-<script src="/static/settings.js?v=242"></script>
-<script src="/static/app.js?v=242"></script>
+<script src="/static/lang.js?v=243"></script>
+<script src="/static/theme.js?v=243"></script>
+<script src="/static/auth.js?v=243"></script>
+<script src="/static/weather.js?v=243"></script>
+<script src="/static/words.js?v=243"></script>
+<script src="/static/plants.js?v=243"></script>
+<script src="/static/trainings.js?v=243"></script>
+<script src="/static/money.js?v=243"></script>
+<script src="/static/tasks.js?v=243"></script>
+<script src="/static/cooking.js?v=243"></script>
+<script src="/static/news.js?v=243"></script>
+<script src="/static/settings.js?v=243"></script>
+<script src="/static/app.js?v=243"></script>
 </body>
 </html>

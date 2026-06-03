@@ -308,20 +308,36 @@ function _lifeRenderChall(){
   }
   cv.innerHTML = h;
 }
+function _lifeChMemberColor(uid){
+  var m=(D.members||[]).find(function(x){return x.user_id===uid}); return (m&&m.color)||"#8B7BE8";
+}
 function _lifeChallCard(c){
   var accent = _lifeChallData.scope==="family"?"#E06A8A":"#8B7BE8";
   var sub = c.subject ? es(c.subject) : tr("life_ch_anything");
-  var kindTxt = c.kind==="streak" ? (c.target+" "+tr("life_ch_days_row")) : (c.target+" "+tr("life_ch_times"));
+  var kindTxt = c.kind==="score" ? tr("life_ch_kind_score")
+    : (c.kind==="streak" ? (c.target+" "+tr("life_ch_days_row")) : (c.target+" "+tr("life_ch_times")));
   var right = '';
-  if(c.status==="done") right = '<span class="life-chstate" style="color:#7FB069">✓ '+tr("life_ch_done")+'</span>';
+  if(c.status==="done") right = '<span class="life-chstate" style="color:#7FB069">'+(c.kind==="score"?'🏁 '+tr("life_ch_ended"):'✓ '+tr("life_ch_done"))+'</span>';
   else if(c.status==="failed") right = '<span class="life-chstate" style="color:#C77D7D">'+tr("life_ch_failed")+'</span>';
   else right = '<span class="life-chstate">'+trn("life_ch_days_left", c.days_left)+'</span>';
   var h = '<div class="life-chcard">';
   h += '<div class="life-chcard-top"><div class="life-chcard-em">'+es(c.emoji||"🏆")+'</div>';
   h += '<div class="life-chcard-bd"><div class="life-chcard-t">'+es(c.title)+'</div><div class="life-chcard-s">'+sub+' · '+kindTxt+'</div></div>';
   h += '<button class="life-chcard-x" onclick="_lifeDeleteChall('+c.id+')" aria-label="Delete">'+icon("tr",13,2)+'</button></div>';
-  if(c.participants && c.participants.length){
-    // Per-person leaderboard.
+  if(c.kind==="score" && c.participants && c.participants.length){
+    // Manual scoreboard — each participant has +/- controls.
+    h += '<div class="life-score">';
+    c.participants.forEach(function(p){
+      var col = _lifeChMemberColor(p.user_id);
+      h += '<div class="life-score-row">'+mAv(p.user_id,26)+
+           '<div class="life-score-name">'+es(mName(p.user_id))+'</div>'+
+           '<button class="life-score-b" onclick="_lifeScore('+c.id+','+p.user_id+',-1)">−</button>'+
+           '<div class="life-score-v" style="color:'+col+'">'+p.progress+'</div>'+
+           '<button class="life-score-b" onclick="_lifeScore('+c.id+','+p.user_id+',1)">+</button></div>';
+    });
+    h += '</div>';
+  } else if(c.participants && c.participants.length){
+    // Per-person leaderboard (count/streak).
     h += '<div class="life-chparts">';
     c.participants.slice().sort(function(a,b){return b.progress-a.progress}).forEach(function(p){
       var pct = Math.min(100, Math.round((p.progress/Math.max(1,c.target))*100));
@@ -340,6 +356,14 @@ function _lifeChallCard(c){
   h += '<div class="life-chcard-foot">'+right+'</div>';
   h += '</div>';
   return h;
+}
+async function _lifeScore(cid, uid, delta){
+  hp(delta>0?"ok":"light");
+  var r = await A("POST","/api/life/challenges/"+cid+"/score", {user_id:uid, delta:delta});
+  if(!r || !r.id){ toast(tr("ts_error")); return }
+  // Patch the loaded list in place + re-render (no full reload flicker).
+  if(_lifeChallData){ var i=(_lifeChallData.challenges||[]).findIndex(function(x){return x.id===cid}); if(i>=0) _lifeChallData.challenges[i]=r; }
+  _lifeRenderChall();
 }
 async function _lifeDeleteChall(id){
   if(!confirm(tr("life_ch_delete_confirm"))) return;
@@ -362,10 +386,13 @@ async function _lifeOpenNewChall(){
   h += '<div class="lb">'+tr("life_ch_goal")+'</div><div class="or">';
   h += '<button class="ob s" id="ch-k-count" onclick="_lifeChKind(\'count\')">'+tr("life_ch_kind_count")+'</button>';
   h += '<button class="ob" id="ch-k-streak" onclick="_lifeChKind(\'streak\')">'+tr("life_ch_kind_streak")+'</button>';
+  h += '<button class="ob" id="ch-k-score" onclick="_lifeChKind(\'score\')">'+tr("life_ch_kind_score")+'</button>';
   h += '</div>';
-  h += '<div class="dr"><div><div class="dl">'+tr("life_ch_target")+'</div><input class="inp" id="ch-n" type="number" min="1" max="100" value="5"></div>';
-  h += '<div><div class="dl" id="ch-unit">'+tr("life_ch_times")+'</div><div style="height:1px"></div></div></div>';
-  h += '<div class="lb">'+tr("life_ch_track")+'</div><select class="inp" id="ch-track">';
+  // Target — hidden for score (a tally has no fixed target).
+  h += '<div id="ch-target-wrap"><div class="dr"><div><div class="dl">'+tr("life_ch_target")+'</div><input class="inp" id="ch-n" type="number" min="1" max="100" value="5"></div>';
+  h += '<div><div class="dl" id="ch-unit">'+tr("life_ch_times")+'</div><div style="height:1px"></div></div></div></div>';
+  // Track — hidden for score (manual, no habit/area binding).
+  h += '<div id="ch-track-wrap"><div class="lb">'+tr("life_ch_track")+'</div><select class="inp" id="ch-track">';
   h += '<option value="">'+tr("life_ch_anything")+'</option>';
   if(areas.length){
     h += '<optgroup label="'+tr("life_ch_spheres")+'">';
@@ -377,10 +404,12 @@ async function _lifeOpenNewChall(){
     habits.forEach(function(hb){ h += '<option value="habit:'+hb.id+'">'+es(hb.emoji||"•")+' '+es(hb.name)+'</option>'; });
     h += '</optgroup>';
   }
-  h += '</select>';
+  h += '</select></div>';
   h += '<div class="lb">'+tr("life_ch_period")+'</div><div class="or" id="ch-period">';
   [7,14,30].forEach(function(p){ h += '<button class="ob '+(p===7?"s":"")+'" onclick="_lifeChPeriod(this,'+p+')">'+p+' '+tr("life_ch_days")+'</button>'; });
+  h += '<button class="ob" id="ch-p-custom" onclick="_lifeChPeriodCustom(this)">📅 '+tr("life_ch_until")+'</button>';
   h += '</div>';
+  h += '<input type="date" class="inp" id="ch-date" style="display:none;margin-top:8px" onchange="_lifeChDate(this)">';
   // Participants — pick who's in; each is tracked separately (a little leaderboard).
   if((D.members||[]).length > 1){
     h += '<div class="lb">'+tr("life_ch_participants")+'</div><div class="or" id="ch-parts">';
@@ -394,12 +423,30 @@ async function _lifeOpenNewChall(){
 }
 function _lifeChKind(k){
   _lifeChallDraft.kind = k;
-  document.getElementById("ch-k-count").classList.toggle("s", k==="count");
-  document.getElementById("ch-k-streak").classList.toggle("s", k==="streak");
+  ["count","streak","score"].forEach(function(x){ var b=document.getElementById("ch-k-"+x); if(b)b.classList.toggle("s", x===k); });
   var u = document.getElementById("ch-unit"); if(u) u.textContent = tr(k==="streak"?"life_ch_days_row":"life_ch_times");
+  // Score = a manual tally → no target, no habit/area binding.
+  var tw=document.getElementById("ch-target-wrap"); if(tw) tw.style.display = (k==="score")?"none":"block";
+  var trk=document.getElementById("ch-track-wrap"); if(trk) trk.style.display = (k==="score")?"none":"block";
+  // Score really wants participants — nudge: if a couple, preselect both.
+  if(k==="score" && (D.members||[]).length>1 && (!_lifeChallDraft.participants||!_lifeChallDraft.participants.length)){
+    _lifeChallDraft.participants = (D.members||[]).map(function(m){return m.user_id});
+    document.querySelectorAll("#ch-parts .ob").forEach(function(b){b.classList.add("s")});
+  }
+}
+function _lifeChPeriodCustom(btn){
+  document.querySelectorAll("#ch-period .ob").forEach(function(b){b.classList.remove("s")});
+  btn.classList.add("s");
+  var d=document.getElementById("ch-date"); if(d){ d.style.display="block"; d.min=td(); try{d.showPicker&&d.showPicker()}catch(e){} }
+}
+function _lifeChDate(inp){
+  if(!inp.value) return;
+  var ms = new Date(inp.value+"T23:59:59") - new Date();
+  _lifeChallDraft.period = Math.max(1, Math.ceil(ms/86400000));
 }
 function _lifeChPeriod(btn, p){
   _lifeChallDraft.period = p;
+  var d=document.getElementById("ch-date"); if(d) d.style.display="none";
   document.querySelectorAll("#ch-period .ob").forEach(function(b){b.classList.remove("s")});
   btn.classList.add("s");
 }
@@ -415,11 +462,13 @@ async function _lifeSaveChall(){
   var title = ((document.getElementById("ch-t")||{}).value||"").trim();
   if(!title){ toast(tr("life_name_required")); return }
   var emoji = (document.getElementById("ch-e")||{}).value || "🏆";
-  var target = parseInt((document.getElementById("ch-n")||{}).value)||1;
+  var target = d.kind==="score" ? 0 : (parseInt((document.getElementById("ch-n")||{}).value)||1);
   var track = (document.getElementById("ch-track")||{}).value || "";
   var body = {owner:_lifeOwner, title:title, emoji:emoji, kind:d.kind, target:target, period_days:d.period};
-  if(track.indexOf("area:")===0) body.area_id = track.slice(5);
-  else if(track.indexOf("habit:")===0) body.habit_id = parseInt(track.slice(6));
+  if(d.kind!=="score"){
+    if(track.indexOf("area:")===0) body.area_id = track.slice(5);
+    else if(track.indexOf("habit:")===0) body.habit_id = parseInt(track.slice(6));
+  }
   var parts = d.participants||[];
   if(parts.length) body.participants = parts;
   var r = await A("POST","/api/life/challenges", body);

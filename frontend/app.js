@@ -354,6 +354,49 @@ const m=D.members.find(function(x){return x.user_id===uid});if(!m)return "";
 var sz=sm?16:18;return '<span class="ch'+(sm?" ch-s":"")+'" style="background:'+m.color+'22;color:'+m.color+';display:inline-flex;align-items:center;gap:5px">'+mAv(uid,sz)+es(m.user_name)+'</span>'}
 function pri(p){const c={high:"var(--pri-hi)",normal:"var(--pri-md)",low:"var(--pri-lo)"};return '<span class="pr" style="color:'+c[p]+'">'+I.fl+" "+p+'</span>'}
 
+// ─── Life active-challenge widget (Home + Profile) ────────────
+// Lives in app.js (not life.js) so it works without the Life tab being opened.
+// Score challenges render as a two-colour scoreboard with live +/- controls.
+function _lifeMColor(uid){var m=(D.members||[]).find(function(x){return x.user_id===uid});return (m&&m.color)||"var(--pr)"}
+async function _lifeWidget(hostId){
+  var host=document.getElementById(hostId);if(!host)return;
+  var d=null;try{d=await A("GET","/api/life/active")}catch(e){}
+  if(!d||!d.challenges||!d.challenges.length){host.innerHTML="";return}
+  var h='<div class="sc"><span class="sc-l">🏆 '+tr("life_challenges")+'<span class="sc-cnt">'+d.challenges.length+'</span></span></div>';
+  d.challenges.forEach(function(c){h+=_lifeWGCard(c,hostId)});
+  host.innerHTML=h;
+}
+function _lifeWGCard(c,hostId){
+  if(c.kind==="score"&&c.participants&&c.participants.length>=2){
+    var a=c.participants[0],b=c.participants[1];
+    var ca=_lifeMColor(a.user_id),cb=_lifeMColor(b.user_id);
+    var bg='linear-gradient(90deg, color-mix(in srgb,'+ca+' 18%,var(--cd)) 0%, var(--cd) 46%, var(--cd) 54%, color-mix(in srgb,'+cb+' 18%,var(--cd)) 100%)';
+    var h='<div class="lcw" style="background:'+bg+'">';
+    h+='<div class="lcw-title">'+es(c.emoji||"🏆")+' '+es(c.title)+'<span class="lcw-days">'+trn("life_ch_days_left",c.days_left)+'</span></div>';
+    h+='<div class="lcw-board">';
+    [[a,ca],[b,cb]].forEach(function(pp,idx){
+      var p=pp[0],col=pp[1];
+      h+='<div class="lcw-side">'+mAv(p.user_id,34)+'<div class="lcw-name">'+es(mName(p.user_id))+'</div>';
+      h+='<div class="lcw-num" style="color:'+col+'">'+p.progress+'</div>';
+      h+='<div class="lcw-ctrl"><button class="lcw-b" onclick="_lifeWGScore('+c.id+','+p.user_id+',-1,\''+hostId+'\')">−</button><button class="lcw-b" onclick="_lifeWGScore('+c.id+','+p.user_id+',1,\''+hostId+'\')">+</button></div></div>';
+      if(idx===0)h+='<div class="lcw-vs">:</div>';
+    });
+    h+='</div></div>';
+    return h;
+  }
+  var prog=c.progress,tgt=c.target;
+  var pct=tgt>0?Math.min(100,Math.round(prog/tgt*100)):0;
+  var h='<div class="lcw lcw-mini"><div class="lcw-mini-em">'+es(c.emoji||"🏆")+'</div><div class="lcw-mini-bd"><div class="lcw-mini-t">'+es(c.title)+'</div>';
+  h+='<div class="lcw-mini-bar"><div style="width:'+pct+'%;background:var(--pr)"></div></div></div>';
+  h+='<div class="lcw-mini-r">'+prog+(tgt>0?'/'+tgt:'')+'</div></div>';
+  return h;
+}
+async function _lifeWGScore(cid,uid,delta,hostId){
+  hp(delta>0?"ok":"light");
+  try{await A("POST","/api/life/challenges/"+cid+"/score",{user_id:uid,delta:delta})}catch(e){}
+  _lifeWidget(hostId);
+}
+
 function assignPk(id,sel){
 let h='<div class="or" id="'+id+'"><span class="ch'+((!sel)?" s":"")+'" style="background:var(--wn)22;color:var(--wn);cursor:pointer" onclick="document.querySelectorAll(\'#'+id+' .ch\').forEach(function(c){c.classList.remove(\'s\')});this.classList.add(\'s\');_assign=0">👨‍👩‍👧</span>';
 D.members.forEach(function(m){h+='<span class="ch'+(sel===m.user_id?" s":"")+'" style="background:'+m.color+'22;color:'+m.color+';cursor:pointer;display:inline-flex;align-items:center;gap:6px" onclick="document.querySelectorAll(\'#'+id+' .ch\').forEach(function(c){c.classList.remove(\'s\')});this.classList.add(\'s\');_assign='+m.user_id+'">'+mAv(m.user_id,18)+es(m.user_name)+'</span>'});
@@ -654,6 +697,9 @@ h+='<div class="cal-strip" onclick="openCalModal()" id="cal-strip"></div>';
 setTimeout(function(){loadCalStrip()},0);
 // Plants widget — horizontal scroll of plants with status. Only renders if any exist.
 h+=_rPlantsWidget();
+// Active Life challenges — scoreboard widget (async; empties itself if none).
+h+='<div id="life-wg-home"></div>';
+setTimeout(function(){_lifeWidget("life-wg-home")},0);
 // Upcoming 7d — grouped by type (Tasks / Events / Subscriptions / Birthdays)
 var todayStr=td();
 var upTasks=[],upEvents=[],upSubs=[],upBdays=[];
@@ -850,6 +896,10 @@ h+='</div>';
 // Selected-member hero block
 if(_profMember){var m=D.members.find(function(x){return x.user_id===_profMember});
   if(m)h+='<div class="prof-hero">'+mAv(m.user_id,64)+'<div class="prof-hero-bd"><div class="prof-hero-nm">'+es(m.user_name)+'</div><div class="prof-hero-sub">Personal stats</div><div class="prof-hero-strip" style="background:'+m.color+'"></div></div></div>'}
+
+// Active Life challenges — scoreboard widget (async).
+h+='<div id="life-wg-prof"></div>';
+setTimeout(function(){_lifeWidget("life-wg-prof")},0);
 
 // ─── Tasks — single unified widget with 4 inline metrics ────────
 h+='<div class="sc"><span class="sc-l">'+icon("clipboard",12,2.4)+'Tasks</span></div>';
