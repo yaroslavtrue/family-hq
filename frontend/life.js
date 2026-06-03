@@ -36,6 +36,11 @@ var _lifeBgTimer = null;
 // Journey (v8.54.0 · Phase 2): a stats view over the same owner scope — balance,
 // per-area bars, an activity sparkline, headline counters.
 var _lifeJourney = false;
+// Challenges (v8.55.0 · Phase 3): time-bound goals on a habit/sphere/any.
+var _lifeChall = false;
+var _lifeChallTab = "current";
+var _lifeChallDraft = null;
+var _lifeChallSugg = [];
 
 // ─── Entry: shell HTML (ren() injects this into #ct) ──────────
 function rLife(){
@@ -45,7 +50,8 @@ function rLife(){
   // as absolute overlays ON the canvas (no separate black strips).
   var h = '<div class="life-wrap">';
   h += '<div class="life-stage"><svg id="life-svg" viewBox="0 0 100 100" preserveAspectRatio="xMidYMid meet"></svg>';
-  h += '<div class="life-journey" id="life-journey" style="display:none"></div></div>';
+  h += '<div class="life-journey" id="life-journey" style="display:none"></div>';
+  h += '<div class="life-journey" id="life-chall" style="display:none"></div></div>';
   h += '<div class="life-top" id="life-top"></div>';
   h += '<div class="life-hint" id="life-hint"></div>';
   h += '</div>';
@@ -68,7 +74,7 @@ function lifeMount(){
 }
 
 function lifeUnmount(){
-  _lifeEditMode = false; _lifeJourney = false;
+  _lifeEditMode = false; _lifeJourney = false; _lifeChall = false;
   if(_lifeRAF){ cancelAnimationFrame(_lifeRAF); _lifeRAF = null; }
   if(_lifeLongTimer){ clearTimeout(_lifeLongTimer); _lifeLongTimer = null; }
   if(_lifeBgTimer){ clearTimeout(_lifeBgTimer); _lifeBgTimer = null; }
@@ -95,6 +101,10 @@ function _lifeRenderTopBar(){
     h += '<button class="life-back" onclick="_lifeToggleJourney()" aria-label="Back">‹</button>';
     h += '<div class="life-areaname">'+tr("life_journey")+'</div>';
     h += '<div style="flex:1"></div>'+chips();
+  } else if(_lifeChall){
+    h += '<button class="life-back" onclick="_lifeToggleChall()" aria-label="Back">‹</button>';
+    h += '<div class="life-areaname">'+tr("life_challenges")+'</div>';
+    h += '<div style="flex:1"></div>'+chips();
   } else if(_lifeView === "area"){
     h += '<button class="life-back" onclick="_lifeBack()" aria-label="Back">‹</button>';
     var a = _lifeData && (_lifeData.areas||[]).find(function(x){return x.id===_lifeAreaId});
@@ -102,6 +112,7 @@ function _lifeRenderTopBar(){
     h += '<div style="flex:1"></div>';
   } else {
     h += '<button class="life-journey-btn" onclick="_lifeToggleJourney()" aria-label="Journey">📈</button>';
+    h += '<button class="life-journey-btn" onclick="_lifeToggleChall()" aria-label="Challenges">🏆</button>';
     h += '<div style="flex:1"></div>'+chips();
   }
   el.innerHTML = h;
@@ -156,6 +167,7 @@ function _lifeSetOwner(o){
   _lifeOwner = o; _lifeEditMode = false; hp("sel");
   _lifeRenderTopBar();
   if(_lifeJourney){ _lifeLoadJourney(); return; }  // stay in Journey, reload for the new owner
+  if(_lifeChall){ _lifeChallTab="current"; _lifeLoadSummary(); _lifeLoadChall(); return; } // need areas for the picker + challenges
   _lifeView = "constellation"; _lifeAreaId = null;
   _lifeLoadSummary();
 }
@@ -167,7 +179,8 @@ function _lifeToggleJourney(){
   var jv = document.getElementById("life-journey"), svg = document.getElementById("life-svg");
   if(_lifeJourney){
     if(_lifeRAF){ cancelAnimationFrame(_lifeRAF); _lifeRAF = null; }  // pause the graph
-    _lifeEditMode = false; _lifeView = "constellation"; _lifeAreaId = null;
+    _lifeEditMode = false; _lifeChall = false; _lifeView = "constellation"; _lifeAreaId = null;
+    var cv0 = document.getElementById("life-chall"); if(cv0) cv0.style.display = "none";
     if(jv){ jv.style.display = "block"; jv.innerHTML = '<div class="life-jload">…</div>'; }
     if(svg) svg.style.display = "none";
     _lifeSetHint("");
@@ -239,6 +252,185 @@ function _lifeRenderJourney(j){
     h += '<div class="life-jempty">'+tr("life_j_empty")+'</div>';
   }
   jv.innerHTML = h;
+}
+
+// ─── Challenges (time-bound goals) ────────────────────────────
+function _lifeToggleChall(){
+  _lifeChall = !_lifeChall;
+  hp(_lifeChall ? "med" : "light");
+  var cv = document.getElementById("life-chall"), svg = document.getElementById("life-svg");
+  var jv = document.getElementById("life-journey");
+  if(_lifeChall){
+    if(_lifeRAF){ cancelAnimationFrame(_lifeRAF); _lifeRAF = null; }
+    _lifeEditMode = false; _lifeJourney = false; _lifeView = "constellation"; _lifeAreaId = null;
+    if(jv) jv.style.display = "none";
+    if(cv){ cv.style.display = "block"; cv.innerHTML = '<div class="life-jload">…</div>'; }
+    if(svg) svg.style.display = "none";
+    _lifeSetHint("");
+    _lifeRenderTopBar();
+    _lifeLoadChall();
+  } else {
+    if(cv) cv.style.display = "none";
+    if(svg) svg.style.display = "block";
+    _lifeRenderTopBar();
+    _lifeBuildConstellation();
+    _lifeSetHint(_lifeData && _lifeData.scope==="family" ? tr("life_hint_family") : tr("life_hint_personal"));
+  }
+}
+async function _lifeLoadChall(){
+  var d = await A("GET","/api/life/challenges?owner="+encodeURIComponent(_lifeOwner));
+  if(!d || !_lifeChall || tab!=="life") return;
+  _lifeChallData = d;
+  _lifeRenderChall();
+}
+var _lifeChallData = null;
+function _lifeRenderChall(){
+  var cv = document.getElementById("life-chall"); if(!cv || !_lifeChallData) return;
+  var all = _lifeChallData.challenges || [];
+  var current = all.filter(function(c){return c.status==="active"});
+  var doneList = all.filter(function(c){return c.status!=="active"});
+  var list = _lifeChallTab==="current" ? current : doneList;
+  var h = '';
+  // Tabs
+  h += '<div class="life-chtabs">';
+  h += '<button class="life-chtab'+(_lifeChallTab==="current"?" on":"")+'" onclick="_lifeChallTab=\'current\';_lifeRenderChall()">'+tr("life_ch_current")+' '+current.length+'</button>';
+  h += '<button class="life-chtab'+(_lifeChallTab==="completed"?" on":"")+'" onclick="_lifeChallTab=\'completed\';_lifeRenderChall()">'+tr("life_ch_completed")+' '+doneList.length+'</button>';
+  h += '</div>';
+  // Action buttons
+  h += '<div class="life-chacts">';
+  h += '<button class="life-chbtn" onclick="_lifeOpenNewChall()">'+icon("pl",13,2.5)+' '+tr("life_ch_new")+'</button>';
+  h += '<button class="life-chbtn life-chbtn-ai" onclick="_lifeSuggestChall()">✨ '+tr("life_ideas")+'</button>';
+  h += '</div>';
+  if(!list.length){
+    h += '<div class="life-jempty">'+tr(_lifeChallTab==="current"?"life_ch_empty_current":"life_ch_empty_completed")+'</div>';
+  } else {
+    list.forEach(function(c){ h += _lifeChallCard(c); });
+  }
+  cv.innerHTML = h;
+}
+function _lifeChallCard(c){
+  var pct = Math.min(100, Math.round((c.progress/Math.max(1,c.target))*100));
+  var col = c.status==="done" ? "#7FB069" : (c.status==="failed" ? "#C77D7D" : (_lifeChallData.scope==="family"?"#E06A8A":"#8B7BE8"));
+  var sub = c.subject ? es(c.subject) : tr("life_ch_anything");
+  var kindTxt = c.kind==="streak" ? (c.target+" "+tr("life_ch_days_row")) : (c.target+" "+tr("life_ch_times"));
+  var right = '';
+  if(c.status==="done") right = '<span class="life-chstate" style="color:#7FB069">✓ '+tr("life_ch_done")+'</span>';
+  else if(c.status==="failed") right = '<span class="life-chstate" style="color:#C77D7D">'+tr("life_ch_failed")+'</span>';
+  else right = '<span class="life-chstate">'+trn("life_ch_days_left", c.days_left)+'</span>';
+  var h = '<div class="life-chcard">';
+  h += '<div class="life-chcard-top"><div class="life-chcard-em">'+es(c.emoji||"🏆")+'</div>';
+  h += '<div class="life-chcard-bd"><div class="life-chcard-t">'+es(c.title)+'</div><div class="life-chcard-s">'+sub+' · '+kindTxt+'</div></div>';
+  h += '<button class="life-chcard-x" onclick="_lifeDeleteChall('+c.id+')" aria-label="Delete">'+icon("tr",13,2)+'</button></div>';
+  h += '<div class="life-chprog"><div class="life-chprog-track"><div class="life-chprog-fill" style="width:'+pct+'%;background:'+col+'"></div></div>';
+  h += '<div class="life-chprog-r"><b>'+c.progress+'</b>/'+c.target+'</div></div>';
+  h += '<div class="life-chcard-foot">'+right+'</div>';
+  h += '</div>';
+  return h;
+}
+async function _lifeDeleteChall(id){
+  if(!confirm(tr("life_ch_delete_confirm"))) return;
+  var r = await A("DELETE","/api/life/challenges/"+id);
+  if(!r || !r.ok){ toast(tr("ts_error")); return }
+  hp("warn"); await _lifeLoadChall();
+}
+// Create modal — title/emoji, kind, target, what to track (habit/sphere/any), period.
+async function _lifeOpenNewChall(){
+  // Need the owner's habits for the "track" selector.
+  var hd = await A("GET","/api/life/habits?owner="+encodeURIComponent(_lifeOwner));
+  var habits = (hd && hd.habits) || [];
+  var areas = (_lifeData && _lifeData.areas) || [];
+  _lifeChallDraft = {emoji:"🏆", kind:"count", target:5, period:7};
+  var h = '';
+  h += '<div style="display:flex;gap:10px;align-items:flex-end">';
+  h += '<div><div class="lb">'+tr("g_emoji")+'</div><input class="inp" id="ch-e" value="🏆" style="width:64px;text-align:center;font-size:20px"></div>';
+  h += '<div style="flex:1"><div class="lb">'+tr("life_habit_name")+'</div><input class="inp" id="ch-t" placeholder="'+tr("life_ch_title_ph")+'"></div>';
+  h += '</div>';
+  h += '<div class="lb">'+tr("life_ch_goal")+'</div><div class="or">';
+  h += '<button class="ob s" id="ch-k-count" onclick="_lifeChKind(\'count\')">'+tr("life_ch_kind_count")+'</button>';
+  h += '<button class="ob" id="ch-k-streak" onclick="_lifeChKind(\'streak\')">'+tr("life_ch_kind_streak")+'</button>';
+  h += '</div>';
+  h += '<div class="dr"><div><div class="dl">'+tr("life_ch_target")+'</div><input class="inp" id="ch-n" type="number" min="1" max="100" value="5"></div>';
+  h += '<div><div class="dl" id="ch-unit">'+tr("life_ch_times")+'</div><div style="height:1px"></div></div></div>';
+  h += '<div class="lb">'+tr("life_ch_track")+'</div><select class="inp" id="ch-track">';
+  h += '<option value="">'+tr("life_ch_anything")+'</option>';
+  if(areas.length){
+    h += '<optgroup label="'+tr("life_ch_spheres")+'">';
+    areas.forEach(function(a){ h += '<option value="area:'+a.id+'">'+es(a.emoji)+' '+es(a.name)+'</option>'; });
+    h += '</optgroup>';
+  }
+  if(habits.length){
+    h += '<optgroup label="'+tr("life_ch_habits")+'">';
+    habits.forEach(function(hb){ h += '<option value="habit:'+hb.id+'">'+es(hb.emoji||"•")+' '+es(hb.name)+'</option>'; });
+    h += '</optgroup>';
+  }
+  h += '</select>';
+  h += '<div class="lb">'+tr("life_ch_period")+'</div><div class="or" id="ch-period">';
+  [7,14,30].forEach(function(p){ h += '<button class="ob '+(p===7?"s":"")+'" onclick="_lifeChPeriod(this,'+p+')">'+p+' '+tr("life_ch_days")+'</button>'; });
+  h += '</div>';
+  h += '<button class="btn" style="margin-top:14px" onclick="_lifeSaveChall()">'+tr("life_ch_create")+'</button>';
+  oMC(tr("life_ch_new"), h, {ic:"life"});
+}
+function _lifeChKind(k){
+  _lifeChallDraft.kind = k;
+  document.getElementById("ch-k-count").classList.toggle("s", k==="count");
+  document.getElementById("ch-k-streak").classList.toggle("s", k==="streak");
+  var u = document.getElementById("ch-unit"); if(u) u.textContent = tr(k==="streak"?"life_ch_days_row":"life_ch_times");
+}
+function _lifeChPeriod(btn, p){
+  _lifeChallDraft.period = p;
+  document.querySelectorAll("#ch-period .ob").forEach(function(b){b.classList.remove("s")});
+  btn.classList.add("s");
+}
+async function _lifeSaveChall(){
+  var d = _lifeChallDraft;
+  var title = ((document.getElementById("ch-t")||{}).value||"").trim();
+  if(!title){ toast(tr("life_name_required")); return }
+  var emoji = (document.getElementById("ch-e")||{}).value || "🏆";
+  var target = parseInt((document.getElementById("ch-n")||{}).value)||1;
+  var track = (document.getElementById("ch-track")||{}).value || "";
+  var body = {owner:_lifeOwner, title:title, emoji:emoji, kind:d.kind, target:target, period_days:d.period};
+  if(track.indexOf("area:")===0) body.area_id = track.slice(5);
+  else if(track.indexOf("habit:")===0) body.habit_id = parseInt(track.slice(6));
+  var r = await A("POST","/api/life/challenges", body);
+  if(!r || !r.id){ toast(tr("ts_save_failed")); return }
+  hp("ok"); cMo(); _lifeChallTab="current"; await _lifeLoadChall();
+}
+// AI suggestions for challenges
+async function _lifeSuggestChall(){
+  hp("light");
+  oMC(tr("life_challenges"), '<div class="life-thinking">✨ '+tr("life_thinking")+'</div>', {ic:"life"});
+  var r;
+  try{ r = await A("POST","/api/life/challenges/suggest", {owner:_lifeOwner}); }catch(e){ r=null; }
+  var mb = document.getElementById("mb");
+  if(!r || !r.suggestions || !r.suggestions.length){
+    if(mb) mb.innerHTML = '<div style="text-align:center;color:var(--ht);padding:24px 12px">'+tr("life_no_ideas")+'</div><button class="btn btn-s" style="background:transparent;border:1px solid var(--bd);color:var(--tx)" onclick="cMo()">'+tr("btn_close")+'</button>';
+    return;
+  }
+  _lifeChallSugg = r.suggestions.map(function(s){ s._added=false; return s; });
+  _lifeRenderChallSugg();
+}
+function _lifeRenderChallSugg(){
+  var mb = document.getElementById("mb"); if(!mb) return;
+  var areas = (_lifeData && _lifeData.areas) || [];
+  var aName = function(id){ var a=areas.find(function(x){return x.id===id}); return a?a.emoji+" "+a.name:""; };
+  var h = '<div class="life-sugg-list">';
+  _lifeChallSugg.forEach(function(s,i){
+    var kindTxt = s.kind==="streak" ? (s.target+" "+tr("life_ch_days_row")) : (s.target+" "+tr("life_ch_times"));
+    h += '<div class="life-sugg"><div class="life-sugg-em">'+es(s.emoji||"🏆")+'</div>';
+    h += '<div class="life-sugg-bd"><div class="life-sugg-n">'+es(s.title)+'</div><div class="life-sugg-w">'+kindTxt+' · '+s.period_days+' '+tr("life_ch_days")+(s.area_id?' · '+es(aName(s.area_id)):'')+'</div></div>';
+    if(s._added) h += '<span class="life-sugg-ok" style="color:var(--pr)">'+icon("ck",16,2.5)+'</span>';
+    else h += '<button class="life-sugg-add" style="background:var(--pr)" onclick="_lifeAddSuggChall('+i+')">'+icon("pl",13,2.5)+'</button>';
+    h += '</div>';
+  });
+  h += '</div><button class="btn btn-s" style="margin-top:12px;background:transparent;border:1px solid var(--bd);color:var(--tx)" onclick="cMo()">'+tr("btn_done")+'</button>';
+  mb.innerHTML = h;
+}
+async function _lifeAddSuggChall(i){
+  var s = _lifeChallSugg[i]; if(!s || s._added) return;
+  var r = await A("POST","/api/life/challenges", {owner:_lifeOwner, title:s.title, emoji:s.emoji, kind:s.kind, target:s.target, period_days:s.period_days, area_id:s.area_id||null});
+  if(!r || !r.id){ toast(tr("ts_save_failed")); return }
+  hp("ok"); s._added=true; _lifeRenderChallSugg();
+  _lifeChallTab="current"; _lifeLoadChall();
 }
 
 function _lifeBack(){

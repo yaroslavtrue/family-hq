@@ -4241,8 +4241,210 @@ def life_journey(owner: str | None = None, days: int = 30, user=Depends(get_uf),
     }
 
 
+# ─── Challenges — time-bound goals (v8.55.0 · Phase 3) ───────────────────
+_VALID_CHALLENGE_KINDS = {"count", "streak"}
+_CHALLENGE_SUGGEST_MODEL = "claude-haiku-4-5-20251001"
+
+
+def _life_challenge_habit_ids(db, ch: dict, family_id: int, owner: str) -> list[int]:
+    """Habits a challenge counts: a specific habit, any in an area, or all."""
+    if ch.get("habit_id"):
+        r = db.execute("SELECT id FROM habits WHERE id=? AND family_id=? AND owner=?",
+                       (ch["habit_id"], family_id, owner)).fetchone()
+        return [r["id"]] if r else []
+    q = "SELECT id FROM habits WHERE family_id=? AND owner=? AND archived=0"
+    p = [family_id, owner]
+    if ch.get("area_id"):
+        q += " AND area_id=?"; p.append(ch["area_id"])
+    return [r["id"] for r in db.execute(q, p).fetchall()]
+
+
+def _life_challenge_view(db, ch: dict, family_id: int, owner: str, lang: str) -> dict:
+    today = datetime.now(ZoneInfo(TIMEZONE)).date()
+    try:
+        start = datetime.fromisoformat(ch["start_date"]).date()
+    except Exception:
+        start = today
+    period = int(ch.get("period_days") or 7)
+    end = start + timedelta(days=period)
+    window_end = min(end, today + timedelta(days=1))
+    hids = _life_challenge_habit_ids(db, ch, family_id, owner)
+    dates = []
+    if hids and window_end > start:
+        qmarks = ",".join("?" * len(hids))
+        rows = db.execute(
+            f"SELECT date FROM habit_logs WHERE done=1 AND habit_id IN ({qmarks}) AND date>=? AND date<?",
+            hids + [start.isoformat(), window_end.isoformat()]).fetchall()
+        dates = [r["date"] for r in rows]
+    target = int(ch.get("target") or 1)
+    if ch.get("kind") == "streak":
+        day_set = sorted(set(dates))
+        best = run = 0
+        prev = None
+        for d in day_set:
+            dd = datetime.fromisoformat(d).date()
+            run = run + 1 if (prev and (dd - prev).days == 1) else 1
+            best = max(best, run); prev = dd
+        progress = best
+    else:
+        progress = len(dates)
+    done = progress >= target
+    closed = today >= end
+    status = "done" if done else ("failed" if closed else "active")
+    # Resolve subject label
+    subject = None
+    if ch.get("habit_id"):
+        hr = db.execute("SELECT name, emoji FROM habits WHERE id=?", (ch["habit_id"],)).fetchone()
+        subject = (hr["name"] if hr else None)
+    elif ch.get("area_id"):
+        a = next((x for x in _life_effective_areas(db, family_id, owner, lang) if x["id"] == ch["area_id"]), None)
+        subject = (a["name"] if a else None)
+    return {
+        "id": ch["id"], "owner": owner, "title": ch.get("title") or "",
+        "emoji": ch.get("emoji") or "🏆", "kind": ch.get("kind") or "count",
+        "target": target, "progress": progress, "status": status,
+        "habit_id": ch.get("habit_id"), "area_id": ch.get("area_id"),
+        "subject": subject, "period_days": period,
+        "start_date": ch.get("start_date"),
+        "days_left": max(0, (end - today).days),
+    }
+
+
+@app.get("/api/life/challenges")
+def life_challenges_list(owner: str | None = None, user=Depends(get_uf), db=Depends(get_db)):
+    f = user["family_id"]
+    owner = _life_resolve_owner(owner, user, db)
+    lang = _life_user_lang(db, user["id"])
+    rows = db.execute("SELECT * FROM life_challenges WHERE family_id=? AND owner=? ORDER BY id DESC",
+                      (f, owner)).fetchall()
+    return {"owner": owner, "scope": ("family" if owner == "family" else "personal"),
+            "challenges": [_life_challenge_view(db, dict(r), f, owner, lang) for r in rows]}
+
+
+class ChallengeCreate(BaseModel):
+    owner: str | None = None
+    title: str
+    emoji: str | None = "🏆"
+    kind: str = "count"
+    target: int = 5
+    habit_id: int | None = None
+    area_id: str | None = None
+    period_days: int = 7
+
+
+@app.post("/api/life/challenges")
+def life_challenge_create(body: ChallengeCreate, user=Depends(get_uf), db=Depends(get_db)):
+    f = user["family_id"]
+    owner = _life_resolve_owner(body.owner, user, db)
+    title = (body.title or "").strip()
+    if not title:
+        raise HTTPException(400, "title required")
+    kind = body.kind if body.kind in _VALID_CHALLENGE_KINDS else "count"
+    target = max(1, min(366, int(body.target or 1)))
+    period = max(1, min(366, int(body.period_days or 7)))
+    area_id = None
+    if body.area_id:
+        if body.area_id not in _life_valid_area_ids(db, f, owner):
+            raise HTTPException(400, "bad area_id")
+        area_id = body.area_id
+    habit_id = None
+    if body.habit_id:
+        r = db.execute("SELECT id FROM habits WHERE id=? AND family_id=? AND owner=?",
+                       (body.habit_id, f, owner)).fetchone()
+        if not r:
+            raise HTTPException(400, "bad habit_id")
+        habit_id = body.habit_id
+    today = datetime.now(ZoneInfo(TIMEZONE)).date().isoformat()
+    cur = db.execute(
+        """INSERT INTO life_challenges (family_id, owner, title, emoji, kind, target, habit_id, area_id, period_days, start_date)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+        (f, owner, title, (body.emoji or "🏆").strip(), kind, target, habit_id, area_id, period, today))
+    db.commit()
+    row = dict(db.execute("SELECT * FROM life_challenges WHERE id=?", (cur.lastrowid,)).fetchone())
+    return _life_challenge_view(db, row, f, owner, _life_user_lang(db, user["id"]))
+
+
+@app.delete("/api/life/challenges/{cid}")
+def life_challenge_delete(cid: int, user=Depends(get_uf), db=Depends(get_db)):
+    f = user["family_id"]
+    row = db.execute("SELECT id FROM life_challenges WHERE id=? AND family_id=?", (cid, f)).fetchone()
+    if not row:
+        raise HTTPException(404)
+    db.execute("DELETE FROM life_challenges WHERE id=?", (cid,))
+    db.commit()
+    return {"ok": True}
+
+
+class ChallengeSuggestBody(BaseModel):
+    owner: str | None = None
+
+
+@app.post("/api/life/challenges/suggest")
+async def life_challenge_suggest(body: ChallengeSuggestBody, user=Depends(get_uf), db=Depends(get_db)):
+    f = user["family_id"]
+    owner = _life_resolve_owner(body.owner, user, db)
+    if not ANTHROPIC_API_KEY:
+        raise HTTPException(503, "AI not configured")
+    is_family = (owner == "family")
+    ulang = _life_user_lang(db, user["id"])
+    lang_name = "Russian" if ulang == "ru" else "English"
+    areas = _life_effective_areas(db, f, owner, ulang)
+    area_list = ", ".join(f'{a["name"]} (id={a["id"]})' for a in areas)
+    scope_desc = ("the couple's relationship (joint challenges they do together)"
+                  if is_family else "the person's life areas")
+    system = (
+        f"You design short, motivating habit challenges for {scope_desc}. "
+        f"Available spheres: {area_list}. "
+        f"Suggest 3 challenges. Each: a catchy title (<=4 words), an emoji, a kind "
+        f"('count' = do it N times in the window, or 'streak' = N days in a row), a "
+        f"realistic target (integer), a period_days (7, 14, or 30), and the area_id it "
+        f"belongs to (one from the list). Title in {lang_name}. "
+        f"Reply with ONLY a JSON array: "
+        f'[{{"title":"...","emoji":"<one emoji>","kind":"count|streak","target":<int>,"period_days":<int>,"area_id":"<id>"}}]'
+    )
+    try:
+        async with httpx.AsyncClient(timeout=40) as c:
+            r = await c.post("https://api.anthropic.com/v1/messages", headers={
+                "x-api-key": ANTHROPIC_API_KEY, "anthropic-version": "2023-06-01",
+                "content-type": "application/json",
+            }, json={
+                "model": _CHALLENGE_SUGGEST_MODEL, "max_tokens": 600, "system": system,
+                "messages": [{"role": "user", "content": "Suggest challenges. JSON array only."}],
+            })
+            data = r.json()
+            text = (data.get("content", [{}])[0].get("text") or "").strip()
+            if text.startswith("```"):
+                text = text.split("\n", 1)[-1].rsplit("```", 1)[0].strip()
+            parsed = _json_mod.loads(text)
+            valid_ids = _life_valid_area_ids(db, f, owner)
+            out = []
+            for it in (parsed or [])[:4]:
+                title = str(it.get("title") or "").strip()[:40]
+                if not title:
+                    continue
+                kind = it.get("kind") if it.get("kind") in _VALID_CHALLENGE_KINDS else "count"
+                aid = it.get("area_id") if it.get("area_id") in valid_ids else None
+                out.append({
+                    "title": title, "emoji": (str(it.get("emoji") or "🏆").strip() or "🏆")[:4],
+                    "kind": kind, "target": max(1, min(60, int(it.get("target") or 5))),
+                    "period_days": int(it.get("period_days") if it.get("period_days") in (7, 14, 30) else 7),
+                    "area_id": aid,
+                })
+            if not out:
+                raise HTTPException(502, "no suggestions")
+            return {"suggestions": out[:3]}
+    except HTTPException:
+        raise
+    except Exception as e:
+        log.error(f"challenge suggest failed: {e}")
+        raise HTTPException(502, "AI request failed")
+
+
 # ─── Debug & Serve ───────────────────────────────────────────────────────
-APP_VERSION = "v8.54.1"
+APP_VERSION = "v8.55.0"
+# v8.55.0 — Life Phase 3: Challenges — time-bound goals (count|streak) on a
+#           habit/sphere/any, Current/Completed tabs, manual + AI suggestions.
+#           Schema v33 (life_challenges). 🏆 toggle in Life.
 # v8.54.1 — Life Journey: clip the activity sparkline + spacing so it no longer
 #           overlaps the stat tiles below.
 # v8.54.0 — Life Phase 2: Journey — balance/bond %, activity sparkline, per-area

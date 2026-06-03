@@ -742,6 +742,27 @@ def migrate(db_path):
         # AI on add (seeds/pits/cuttings now identify instead of being rejected),
         # editable as the plant grows. NULL = unknown/mature for pre-v32 plants.
         lambda c: safe_add_col(c, "plants", "stage", "TEXT"),
+        # v33: Life — Challenges (Phase 3). Time-bound goals on a habit / sphere /
+        # any. kind='count' (N completions in the window) or 'streak' (N days in a
+        # row). Bound to habit_id OR area_id OR neither (any habit). Progress +
+        # status (active/done/failed) computed from habit_logs; nothing cached.
+        lambda c: c.executescript("""
+            CREATE TABLE IF NOT EXISTS life_challenges (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                family_id INTEGER NOT NULL,
+                owner TEXT NOT NULL,
+                title TEXT NOT NULL,
+                emoji TEXT,
+                kind TEXT NOT NULL DEFAULT 'count',
+                target INTEGER NOT NULL,
+                habit_id INTEGER,
+                area_id TEXT,
+                period_days INTEGER NOT NULL DEFAULT 7,
+                start_date TEXT NOT NULL,
+                created_at TEXT DEFAULT (datetime('now'))
+            );
+            CREATE INDEX IF NOT EXISTS idx_life_challenges_scope ON life_challenges(family_id, owner);
+        """),
     ]
 
     for i, mig in enumerate(migrations):

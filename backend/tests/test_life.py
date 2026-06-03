@@ -174,6 +174,47 @@ def test_journey_stats(client_as):
     assert health["brightness"] == 1.0
 
 
+def test_challenge_count_progress(client_as):
+    client = client_as(user_id=830, family_id=1)
+    hid = client.post("/api/life/habits", json={"area_id": "health", "name": "Walk"}).json()["id"]
+    client.post(f"/api/life/habits/{hid}/log")  # 1 completion today
+
+    # Count challenge: 3 completions in 7 days, bound to the habit.
+    r = client.post("/api/life/challenges", json={
+        "title": "Walk 3x", "kind": "count", "target": 3, "habit_id": hid, "period_days": 7})
+    assert r.status_code == 200, r.text
+    cid = r.json()["id"]
+    assert r.json()["progress"] == 1 and r.json()["status"] == "active"
+    assert r.json()["target"] == 3 and r.json()["subject"] == "Walk"
+
+    lst = client.get("/api/life/challenges").json()
+    assert len(lst["challenges"]) == 1 and lst["challenges"][0]["progress"] == 1
+
+    # Area-bound challenge counts any habit in the sphere.
+    r2 = client.post("/api/life/challenges", json={
+        "title": "Health hustle", "kind": "count", "target": 5, "area_id": "health", "period_days": 14})
+    assert r2.status_code == 200 and r2.json()["progress"] == 1
+
+    d = client.delete(f"/api/life/challenges/{cid}")
+    assert d.status_code == 200
+    assert len(client.get("/api/life/challenges").json()["challenges"]) == 1
+
+
+def test_challenge_done_when_target_met(client_as):
+    client = client_as(user_id=831, family_id=1)
+    hid = client.post("/api/life/habits", json={"area_id": "health", "name": "Walk"}).json()["id"]
+    client.post(f"/api/life/habits/{hid}/log")
+    r = client.post("/api/life/challenges", json={
+        "title": "One walk", "kind": "count", "target": 1, "habit_id": hid, "period_days": 7})
+    assert r.json()["status"] == "done" and r.json()["progress"] >= 1
+
+
+def test_challenge_bad_area_rejected(client_as):
+    client = client_as(user_id=832, family_id=1)
+    bad = client.post("/api/life/challenges", json={"title": "x", "area_id": "rel_time", "target": 3})
+    assert bad.status_code == 400
+
+
 def test_suggest_validates_area_and_requires_ai(client_as, app_module):
     client = client_as(user_id=804, family_id=1)
     # Cross-scope area id is rejected before any AI call.
