@@ -4485,7 +4485,9 @@ async def life_challenge_suggest(body: ChallengeSuggestBody, user=Depends(get_uf
 
 
 # ─── Debug & Serve ───────────────────────────────────────────────────────
-APP_VERSION = "v8.56.0"
+APP_VERSION = "v8.56.1"
+# v8.56.1 — Life: participant chips in the create-challenge modal are flex now
+#           (avatar + name aligned, no baseline skew).
 # v8.56.0 — Life Challenges: participants — pick members, each tracked separately
 #           (per-person leaderboard). Stored under owner='family'. Schema v34.
 # v8.55.1 — Life: Journey/Challenges overlay padding-top clears the floating

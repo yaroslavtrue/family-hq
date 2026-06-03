@@ -385,7 +385,7 @@ async function _lifeOpenNewChall(){
   if((D.members||[]).length > 1){
     h += '<div class="lb">'+tr("life_ch_participants")+'</div><div class="or" id="ch-parts">';
     (D.members||[]).forEach(function(m){
-      h += '<button class="ob" data-u="'+m.user_id+'" onclick="_lifeChToggleP(this,'+m.user_id+')"><span style="display:inline-flex;align-items:center;gap:5px">'+mAv(m.user_id,18)+es(m.user_name)+'</span></button>';
+      h += '<button class="ob life-pchip" data-u="'+m.user_id+'" onclick="_lifeChToggleP(this,'+m.user_id+')">'+mAv(m.user_id,20)+'<span>'+es(m.user_name)+'</span></button>';
     });
     h += '</div><div style="font-size:11px;color:var(--ht);margin-top:5px">'+tr("life_ch_participants_hint")+'</div>';
   }
