@@ -400,7 +400,7 @@ async function _lifeWGScore(cid,uid,delta,hostId){
 // ─── Love Points — dedicated monthly couple scoreboard (Profile) ──────────
 // Separate entity from challenges. Points given with a reason + emoji, tallied
 // per calendar month; a faint Stats button reveals who gave what & when.
-var _loveData=null,_loveEmoPick="❤️";
+var _loveData=null,_loveEmoPick="❤️",_loveSign=1;
 async function _loveCard(hostId){
   var host=document.getElementById(hostId);if(!host)return;
   var d=null;try{d=await A("GET","/api/love")}catch(e){}
@@ -416,8 +416,9 @@ async function _loveCard(hostId){
     var col=p.color||"var(--pr)",n=sc[String(p.user_id)]||0,win=d.leader===p.user_id;
     h+='<div class="love-side">'+mAv(p.user_id,38)+'<div class="love-name">'+es(p.user_name)+(win?' 👑':'')+'</div>';
     h+='<div class="love-num" style="color:'+col+'">'+n+'</div>';
-    h+='<div class="love-ctrl"><button class="love-b" onclick="_loveRemove('+p.user_id+')">−</button>'+
-       '<button class="love-b love-plus" style="border-color:'+col+'66" onclick="_loveAward('+p.user_id+",'"+es(p.user_name).replace(/'/g,"\\'")+"'"+')">+</button></div></div>';
+    var nm=es(p.user_name).replace(/'/g,"\\'");
+    h+='<div class="love-ctrl"><button class="love-b" onclick="_loveAward('+p.user_id+",'"+nm+"',-1)\">−</button>"+
+       '<button class="love-b love-plus" style="border-color:'+col+'66" onclick="_loveAward('+p.user_id+",'"+nm+"',1)\">+</button></div></div>";
     if(idx===0)h+='<div class="love-vs">:</div>';
   });
   h+='</div>';
@@ -425,29 +426,30 @@ async function _loveCard(hostId){
   h+='</div>';
   host.innerHTML=h;
 }
-function _loveAward(uid,name){
+// sign: +1 award (give a point), -1 deduction (take a point) — both ask why.
+function _loveAward(uid,name,sign){
+  sign = (sign<0)?-1:1;
+  _loveSign = sign;
   hp("light");
-  var emos=["❤️","😘","🤗","☕","🍳","🌹","🧹","💪","🎁","😂","🙏","✨"];
-  var h='<div class="love-aw"><div class="love-aw-t">'+tr("love_award_to").replace("%s",es(name))+'</div>';
+  var emos = sign>0 ? ["❤️","😘","🤗","☕","🍳","🌹","🧹","💪","🎁","😂","🙏","✨"]
+                    : ["💔","😤","🙄","🗑️","😴","🤦","🙈","⏰","🧊","😅","🚱","💤"];
+  var defEmo = emos[0];
+  var titleTxt = sign>0 ? tr("love_award_to") : tr("love_deduct_to");
+  var h='<div class="love-aw"><div class="love-aw-t'+(sign<0?' love-aw-neg':'')+'">'+titleTxt.replace("%s",es(name))+'</div>';
   h+='<input class="inp" id="love-rsn" placeholder="'+tr("love_reason_ph")+'" maxlength="120" autocomplete="off">';
   h+='<div class="love-emos" id="love-emos">';
   emos.forEach(function(e,i){h+='<button class="love-emo'+(i===0?" s":"")+'" onclick="_loveEmo(this,\''+e+'\')">'+e+'</button>'});
   h+='</div>';
-  h+='<button class="btn" style="width:100%;margin-top:6px" onclick="_loveDoAward('+uid+')">'+tr("love_give")+'</button></div>';
-  _loveEmoPick="❤️";
+  h+='<button class="btn'+(sign<0?' love-btn-neg':'')+'" style="width:100%;margin-top:6px" onclick="_loveDoAward('+uid+')">'+(sign>0?tr("love_give"):tr("love_take"))+'</button></div>';
+  _loveEmoPick=defEmo;
   oMC(tr("love_title"),h);
 }
 function _loveEmo(btn,e){_loveEmoPick=e;document.querySelectorAll("#love-emos .love-emo").forEach(function(b){b.classList.remove("s")});btn.classList.add("s");hp("sel")}
 async function _loveDoAward(uid){
   var rsn=((document.getElementById("love-rsn")||{}).value||"").trim();
-  hp("ok");
-  try{await A("POST","/api/love",{to_user:uid,reason:rsn,emoji:_loveEmoPick})}catch(e){}
+  hp(_loveSign>0?"ok":"light");
+  try{await A("POST","/api/love",{to_user:uid,reason:rsn,emoji:_loveEmoPick,delta:_loveSign})}catch(e){}
   cMo();_loveRefresh();
-}
-async function _loveRemove(uid){
-  hp("light");
-  try{await A("DELETE","/api/love/latest?to_user="+uid)}catch(e){}
-  _loveRefresh();
 }
 function _loveRefresh(){
   if(document.getElementById("love-prof"))_loveCard("love-prof");
@@ -460,9 +462,11 @@ async function _loveStats(){
   var h='<div class="love-log">';
   if(!ents.length)h+='<div class="love-log-empty">'+tr("love_no_points")+'</div>';
   ents.forEach(function(e){
-    h+='<div class="love-log-row">'+mAv(e.to_user,30)+
+    var neg=(e.delta||1)<0;
+    h+='<div class="love-log-row'+(neg?' love-log-neg':'')+'">'+mAv(e.to_user,30)+
        '<div class="love-log-bd"><div class="love-log-r">'+es(e.emoji||"❤️")+' '+es(e.reason||tr("love_a_point"))+'</div>'+
-       '<div class="love-log-m">'+tr("love_from").replace("%s",es(mName(e.from_user)))+' · '+_loveAgo(e.created_at)+'</div></div></div>';
+       '<div class="love-log-m">'+tr("love_from").replace("%s",es(mName(e.from_user)))+' · '+_loveAgo(e.created_at)+'</div></div>'+
+       '<div class="love-log-d">'+(neg?'−1':'+1')+'</div></div>';
   });
   h+='</div>';
   oMC(tr("love_stats_title"),h);

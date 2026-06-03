@@ -827,6 +827,10 @@ def migrate(db_path):
             );
             CREATE INDEX IF NOT EXISTS idx_love_points ON love_points(family_id, ym);
         """),
+        # v39: signed Love Points — each entry carries a delta (+1 award / -1
+        # deduction) so "-" can also have a reason. Score = SUM(delta). Existing
+        # rows default to +1 (they were all awards).
+        lambda c: safe_add_col(c, "love_points", "delta", "INTEGER DEFAULT 1"),
     ]
 
     for i, mig in enumerate(migrations):

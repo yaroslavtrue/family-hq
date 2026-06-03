@@ -4500,7 +4500,7 @@ def _love_status(db, f: int):
     days_in_month = monthrange(now.year, now.month)[1]
     days_left = days_in_month - now.day  # remaining full days until month end
     rows = db.execute(
-        "SELECT to_user, COUNT(*) c FROM love_points WHERE family_id=? AND ym=? GROUP BY to_user",
+        "SELECT to_user, COALESCE(SUM(delta),0) c FROM love_points WHERE family_id=? AND ym=? GROUP BY to_user",
         (f, ym)).fetchall()
     scores = {str(r["to_user"]): r["c"] for r in rows}
     members = [dict(m) for m in db.execute(
@@ -4525,21 +4525,23 @@ class LovePointBody(BaseModel):
     to_user: int
     reason: str | None = ""
     emoji: str | None = "❤️"
+    delta: int = 1  # +1 award, -1 deduction (sign only; magnitude is clamped to 1)
 
 
 @app.post("/api/love")
 def love_award(body: LovePointBody, user=Depends(get_uf), db=Depends(get_db)):
-    """Give a point to a member, with a reason + emoji."""
+    """Award (+1) or deduct (-1) a point for a member, with a reason + emoji."""
     f = user["family_id"]
     if not db.execute("SELECT 1 FROM family_members WHERE family_id=? AND user_id=?",
                       (f, body.to_user)).fetchone():
         raise HTTPException(400, "unknown recipient")
+    delta = -1 if body.delta < 0 else 1
     now = datetime.now(ZoneInfo(TIMEZONE))
     db.execute(
-        "INSERT INTO love_points (family_id, from_user, to_user, reason, emoji, ym, created_at) "
-        "VALUES (?,?,?,?,?,?,?)",
+        "INSERT INTO love_points (family_id, from_user, to_user, reason, emoji, ym, created_at, delta) "
+        "VALUES (?,?,?,?,?,?,?,?)",
         (f, user["id"], body.to_user, (body.reason or "").strip()[:120],
-         (body.emoji or "❤️").strip()[:8], now.strftime("%Y-%m"), now.isoformat()))
+         (body.emoji or "❤️").strip()[:8], now.strftime("%Y-%m"), now.isoformat(), delta))
     db.commit()
     return _love_status(db, f)
 
@@ -4565,7 +4567,7 @@ def love_stats(ym: str | None = None, user=Depends(get_uf), db=Depends(get_db)):
     if not ym:
         ym = datetime.now(ZoneInfo(TIMEZONE)).strftime("%Y-%m")
     rows = db.execute(
-        "SELECT id, from_user, to_user, reason, emoji, created_at FROM love_points "
+        "SELECT id, from_user, to_user, reason, emoji, created_at, COALESCE(delta,1) delta FROM love_points "
         "WHERE family_id=? AND ym=? ORDER BY id DESC", (f, ym)).fetchall()
     return {"ym": ym, "entries": [dict(r) for r in rows]}
 
@@ -4644,7 +4646,10 @@ async def life_challenge_suggest(body: ChallengeSuggestBody, user=Depends(get_uf
 
 
 # ─── Debug & Serve ───────────────────────────────────────────────────────
-APP_VERSION = "v8.59.0"
+APP_VERSION = "v8.60.0"
+# v8.60.0 — Love Points: "−" now also asks why — deductions carry a reason +
+#           emoji, just like awards. Signed entries (delta ±1), score = SUM(delta),
+#           stats log shows +1/−1. Schema v39 (love_points.delta).
 # v8.59.0 — What's New is now a multi-slide carousel (Next + dots) instead of a
 #           single card. Added slides for Life and Love Points; marquee features
 #           flagged big:true. Frontend-only (news.js/lang.js/index.html); seen-key

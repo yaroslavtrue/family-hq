@@ -306,6 +306,15 @@ def test_love_points(client_as):
     st = a.delete("/api/love/latest?to_user=861").json()
     assert st["scores"]["861"] == 1
 
+    # Deduction (-1) with a reason: 861 goes 1 → 0, and the log records the minus.
+    st = a.post("/api/love", json={"to_user": 861, "reason": "ate my snack", "emoji": "😤", "delta": -1}).json()
+    assert st["scores"]["861"] == 0
+    stats = a.get("/api/love/stats").json()
+    assert stats["entries"][0]["delta"] == -1 and stats["entries"][0]["reason"] == "ate my snack"
+    # Net can go below zero (deliberate deduction, not clamped).
+    st = a.post("/api/love", json={"to_user": 861, "reason": "again", "delta": -1}).json()
+    assert st["scores"]["861"] == -1
+
     # Unknown recipient rejected.
     assert a.post("/api/love", json={"to_user": 99999, "reason": "x"}).status_code == 400
 

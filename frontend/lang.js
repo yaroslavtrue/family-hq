@@ -75,7 +75,8 @@ window.LANG = {
     // Love Points
     love_title: "Love Points", love_stats: "Stats", love_stats_title: "Love Points · this month",
     love_days_left_one: "{n} day left this month", love_days_left_other: "{n} days left this month",
-    love_award_to: "Give %s a point", love_reason_ph: "What for?", love_give: "Give point",
+    love_award_to: "Give %s a point", love_deduct_to: "Take a point from %s",
+    love_reason_ph: "What for?", love_give: "Give point", love_take: "Take point",
     love_from: "by %s", love_a_point: "a point", love_no_points: "No points yet this month — be the first 💞",
     just_now: "just now", m_ago: "m ago", h_ago: "h ago",
     life_ch_empty_current: "No active challenges — create one ✨",
@@ -425,7 +426,8 @@ window.LANG = {
     // Love Points
     love_title: "Очки любви", love_stats: "Статистика", love_stats_title: "Очки любви · этот месяц",
     love_days_left_one: "{n} день до конца месяца", love_days_left_few: "{n} дня до конца месяца", love_days_left_many: "{n} дней до конца месяца", love_days_left_other: "{n} дней до конца месяца",
-    love_award_to: "Очко для %s", love_reason_ph: "За что?", love_give: "Дать очко",
+    love_award_to: "Очко для %s", love_deduct_to: "Снять очко у %s",
+    love_reason_ph: "За что?", love_give: "Дать очко", love_take: "Снять очко",
     love_from: "от %s", love_a_point: "очко", love_no_points: "В этом месяце пока пусто — будь первым 💞",
     just_now: "только что", m_ago: " мин", h_ago: " ч",
     life_ch_empty_current: "Нет активных вызовов — создай ✨",
