@@ -763,6 +763,11 @@ def migrate(db_path):
             );
             CREATE INDEX IF NOT EXISTS idx_life_challenges_scope ON life_challenges(family_id, owner);
         """),
+        # v34: Challenges with participants (per-person tracking). JSON array of
+        # user_ids. NULL = solo (owner-scoped). When set, the challenge is stored
+        # under owner='family' (both see it) and progress is computed per
+        # participant from THEIR own habits — a little leaderboard.
+        lambda c: safe_add_col(c, "life_challenges", "participants", "TEXT"),
     ]
 
     for i, mig in enumerate(migrations):

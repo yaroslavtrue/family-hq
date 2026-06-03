@@ -215,6 +215,32 @@ def test_challenge_bad_area_rejected(client_as):
     assert bad.status_code == 400
 
 
+def test_challenge_participants_per_person(client_as):
+    # Two members in family 1, each with a Health habit logged today.
+    a = client_as(user_id=840, family_id=1)
+    ha = a.post("/api/life/habits", json={"area_id": "health", "name": "Walk"}).json()["id"]
+    a.post(f"/api/life/habits/{ha}/log")
+    b = client_as(user_id=841, family_id=1)
+    hb = b.post("/api/life/habits", json={"area_id": "health", "name": "Run"}).json()["id"]
+    b.post(f"/api/life/habits/{hb}/log")
+
+    # Group challenge created by 840 with both participants.
+    a = client_as(user_id=840, family_id=1)
+    r = a.post("/api/life/challenges", json={
+        "title": "Both move", "area_id": "health", "target": 3, "participants": [840, 841]})
+    assert r.status_code == 200, r.text
+    ch = r.json()
+    assert ch["owner"] == "family"
+    assert ch["participants"] is not None and len(ch["participants"]) == 2
+    by = {p["user_id"]: p for p in ch["participants"]}
+    assert by[840]["progress"] == 1 and by[841]["progress"] == 1  # each counts their own habit
+    assert ch["status"] == "active"
+
+    # Lives under the Family scope (both see it).
+    fam = a.get("/api/life/challenges?owner=family").json()
+    assert any(c["id"] == ch["id"] for c in fam["challenges"])
+
+
 def test_suggest_validates_area_and_requires_ai(client_as, app_module):
     client = client_as(user_id=804, family_id=1)
     # Cross-scope area id is rejected before any AI call.

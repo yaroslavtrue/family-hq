@@ -4259,6 +4259,26 @@ def _life_challenge_habit_ids(db, ch: dict, family_id: int, owner: str) -> list[
     return [r["id"] for r in db.execute(q, p).fetchall()]
 
 
+def _life_challenge_progress(db, ch: dict, family_id: int, owner_str: str, start, window_end) -> int:
+    """Progress for one owner: completions (count) or longest run (streak)."""
+    hids = _life_challenge_habit_ids(db, ch, family_id, owner_str)
+    if not hids or window_end <= start:
+        return 0
+    qmarks = ",".join("?" * len(hids))
+    rows = db.execute(
+        f"SELECT date FROM habit_logs WHERE done=1 AND habit_id IN ({qmarks}) AND date>=? AND date<?",
+        hids + [start.isoformat(), window_end.isoformat()]).fetchall()
+    dates = [r["date"] for r in rows]
+    if ch.get("kind") == "streak":
+        best = run = 0; prev = None
+        for d in sorted(set(dates)):
+            dd = datetime.fromisoformat(d).date()
+            run = run + 1 if (prev and (dd - prev).days == 1) else 1
+            best = max(best, run); prev = dd
+        return best
+    return len(dates)
+
+
 def _life_challenge_view(db, ch: dict, family_id: int, owner: str, lang: str) -> dict:
     today = datetime.now(ZoneInfo(TIMEZONE)).date()
     try:
@@ -4268,46 +4288,54 @@ def _life_challenge_view(db, ch: dict, family_id: int, owner: str, lang: str) ->
     period = int(ch.get("period_days") or 7)
     end = start + timedelta(days=period)
     window_end = min(end, today + timedelta(days=1))
-    hids = _life_challenge_habit_ids(db, ch, family_id, owner)
-    dates = []
-    if hids and window_end > start:
-        qmarks = ",".join("?" * len(hids))
-        rows = db.execute(
-            f"SELECT date FROM habit_logs WHERE done=1 AND habit_id IN ({qmarks}) AND date>=? AND date<?",
-            hids + [start.isoformat(), window_end.isoformat()]).fetchall()
-        dates = [r["date"] for r in rows]
     target = int(ch.get("target") or 1)
-    if ch.get("kind") == "streak":
-        day_set = sorted(set(dates))
-        best = run = 0
-        prev = None
-        for d in day_set:
-            dd = datetime.fromisoformat(d).date()
-            run = run + 1 if (prev and (dd - prev).days == 1) else 1
-            best = max(best, run); prev = dd
-        progress = best
-    else:
-        progress = len(dates)
-    done = progress >= target
     closed = today >= end
-    status = "done" if done else ("failed" if closed else "active")
-    # Resolve subject label
+
+    # Participants (per-person leaderboard) — JSON array of user_ids; None = solo.
+    parts = None
+    if ch.get("participants"):
+        try: parts = [int(x) for x in _json_mod.loads(ch["participants"])]
+        except Exception: parts = None
+
+    # Resolve subject label (the area for personal areas; falls back across scopes)
     subject = None
     if ch.get("habit_id"):
-        hr = db.execute("SELECT name, emoji FROM habits WHERE id=?", (ch["habit_id"],)).fetchone()
+        hr = db.execute("SELECT name FROM habits WHERE id=?", (ch["habit_id"],)).fetchone()
         subject = (hr["name"] if hr else None)
     elif ch.get("area_id"):
-        a = next((x for x in _life_effective_areas(db, family_id, owner, lang) if x["id"] == ch["area_id"]), None)
-        subject = (a["name"] if a else None)
-    return {
+        const = _PERSONAL_BY_ID.get(ch["area_id"]) or _REL_BY_ID.get(ch["area_id"])
+        subject = _life_area_name(const, lang) if const else ch["area_id"]
+
+    base = {
         "id": ch["id"], "owner": owner, "title": ch.get("title") or "",
         "emoji": ch.get("emoji") or "🏆", "kind": ch.get("kind") or "count",
-        "target": target, "progress": progress, "status": status,
-        "habit_id": ch.get("habit_id"), "area_id": ch.get("area_id"),
-        "subject": subject, "period_days": period,
-        "start_date": ch.get("start_date"),
+        "target": target, "habit_id": ch.get("habit_id"), "area_id": ch.get("area_id"),
+        "subject": subject, "period_days": period, "start_date": ch.get("start_date"),
         "days_left": max(0, (end - today).days),
     }
+
+    if parts:
+        rows = []
+        for uid in parts:
+            prog = _life_challenge_progress(db, ch, family_id, str(uid), start, window_end)
+            rows.append({"user_id": uid, "progress": prog, "done": prog >= target})
+        all_done = bool(rows) and all(r["done"] for r in rows)
+        status = "done" if all_done else ("failed" if closed else "active")
+        base.update({
+            "participants": rows,
+            "progress": max([r["progress"] for r in rows], default=0),
+            "status": status,
+        })
+        return base
+
+    progress = _life_challenge_progress(db, ch, family_id, owner, start, window_end)
+    done = progress >= target
+    base.update({
+        "participants": None,
+        "progress": progress,
+        "status": ("done" if done else ("failed" if closed else "active")),
+    })
+    return base
 
 
 @app.get("/api/life/challenges")
@@ -4330,6 +4358,7 @@ class ChallengeCreate(BaseModel):
     habit_id: int | None = None
     area_id: str | None = None
     period_days: int = 7
+    participants: list[int] | None = None  # group challenge → per-person tracking
 
 
 @app.post("/api/life/challenges")
@@ -4342,13 +4371,28 @@ def life_challenge_create(body: ChallengeCreate, user=Depends(get_uf), db=Depend
     kind = body.kind if body.kind in _VALID_CHALLENGE_KINDS else "count"
     target = max(1, min(366, int(body.target or 1)))
     period = max(1, min(366, int(body.period_days or 7)))
+
+    # Participants → a per-person group challenge. Validate they're family members;
+    # it lives under owner='family' (both see it); per-person progress counts each
+    # member's OWN habits, so we drop the specific-habit binding.
+    participants_json = None
+    valid_members = {m["user_id"] for m in db.execute(
+        "SELECT user_id FROM family_members WHERE family_id=?", (f,)).fetchall()}
+    parts = [p for p in (body.participants or []) if p in valid_members]
+    if parts:
+        owner = "family"
+        participants_json = _json_mod.dumps(sorted(set(parts)))
+
     area_id = None
     if body.area_id:
-        if body.area_id not in _life_valid_area_ids(db, f, owner):
+        # For group challenges, validate against personal areas (per-person tracking);
+        # else against the challenge owner's scope.
+        valid_owner = str(user["id"]) if parts else owner
+        if body.area_id not in _life_valid_area_ids(db, f, valid_owner):
             raise HTTPException(400, "bad area_id")
         area_id = body.area_id
     habit_id = None
-    if body.habit_id:
+    if body.habit_id and not parts:
         r = db.execute("SELECT id FROM habits WHERE id=? AND family_id=? AND owner=?",
                        (body.habit_id, f, owner)).fetchone()
         if not r:
@@ -4356,9 +4400,9 @@ def life_challenge_create(body: ChallengeCreate, user=Depends(get_uf), db=Depend
         habit_id = body.habit_id
     today = datetime.now(ZoneInfo(TIMEZONE)).date().isoformat()
     cur = db.execute(
-        """INSERT INTO life_challenges (family_id, owner, title, emoji, kind, target, habit_id, area_id, period_days, start_date)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-        (f, owner, title, (body.emoji or "🏆").strip(), kind, target, habit_id, area_id, period, today))
+        """INSERT INTO life_challenges (family_id, owner, title, emoji, kind, target, habit_id, area_id, period_days, start_date, participants)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+        (f, owner, title, (body.emoji or "🏆").strip(), kind, target, habit_id, area_id, period, today, participants_json))
     db.commit()
     row = dict(db.execute("SELECT * FROM life_challenges WHERE id=?", (cur.lastrowid,)).fetchone())
     return _life_challenge_view(db, row, f, owner, _life_user_lang(db, user["id"]))
@@ -4441,7 +4485,9 @@ async def life_challenge_suggest(body: ChallengeSuggestBody, user=Depends(get_uf
 
 
 # ─── Debug & Serve ───────────────────────────────────────────────────────
-APP_VERSION = "v8.55.1"
+APP_VERSION = "v8.56.0"
+# v8.56.0 — Life Challenges: participants — pick members, each tracked separately
+#           (per-person leaderboard). Stored under owner='family'. Schema v34.
 # v8.55.1 — Life: Journey/Challenges overlay padding-top clears the floating
 #           filter row (tabs no longer hide under it).
 # v8.55.0 — Life Phase 3: Challenges — time-bound goals (count|streak) on a
