@@ -450,6 +450,34 @@ body.life-mode .ct{padding:0;background:#0a0b10}
 .lcw-mini-bar{height:6px;border-radius:3px;background:color-mix(in srgb,var(--tx) 10%,transparent);margin-top:6px;overflow:hidden}
 .lcw-mini-bar>div{height:100%;border-radius:3px}
 .lcw-mini-r{font-size:13px;font-weight:700;color:var(--tx);flex-shrink:0}
+/* Love Points — dedicated monthly couple scoreboard (Profile) */
+.love-card{border-radius:20px;padding:16px 14px 10px;margin-bottom:14px;border:1px solid var(--bd);box-shadow:var(--shadow-1);animation:ci .3s ease-out}
+.love-head{text-align:center;font-size:16px;font-weight:800;color:var(--tx);letter-spacing:.2px}
+.love-days{text-align:center;font-size:11px;font-weight:600;color:var(--ht);margin-top:2px}
+.love-board{display:flex;align-items:flex-start;gap:8px;margin-top:12px}
+.love-side{flex:1;display:flex;flex-direction:column;align-items:center;gap:4px}
+.love-side .av,.love-side .av-em{width:38px;height:38px;border-radius:50%}
+.love-name{font-size:12px;font-weight:600;color:var(--tx);max-width:100px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.love-num{font-size:42px;font-weight:800;line-height:1;letter-spacing:-1.5px}
+.love-vs{font-size:26px;font-weight:800;color:var(--ht);opacity:.4;align-self:center;padding-top:22px}
+.love-ctrl{display:flex;gap:7px;margin-top:5px}
+.love-b{width:32px;height:32px;border-radius:10px;border:1px solid var(--bd);background:var(--cd);color:var(--tx);font-size:19px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;line-height:1}
+.love-b:active{transform:scale(.9)}
+.love-plus{border-width:1.5px}
+.love-stats{display:block;width:100%;margin-top:12px;padding:9px 0 4px;border:0;border-top:1px solid color-mix(in srgb,var(--tx) 9%,transparent);background:none;color:var(--ht);font-size:11px;font-weight:600;letter-spacing:.4px;text-transform:uppercase;cursor:pointer;opacity:.55}
+.love-stats:active{opacity:1}
+.love-aw-t{font-size:14px;font-weight:700;color:var(--tx);margin-bottom:10px;text-align:center}
+.love-emos{display:flex;flex-wrap:wrap;gap:7px;margin:12px 0}
+.love-emo{width:42px;height:42px;border-radius:12px;border:1px solid var(--bd);background:var(--cd);font-size:21px;cursor:pointer;display:flex;align-items:center;justify-content:center}
+.love-emo.s{border-color:var(--pr);border-width:2px;background:color-mix(in srgb,var(--pr) 12%,transparent)}
+.love-emo:active{transform:scale(.92)}
+.love-log{display:flex;flex-direction:column;gap:10px}
+.love-log-empty{text-align:center;color:var(--ht);font-size:13px;padding:20px 0}
+.love-log-row{display:flex;align-items:center;gap:11px}
+.love-log-row .av,.love-log-row .av-em{width:30px;height:30px;border-radius:50%;flex-shrink:0}
+.love-log-bd{flex:1;min-width:0}
+.love-log-r{font-size:14px;font-weight:600;color:var(--tx)}
+.love-log-m{font-size:11px;color:var(--ht);margin-top:1px}
 
 /* SVG node bits (units = viewBox 0..100) */
 .life-edge{stroke:#9b96a8;pointer-events:none}
@@ -1305,18 +1333,18 @@ body.no-scroll .mx{touch-action:pan-y}
 <!-- Load JS -->
 <!-- Load order: data (lang.js) → engines (theme.js, auth.js, weather.js) → main (app.js). -->
 <!-- All share globals; extracted modules use `var`/`function` declarations so they're true window-scope. -->
-<script src="/static/lang.js?v=243"></script>
-<script src="/static/theme.js?v=243"></script>
-<script src="/static/auth.js?v=243"></script>
-<script src="/static/weather.js?v=243"></script>
-<script src="/static/words.js?v=243"></script>
-<script src="/static/plants.js?v=243"></script>
-<script src="/static/trainings.js?v=243"></script>
-<script src="/static/money.js?v=243"></script>
-<script src="/static/tasks.js?v=243"></script>
-<script src="/static/cooking.js?v=243"></script>
-<script src="/static/news.js?v=243"></script>
-<script src="/static/settings.js?v=243"></script>
-<script src="/static/app.js?v=243"></script>
+<script src="/static/lang.js?v=244"></script>
+<script src="/static/theme.js?v=244"></script>
+<script src="/static/auth.js?v=244"></script>
+<script src="/static/weather.js?v=244"></script>
+<script src="/static/words.js?v=244"></script>
+<script src="/static/plants.js?v=244"></script>
+<script src="/static/trainings.js?v=244"></script>
+<script src="/static/money.js?v=244"></script>
+<script src="/static/tasks.js?v=244"></script>
+<script src="/static/cooking.js?v=244"></script>
+<script src="/static/news.js?v=244"></script>
+<script src="/static/settings.js?v=244"></script>
+<script src="/static/app.js?v=244"></script>
 </body>
 </html>

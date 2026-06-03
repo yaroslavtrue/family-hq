@@ -397,6 +397,85 @@ async function _lifeWGScore(cid,uid,delta,hostId){
   _lifeWidget(hostId);
 }
 
+// ─── Love Points — dedicated monthly couple scoreboard (Profile) ──────────
+// Separate entity from challenges. Points given with a reason + emoji, tallied
+// per calendar month; a faint Stats button reveals who gave what & when.
+var _loveData=null,_loveEmoPick="❤️";
+async function _loveCard(hostId){
+  var host=document.getElementById(hostId);if(!host)return;
+  var d=null;try{d=await A("GET","/api/love")}catch(e){}
+  if(!d||!d.members||d.members.length<2){host.innerHTML="";return}
+  _loveData=d;
+  var m=d.members.slice(0,2),sc=d.scores||{};
+  var bg='linear-gradient(90deg, color-mix(in srgb,'+(m[0].color||"var(--pr)")+' 18%,var(--cd)) 0%, var(--cd) 46%, var(--cd) 54%, color-mix(in srgb,'+(m[1].color||"var(--pr)")+' 18%,var(--cd)) 100%)';
+  var h='<div class="love-card" style="background:'+bg+'">';
+  h+='<div class="love-head">💕 '+tr("love_title")+'</div>';
+  h+='<div class="love-days">'+trn("love_days_left",d.days_left)+'</div>';
+  h+='<div class="love-board">';
+  m.forEach(function(p,idx){
+    var col=p.color||"var(--pr)",n=sc[String(p.user_id)]||0,win=d.leader===p.user_id;
+    h+='<div class="love-side">'+mAv(p.user_id,38)+'<div class="love-name">'+es(p.user_name)+(win?' 👑':'')+'</div>';
+    h+='<div class="love-num" style="color:'+col+'">'+n+'</div>';
+    h+='<div class="love-ctrl"><button class="love-b" onclick="_loveRemove('+p.user_id+')">−</button>'+
+       '<button class="love-b love-plus" style="border-color:'+col+'66" onclick="_loveAward('+p.user_id+",'"+es(p.user_name).replace(/'/g,"\\'")+"'"+')">+</button></div></div>';
+    if(idx===0)h+='<div class="love-vs">:</div>';
+  });
+  h+='</div>';
+  h+='<button class="love-stats" onclick="_loveStats()">'+tr("love_stats")+'</button>';
+  h+='</div>';
+  host.innerHTML=h;
+}
+function _loveAward(uid,name){
+  hp("light");
+  var emos=["❤️","😘","🤗","☕","🍳","🌹","🧹","💪","🎁","😂","🙏","✨"];
+  var h='<div class="love-aw"><div class="love-aw-t">'+tr("love_award_to").replace("%s",es(name))+'</div>';
+  h+='<input class="inp" id="love-rsn" placeholder="'+tr("love_reason_ph")+'" maxlength="120" autocomplete="off">';
+  h+='<div class="love-emos" id="love-emos">';
+  emos.forEach(function(e,i){h+='<button class="love-emo'+(i===0?" s":"")+'" onclick="_loveEmo(this,\''+e+'\')">'+e+'</button>'});
+  h+='</div>';
+  h+='<button class="btn" style="width:100%;margin-top:6px" onclick="_loveDoAward('+uid+')">'+tr("love_give")+'</button></div>';
+  _loveEmoPick="❤️";
+  oMC(tr("love_title"),h);
+}
+function _loveEmo(btn,e){_loveEmoPick=e;document.querySelectorAll("#love-emos .love-emo").forEach(function(b){b.classList.remove("s")});btn.classList.add("s");hp("sel")}
+async function _loveDoAward(uid){
+  var rsn=((document.getElementById("love-rsn")||{}).value||"").trim();
+  hp("ok");
+  try{await A("POST","/api/love",{to_user:uid,reason:rsn,emoji:_loveEmoPick})}catch(e){}
+  cMo();_loveRefresh();
+}
+async function _loveRemove(uid){
+  hp("light");
+  try{await A("DELETE","/api/love/latest?to_user="+uid)}catch(e){}
+  _loveRefresh();
+}
+function _loveRefresh(){
+  if(document.getElementById("love-prof"))_loveCard("love-prof");
+  if(document.getElementById("love-home"))_loveCard("love-home");
+}
+async function _loveStats(){
+  hp("light");
+  var d=null;try{d=await A("GET","/api/love/stats")}catch(e){}
+  var ents=(d&&d.entries)||[];
+  var h='<div class="love-log">';
+  if(!ents.length)h+='<div class="love-log-empty">'+tr("love_no_points")+'</div>';
+  ents.forEach(function(e){
+    h+='<div class="love-log-row">'+mAv(e.to_user,30)+
+       '<div class="love-log-bd"><div class="love-log-r">'+es(e.emoji||"❤️")+' '+es(e.reason||tr("love_a_point"))+'</div>'+
+       '<div class="love-log-m">'+tr("love_from").replace("%s",es(mName(e.from_user)))+' · '+_loveAgo(e.created_at)+'</div></div></div>';
+  });
+  h+='</div>';
+  oMC(tr("love_stats_title"),h);
+}
+function _loveAgo(iso){
+  if(!iso)return"";
+  var t=new Date(iso),s=Math.floor((new Date()-t)/1000);
+  if(s<60)return tr("just_now");
+  if(s<3600)return Math.floor(s/60)+tr("m_ago");
+  if(s<86400)return Math.floor(s/3600)+tr("h_ago");
+  return t.toLocaleDateString(undefined,{day:"numeric",month:"short"});
+}
+
 function assignPk(id,sel){
 let h='<div class="or" id="'+id+'"><span class="ch'+((!sel)?" s":"")+'" style="background:var(--wn)22;color:var(--wn);cursor:pointer" onclick="document.querySelectorAll(\'#'+id+' .ch\').forEach(function(c){c.classList.remove(\'s\')});this.classList.add(\'s\');_assign=0">👨‍👩‍👧</span>';
 D.members.forEach(function(m){h+='<span class="ch'+(sel===m.user_id?" s":"")+'" style="background:'+m.color+'22;color:'+m.color+';cursor:pointer;display:inline-flex;align-items:center;gap:6px" onclick="document.querySelectorAll(\'#'+id+' .ch\').forEach(function(c){c.classList.remove(\'s\')});this.classList.add(\'s\');_assign='+m.user_id+'">'+mAv(m.user_id,18)+es(m.user_name)+'</span>'});
@@ -897,7 +976,10 @@ h+='</div>';
 if(_profMember){var m=D.members.find(function(x){return x.user_id===_profMember});
   if(m)h+='<div class="prof-hero">'+mAv(m.user_id,64)+'<div class="prof-hero-bd"><div class="prof-hero-nm">'+es(m.user_name)+'</div><div class="prof-hero-sub">Personal stats</div><div class="prof-hero-strip" style="background:'+m.color+'"></div></div></div>'}
 
-// Active Life challenges — scoreboard widget (async).
+// Love Points — dedicated monthly couple scoreboard (its own entity).
+h+='<div id="love-prof"></div>';
+setTimeout(function(){_loveCard("love-prof")},0);
+// Active Life challenges — scoreboard widget (real challenges; empty if none).
 h+='<div id="life-wg-prof"></div>';
 setTimeout(function(){_lifeWidget("life-wg-prof")},0);
 

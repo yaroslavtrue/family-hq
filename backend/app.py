@@ -4491,6 +4491,93 @@ def life_active_challenges(user=Depends(get_uf), db=Depends(get_db)):
     return {"challenges": out, "members": members}
 
 
+# ─── Love Points — a dedicated monthly couple scoreboard ──────────────────
+# Separate from challenges. Each point is given by one member to another, with a
+# reason + emoji. Tallied per calendar month; a winner emerges at month end.
+def _love_status(db, f: int):
+    now = datetime.now(ZoneInfo(TIMEZONE))
+    ym = now.strftime("%Y-%m")
+    days_in_month = monthrange(now.year, now.month)[1]
+    days_left = days_in_month - now.day  # remaining full days until month end
+    rows = db.execute(
+        "SELECT to_user, COUNT(*) c FROM love_points WHERE family_id=? AND ym=? GROUP BY to_user",
+        (f, ym)).fetchall()
+    scores = {str(r["to_user"]): r["c"] for r in rows}
+    members = [dict(m) for m in db.execute(
+        "SELECT user_id, user_name, emoji, color, photo_url FROM family_members WHERE family_id=? ORDER BY user_id",
+        (f,)).fetchall()]
+    leader = None
+    if scores:
+        mx = max(scores.values())
+        tops = [int(k) for k, v in scores.items() if v == mx and mx > 0]
+        leader = tops[0] if len(tops) == 1 else None
+    return {"ym": ym, "month": now.strftime("%B"), "days_left": days_left,
+            "days_in_month": days_in_month, "scores": scores, "members": members,
+            "leader": leader}
+
+
+@app.get("/api/love")
+def love_status(user=Depends(get_uf), db=Depends(get_db)):
+    return _love_status(db, user["family_id"])
+
+
+class LovePointBody(BaseModel):
+    to_user: int
+    reason: str | None = ""
+    emoji: str | None = "❤️"
+
+
+@app.post("/api/love")
+def love_award(body: LovePointBody, user=Depends(get_uf), db=Depends(get_db)):
+    """Give a point to a member, with a reason + emoji."""
+    f = user["family_id"]
+    if not db.execute("SELECT 1 FROM family_members WHERE family_id=? AND user_id=?",
+                      (f, body.to_user)).fetchone():
+        raise HTTPException(400, "unknown recipient")
+    now = datetime.now(ZoneInfo(TIMEZONE))
+    db.execute(
+        "INSERT INTO love_points (family_id, from_user, to_user, reason, emoji, ym, created_at) "
+        "VALUES (?,?,?,?,?,?,?)",
+        (f, user["id"], body.to_user, (body.reason or "").strip()[:120],
+         (body.emoji or "❤️").strip()[:8], now.strftime("%Y-%m"), now.isoformat()))
+    db.commit()
+    return _love_status(db, f)
+
+
+@app.delete("/api/love/latest")
+def love_remove_latest(to_user: int, user=Depends(get_uf), db=Depends(get_db)):
+    """Undo: drop a member's most recent point this month."""
+    f = user["family_id"]
+    ym = datetime.now(ZoneInfo(TIMEZONE)).strftime("%Y-%m")
+    row = db.execute(
+        "SELECT id FROM love_points WHERE family_id=? AND to_user=? AND ym=? ORDER BY id DESC LIMIT 1",
+        (f, to_user, ym)).fetchone()
+    if row:
+        db.execute("DELETE FROM love_points WHERE id=?", (row["id"],))
+        db.commit()
+    return _love_status(db, f)
+
+
+@app.get("/api/love/stats")
+def love_stats(ym: str | None = None, user=Depends(get_uf), db=Depends(get_db)):
+    """Log of all points for a month: who gave what to whom, when."""
+    f = user["family_id"]
+    if not ym:
+        ym = datetime.now(ZoneInfo(TIMEZONE)).strftime("%Y-%m")
+    rows = db.execute(
+        "SELECT id, from_user, to_user, reason, emoji, created_at FROM love_points "
+        "WHERE family_id=? AND ym=? ORDER BY id DESC", (f, ym)).fetchall()
+    return {"ym": ym, "entries": [dict(r) for r in rows]}
+
+
+@app.delete("/api/love/{pid}")
+def love_delete(pid: int, user=Depends(get_uf), db=Depends(get_db)):
+    f = user["family_id"]
+    db.execute("DELETE FROM love_points WHERE id=? AND family_id=?", (pid, f))
+    db.commit()
+    return {"ok": True}
+
+
 class ChallengeSuggestBody(BaseModel):
     owner: str | None = None
 
@@ -4557,7 +4644,12 @@ async def life_challenge_suggest(body: ChallengeSuggestBody, user=Depends(get_uf
 
 
 # ─── Debug & Serve ───────────────────────────────────────────────────────
-APP_VERSION = "v8.57.0"
+APP_VERSION = "v8.58.0"
+# v8.58.0 — Love Points: dedicated monthly couple scoreboard (its own entity in
+#           Profile), separate from challenges. Points given with reason + emoji,
+#           tallied per calendar month, Stats log (who/what/when). Schema v37
+#           (drop seeded example challenge) + v38 (love_points table). The
+#           Home/Profile challenge widget now syncs with real challenges only.
 # v8.57.0 — Life: 'score' challenges (manual +/- scoreboard), custom period via
 #           date picker, Home/Profile scoreboard widget, example couple seed.
 #           Schema v35 (scores) + v36 (example). POST .../score, GET /life/active.

@@ -807,6 +807,26 @@ def migrate(db_path):
         # something to show. Guarded: only for family 1 with both Yaroslav+Ella as
         # members, and only if no score challenge exists yet. Idempotent.
         lambda c: _seed_example_score_challenge(c),
+        # v37: drop that seeded example — Love Points became its own dedicated
+        # feature (love_points table below), so the example challenge is obsolete
+        # and was confusing ("0 challenges but Love Points shows").
+        lambda c: (c.execute("DELETE FROM life_challenges WHERE kind='score' AND title='Love Points' AND emoji='💕'"), c.commit()),
+        # v38: Love Points — a dedicated monthly couple scoreboard, separate from
+        # challenges. Each point has a giver, recipient, reason + emoji, and a 'ym'
+        # month bucket. Tallied per month; the Profile card shows it.
+        lambda c: c.executescript("""
+            CREATE TABLE IF NOT EXISTS love_points (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                family_id INTEGER NOT NULL,
+                from_user INTEGER,
+                to_user INTEGER NOT NULL,
+                reason TEXT,
+                emoji TEXT,
+                ym TEXT NOT NULL,
+                created_at TEXT DEFAULT (datetime('now'))
+            );
+            CREATE INDEX IF NOT EXISTS idx_love_points ON love_points(family_id, ym);
+        """),
     ]
 
     for i, mig in enumerate(migrations):

@@ -273,6 +273,43 @@ def test_score_challenge_bump(client_as):
     assert any(c["id"] == cid for c in act["challenges"])
 
 
+def test_love_points(client_as):
+    # NOTE: dependency override is global — the LAST client_as() call sets the
+    # active user. Re-create the client whenever the acting user changes.
+    client_as(user_id=861, family_id=1)        # register second member
+    a = client_as(user_id=860, family_id=1)    # active = 860
+
+    # Empty to start.
+    st = a.get("/api/love").json()
+    assert st["scores"] == {} and st["leader"] is None
+    assert st["days_left"] >= 0 and st["days_in_month"] in (28, 29, 30, 31)
+
+    # 860 gives 861 two points (with reason+emoji).
+    a.post("/api/love", json={"to_user": 861, "reason": "made coffee", "emoji": "☕"})
+    st = a.post("/api/love", json={"to_user": 861, "reason": "hug", "emoji": "🤗"}).json()
+    assert st["scores"]["861"] == 2 and st["leader"] == 861
+
+    # Switch to 861 → gives 860 one point.
+    b = client_as(user_id=861, family_id=1)
+    b.post("/api/love", json={"to_user": 860, "reason": "dishes", "emoji": "🍽"})
+    st = b.get("/api/love").json()
+    assert st["scores"]["860"] == 1 and st["scores"]["861"] == 2
+
+    # Stats log shows newest first, with reason + giver.
+    stats = b.get("/api/love/stats").json()
+    assert len(stats["entries"]) == 3
+    assert stats["entries"][0]["from_user"] == 861 and stats["entries"][0]["to_user"] == 860
+    assert stats["entries"][0]["reason"] == "dishes"
+
+    # Switch back to 860, undo latest point for 861 → back to 1.
+    a = client_as(user_id=860, family_id=1)
+    st = a.delete("/api/love/latest?to_user=861").json()
+    assert st["scores"]["861"] == 1
+
+    # Unknown recipient rejected.
+    assert a.post("/api/love", json={"to_user": 99999, "reason": "x"}).status_code == 400
+
+
 def test_suggest_validates_area_and_requires_ai(client_as, app_module):
     client = client_as(user_id=804, family_id=1)
     # Cross-scope area id is rejected before any AI call.
