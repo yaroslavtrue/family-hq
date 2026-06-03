@@ -4441,7 +4441,9 @@ async def life_challenge_suggest(body: ChallengeSuggestBody, user=Depends(get_uf
 
 
 # ─── Debug & Serve ───────────────────────────────────────────────────────
-APP_VERSION = "v8.55.0"
+APP_VERSION = "v8.55.1"
+# v8.55.1 — Life: Journey/Challenges overlay padding-top clears the floating
+#           filter row (tabs no longer hide under it).
 # v8.55.0 — Life Phase 3: Challenges — time-bound goals (count|streak) on a
 #           habit/sphere/any, Current/Completed tabs, manual + AI suggestions.
 #           Schema v33 (life_challenges). 🏆 toggle in Life.
