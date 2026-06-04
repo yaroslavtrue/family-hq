@@ -3788,6 +3788,30 @@ def _life_due_on(freq, d) -> bool:
     return True
 
 
+def _life_local_date(ts: str | None):
+    """Convert a stored timestamp into a calendar date in the app timezone.
+
+    Habit `created_at` is written by SQLite `datetime('now')`, i.e. UTC. The
+    consistency/streak math compares it against `today` computed in TIMEZONE.
+    Between 22:00–24:00 UTC the Belgrade date is already "tomorrow", so a naive
+    `.date()` on the UTC string lands a day-0 habit one calendar day early and
+    inflates the scheduled-day count (consistency 0.5 instead of 1.0). Localise
+    both sides to the same zone first. See Bugs & Fixes (life consistency flake)."""
+    raw = (ts or "").strip()
+    if not raw:
+        return None
+    try:
+        dt = datetime.fromisoformat(raw.replace("T", " "))
+    except ValueError:
+        try:
+            return date.fromisoformat(raw.split(" ")[0].split("T")[0])
+        except ValueError:
+            return None
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=ZoneInfo("UTC"))
+    return dt.astimezone(ZoneInfo(TIMEZONE)).date()
+
+
 def _life_habit_stats(db, habit: dict) -> dict:
     """Compute streak, 30-day consistency, and done-today for one habit."""
     today = datetime.now(ZoneInfo(TIMEZONE)).date()
@@ -3795,10 +3819,7 @@ def _life_habit_stats(db, habit: dict) -> dict:
         freq = _json_mod.loads(habit["frequency"]) if habit.get("frequency") else "daily"
     except Exception:
         freq = "daily"
-    try:
-        created = datetime.fromisoformat((habit.get("created_at") or "").split(" ")[0].split("T")[0]).date()
-    except Exception:
-        created = today - timedelta(days=30)
+    created = _life_local_date(habit.get("created_at")) or (today - timedelta(days=30))
     # Pull last ~40 days of completions in one query.
     since = (today - timedelta(days=40)).isoformat()
     rows = db.execute("SELECT date FROM habit_logs WHERE habit_id=? AND done=1 AND date>=?",
@@ -4673,7 +4694,11 @@ async def life_challenge_suggest(body: ChallengeSuggestBody, user=Depends(get_uf
 
 
 # ─── Debug & Serve ───────────────────────────────────────────────────────
-APP_VERSION = "v8.61.0"
+APP_VERSION = "v8.61.1"
+# v8.61.1 — Fix: Life habit day-0 consistency/brightness glowed 0.5 instead of
+#           1.0 at the 22:00–24:00 UTC boundary (UTC created_at vs Belgrade
+#           today). New _life_local_date() localises created_at before the date
+#           diff; corrects existing rows, no migration. Tests pinned/frozen.
 # v8.61.0 — Love Points: monthly history view (Money-style). Bars per month
 #           (me=blue / partner=pink), tap to switch month, per-month entry log
 #           below with +1/−1 green/red. New GET /api/love/history.

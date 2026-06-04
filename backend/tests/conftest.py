@@ -13,6 +13,7 @@ import sys
 import tempfile
 import importlib
 import sqlite3
+from types import SimpleNamespace
 import pytest
 
 
@@ -109,6 +110,40 @@ def client_as(app_module, temp_db):
         return TestClient(app_module.app)
 
     return _factory
+
+
+@pytest.fixture(scope="function")
+def freeze_now(app_module, temp_db, monkeypatch):
+    """Freeze the app's wall clock so date-bucketed habit math is deterministic
+    regardless of when the suite runs.
+
+    Without this, `_life_habit_stats` reads `today` from the real clock while a
+    fresh habit's `created_at` comes from SQLite's UTC `datetime('now')`; in the
+    22:00–24:00 UTC window the two disagree by a calendar day and consistency
+    drops to 0.5 (see Bugs & Fixes: life consistency flake). The fixture pins
+    `now()` to a fixed instant and exposes `pin_created(hid)` to stamp a habit's
+    `created_at` to a UTC value that maps to that same local day.
+    """
+    base = app_module.datetime
+    frozen = base(2026, 6, 4, 12, 0, 0)  # naive UTC baseline → 2026-06-04 in Belgrade
+
+    class _Frozen(base):
+        @classmethod
+        def now(cls, tz=None):
+            return frozen.replace(tzinfo=tz) if tz is not None else frozen
+
+    monkeypatch.setattr(app_module, "datetime", _Frozen)
+
+    def pin_created(habit_id, when="2026-06-04 10:00:00"):
+        """Stamp a habit's created_at to a fixed UTC timestamp on the frozen day."""
+        con = sqlite3.connect(temp_db)
+        try:
+            con.execute("UPDATE habits SET created_at=? WHERE id=?", (when, habit_id))
+            con.commit()
+        finally:
+            con.close()
+
+    return SimpleNamespace(date="2026-06-04", pin_created=pin_created)
 
 
 @pytest.fixture(scope="function")

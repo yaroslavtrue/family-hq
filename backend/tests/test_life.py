@@ -7,7 +7,7 @@ uses the relationship area set, area validation rejects cross-scope ids.
 """
 
 
-def test_create_log_and_summary_brightness(client_as):
+def test_create_log_and_summary_brightness(client_as, freeze_now):
     client = client_as(user_id=800, family_id=1)
 
     # Default owner = me; create a daily habit feeding 'health'.
@@ -18,6 +18,10 @@ def test_create_log_and_summary_brightness(client_as):
     hid = r.json()["id"]
     assert r.json()["done_today"] is False
     assert r.json()["streak"] == 0
+
+    # Pin created_at to the frozen day so consistency math doesn't depend on
+    # wall-clock time (see Bugs & Fixes: life consistency flake).
+    freeze_now.pin_created(hid)
 
     # Brightness starts at 0 (no completions yet).
     s = client.get("/api/life/summary").json()
@@ -155,10 +159,12 @@ def test_family_spheres_are_editable(client_as):
     assert any(a["id"] == key for a in s["areas"])
 
 
-def test_journey_stats(client_as):
+def test_journey_stats(client_as, freeze_now):
     client = client_as(user_id=820, family_id=1)
-    # One habit, logged today.
+    # One habit, logged today. Pin created_at to the frozen day so the
+    # consistency/streak math is wall-clock independent (Bugs & Fixes: flake).
     hid = client.post("/api/life/habits", json={"area_id": "health", "name": "Walk"}).json()["id"]
+    freeze_now.pin_created(hid)
     client.post(f"/api/life/habits/{hid}/log")
 
     j = client.get("/api/life/journey?days=14").json()
