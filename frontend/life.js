@@ -24,6 +24,12 @@ var _lifeData = null;           // summary: {owner, scope, areas[], bond, member
 var _lifeAreaHabits = [];       // habits in the open area
 var _lifeNodes = [];            // render nodes [{id,type,hx,hy,x,y,vx,vy,r,color,...}]
 var _lifeRAF = null;
+// Per-draw caches so the sim loop never touches the DOM via querySelector or
+// scans the node array each frame (both add up at 60fps on a phone).
+var _lifeEls = null;       // {id: <g> element}
+var _lifeIndexMap = null;  // {id: node}
+var _lifeEdgeEls = [];     // [{el, a:node, b:node}]
+var _lifeBusy = false;     // true while dragging/settling → breathing paused
 var _lifeDrag = null;           // {id, moved}
 var _lifeLongTimer = null;
 var _lifeSettleUntil = 0;
@@ -107,26 +113,40 @@ function lifeUnmount(){
 // ─── Top bar: owner filter (Me / partner / Family) + back ─────
 // The global app header is visible again (v8.51.1) — this is just the slim
 // filter row beneath it, like the member-filter rows in Tasks/Money.
+// The owner chips (avatars) live in their OWN persistent container that is built
+// once and never re-rendered — recreating the <img> avatars on every month/mode
+// switch made them re-decode and flash. Only the .on highlight toggles.
+function _lifeChipsHTML(){
+  var c = '';
+  (D.members||[]).forEach(function(m){
+    var on = _lifeOwner === String(m.user_id);
+    c += '<button class="life-chip'+(on?' on':'')+'" data-o="'+m.user_id+'" onclick="_lifeSetOwner(\''+m.user_id+'\')">'+mAv(m.user_id,24)+'</button>';
+  });
+  c += '<button class="life-chip life-chip-fam'+(_lifeOwner==="family"?' on':'')+'" data-o="family" onclick="_lifeSetOwner(\'family\')">❤️</button>';
+  return c;
+}
+function _lifeSyncChips(){
+  var cc = document.getElementById("life-chips"); if(!cc) return;
+  cc.querySelectorAll(".life-chip").forEach(function(b){
+    b.classList.toggle("on", b.getAttribute("data-o") === String(_lifeOwner));
+  });
+}
 function _lifeRenderTopBar(){
   var el = document.getElementById("life-top"); if(!el) return;
-  var chips = function(){
-    var c = '<div class="life-chips">';
-    (D.members||[]).forEach(function(m){
-      var on = _lifeOwner === String(m.user_id);
-      c += '<button class="life-chip'+(on?' on':'')+'" onclick="_lifeSetOwner(\''+m.user_id+'\')">'+mAv(m.user_id,24)+'</button>';
-    });
-    c += '<button class="life-chip life-chip-fam'+(_lifeOwner==="family"?' on':'')+'" onclick="_lifeSetOwner(\'family\')">❤️</button>';
-    return c + '</div>';
-  };
+  // First mount: split into a mutable main region + the persistent chips bar.
+  if(!document.getElementById("life-chips")){
+    el.innerHTML = '<div id="life-top-main"></div><div class="life-chips" id="life-chips">'+_lifeChipsHTML()+'</div>';
+  }
+  _lifeSyncChips();
+  var cc = document.getElementById("life-chips");
+  var main = document.getElementById("life-top-main");
   var h = '';
   if(_lifeJourney){
     h += '<button class="life-back" onclick="_lifeToggleJourney()" aria-label="Back">‹</button>';
-    h += '<div class="life-areaname">'+tr("life_journey")+'</div>';
-    h += '<div style="flex:1"></div>'+chips();
+    h += '<div class="life-areaname">'+tr("life_journey")+'</div><div style="flex:1"></div>';
   } else if(_lifeChall){
     h += '<button class="life-back" onclick="_lifeToggleChall()" aria-label="Back">‹</button>';
-    h += '<div class="life-areaname">'+tr("life_challenges")+'</div>';
-    h += '<div style="flex:1"></div>'+chips();
+    h += '<div class="life-areaname">'+tr("life_challenges")+'</div><div style="flex:1"></div>';
   } else if(_lifeView === "area"){
     h += '<button class="life-back" onclick="_lifeBack()" aria-label="Back">‹</button>';
     var a = _lifeData && (_lifeData.areas||[]).find(function(x){return x.id===_lifeAreaId});
@@ -136,9 +156,10 @@ function _lifeRenderTopBar(){
     h += '<button class="life-journey-btn" onclick="_lifeToggleJourney()" aria-label="Journey">📈</button>';
     h += '<button class="life-journey-btn" onclick="_lifeToggleChall()" aria-label="Challenges">🏆</button>';
     h += '<div style="flex:1"></div>'+_lifeMonthNav()+'<div style="flex:1"></div>';
-    h += chips();
   }
-  el.innerHTML = h;
+  if(main) main.innerHTML = h;
+  // Chips hide in the area view (which shows its own month switcher instead).
+  if(cc) cc.style.display = (_lifeView === "area" && !_lifeJourney && !_lifeChall) ? "none" : "";
   _lifeSizeStage();
 }
 
@@ -719,11 +740,20 @@ function _lifeDraw(){
     nh += _lifeNodeSvg(n, i);
   });
   svg.innerHTML = defs + '<g id="life-edges">'+eh+'</g><g id="life-nodes">'+nh+'</g>';
+  // Cache element + node lookups for the sim loop (avoid per-frame querySelector).
+  _lifeIndexMap = {}; _lifeEls = {}; _lifeEdgeEls = [];
+  _lifeNodes.forEach(function(n){
+    _lifeIndexMap[n.id] = n;
+    _lifeEls[n.id] = svg.querySelector('.life-node[data-id="'+n.id+'"]');
+  });
+  svg.querySelectorAll(".life-edge").forEach(function(ln){
+    _lifeEdgeEls.push({el:ln, a:_lifeIndexMap[ln.getAttribute("data-a")], b:_lifeIndexMap[ln.getAttribute("data-b")]});
+  });
   _lifeBindPointer(svg);
 }
 
 function _lifeGradId(c){ return "grad_"+c.replace(/[^a-z0-9]/gi,""); }
-function _lifeNodeById(id){ for(var i=0;i<_lifeNodes.length;i++) if(_lifeNodes[i].id===id) return _lifeNodes[i]; return null; }
+function _lifeNodeById(id){ if(_lifeIndexMap && _lifeIndexMap[id]) return _lifeIndexMap[id]; for(var i=0;i<_lifeNodes.length;i++) if(_lifeNodes[i].id===id) return _lifeNodes[i]; return null; }
 
 function _lifeNodeSvg(n){
   var glowR = n.r * 2.5;
@@ -860,9 +890,10 @@ function _lifeBindPointer(svg){
       var nd = _lifeNodeById(_lifeDrag.id);
       if(nd){
         nd.x = p.x; nd.y = p.y; nd.vx=0; nd.vy=0;
-        // Reflect the new position THIS event (1:1 with the finger) instead of
-        // waiting for the next RAF tick — kills the "node trails my finger" lag.
-        _lifeApplyPositions();
+        // Reflect THIS node's position this event (1:1 with the finger) instead
+        // of waiting for the next RAF tick — kills the "trails my finger" lag.
+        // Only the dragged node + its edges; the RAF handles everyone else.
+        _lifeMoveDragged(nd);
       }
     }
   };
@@ -960,6 +991,10 @@ function _lifeStartSim(){
   var step = function(){
     var dragging = !!(_lifeDrag && _lifeDrag.moved);
     var settling = Date.now() < _lifeSettleUntil;
+    // Pause ambient breathing/idle-wiggle while actually interacting (drag/settle)
+    // — that's when their constant SVG repaint steals frames. Toggle only on change.
+    var busy = dragging || settling;
+    if(busy !== _lifeBusy){ _lifeBusy = busy; var stg=document.querySelector(".life-stage"); if(stg) stg.classList.toggle("life-busy", busy); }
     // Stiffer springs + a little less damping → the constellation follows a
     // dragged node briskly and settles fast, instead of crawling back.
     var kHome = 0.045, kEdge = 0.024, damp = 0.82, dt = 1;
@@ -1005,6 +1040,7 @@ function _lifeStartSim(){
       _lifeRAF = requestAnimationFrame(step);
     } else {
       _lifeRAF = null;
+      if(_lifeBusy){ _lifeBusy=false; var s2=document.querySelector(".life-stage"); if(s2) s2.classList.remove("life-busy"); } // resume breathing
     }
   };
   _lifeRAF = requestAnimationFrame(step);
@@ -1014,19 +1050,18 @@ function _lifeStartSim(){
 // Translate is relative to each node's DRAW anchor (ox,oy), not its (possibly
 // moving) home, so orbiting avatars track correctly and stay upright.
 function _lifeApplyPositions(){
-  var svg = document.getElementById("life-svg"); if(!svg) return;
+  if(!_lifeEls) return;
   _lifeNodes.forEach(function(n){
-    var g = svg.querySelector('.life-node[data-id="'+n.id+'"]'); if(!g) return;
+    var g = _lifeEls[n.id]; if(!g) return;
     var ax = (n.ox==null?n.hx:n.ox), ay = (n.oy==null?n.hy:n.oy);
     g.setAttribute("transform","translate("+(n.x-ax).toFixed(2)+" "+(n.y-ay).toFixed(2)+")");
   });
-  // gray spoke edges follow their endpoints
-  var lines = svg.querySelectorAll(".life-edge");
-  lines.forEach(function(ln){
-    var a=_lifeNodeById(ln.getAttribute("data-a")), b=_lifeNodeById(ln.getAttribute("data-b"));
-    if(a){ ln.setAttribute("x1",a.x.toFixed(2)); ln.setAttribute("y1",a.y.toFixed(2)); }
-    if(b){ ln.setAttribute("x2",b.x.toFixed(2)); ln.setAttribute("y2",b.y.toFixed(2)); }
-  });
+  // gray spoke edges follow their (cached) endpoints
+  for(var i=0;i<_lifeEdgeEls.length;i++){
+    var e=_lifeEdgeEls[i];
+    if(e.a){ e.el.setAttribute("x1",e.a.x.toFixed(2)); e.el.setAttribute("y1",e.a.y.toFixed(2)); }
+    if(e.b){ e.el.setAttribute("x2",e.b.x.toFixed(2)); e.el.setAttribute("y2",e.b.y.toFixed(2)); }
+  }
   // bond line tracks the two avatars
   if(_lifeOrbiting){
     var a0=_lifeNodeById("_av0"), a1=_lifeNodeById("_av1");
@@ -1037,6 +1072,18 @@ function _lifeApplyPositions(){
         ln.setAttribute("x2",a1.x.toFixed(2)); ln.setAttribute("y2",a1.y.toFixed(2));
       });
     }
+  }
+}
+// Light update for a single dragged node + its edges — used on every pointermove
+// so the finger tracks 1:1 without re-touching the whole graph each event.
+function _lifeMoveDragged(nd){
+  var g = _lifeEls && _lifeEls[nd.id]; if(!g) return;
+  var ax=(nd.ox==null?nd.hx:nd.ox), ay=(nd.oy==null?nd.hy:nd.oy);
+  g.setAttribute("transform","translate("+(nd.x-ax).toFixed(2)+" "+(nd.y-ay).toFixed(2)+")");
+  for(var i=0;i<_lifeEdgeEls.length;i++){
+    var e=_lifeEdgeEls[i];
+    if(e.a===nd){ e.el.setAttribute("x1",nd.x.toFixed(2)); e.el.setAttribute("y1",nd.y.toFixed(2)); }
+    if(e.b===nd){ e.el.setAttribute("x2",nd.x.toFixed(2)); e.el.setAttribute("y2",nd.y.toFixed(2)); }
   }
 }
 

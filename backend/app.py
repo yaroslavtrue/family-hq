@@ -4638,7 +4638,11 @@ async def life_challenge_suggest(body: ChallengeSuggestBody, user=Depends(get_uf
 
 
 # ─── Debug & Serve ───────────────────────────────────────────────────────
-APP_VERSION = "v8.62.1"
+APP_VERSION = "v8.62.2"
+# v8.62.2 — Life perf pass: persistent top-bar avatar chips (no re-decode/flash on
+#           month/mode switch), pause ambient breathing during drag (the main
+#           repaint cost), cache DOM node/edge refs for the sim loop (no per-frame
+#           querySelector), lighter single-node drag updates.
 # v8.62.1 — Life graph perf: dragged node tracks the finger 1:1 (apply position
 #           on pointermove, not next RAF) + stiffer springs (kHome .018→.045,
 #           kEdge .010→.024, damp .86→.82) so the constellation follows briskly.
