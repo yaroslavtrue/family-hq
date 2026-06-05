@@ -858,7 +858,12 @@ function _lifeBindPointer(svg){
     }
     if(_lifeDrag.moved){
       var nd = _lifeNodeById(_lifeDrag.id);
-      if(nd){ nd.x = p.x; nd.y = p.y; nd.vx=0; nd.vy=0; }
+      if(nd){
+        nd.x = p.x; nd.y = p.y; nd.vx=0; nd.vy=0;
+        // Reflect the new position THIS event (1:1 with the finger) instead of
+        // waiting for the next RAF tick — kills the "node trails my finger" lag.
+        _lifeApplyPositions();
+      }
     }
   };
   svg.onpointerup = function(ev){
@@ -955,7 +960,9 @@ function _lifeStartSim(){
   var step = function(){
     var dragging = !!(_lifeDrag && _lifeDrag.moved);
     var settling = Date.now() < _lifeSettleUntil;
-    var kHome = 0.018, kEdge = 0.010, damp = 0.86, dt = 1;
+    // Stiffer springs + a little less damping → the constellation follows a
+    // dragged node briskly and settles fast, instead of crawling back.
+    var kHome = 0.045, kEdge = 0.024, damp = 0.82, dt = 1;
     var energy = 0;
     // Family orbit: advance the angle and move the two avatars' home anchors
     // around the hub's CURRENT position, so the spring sim makes them chase the

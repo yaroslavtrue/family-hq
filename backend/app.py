@@ -4638,7 +4638,10 @@ async def life_challenge_suggest(body: ChallengeSuggestBody, user=Depends(get_uf
 
 
 # ─── Debug & Serve ───────────────────────────────────────────────────────
-APP_VERSION = "v8.62.0"
+APP_VERSION = "v8.62.1"
+# v8.62.1 — Life graph perf: dragged node tracks the finger 1:1 (apply position
+#           on pointermove, not next RAF) + stiffer springs (kHome .018→.045,
+#           kEdge .010→.024, damp .86→.82) so the constellation follows briskly.
 # v8.62.0 — Life redesign: habit tracker → monthly EVENT tracker. New life_events
 #           table (schema v40, month-bucketed, counter per event); existing habits
 #           converted to current-month events. Endpoints /api/life/events (+bump/
