@@ -7,44 +7,44 @@ uses the relationship area set, area validation rejects cross-scope ids.
 """
 
 
-def test_create_log_and_summary_brightness(client_as, freeze_now):
+def test_create_event_and_node_fill(client_as):
     client = client_as(user_id=800, family_id=1)
 
-    # Default owner = me; create a daily habit feeding 'health'.
-    r = client.post("/api/life/habits", json={
-        "area_id": "health", "name": "Morning Walk", "emoji": "🚶", "frequency": "daily",
-    })
+    # Empty board: node_count 0, brightness 0.
+    s = client.get("/api/life/summary").json()
+    health = next(a for a in s["areas"] if a["id"] == "health")
+    assert health["event_count"] == 0 and health["brightness"] == 0.0
+    assert s["scope"] == "personal" and len(s["areas"]) == 8
+
+    # Log an event into 'health' → counter starts at 1.
+    r = client.post("/api/life/events", json={"area_id": "health", "name": "Pushups", "emoji": "💪"})
     assert r.status_code == 200, r.text
-    hid = r.json()["id"]
-    assert r.json()["done_today"] is False
-    assert r.json()["streak"] == 0
+    eid = r.json()["id"]
+    assert r.json()["count"] == 1 and r.json()["area_id"] == "health"
 
-    # Pin created_at to the frozen day so consistency math doesn't depend on
-    # wall-clock time (see Bugs & Fixes: life consistency flake).
-    freeze_now.pin_created(hid)
-
-    # Brightness starts at 0 (no completions yet).
+    # Node fills: 1 distinct event → brightness 0.2 (1/5).
     s = client.get("/api/life/summary").json()
     health = next(a for a in s["areas"] if a["id"] == "health")
-    assert health["habit_count"] == 1
-    assert health["brightness"] == 0.0
-    assert s["scope"] == "personal"
-    assert len(s["areas"]) == 8
+    assert health["event_count"] == 1 and health["brightness"] == 0.2
 
-    # Log today → done_today True, streak 1, consistency 1.0 (1 scheduled day, 1 done).
-    r = client.post(f"/api/life/habits/{hid}/log").json()
-    assert r["done_today"] is True
-    assert r["streak"] == 1
-    assert r["consistency"] == 1.0
-
-    # Summary brightness now reflects the completion.
+    # Re-live it → counter grows; still ONE distinct event (node fill unchanged).
+    assert client.post(f"/api/life/events/{eid}/bump", json={"delta": 1}).json()["count"] == 2
+    assert client.post(f"/api/life/events/{eid}/bump", json={"delta": 1}).json()["count"] == 3
     s = client.get("/api/life/summary").json()
     health = next(a for a in s["areas"] if a["id"] == "health")
-    assert health["brightness"] == 1.0
+    assert health["event_count"] == 1  # distinct count drives the node, not taps
 
-    # Toggle off → back to not done.
-    r = client.post(f"/api/life/habits/{hid}/log").json()
-    assert r["done_today"] is False
+    # Correct a mis-tap (−1), clamped at 1.
+    assert client.post(f"/api/life/events/{eid}/bump", json={"delta": -1}).json()["count"] == 2
+    for _ in range(5):
+        client.post(f"/api/life/events/{eid}/bump", json={"delta": -1})
+    assert client.get("/api/life/events?area_id=health").json()["events"][0]["count"] == 1
+
+    # A second distinct event fills the node further (2/5 = 0.4).
+    client.post("/api/life/events", json={"area_id": "health", "name": "Run"})
+    s = client.get("/api/life/summary").json()
+    health = next(a for a in s["areas"] if a["id"] == "health")
+    assert health["event_count"] == 2 and health["brightness"] == 0.4
 
 
 def test_node_override_set_and_clear(client_as):
@@ -78,14 +78,14 @@ def test_family_scope_uses_relationship_areas(client_as):
     assert "rel_time" in ids and "rel_affection" in ids
     assert "focus" not in ids  # personal ids excluded from family scope
 
-    # A relationship habit must use a relationship area id.
-    r = client.post("/api/life/habits", json={
+    # A relationship event must use a relationship area id.
+    r = client.post("/api/life/events", json={
         "owner": "family", "area_id": "rel_time", "name": "Phone-free dinner",
     })
     assert r.status_code == 200, r.text
 
     # Cross-scope area id is rejected.
-    bad = client.post("/api/life/habits", json={
+    bad = client.post("/api/life/events", json={
         "owner": "family", "area_id": "focus", "name": "nope",
     })
     assert bad.status_code == 400
@@ -93,7 +93,7 @@ def test_family_scope_uses_relationship_areas(client_as):
 
 def test_personal_scope_rejects_relationship_area(client_as):
     client = client_as(user_id=803, family_id=1)
-    bad = client.post("/api/life/habits", json={"area_id": "rel_time", "name": "nope"})
+    bad = client.post("/api/life/events", json={"area_id": "rel_time", "name": "nope"})
     assert bad.status_code == 400
 
 
@@ -111,20 +111,19 @@ def test_add_and_delete_personal_sphere(client_as):
     travel = next(a for a in s["areas"] if a["id"] == key)
     assert travel["name"] == "Travel" and travel["is_custom"] is True
 
-    # Plant a habit in it.
-    h = client.post("/api/life/habits", json={"area_id": key, "name": "Plan a trip"})
+    # Log an event in it.
+    h = client.post("/api/life/events", json={"area_id": key, "name": "Plan a trip"})
     assert h.status_code == 200, h.text
-    hid = h.json()["id"]
 
-    # Delete the sphere → it + its habit are gone.
+    # Delete the sphere → it + its events are gone.
     d = client.delete(f"/api/life/areas/{key}")
-    assert d.status_code == 200 and d.json()["deleted_habits"] == 1
+    assert d.status_code == 200 and d.json()["deleted_events"] == 1
     s = client.get("/api/life/summary").json()
     assert len(s["areas"]) == 8
     assert all(a["id"] != key for a in s["areas"])
-    # The habit no longer lists.
-    hl = client.get(f"/api/life/habits?area_id={key}").json()
-    assert hl["habits"] == []
+    # The event no longer lists.
+    el = client.get(f"/api/life/events?area_id={key}").json()
+    assert el["events"] == []
 
 
 def test_delete_default_sphere(client_as):
@@ -159,92 +158,53 @@ def test_family_spheres_are_editable(client_as):
     assert any(a["id"] == key for a in s["areas"])
 
 
-def test_journey_stats(client_as, freeze_now):
+def test_journey_stats(client_as):
     client = client_as(user_id=820, family_id=1)
-    # One habit, logged today. Pin created_at to the frozen day so the
-    # consistency/streak math is wall-clock independent (Bugs & Fixes: flake).
-    hid = client.post("/api/life/habits", json={"area_id": "health", "name": "Walk"}).json()["id"]
-    freeze_now.pin_created(hid)
-    client.post(f"/api/life/habits/{hid}/log")
+    # Two events in 'health', one re-lived (count 3) → 2 distinct, 4 total taps.
+    eid = client.post("/api/life/events", json={"area_id": "health", "name": "Walk"}).json()["id"]
+    client.post(f"/api/life/events/{eid}/bump", json={"delta": 1})
+    client.post(f"/api/life/events/{eid}/bump", json={"delta": 1})  # Walk count 3
+    client.post("/api/life/events", json={"area_id": "health", "name": "Run"})  # count 1
 
-    j = client.get("/api/life/journey?days=14").json()
+    j = client.get("/api/life/journey").json()
     assert j["scope"] == "personal"
     assert len(j["areas"]) == 8
-    assert len(j["daily"]) == 14
-    assert j["daily"][-1]["count"] == 1          # today has one completion
-    assert j["stats"]["habits"] == 1
-    assert j["stats"]["done_today"] == 1
-    assert j["stats"]["completions_7d"] == 1
-    assert j["stats"]["best_streak"] == 1
+    assert j["stats"]["events"] == 2          # two distinct events
+    assert j["stats"]["total_count"] == 4     # 3 + 1 taps
+    assert j["stats"]["top_event"] == "Walk" and j["stats"]["top_count"] == 3
     health = next(a for a in j["areas"] if a["id"] == "health")
-    assert health["brightness"] == 1.0
+    assert health["event_count"] == 2 and health["brightness"] == 0.4
 
 
-def test_challenge_count_progress(client_as):
+def test_challenges_are_score_only(client_as):
+    """count/streak are retired — any non-score kind is coerced to a manual score
+    scoreboard, with no habit/area binding."""
     client = client_as(user_id=830, family_id=1)
-    hid = client.post("/api/life/habits", json={"area_id": "health", "name": "Walk"}).json()["id"]
-    client.post(f"/api/life/habits/{hid}/log")  # 1 completion today
-
-    # Count challenge: 3 completions in 7 days, bound to the habit.
     r = client.post("/api/life/challenges", json={
-        "title": "Walk 3x", "kind": "count", "target": 3, "habit_id": hid, "period_days": 7})
+        "title": "Old style", "kind": "count", "target": 3, "area_id": "health", "period_days": 7})
     assert r.status_code == 200, r.text
-    cid = r.json()["id"]
-    assert r.json()["progress"] == 1 and r.json()["status"] == "active"
-    assert r.json()["target"] == 3 and r.json()["subject"] == "Walk"
-
-    lst = client.get("/api/life/challenges").json()
-    assert len(lst["challenges"]) == 1 and lst["challenges"][0]["progress"] == 1
-
-    # Area-bound challenge counts any habit in the sphere.
-    r2 = client.post("/api/life/challenges", json={
-        "title": "Health hustle", "kind": "count", "target": 5, "area_id": "health", "period_days": 14})
-    assert r2.status_code == 200 and r2.json()["progress"] == 1
-
-    d = client.delete(f"/api/life/challenges/{cid}")
-    assert d.status_code == 200
-    assert len(client.get("/api/life/challenges").json()["challenges"]) == 1
+    assert r.json()["kind"] == "score"
 
 
-def test_challenge_done_when_target_met(client_as):
-    client = client_as(user_id=831, family_id=1)
-    hid = client.post("/api/life/habits", json={"area_id": "health", "name": "Walk"}).json()["id"]
-    client.post(f"/api/life/habits/{hid}/log")
-    r = client.post("/api/life/challenges", json={
-        "title": "One walk", "kind": "count", "target": 1, "habit_id": hid, "period_days": 7})
-    assert r.json()["status"] == "done" and r.json()["progress"] >= 1
+def test_month_isolation(client_as, db_conn):
+    """An event logged this month is absent when querying another month, and
+    bumping a past-month row is rejected (read-only)."""
+    client = client_as(user_id=835, family_id=1)
+    eid = client.post("/api/life/events", json={"area_id": "fun", "name": "Met friends"}).json()["id"]
 
+    # Present this month, absent in a different month.
+    assert len(client.get("/api/life/events?area_id=fun").json()["events"]) == 1
+    assert client.get("/api/life/events?area_id=fun&ym=2099-01").json()["events"] == []
+    s_other = client.get("/api/life/summary?ym=2099-01").json()
+    assert next(a for a in s_other["areas"] if a["id"] == "fun")["event_count"] == 0
 
-def test_challenge_bad_area_rejected(client_as):
-    client = client_as(user_id=832, family_id=1)
-    bad = client.post("/api/life/challenges", json={"title": "x", "area_id": "rel_time", "target": 3})
-    assert bad.status_code == 400
+    # Current-month bump works.
+    assert client.post(f"/api/life/events/{eid}/bump", json={"delta": 1}).json()["count"] == 2
 
-
-def test_challenge_participants_per_person(client_as):
-    # Two members in family 1, each with a Health habit logged today.
-    a = client_as(user_id=840, family_id=1)
-    ha = a.post("/api/life/habits", json={"area_id": "health", "name": "Walk"}).json()["id"]
-    a.post(f"/api/life/habits/{ha}/log")
-    b = client_as(user_id=841, family_id=1)
-    hb = b.post("/api/life/habits", json={"area_id": "health", "name": "Run"}).json()["id"]
-    b.post(f"/api/life/habits/{hb}/log")
-
-    # Group challenge created by 840 with both participants.
-    a = client_as(user_id=840, family_id=1)
-    r = a.post("/api/life/challenges", json={
-        "title": "Both move", "area_id": "health", "target": 3, "participants": [840, 841]})
-    assert r.status_code == 200, r.text
-    ch = r.json()
-    assert ch["owner"] == "family"
-    assert ch["participants"] is not None and len(ch["participants"]) == 2
-    by = {p["user_id"]: p for p in ch["participants"]}
-    assert by[840]["progress"] == 1 and by[841]["progress"] == 1  # each counts their own habit
-    assert ch["status"] == "active"
-
-    # Lives under the Family scope (both see it).
-    fam = a.get("/api/life/challenges?owner=family").json()
-    assert any(c["id"] == ch["id"] for c in fam["challenges"])
+    # Force the row into a past month → bumping is now rejected.
+    db_conn.execute("UPDATE life_events SET ym='2000-01' WHERE id=?", (eid,))
+    db_conn.commit()
+    assert client.post(f"/api/life/events/{eid}/bump", json={"delta": 1}).status_code == 400
 
 
 def test_score_challenge_bump(client_as):

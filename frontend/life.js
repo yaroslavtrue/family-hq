@@ -41,6 +41,28 @@ var _lifeChall = false;
 var _lifeChallTab = "current";
 var _lifeChallDraft = null;
 var _lifeChallSugg = [];
+// Event tracker (v8.62.0): the board is monthly. _lifeYM = selected month
+// 'YYYY-MM' (null = current). Past months are read-only.
+var _lifeYM = null;
+var _lifeCurYMStr = null;        // current month, learned from the API responses
+function _lifeYMv(){ return _lifeYM || _lifeCurYMStr || _lifeLocalYM(); }
+function _lifeLocalYM(){ var d=new Date(); return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0"); }
+function _lifeIsPast(){ return !!(_lifeYM && _lifeCurYMStr && _lifeYM !== _lifeCurYMStr); }
+function _lifeYMLabel(ym){
+  var p=String(ym||_lifeYMv()).split("-"), dt=new Date(+p[0],+p[1]-1,1);
+  return dt.toLocaleDateString((_lang==="ru")?"ru-RU":"en-US",{month:"long",year:"numeric"});
+}
+function _lifeYMShift(delta){
+  var p=String(_lifeYMv()).split("-"), y=+p[0], m=+p[1]-1+delta;
+  var d=new Date(y, m, 1), ym=d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0");
+  var cur=_lifeCurYMStr||_lifeLocalYM();
+  if(ym>cur) return;                 // never go past the current month
+  _lifeYM = (ym===cur)? null : ym;
+  hp("light");
+  _lifeRenderTopBar();
+  if(_lifeView==="area" && _lifeAreaId) _lifeLoadArea(_lifeAreaId);
+  else _lifeLoadSummary();
+}
 
 // ─── Entry: shell HTML (ren() injects this into #ct) ──────────
 function rLife(){
@@ -109,14 +131,25 @@ function _lifeRenderTopBar(){
     h += '<button class="life-back" onclick="_lifeBack()" aria-label="Back">‹</button>';
     var a = _lifeData && (_lifeData.areas||[]).find(function(x){return x.id===_lifeAreaId});
     h += '<div class="life-areaname">'+(a?a.emoji+' '+es(a.name):tr("nav_life"))+'</div>';
-    h += '<div style="flex:1"></div>';
+    h += '<div style="flex:1"></div>'+_lifeMonthNav();
   } else {
     h += '<button class="life-journey-btn" onclick="_lifeToggleJourney()" aria-label="Journey">📈</button>';
     h += '<button class="life-journey-btn" onclick="_lifeToggleChall()" aria-label="Challenges">🏆</button>';
-    h += '<div style="flex:1"></div>'+chips();
+    h += '<div style="flex:1"></div>'+_lifeMonthNav()+'<div style="flex:1"></div>';
+    h += chips();
   }
   el.innerHTML = h;
   _lifeSizeStage();
+}
+
+// Calendar-style month switcher (centre). Next is disabled at the current month.
+function _lifeMonthNav(){
+  var atCur = !_lifeIsPast();
+  return '<div class="life-mnav">'+
+    '<button class="life-mnav-b" onclick="_lifeYMShift(-1)" aria-label="Prev">‹</button>'+
+    '<span class="life-mnav-l">'+es(_lifeYMLabel())+'</span>'+
+    '<button class="life-mnav-b'+(atCur?' off':'')+'" '+(atCur?'disabled':'')+' onclick="_lifeYMShift(1)" aria-label="Next">›</button>'+
+    '</div>';
 }
 
 // Member lookup within the loaded summary.
@@ -195,7 +228,7 @@ function _lifeToggleJourney(){
   }
 }
 async function _lifeLoadJourney(){
-  var j = await A("GET","/api/life/journey?owner="+encodeURIComponent(_lifeOwner)+"&days=30");
+  var j = await A("GET","/api/life/journey?owner="+encodeURIComponent(_lifeOwner)+"&ym="+_lifeYMv());
   if(!j || !_lifeJourney || tab!=="life") return;
   _lifeRenderJourney(j);
 }
@@ -222,16 +255,16 @@ function _lifeRenderJourney(j){
   h += '<div class="life-jlabel">'+(isFam ? tr("life_connection") : tr("life_balance"))+'</div>';
   h += '</div>';
   // Activity sparkline
-  if((j.stats||{}).habits){
+  if((j.stats||{}).events){
     h += '<div class="life-jsec">'+tr("life_j_activity")+'</div>';
     h += '<div class="life-jspark-wrap">'+_lifeSpark(j.daily||[], accent)+'</div>';
   }
   // Stat tiles
   h += '<div class="life-jstats">';
-  [[st.habits||0, tr("life_j_habits")],[st.done_today||0, tr("life_j_done_today")],
-   [st.completions_7d||0, tr("life_j_this_week")],[st.best_streak||0, tr("life_j_best_streak")]
+  [[st.events||0, tr("life_j_events")],[st.total_count||0, tr("life_j_total")],
+   [st.completions_7d||0, tr("life_j_this_week")],[(st.top_event||"—"), tr("life_j_top")]
   ].forEach(function(t){
-    h += '<div class="life-jstat"><div class="life-jstat-v">'+t[0]+'</div><div class="life-jstat-l">'+t[1]+'</div></div>';
+    h += '<div class="life-jstat"><div class="life-jstat-v" style="font-size:'+(typeof t[0]==="string"&&t[0].length>3?"15px":"22px")+'">'+es(String(t[0]))+'</div><div class="life-jstat-l">'+t[1]+'</div></div>';
   });
   h += '</div>';
   // Per-area bars
@@ -248,7 +281,7 @@ function _lifeRenderJourney(j){
     });
     h += '</div>';
   }
-  if(!(j.stats||{}).habits){
+  if(!(j.stats||{}).events){
     h += '<div class="life-jempty">'+tr("life_j_empty")+'</div>';
   }
   jv.innerHTML = h;
@@ -371,68 +404,32 @@ async function _lifeDeleteChall(id){
   if(!r || !r.ok){ toast(tr("ts_error")); return }
   hp("warn"); await _lifeLoadChall();
 }
-// Create modal — title/emoji, kind, target, what to track (habit/sphere/any), period.
-async function _lifeOpenNewChall(){
-  // Need the owner's habits for the "track" selector.
-  var hd = await A("GET","/api/life/habits?owner="+encodeURIComponent(_lifeOwner));
-  var habits = (hd && hd.habits) || [];
-  var areas = (_lifeData && _lifeData.areas) || [];
-  _lifeChallDraft = {emoji:"🏆", kind:"count", target:5, period:7, participants:[]};
+// Create modal — score-only scoreboard challenge: title/emoji, period, players.
+function _lifeOpenNewChall(){
+  // Score challenges default both partners in (a little scoreboard).
+  var preParts = (D.members||[]).length>1 ? (D.members||[]).map(function(m){return m.user_id}) : [];
+  _lifeChallDraft = {emoji:"🏆", kind:"score", target:0, period:7, participants:preParts.slice()};
   var h = '';
   h += '<div style="display:flex;gap:10px;align-items:flex-end">';
   h += '<div><div class="lb">'+tr("g_emoji")+'</div><input class="inp" id="ch-e" value="🏆" style="width:64px;text-align:center;font-size:20px"></div>';
-  h += '<div style="flex:1"><div class="lb">'+tr("life_habit_name")+'</div><input class="inp" id="ch-t" placeholder="'+tr("life_ch_title_ph")+'"></div>';
+  h += '<div style="flex:1"><div class="lb">'+tr("life_ch_name")+'</div><input class="inp" id="ch-t" placeholder="'+tr("life_ch_title_ph")+'"></div>';
   h += '</div>';
-  h += '<div class="lb">'+tr("life_ch_goal")+'</div><div class="or">';
-  h += '<button class="ob s" id="ch-k-count" onclick="_lifeChKind(\'count\')">'+tr("life_ch_kind_count")+'</button>';
-  h += '<button class="ob" id="ch-k-streak" onclick="_lifeChKind(\'streak\')">'+tr("life_ch_kind_streak")+'</button>';
-  h += '<button class="ob" id="ch-k-score" onclick="_lifeChKind(\'score\')">'+tr("life_ch_kind_score")+'</button>';
-  h += '</div>';
-  // Target — hidden for score (a tally has no fixed target).
-  h += '<div id="ch-target-wrap"><div class="dr"><div><div class="dl">'+tr("life_ch_target")+'</div><input class="inp" id="ch-n" type="number" min="1" max="100" value="5"></div>';
-  h += '<div><div class="dl" id="ch-unit">'+tr("life_ch_times")+'</div><div style="height:1px"></div></div></div></div>';
-  // Track — hidden for score (manual, no habit/area binding).
-  h += '<div id="ch-track-wrap"><div class="lb">'+tr("life_ch_track")+'</div><select class="inp" id="ch-track">';
-  h += '<option value="">'+tr("life_ch_anything")+'</option>';
-  if(areas.length){
-    h += '<optgroup label="'+tr("life_ch_spheres")+'">';
-    areas.forEach(function(a){ h += '<option value="area:'+a.id+'">'+es(a.emoji)+' '+es(a.name)+'</option>'; });
-    h += '</optgroup>';
-  }
-  if(habits.length){
-    h += '<optgroup label="'+tr("life_ch_habits")+'">';
-    habits.forEach(function(hb){ h += '<option value="habit:'+hb.id+'">'+es(hb.emoji||"•")+' '+es(hb.name)+'</option>'; });
-    h += '</optgroup>';
-  }
-  h += '</select></div>';
   h += '<div class="lb">'+tr("life_ch_period")+'</div><div class="or" id="ch-period">';
   [7,14,30].forEach(function(p){ h += '<button class="ob '+(p===7?"s":"")+'" onclick="_lifeChPeriod(this,'+p+')">'+p+' '+tr("life_ch_days")+'</button>'; });
   h += '<button class="ob" id="ch-p-custom" onclick="_lifeChPeriodCustom(this)">📅 '+tr("life_ch_until")+'</button>';
   h += '</div>';
   h += '<input type="date" class="inp" id="ch-date" style="display:none;margin-top:8px" onchange="_lifeChDate(this)">';
-  // Participants — pick who's in; each is tracked separately (a little leaderboard).
+  // Participants — pick who's in; each keeps their own score.
   if((D.members||[]).length > 1){
     h += '<div class="lb">'+tr("life_ch_participants")+'</div><div class="or" id="ch-parts">';
     (D.members||[]).forEach(function(m){
-      h += '<button class="ob life-pchip" data-u="'+m.user_id+'" onclick="_lifeChToggleP(this,'+m.user_id+')">'+mAv(m.user_id,20)+'<span>'+es(m.user_name)+'</span></button>';
+      var on = preParts.indexOf(m.user_id) >= 0;
+      h += '<button class="ob life-pchip'+(on?" s":"")+'" data-u="'+m.user_id+'" onclick="_lifeChToggleP(this,'+m.user_id+')">'+mAv(m.user_id,20)+'<span>'+es(m.user_name)+'</span></button>';
     });
     h += '</div><div style="font-size:11px;color:var(--ht);margin-top:5px">'+tr("life_ch_participants_hint")+'</div>';
   }
   h += '<button class="btn" style="margin-top:14px" onclick="_lifeSaveChall()">'+tr("life_ch_create")+'</button>';
   oMC(tr("life_ch_new"), h, {ic:"life"});
-}
-function _lifeChKind(k){
-  _lifeChallDraft.kind = k;
-  ["count","streak","score"].forEach(function(x){ var b=document.getElementById("ch-k-"+x); if(b)b.classList.toggle("s", x===k); });
-  var u = document.getElementById("ch-unit"); if(u) u.textContent = tr(k==="streak"?"life_ch_days_row":"life_ch_times");
-  // Score = a manual tally → no target, no habit/area binding.
-  var tw=document.getElementById("ch-target-wrap"); if(tw) tw.style.display = (k==="score")?"none":"block";
-  var trk=document.getElementById("ch-track-wrap"); if(trk) trk.style.display = (k==="score")?"none":"block";
-  // Score really wants participants — nudge: if a couple, preselect both.
-  if(k==="score" && (D.members||[]).length>1 && (!_lifeChallDraft.participants||!_lifeChallDraft.participants.length)){
-    _lifeChallDraft.participants = (D.members||[]).map(function(m){return m.user_id});
-    document.querySelectorAll("#ch-parts .ob").forEach(function(b){b.classList.add("s")});
-  }
 }
 function _lifeChPeriodCustom(btn){
   document.querySelectorAll("#ch-period .ob").forEach(function(b){b.classList.remove("s")});
@@ -462,13 +459,7 @@ async function _lifeSaveChall(){
   var title = ((document.getElementById("ch-t")||{}).value||"").trim();
   if(!title){ toast(tr("life_name_required")); return }
   var emoji = (document.getElementById("ch-e")||{}).value || "🏆";
-  var target = d.kind==="score" ? 0 : (parseInt((document.getElementById("ch-n")||{}).value)||1);
-  var track = (document.getElementById("ch-track")||{}).value || "";
-  var body = {owner:_lifeOwner, title:title, emoji:emoji, kind:d.kind, target:target, period_days:d.period};
-  if(d.kind!=="score"){
-    if(track.indexOf("area:")===0) body.area_id = track.slice(5);
-    else if(track.indexOf("habit:")===0) body.habit_id = parseInt(track.slice(6));
-  }
+  var body = {owner:_lifeOwner, title:title, emoji:emoji, kind:"score", target:0, period_days:d.period};
   var parts = d.participants||[];
   if(parts.length) body.participants = parts;
   var r = await A("POST","/api/life/challenges", body);
@@ -526,15 +517,17 @@ function _lifeBack(){
 
 // ─── Data ─────────────────────────────────────────────────────
 async function _lifeLoadSummary(){
-  var d = await A("GET","/api/life/summary?owner="+encodeURIComponent(_lifeOwner));
+  var d = await A("GET","/api/life/summary?owner="+encodeURIComponent(_lifeOwner)+"&ym="+_lifeYMv());
   if(!d || !d.areas){ return }
   _lifeData = d;
+  if(d.cur_ym) _lifeCurYMStr = d.cur_ym;
   if(tab==="life" && _lifeView==="constellation") _lifeBuildConstellation();
 }
 
 async function _lifeLoadArea(areaId){
-  var d = await A("GET","/api/life/habits?owner="+encodeURIComponent(_lifeOwner)+"&area_id="+encodeURIComponent(areaId));
-  _lifeAreaHabits = (d && d.habits) || [];
+  var d = await A("GET","/api/life/events?owner="+encodeURIComponent(_lifeOwner)+"&area_id="+encodeURIComponent(areaId)+"&ym="+_lifeYMv());
+  if(d && d.cur_ym) _lifeCurYMStr = d.cur_ym;
+  _lifeAreaHabits = (d && d.events) || [];
   if(tab==="life" && _lifeView==="area") _lifeBuildArea();
 }
 
@@ -599,8 +592,8 @@ function _lifeBuildConstellation(){
   areas.forEach(function(a, i){
     _lifeNodes.push({
       id:a.id, type:"area", hx:pts[i].x, hy:pts[i].y, x:pts[i].x, y:pts[i].y, vx:0, vy:0,
-      r:_lifeNodeR(a.brightness, a.habit_count), color:a.color,
-      label:a.name, emoji:a.emoji, bright:a.brightness, count:a.habit_count, is_custom:a.is_custom,
+      r:_lifeNodeR(a.brightness, (a.event_count!=null?a.event_count:a.habit_count)), color:a.color,
+      label:a.name, emoji:a.emoji, bright:a.brightness, count:(a.event_count!=null?a.event_count:a.habit_count), is_custom:a.is_custom,
     });
   });
   if(addSphere){
@@ -645,23 +638,25 @@ function _lifeBuildArea(){
   _lifeOrbiting = false; _lifeAvEdges = [];
   _lifeComputeVb();
   var cx = _lifeCx(), cy = _lifeCy();
-  var habits = _lifeAreaHabits || [];
-  // The "+" Add and "✨ Ideas" seeds only appear in edit mode (they grow out of
-  // the centre). In normal mode the area just shows its habits.
-  var withSeeds = _lifeEditMode;
-  var n = habits.length + (withSeeds ? 2 : 0);
+  var events = _lifeAreaHabits || [];
+  var past = _lifeIsPast();
+  // The "+" Add and "✨ Ideas" seeds appear in edit mode (current month only —
+  // past months are read-only). Re-living an event grows it; bigger counter →
+  // bigger satellite (the mechanic the old streak occupied).
+  var withSeeds = _lifeEditMode && !past;
+  var n = events.length + (withSeeds ? 2 : 0);
   var pts = _lifeRing(n, -90);
   _lifeNodes = [];
   _lifeNodes.push({
     id:"_hub", type:"areahub", hx:cx, hy:cy, x:cx, y:cy, vx:0, vy:0,
     r:10, color:area.color, label:area.name, emoji:area.emoji, bright:area.brightness,
   });
-  habits.forEach(function(hb, i){
-    var done = hb.done_today;
+  events.forEach(function(ev, i){
+    var cnt = ev.count||1;
     _lifeNodes.push({
-      id:"h"+hb.id, hid:hb.id, type:"habit", hx:pts[i].x, hy:pts[i].y, x:pts[i].x, y:pts[i].y, vx:0, vy:0,
-      r: 5.0 + (hb.consistency||0)*2.6, color:area.color,
-      label:hb.name, emoji:hb.emoji||"•", bright:hb.consistency, done:done, streak:hb.streak,
+      id:"h"+ev.id, hid:ev.id, type:"habit", hx:pts[i].x, hy:pts[i].y, x:pts[i].x, y:pts[i].y, vx:0, vy:0,
+      r: 5.0 + Math.min(4.2, Math.log(cnt)*2.4), color:area.color,
+      label:ev.name, emoji:ev.emoji||"•", bright:Math.min(1,(cnt)/5), count:cnt,
     });
   });
   if(withSeeds){
@@ -672,7 +667,7 @@ function _lifeBuildArea(){
   }
   _lifeEdges = _lifeNodes.filter(function(nd){return nd.id!=="_hub"}).map(function(nd){return ["_hub", nd.id]});
   _lifeDraw();
-  _lifeSetHint(habits.length ? tr("life_hint_area") : tr("life_hint_area_empty"));
+  _lifeSetHint(past ? tr("life_past_ro") : (events.length ? tr("life_hint_events") : tr("life_hint_events_empty")));
 }
 
 var _lifeEdges = [];      // drawn gray spokes (hub → satellites)
@@ -779,11 +774,17 @@ function _lifeNodeSvg(n){
     if(n.type==="area"){
       cap += '<text class="life-sub" x="'+n.x+'" y="'+(capY+3.4)+'">'+Math.round((n.bright||0)*100)+'%</text>';
     }
-    if(n.type==="habit"){
-      cap += '<text class="life-sub" x="'+n.x+'" y="'+(capY+3.4)+'">'+(n.done?"✓ ":"")+(n.streak||0)+'🔥</text>';
+    if(n.type==="habit" && (n.count||1) > 1){
+      cap += '<text class="life-sub" x="'+n.x+'" y="'+(capY+3.4)+'">×'+(n.count||1)+'</text>';
     }
   }
-  var doneRing = (n.type==="habit"&&n.done) ? '<circle cx="'+n.x+'" cy="'+n.y+'" r="'+(n.r+1.2)+'" fill="none" stroke="'+n.color+'" stroke-width="0.6" stroke-opacity="0.9"/>' : '';
+  // Count badge on re-lived events (count ≥ 2) — top-right of the satellite.
+  var doneRing = '';
+  if(n.type==="habit" && (n.count||1) > 1){
+    var bx=n.x+n.r*0.78, by=n.y-n.r*0.78;
+    doneRing = '<circle cx="'+bx+'" cy="'+by+'" r="2.6" fill="'+n.color+'" stroke="#0c0c18" stroke-width="0.5"/>'+
+               '<text class="life-badge" x="'+bx+'" y="'+(by+0.15)+'">'+(n.count||1)+'</text>';
+  }
   var bd = 'style="animation-delay:-'+delay.toFixed(2)+'s"';
   var content =
     '<circle class="life-glow life-breathe" '+bd+' cx="'+n.x+'" cy="'+n.y+'" r="'+glowR+'" fill="url(#'+_lifeGradId(n.color)+')"/>'+
@@ -824,12 +825,18 @@ function _lifeBindPointer(svg){
     try{ svg.setPointerCapture(ev.pointerId) }catch(e){}
     // In edit mode a node tap edits it — no drag, no per-node long-press.
     if(_lifeEditMode) return;
-    // Normal mode: long-press (1s) on an area node → quick rename.
+    // Normal mode long-press: area node → rename; event node → event detail
+    // (count / +/- / rename / delete). Events use a snappier 550ms.
     if(node.type==="area"){
       _lifeLongTimer = setTimeout(function(){
         _lifeLongTimer = null;
         if(_lifeDrag && !_lifeDrag.moved){ _lifeDrag = null; hp("med"); _lifeOpenNodeEdit(id); }
       }, 1000);
+    } else if(node.type==="habit"){
+      _lifeLongTimer = setTimeout(function(){
+        _lifeLongTimer = null;
+        if(_lifeDrag && !_lifeDrag.moved){ _lifeDrag = null; hp("med"); _lifeOpenEvent(node.hid); }
+      }, 550);
     }
   };
   svg.onpointermove = function(ev){
@@ -905,8 +912,8 @@ function _lifeEditNode(id){
   var n = _lifeNodeById(id); if(!n) return;
   hp("light");
   if(n.type==="area"){ _lifeOpenNodeEdit(n.id); }
-  else if(n.type==="habit"){ _lifeOpenHabitEdit(n.hid); }
-  else if(n.type==="add"){ _lifeOpenAddHabit(); }
+  else if(n.type==="habit"){ _lifeOpenEvent(n.hid); }
+  else if(n.type==="add"){ _lifeOpenAddEvent(); }
   else if(n.type==="ideas"){ _lifeSuggest(); }
   else if(n.type==="addarea"){ _lifeOpenAddArea(); }
 }
@@ -924,9 +931,14 @@ function _lifeTapNode(id){
   if(_lifeView==="constellation"){
     if(n.type==="area"){ hp("light"); _lifeOpenArea(n.id); }
   } else {
-    if(n.type==="add"){ hp("light"); _lifeOpenAddHabit(); }
+    if(n.type==="add"){ hp("light"); _lifeOpenAddEvent(); }
     else if(n.type==="ideas"){ hp("light"); _lifeSuggest(); }
-    else if(n.type==="habit"){ hp("light"); _lifeOpenHabit(n.hid); }
+    else if(n.type==="habit"){
+      // Tap an event → re-live it (grow + counter). Past months are read-only
+      // → just open the detail card.
+      if(_lifeIsPast()) _lifeOpenEvent(n.hid);
+      else _lifeBumpEvent(n.hid);
+    }
   }
 }
 
@@ -1022,116 +1034,96 @@ function _lifeApplyPositions(){
 }
 
 // ─── Add / edit habit (inside an area) ────────────────────────
-var _lifeHabitDraft = null;
-function _lifeOpenAddHabit(){
+// ─── Add a new event (current month) ──────────────────────────
+var _lifeEventDraft = null;
+function _lifeOpenAddEvent(){
+  if(_lifeIsPast()){ toast(tr("life_past_ro")); return }
   var area = (_lifeData.areas||[]).find(function(x){return x.id===_lifeAreaId});
-  _lifeHabitDraft = {id:null, emoji:"🌱", name:"", type:"build", freq:"daily", intent:""};
-  oMC(tr("life_new_habit")+(area?" · "+area.emoji+" "+es(area.name):""), _lifeHabitFormHtml(), {ic:"life"});
+  _lifeEventDraft = {id:null, emoji:"🌱", name:""};
+  oMC(tr("life_new_event")+(area?" · "+area.emoji+" "+es(area.name):""), _lifeEventFormHtml(), {ic:"life"});
 }
-function _lifeOpenHabitEdit(hid){
-  var hb = _lifeAreaHabits.find(function(x){return x.id===hid}); if(!hb) return;
-  _lifeHabitDraft = {
-    id: hb.id, emoji: hb.emoji||"🌱", name: hb.name||"", type: hb.type||"build",
-    freq: (Array.isArray(hb.frequency)? hb.frequency.slice() : "daily"),
-    intent: hb.intent||"",
-  };
-  oMC(tr("life_edit_habit"), _lifeHabitFormHtml(), {ic:"life"});
-}
-function _lifeHabitFormHtml(){
-  var d = _lifeHabitDraft;
-  var isDays = Array.isArray(d.freq);
+function _lifeEventFormHtml(){
+  var d = _lifeEventDraft;
   var h = '';
   h += '<div style="display:flex;gap:10px;align-items:flex-end">';
   h += '<div><div class="lb">'+tr("g_emoji")+'</div><input class="inp" id="lf-e" value="'+es(d.emoji)+'" style="width:64px;text-align:center;font-size:20px"></div>';
-  h += '<div style="flex:1"><div class="lb">'+tr("life_habit_name")+'</div><input class="inp" id="lf-n" placeholder="'+tr("life_habit_ph")+'" value="'+es(d.name)+'"></div>';
+  h += '<div style="flex:1"><div class="lb">'+tr("life_event_name")+'</div><input class="inp" id="lf-n" placeholder="'+tr("life_event_ph")+'" value="'+es(d.name)+'"></div>';
   h += '</div>';
-  h += '<div class="lb">'+tr("life_type")+'</div><div class="or">';
-  ["build","maintain","reduce"].forEach(function(t){
-    h += '<button class="ob '+(d.type===t?"s":"")+'" onclick="_lifeHabitDraft.type=\''+t+'\';this.parentNode.querySelectorAll(\'.ob\').forEach(function(b){b.classList.remove(\'s\')});this.classList.add(\'s\')">'+tr("life_type_"+t)+'</button>';
-  });
-  h += '</div>';
-  h += '<div class="lb">'+tr("life_frequency")+'</div><div class="or" id="lf-days">';
-  h += '<button class="ob '+(!isDays?"s":"")+'" onclick="_lifeFreqDaily(this)">'+tr("life_daily")+'</button>';
-  // data-d uses Python weekday() convention: 0=Mon .. 6=Sun (matches backend).
-  ["mon","tue","wed","thu","fri","sat","sun"].forEach(function(dn,i){
-    var on = isDays && d.freq.indexOf(i)>=0;
-    h += '<button class="ob lf-day'+(on?" s":"")+'" data-d="'+i+'" onclick="_lifeFreqToggle(this)">'+tr("dow_short_"+dn)+'</button>';
-  });
-  h += '</div>';
-  h += '<button class="btn" style="margin-top:14px" onclick="_lifeSaveHabit()">'+(d.id?tr("btn_save"):tr("btn_add"))+'</button>';
-  if(d.id){
-    h += '<button class="btn btn-s" style="margin-top:8px;background:transparent;color:var(--ac);border:1px solid color-mix(in srgb,var(--ac) 40%,transparent)" onclick="_lifeDeleteHabit('+d.id+')">🗑 '+tr("btn_delete")+'</button>';
-  }
+  h += '<button class="btn" style="margin-top:14px" onclick="_lifeSaveEvent()">'+(d.id?tr("btn_save"):tr("btn_add"))+'</button>';
   return h;
 }
-function _lifeFreqDaily(btn){
-  _lifeHabitDraft.freq="daily";
-  document.querySelectorAll("#lf-days .lf-day").forEach(function(b){b.classList.remove("s")});
-  btn.classList.add("s");
-}
-function _lifeFreqToggle(btn){
-  btn.classList.toggle("s");
-  var days = []; document.querySelectorAll("#lf-days .lf-day.s").forEach(function(b){days.push(parseInt(b.dataset.d))});
-  var daily = document.querySelector("#lf-days .ob:not(.lf-day)");
-  if(days.length){ if(daily)daily.classList.remove("s"); _lifeHabitDraft.freq=days; }
-  else { if(daily)daily.classList.add("s"); _lifeHabitDraft.freq="daily"; }
-}
-async function _lifeSaveHabit(){
-  var d = _lifeHabitDraft;
+async function _lifeSaveEvent(){
+  var d = _lifeEventDraft;
   d.emoji = (document.getElementById("lf-e")||{}).value || d.emoji;
   d.name = ((document.getElementById("lf-n")||{}).value||"").trim();
   if(!d.name){ toast(tr("life_name_required")); return }
   var r;
   if(d.id){
-    r = await A("PATCH","/api/life/habits/"+d.id, {name:d.name, emoji:d.emoji, type:d.type, frequency:d.freq});
+    r = await A("PATCH","/api/life/events/"+d.id, {name:d.name, emoji:d.emoji});
   } else {
-    r = await A("POST","/api/life/habits", {owner:_lifeOwner, area_id:_lifeAreaId, name:d.name, emoji:d.emoji, type:d.type, frequency:d.freq, intent:d.intent||""});
+    r = await A("POST","/api/life/events", {owner:_lifeOwner, area_id:_lifeAreaId, name:d.name, emoji:d.emoji});
   }
   if(!r || !r.id){ toast(tr("ts_save_failed")); return }
-  hp("ok"); cMo(); _lifeHabitDraft=null;
+  hp("ok"); cMo(); _lifeEventDraft=null;
   await _lifeLoadArea(_lifeAreaId);
-  _lifeLoadSummary(); // refresh area brightness for when we go back
+  _lifeLoadSummary(); // refresh node fill for when we go back
 }
 
-// ─── Habit detail (streak / consistency / mark done) ──────────
-async function _lifeOpenHabit(hid){
-  var hb = _lifeAreaHabits.find(function(x){return x.id===hid}); if(!hb) return;
+// Quick tap → re-live the event: bump its counter and grow the satellite.
+async function _lifeBumpEvent(eid){
+  var r = await A("POST","/api/life/events/"+eid+"/bump", {delta:1});
+  if(!r || !r.id){ toast(tr("ts_error")); return }
+  hp("ok");
+  var ev = _lifeAreaHabits.find(function(x){return x.id===eid}); if(ev){ ev.count = r.count; }
+  _lifeBuildArea();
+  _lifeRipple("h"+eid);
+}
+
+// ─── Event detail — counter, +/- (re-live / correct), rename, delete ──
+async function _lifeOpenEvent(eid){
+  var ev = _lifeAreaHabits.find(function(x){return x.id===eid}); if(!ev) return;
   var area = (_lifeData.areas||[]).find(function(x){return x.id===_lifeAreaId});
   var col = area ? area.color : "var(--pr)";
+  var past = _lifeIsPast();
   var h = '<div class="life-d">';
-  h += '<div class="life-d-emoji" style="background:color-mix(in srgb,'+col+' 18%,transparent);border:1px solid color-mix(in srgb,'+col+' 40%,transparent)">'+(hb.emoji||"🌱")+'</div>';
-  h += '<div class="life-d-name">'+es(hb.name)+'</div>';
-  h += '<div class="life-d-type">'+tr("life_type_"+(hb.type||"build"))+'</div>';
-  h += '<div class="life-d-stats">';
-  h += '<div class="life-d-stat"><div class="life-d-v" style="color:'+col+'">'+(hb.streak||0)+'</div><div class="life-d-l">'+tr("life_streak")+'</div></div>';
-  h += '<div class="life-d-stat"><div class="life-d-v">'+Math.round((hb.consistency||0)*100)+'%</div><div class="life-d-l">'+tr("life_consistency")+'</div></div>';
+  h += '<div class="life-d-emoji" style="background:color-mix(in srgb,'+col+' 18%,transparent);border:1px solid color-mix(in srgb,'+col+' 40%,transparent)">'+(ev.emoji||"🌱")+'</div>';
+  h += '<div class="life-d-name">'+es(ev.name)+'</div>';
+  if(past) h += '<div class="life-d-type">'+es(_lifeYMLabel())+'</div>';
+  // Counter with - / + (re-live). Hidden controls in read-only past months.
+  h += '<div class="life-count">';
+  if(!past) h += '<button class="life-count-b" onclick="_lifeEventDelta('+eid+',-1)">−</button>';
+  h += '<div class="life-count-v" id="life-cv" style="color:'+col+'">'+(ev.count||1)+'</div>';
+  if(!past) h += '<button class="life-count-b" onclick="_lifeEventDelta('+eid+',1)">+</button>';
   h += '</div>';
-  var doneLbl = hb.done_today ? "✓ "+tr("life_done_today") : tr("life_mark_done");
-  var doneStyle = hb.done_today ? "background:transparent;border:1.5px solid "+col+";color:"+col : "background:"+col+";border:none;color:#fff";
-  h += '<button class="btn" style="'+doneStyle+';margin-top:4px" onclick="_lifeToggleDone('+hid+')">'+doneLbl+'</button>';
-  h += '<div style="display:flex;gap:8px;margin-top:10px">';
-  h += '<button class="btn btn-s" style="flex:1;background:transparent;color:var(--ac);border:1px solid color-mix(in srgb,var(--ac) 40%,transparent)" onclick="_lifeDeleteHabit('+hid+')">🗑 '+tr("btn_delete")+'</button>';
+  h += '<div class="life-d-l" style="text-align:center;margin-top:-4px">'+tr("life_count_lbl")+'</div>';
+  if(!past){
+    h += '<div style="display:flex;gap:8px;margin-top:14px">';
+    h += '<button class="btn btn-s" style="flex:1;background:transparent;color:var(--tx);border:1px solid var(--bd)" onclick="_lifeEditEvent('+eid+')">✏️ '+tr("btn_edit")+'</button>';
+    h += '<button class="btn btn-s" style="flex:1;background:transparent;color:var(--ac);border:1px solid color-mix(in srgb,var(--ac) 40%,transparent)" onclick="_lifeDeleteEvent('+eid+')">🗑 '+tr("btn_delete")+'</button>';
+    h += '</div>';
+  }
   h += '</div>';
-  h += '</div>';
-  oMC(tr("life_habit"), h, {ic:"life"});
+  oMC(tr("life_event"), h, {ic:"life"});
 }
-async function _lifeToggleDone(hid){
-  var r = await A("POST","/api/life/habits/"+hid+"/log");
+async function _lifeEventDelta(eid, delta){
+  var r = await A("POST","/api/life/events/"+eid+"/bump", {delta:delta});
   if(!r || !r.id){ toast(tr("ts_error")); return }
-  hp(r.done_today?"ok":"light");
-  // update local + ripple: pulse the node + its hub
-  var hb = _lifeAreaHabits.find(function(x){return x.id===hid}); if(hb){ hb.done_today=r.done_today; hb.streak=r.streak; hb.consistency=r.consistency; }
-  cMo();
+  hp(delta>0?"ok":"light");
+  var ev = _lifeAreaHabits.find(function(x){return x.id===eid}); if(ev){ ev.count = r.count; }
+  var cv = document.getElementById("life-cv"); if(cv) cv.textContent = r.count;
   _lifeBuildArea();
-  _lifeRipple("h"+hid);
-  _lifeLoadSummary();
 }
-async function _lifeDeleteHabit(hid){
+function _lifeEditEvent(eid){
+  var ev = _lifeAreaHabits.find(function(x){return x.id===eid}); if(!ev) return;
+  _lifeEventDraft = {id:ev.id, emoji:ev.emoji||"🌱", name:ev.name||""};
+  oMC(tr("life_edit_event"), _lifeEventFormHtml(), {ic:"life"});
+}
+async function _lifeDeleteEvent(eid){
   if(!confirm(tr("life_delete_confirm"))) return;
-  var r = await A("DELETE","/api/life/habits/"+hid);
+  var r = await A("DELETE","/api/life/events/"+eid);
   if(!r || !r.ok){ toast(tr("ts_error")); return }
   hp("warn"); cMo();
-  _lifeAreaHabits = _lifeAreaHabits.filter(function(x){return x.id!==hid});
+  _lifeAreaHabits = _lifeAreaHabits.filter(function(x){return x.id!==eid});
   _lifeBuildArea(); _lifeLoadSummary();
 }
 
@@ -1173,7 +1165,7 @@ function _lifeRenderSuggestions(){
 }
 async function _lifeAddSuggested(i){
   var s = _lifeSuggestions[i]; if(!s || s._added) return;
-  var r = await A("POST","/api/life/habits", {owner:_lifeOwner, area_id:_lifeAreaId, name:s.name, emoji:s.emoji, type:s.type, frequency:"daily"});
+  var r = await A("POST","/api/life/events", {owner:_lifeOwner, area_id:_lifeAreaId, name:s.name, emoji:s.emoji});
   if(!r || !r.id){ toast(tr("ts_save_failed")); return }
   hp("ok"); s._added = true;
   _lifeRenderSuggestions();

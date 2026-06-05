@@ -12,6 +12,68 @@ def safe_add_col(con, table, col, ctype):
     except: pass
 
 
+def _migrate_life_events(con):
+    """v40: create life_events + convert existing habits into this-month events.
+
+    The Life tab moves from habit-tracking to a monthly event tracker. Each
+    habit becomes a current-month event whose counter = number of times it was
+    logged this month (min 1, so nothing disappears). Idempotent: the convert
+    only runs while life_events is empty. habits/habit_logs are left in place."""
+    con.executescript("""
+        CREATE TABLE IF NOT EXISTS life_events (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            family_id INTEGER NOT NULL,
+            owner TEXT NOT NULL,
+            area_id TEXT NOT NULL,
+            name TEXT NOT NULL,
+            emoji TEXT,
+            ym TEXT NOT NULL,
+            count INTEGER DEFAULT 1,
+            created_at TEXT DEFAULT (datetime('now')),
+            last_at TEXT
+        );
+        CREATE INDEX IF NOT EXISTS idx_life_events ON life_events(family_id, owner, ym);
+    """)
+    con.commit()
+    # Only seed once.
+    if con.execute("SELECT COUNT(*) FROM life_events").fetchone()[0] > 0:
+        return
+    # Current month in the app timezone (habit_logs.date is a local ISO date).
+    try:
+        from zoneinfo import ZoneInfo
+        tz = os.environ.get("TZ", "Europe/Belgrade")
+        now = _dt.now(ZoneInfo(tz))
+    except Exception:
+        now = _dt.utcnow()
+    ym = now.strftime("%Y-%m")
+    try:
+        habits = con.execute(
+            "SELECT id, family_id, owner, area_id, name, emoji FROM habits WHERE archived=0"
+        ).fetchall()
+    except Exception:
+        habits = []
+    converted = 0
+    for h in habits:
+        hid = h[0]
+        try:
+            n = con.execute(
+                "SELECT COUNT(*) FROM habit_logs WHERE habit_id=? AND done=1 AND date LIKE ?",
+                (hid, ym + "-%")
+            ).fetchone()[0]
+        except Exception:
+            n = 0
+        count = max(1, int(n or 0))
+        con.execute(
+            "INSERT INTO life_events (family_id, owner, area_id, name, emoji, ym, count, created_at, last_at) "
+            "VALUES (?,?,?,?,?,?,?,?,?)",
+            (h[1], h[2], h[3], h[4], h[5], ym, count, now.isoformat(), now.isoformat())
+        )
+        converted += 1
+    con.commit()
+    if converted:
+        log.info(f"v40 converted {converted} habits → current-month life_events")
+
+
 def _seed_example_score_challenge(con):
     """One-time example: a couple score-challenge for family 1 (Yaroslav + Ella),
     so the new scoreboard widget isn't empty. Skips unless both members exist and
@@ -831,6 +893,11 @@ def migrate(db_path):
         # deduction) so "-" can also have a reason. Score = SUM(delta). Existing
         # rows default to +1 (they were all awards).
         lambda c: safe_add_col(c, "love_points", "delta", "INTEGER DEFAULT 1"),
+        # v40: Life redesign — habit tracker → monthly EVENT tracker. New
+        # life_events table (month-bucketed, counter per event). One-time convert
+        # of existing habits into current-month events. habits/habit_logs kept
+        # dormant (no destructive drop).
+        lambda c: _migrate_life_events(c),
     ]
 
     for i, mig in enumerate(migrations):

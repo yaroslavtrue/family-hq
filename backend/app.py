@@ -3812,95 +3812,50 @@ def _life_local_date(ts: str | None):
     return dt.astimezone(ZoneInfo(TIMEZONE)).date()
 
 
-def _life_habit_stats(db, habit: dict) -> dict:
-    """Compute streak, 30-day consistency, and done-today for one habit."""
-    today = datetime.now(ZoneInfo(TIMEZONE)).date()
-    try:
-        freq = _json_mod.loads(habit["frequency"]) if habit.get("frequency") else "daily"
-    except Exception:
-        freq = "daily"
-    created = _life_local_date(habit.get("created_at")) or (today - timedelta(days=30))
-    # Pull last ~40 days of completions in one query.
-    since = (today - timedelta(days=40)).isoformat()
-    rows = db.execute("SELECT date FROM habit_logs WHERE habit_id=? AND done=1 AND date>=?",
-                      (habit["id"], since)).fetchall()
-    done_set = {r["date"] for r in rows}
-    done_today = today.isoformat() in done_set
-    # Consistency: over the scheduled days in the last 30 (from created_at onward).
-    scheduled = 0
-    completed = 0
-    for i in range(30):
-        d = today - timedelta(days=i)
-        if d < created:
-            continue
-        if _life_due_on(freq, d):
-            scheduled += 1
-            if d.isoformat() in done_set:
-                completed += 1
-    consistency = round(completed / scheduled, 2) if scheduled else (1.0 if done_set else 0.0)
-    # Streak: consecutive scheduled completions ending at the most recent due day.
-    # If today is due but not yet done, don't break — start counting from yesterday.
-    streak = 0
-    d = today
-    if _life_due_on(freq, d) and not done_today:
-        d = today - timedelta(days=1)
-    guard = 0
-    while guard < 400:
-        guard += 1
-        if d < created:
-            break
-        if _life_due_on(freq, d):
-            if d.isoformat() in done_set:
-                streak += 1
-            else:
-                break
-        d -= timedelta(days=1)
-    return {"streak": streak, "consistency": consistency, "done_today": done_today}
+def _life_cur_ym() -> str:
+    """Current month bucket ('YYYY-MM') in the app timezone."""
+    return datetime.now(ZoneInfo(TIMEZONE)).strftime("%Y-%m")
 
 
-def _life_habit_view(db, habit: dict) -> dict:
-    stats = _life_habit_stats(db, habit)
-    try:
-        freq = _json_mod.loads(habit["frequency"]) if habit.get("frequency") else "daily"
-    except Exception:
-        freq = "daily"
+def _life_event_view(ev: dict) -> dict:
+    """Shape one life_events row for the client. `count` is how many times the
+    event was re-lived this month (the mechanic the old streak occupied)."""
     return {
-        "id": habit["id"],
-        "owner": habit["owner"],
-        "area_id": habit["area_id"],
-        "name": habit.get("name") or "",
-        "emoji": habit.get("emoji") or "",
-        "type": habit.get("type") or "build",
-        "intent": habit.get("intent") or "",
-        "frequency": freq,
-        "created_at": habit.get("created_at"),
-        "streak": stats["streak"],
-        "consistency": stats["consistency"],
-        "done_today": stats["done_today"],
+        "id": ev["id"],
+        "owner": ev["owner"],
+        "area_id": ev["area_id"],
+        "name": ev.get("name") or "",
+        "emoji": ev.get("emoji") or "",
+        "count": int(ev.get("count") or 1),
+        "ym": ev.get("ym"),
+        "created_at": ev.get("created_at"),
+        "last_at": ev.get("last_at"),
     }
 
 
 @app.get("/api/life/summary")
-def life_summary(owner: str | None = None, user=Depends(get_uf), db=Depends(get_db)):
-    """Constellation for one scope (a member's user_id, or 'family'). Returns the
-    six area nodes with resolved name/emoji (override → default) plus brightness
-    (avg consistency of feeding habits) and counts so the client can size/glow them."""
+def life_summary(owner: str | None = None, ym: str | None = None,
+                 user=Depends(get_uf), db=Depends(get_db)):
+    """Constellation for one scope (a member's user_id, or 'family') and a month.
+    Each area node reports `event_count` (distinct events logged that month) and a
+    derived `brightness` (0..1) that fills/glows the node as more events land."""
     f = user["family_id"]
     owner = _life_resolve_owner(owner, user, db)
+    ym = ym or _life_cur_ym()
     ulang = _life_user_lang(db, user["id"])  # display names follow the viewer's language
     areas = _life_effective_areas(db, f, owner, ulang)
     out = []
     for a in areas:
-        habits = [dict(h) for h in db.execute(
-            "SELECT * FROM habits WHERE family_id=? AND owner=? AND area_id=? AND archived=0",
-            (f, owner, a["id"])).fetchall()]
-        cons = [_life_habit_stats(db, h)["consistency"] for h in habits]
-        brightness = round(sum(cons) / len(cons), 2) if cons else 0.0
+        cnt = db.execute(
+            "SELECT COUNT(*) c FROM life_events WHERE family_id=? AND owner=? AND area_id=? AND ym=?",
+            (f, owner, a["id"], ym)).fetchone()["c"]
+        brightness = round(min(1.0, cnt / 5.0), 2)  # node "fills up" toward ~5 distinct events
         out.append({
             "id": a["id"],
             "name": a["name"], "emoji": a["emoji"], "color": a["color"],
             "brightness": brightness,
-            "habit_count": len(habits),
+            "event_count": cnt,
+            "habit_count": cnt,  # back-compat alias for the node sizer
             "customized": a["customized"], "is_custom": a["is_custom"],
         })
     # Family scope also reports overall bond strength = avg of area brightness.
@@ -3909,32 +3864,8 @@ def life_summary(owner: str | None = None, user=Depends(get_uf), db=Depends(get_
         "SELECT user_id, user_name, emoji, color, photo_url FROM family_members WHERE family_id=?",
         (f,)).fetchall()]
     return {"owner": owner, "scope": ("family" if owner == "family" else "personal"),
+            "ym": ym, "cur_ym": _life_cur_ym(),
             "areas": out, "bond": bond, "members": members}
-
-
-@app.get("/api/life/habits")
-def life_habits(owner: str | None = None, area_id: str | None = None,
-                user=Depends(get_uf), db=Depends(get_db)):
-    """Habits inside one area for one owner, with streak/consistency/done_today."""
-    f = user["family_id"]
-    owner = _life_resolve_owner(owner, user, db)
-    q = "SELECT * FROM habits WHERE family_id=? AND owner=? AND archived=0"
-    params = [f, owner]
-    if area_id:
-        q += " AND area_id=?"
-        params.append(area_id)
-    rows = [dict(r) for r in db.execute(q + " ORDER BY id", params).fetchall()]
-    return {"owner": owner, "area_id": area_id, "habits": [_life_habit_view(db, r) for r in rows]}
-
-
-class HabitCreate(BaseModel):
-    owner: str | None = None         # '<user_id>' | 'family' | None (→ me)
-    area_id: str
-    name: str
-    emoji: str | None = ""
-    type: str = "build"
-    intent: str | None = ""
-    frequency: list[int] | str | None = "daily"  # 'daily' or [0..6]
 
 
 def _life_validate_area(db, family_id: int, owner: str, area_id: str):
@@ -3942,95 +3873,102 @@ def _life_validate_area(db, family_id: int, owner: str, area_id: str):
         raise HTTPException(400, f"area_id '{area_id}' not valid for this scope")
 
 
-@app.post("/api/life/habits")
-def life_habit_create(body: HabitCreate, user=Depends(get_uf), db=Depends(get_db)):
+@app.get("/api/life/events")
+def life_events_list(owner: str | None = None, area_id: str | None = None, ym: str | None = None,
+                     user=Depends(get_uf), db=Depends(get_db)):
+    """Events inside one area for one owner + month, each with its counter."""
+    f = user["family_id"]
+    owner = _life_resolve_owner(owner, user, db)
+    ym = ym or _life_cur_ym()
+    q = "SELECT * FROM life_events WHERE family_id=? AND owner=? AND ym=?"
+    params = [f, owner, ym]
+    if area_id:
+        q += " AND area_id=?"
+        params.append(area_id)
+    rows = [dict(r) for r in db.execute(q + " ORDER BY id", params).fetchall()]
+    return {"owner": owner, "area_id": area_id, "ym": ym, "cur_ym": _life_cur_ym(),
+            "events": [_life_event_view(r) for r in rows]}
+
+
+class EventCreate(BaseModel):
+    owner: str | None = None         # '<user_id>' | 'family' | None (→ me)
+    area_id: str
+    name: str
+    emoji: str | None = ""
+
+
+@app.post("/api/life/events")
+def life_event_create(body: EventCreate, user=Depends(get_uf), db=Depends(get_db)):
+    """Log a new event into a sphere for the current month (counter starts at 1)."""
     f = user["family_id"]
     owner = _life_resolve_owner(body.owner, user, db)
     _life_validate_area(db, f, owner, body.area_id)
     name = (body.name or "").strip()
     if not name:
         raise HTTPException(400, "name required")
-    htype = body.type if body.type in _VALID_HABIT_TYPES else "build"
-    freq = body.frequency if body.frequency else "daily"
-    if isinstance(freq, list):
-        freq = sorted({int(x) for x in freq if 0 <= int(x) <= 6})
-        if not freq:
-            freq = "daily"
-    freq_json = _json_mod.dumps(freq)
+    ym = _life_cur_ym()
+    now = datetime.now(ZoneInfo(TIMEZONE)).isoformat()
     cur = db.execute(
-        """INSERT INTO habits (family_id, owner, area_id, name, emoji, type, intent, frequency)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
-        (f, owner, body.area_id, name, (body.emoji or "").strip(), htype,
-         (body.intent or "").strip(), freq_json))
-    hid = cur.lastrowid
+        """INSERT INTO life_events (family_id, owner, area_id, name, emoji, ym, count, created_at, last_at)
+           VALUES (?, ?, ?, ?, ?, ?, 1, ?, ?)""",
+        (f, owner, body.area_id, name, (body.emoji or "").strip(), ym, now, now))
     db.commit()
-    row = dict(db.execute("SELECT * FROM habits WHERE id=?", (hid,)).fetchone())
-    return _life_habit_view(db, row)
+    row = dict(db.execute("SELECT * FROM life_events WHERE id=?", (cur.lastrowid,)).fetchone())
+    return _life_event_view(row)
 
 
-class HabitEdit(BaseModel):
+class EventBump(BaseModel):
+    delta: int = 1  # +1 re-live / -1 correct a mis-tap (counter clamped ≥ 1)
+
+
+@app.post("/api/life/events/{eid}/bump")
+def life_event_bump(eid: int, body: EventBump, user=Depends(get_uf), db=Depends(get_db)):
+    """Re-live an event → grow its counter. Current month only (past is read-only)."""
+    f = user["family_id"]
+    row = db.execute("SELECT * FROM life_events WHERE id=? AND family_id=?", (eid, f)).fetchone()
+    if not row:
+        raise HTTPException(404)
+    if row["ym"] != _life_cur_ym():
+        raise HTTPException(400, "past month is read-only")
+    new_count = max(1, int(row["count"] or 1) + (1 if body.delta >= 0 else -1))
+    now = datetime.now(ZoneInfo(TIMEZONE)).isoformat()
+    db.execute("UPDATE life_events SET count=?, last_at=? WHERE id=?", (new_count, now, eid))
+    db.commit()
+    return _life_event_view(dict(db.execute("SELECT * FROM life_events WHERE id=?", (eid,)).fetchone()))
+
+
+class EventEdit(BaseModel):
     name: str | None = None
     emoji: str | None = None
-    type: str | None = None
-    intent: str | None = None
-    frequency: list[int] | str | None = None
 
 
-@app.patch("/api/life/habits/{hid}")
-def life_habit_edit(hid: int, body: HabitEdit, user=Depends(get_uf), db=Depends(get_db)):
+@app.patch("/api/life/events/{eid}")
+def life_event_edit(eid: int, body: EventEdit, user=Depends(get_uf), db=Depends(get_db)):
     f = user["family_id"]
-    row = db.execute("SELECT * FROM habits WHERE id=? AND family_id=?", (hid, f)).fetchone()
+    row = db.execute("SELECT * FROM life_events WHERE id=? AND family_id=?", (eid, f)).fetchone()
     if not row:
         raise HTTPException(404)
     payload = body.dict(exclude_unset=True)
-    if "type" in payload and payload["type"] not in _VALID_HABIT_TYPES:
-        del payload["type"]
-    if "frequency" in payload:
-        fr = payload["frequency"] or "daily"
-        if isinstance(fr, list):
-            fr = sorted({int(x) for x in fr if 0 <= int(x) <= 6}) or "daily"
-        payload["frequency"] = _json_mod.dumps(fr)
-    for k in ("name", "emoji", "intent"):
+    sets, params = [], []
+    for k in ("name", "emoji"):
         if k in payload and isinstance(payload[k], str):
-            payload[k] = payload[k].strip()
-    if payload:
-        sets, params = [], []
-        for k, v in payload.items():
-            sets.append(f"{k}=?"); params.append(v)
-        params.append(hid)
-        db.execute(f"UPDATE habits SET {','.join(sets)} WHERE id=?", params)
+            sets.append(f"{k}=?"); params.append(payload[k].strip())
+    if sets:
+        params.append(eid)
+        db.execute(f"UPDATE life_events SET {','.join(sets)} WHERE id=?", params)
         db.commit()
-    fresh = dict(db.execute("SELECT * FROM habits WHERE id=?", (hid,)).fetchone())
-    return _life_habit_view(db, fresh)
+    return _life_event_view(dict(db.execute("SELECT * FROM life_events WHERE id=?", (eid,)).fetchone()))
 
 
-@app.delete("/api/life/habits/{hid}")
-def life_habit_delete(hid: int, user=Depends(get_uf), db=Depends(get_db)):
+@app.delete("/api/life/events/{eid}")
+def life_event_delete(eid: int, user=Depends(get_uf), db=Depends(get_db)):
     f = user["family_id"]
-    row = db.execute("SELECT id FROM habits WHERE id=? AND family_id=?", (hid, f)).fetchone()
+    row = db.execute("SELECT id FROM life_events WHERE id=? AND family_id=?", (eid, f)).fetchone()
     if not row:
         raise HTTPException(404)
-    db.execute("DELETE FROM habit_logs WHERE habit_id=?", (hid,))
-    db.execute("DELETE FROM habits WHERE id=?", (hid,))
+    db.execute("DELETE FROM life_events WHERE id=?", (eid,))
     db.commit()
     return {"ok": True}
-
-
-@app.post("/api/life/habits/{hid}/log")
-def life_habit_log(hid: int, user=Depends(get_uf), db=Depends(get_db)):
-    """Toggle today's completion. Returns the refreshed habit view (new streak etc.)."""
-    f = user["family_id"]
-    row = db.execute("SELECT * FROM habits WHERE id=? AND family_id=?", (hid, f)).fetchone()
-    if not row:
-        raise HTTPException(404)
-    today = datetime.now(ZoneInfo(TIMEZONE)).date().isoformat()
-    existing = db.execute("SELECT id FROM habit_logs WHERE habit_id=? AND date=?", (hid, today)).fetchone()
-    if existing:
-        db.execute("DELETE FROM habit_logs WHERE id=?", (existing["id"],))
-    else:
-        db.execute("INSERT INTO habit_logs (habit_id, date, done) VALUES (?, ?, 1)", (hid, today))
-    db.commit()
-    return _life_habit_view(db, dict(row))
 
 
 class NodeOverride(BaseModel):
@@ -4102,7 +4040,11 @@ def life_area_delete(area_key: str, owner: str | None = None, user=Depends(get_u
                      (f, owner, area_key)).fetchone()
     if not row:
         raise HTTPException(404)
-    # Cascade: drop the sphere, its rename-override, and all its habits (+ logs).
+    # Cascade: drop the sphere, its rename-override, and all its events (all
+    # months). Legacy habits/logs in the sphere are cleared too.
+    n_ev = db.execute("SELECT COUNT(*) c FROM life_events WHERE family_id=? AND owner=? AND area_id=?",
+                      (f, owner, area_key)).fetchone()["c"]
+    db.execute("DELETE FROM life_events WHERE family_id=? AND owner=? AND area_id=?", (f, owner, area_key))
     hids = [r["id"] for r in db.execute(
         "SELECT id FROM habits WHERE family_id=? AND owner=? AND area_id=?", (f, owner, area_key)).fetchall()]
     for hid in hids:
@@ -4111,7 +4053,7 @@ def life_area_delete(area_key: str, owner: str | None = None, user=Depends(get_u
     db.execute("DELETE FROM node_overrides WHERE family_id=? AND owner=? AND area_id=?", (f, owner, area_key))
     db.execute("DELETE FROM life_areas WHERE family_id=? AND owner=? AND area_key=?", (f, owner, area_key))
     db.commit()
-    return {"ok": True, "deleted_habits": len(hids)}
+    return {"ok": True, "deleted_events": n_ev, "deleted_habits": len(hids)}
 
 
 # ─── AI habit suggestions (v8.52.0 · Phase 2) ────────────────────────────
@@ -4191,13 +4133,9 @@ async def life_suggest(body: LifeSuggestBody, user=Depends(get_uf), db=Depends(g
                 if not name or name.lower() in seen:
                     continue
                 seen.add(name.lower())
-                htype = it.get("type")
-                if htype not in _VALID_HABIT_TYPES:
-                    htype = "build"
                 out.append({
                     "emoji": (str(it.get("emoji") or "🌱").strip() or "🌱")[:4],
                     "name": name,
-                    "type": htype,
                     "why": str(it.get("why") or "").strip()[:120],
                 })
             if not out:
@@ -4212,58 +4150,64 @@ async def life_suggest(body: LifeSuggestBody, user=Depends(get_uf), db=Depends(g
 
 # ─── Journey — balance/bond trend over time (v8.54.0 · Phase 2) ───────────
 @app.get("/api/life/journey")
-def life_journey(owner: str | None = None, days: int = 30, user=Depends(get_uf), db=Depends(get_db)):
-    """Stats view for one scope: current balance (bond for family), per-area
-    brightness bars, a daily-completions sparkline, and headline counters."""
+def life_journey(owner: str | None = None, ym: str | None = None, days: int = 30,
+                 user=Depends(get_uf), db=Depends(get_db)):
+    """Stats view for one scope + month: per-area event counts (balance bars), a
+    per-day event sparkline, and headline counters (events / total taps / busiest)."""
     f = user["family_id"]
     owner = _life_resolve_owner(owner, user, db)
+    ym = ym or _life_cur_ym()
     ulang = _life_user_lang(db, user["id"])
-    days = max(7, min(120, days))
-    today = datetime.now(ZoneInfo(TIMEZONE)).date()
-    since = (today - timedelta(days=days - 1)).isoformat()
 
-    habits = [dict(h) for h in db.execute(
-        "SELECT * FROM habits WHERE family_id=? AND owner=? AND archived=0", (f, owner)).fetchall()]
-    hids = [h["id"] for h in habits]
-    hstats = {h["id"]: _life_habit_stats(db, h) for h in habits}
+    events = [dict(e) for e in db.execute(
+        "SELECT * FROM life_events WHERE family_id=? AND owner=? AND ym=?", (f, owner, ym)).fetchall()]
 
     areas = _life_effective_areas(db, f, owner, ulang)
     out_areas = []
     for a in areas:
-        cons = [hstats[h["id"]]["consistency"] for h in habits if h["area_id"] == a["id"]]
-        bright = round(sum(cons) / len(cons), 2) if cons else 0.0
+        cnt = sum(1 for e in events if e["area_id"] == a["id"])
+        bright = round(min(1.0, cnt / 5.0), 2)
         out_areas.append({"id": a["id"], "name": a["name"], "emoji": a["emoji"],
                           "color": a["color"], "brightness": bright,
-                          "habit_count": sum(1 for h in habits if h["area_id"] == a["id"])})
+                          "habit_count": cnt, "event_count": cnt})
     balance = round(sum(x["brightness"] for x in out_areas) / len(out_areas), 2) if out_areas else 0.0
 
-    daily_map = {}
-    if hids:
-        qmarks = ",".join("?" * len(hids))
-        rows = db.execute(
-            f"SELECT date, COUNT(*) c FROM habit_logs WHERE done=1 AND date>=? AND habit_id IN ({qmarks}) GROUP BY date",
-            [since] + hids).fetchall()
-        daily_map = {r["date"]: r["c"] for r in rows}
-    daily = []
-    for i in range(days):
-        d = (today - timedelta(days=days - 1 - i)).isoformat()
-        daily.append({"date": d, "count": daily_map.get(d, 0)})
+    # Per-day sparkline: events logged this month, bucketed by created_at local date.
+    try:
+        y, mo = int(ym.split("-")[0]), int(ym.split("-")[1])
+        ndays = monthrange(y, mo)[1]
+    except Exception:
+        y, mo, ndays = datetime.now(ZoneInfo(TIMEZONE)).year, datetime.now(ZoneInfo(TIMEZONE)).month, 30
+    day_map = {}
+    for e in events:
+        d = (e.get("created_at") or "")[:10]
+        if d.startswith(ym):
+            day_map[d] = day_map.get(d, 0) + 1
+    daily = [{"date": f"{y:04d}-{mo:02d}-{i+1:02d}",
+              "count": day_map.get(f"{y:04d}-{mo:02d}-{i+1:02d}", 0)} for i in range(ndays)]
 
+    total_count = sum(int(e["count"] or 1) for e in events)
+    top = max(events, key=lambda e: int(e["count"] or 1), default=None)
     return {
         "owner": owner, "scope": ("family" if owner == "family" else "personal"),
+        "ym": ym, "cur_ym": _life_cur_ym(),
         "balance": balance, "areas": out_areas, "daily": daily,
         "stats": {
-            "habits": len(habits),
-            "done_today": sum(1 for s in hstats.values() if s["done_today"]),
+            "events": len(events),
+            "total_count": total_count,
             "completions_7d": sum(x["count"] for x in daily[-7:]),
-            "completions_30d": sum(x["count"] for x in daily[-30:]),
-            "best_streak": max([s["streak"] for s in hstats.values()], default=0),
+            "completions_30d": total_count,
+            "top_event": (top["name"] if top else ""),
+            "top_count": (int(top["count"] or 1) if top else 0),
         },
     }
 
 
 # ─── Challenges — time-bound goals (v8.55.0 · Phase 3) ───────────────────
-_VALID_CHALLENGE_KINDS = {"count", "streak", "score"}
+# v8.62.0: Life is now an event tracker; count/streak (which bound to habits)
+# are retired. Only the manual 'score' scoreboard remains. Legacy count/streak
+# rows still render via the helpers below, but new challenges are score-only.
+_VALID_CHALLENGE_KINDS = {"score"}
 _CHALLENGE_SUGGEST_MODEL = "claude-haiku-4-5-20251001"
 
 
@@ -4392,7 +4336,7 @@ class ChallengeCreate(BaseModel):
     owner: str | None = None
     title: str
     emoji: str | None = "🏆"
-    kind: str = "count"
+    kind: str = "score"
     target: int = 5
     habit_id: int | None = None
     area_id: str | None = None
@@ -4407,7 +4351,7 @@ def life_challenge_create(body: ChallengeCreate, user=Depends(get_uf), db=Depend
     title = (body.title or "").strip()
     if not title:
         raise HTTPException(400, "title required")
-    kind = body.kind if body.kind in _VALID_CHALLENGE_KINDS else "count"
+    kind = body.kind if body.kind in _VALID_CHALLENGE_KINDS else "score"
     target = max(1, min(366, int(body.target or 1)))
     period = max(1, min(366, int(body.period_days or 7)))
 
@@ -4694,7 +4638,13 @@ async def life_challenge_suggest(body: ChallengeSuggestBody, user=Depends(get_uf
 
 
 # ─── Debug & Serve ───────────────────────────────────────────────────────
-APP_VERSION = "v8.61.1"
+APP_VERSION = "v8.62.0"
+# v8.62.0 — Life redesign: habit tracker → monthly EVENT tracker. New life_events
+#           table (schema v40, month-bucketed, counter per event); existing habits
+#           converted to current-month events. Endpoints /api/life/events (+bump/
+#           edit/delete); summary/journey now event-based with ?ym= month switch.
+#           Challenges are score-only (count/streak retired). habits/habit_logs
+#           kept dormant.
 # v8.61.1 — Fix: Life habit day-0 consistency/brightness glowed 0.5 instead of
 #           1.0 at the 22:00–24:00 UTC boundary (UTC created_at vs Belgrade
 #           today). New _life_local_date() localises created_at before the date

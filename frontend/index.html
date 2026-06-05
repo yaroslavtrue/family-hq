@@ -345,6 +345,17 @@ body.life-mode .ct{padding:0;background:#0a0b10}
 .life-chip-fam.on{border-color:#E06A8A;box-shadow:0 0 0 2px rgba(224,106,138,.25)}
 .life-back{width:34px;height:34px;border-radius:12px;background:var(--cd);border:1px solid var(--bd);color:var(--tx);font-size:24px;line-height:1;cursor:pointer;display:flex;align-items:center;justify-content:center}
 .life-back:active{transform:scale(.92)}
+/* Month switcher (calendar-style, on the night-sky top bar) */
+.life-mnav{display:inline-flex;align-items:center;gap:4px;background:rgba(20,20,34,.55);border:1px solid rgba(255,255,255,.12);border-radius:13px;padding:2px}
+.life-mnav-b{width:26px;height:26px;border:none;background:none;color:#EDEAE0;font-size:17px;line-height:1;cursor:pointer;border-radius:9px;display:flex;align-items:center;justify-content:center}
+.life-mnav-b:active{background:rgba(255,255,255,.1)}
+.life-mnav-b.off{opacity:.28;pointer-events:none}
+.life-mnav-l{font-size:12px;font-weight:700;color:#EDEAE0;min-width:96px;text-align:center;text-transform:capitalize;letter-spacing:.2px}
+/* Event detail counter (− value +) */
+.life-count{display:flex;align-items:center;justify-content:center;gap:18px;margin:14px 0 2px}
+.life-count-b{width:40px;height:40px;border-radius:12px;border:1px solid var(--bd);background:var(--cd);color:var(--tx);font-size:22px;font-weight:700;line-height:1;cursor:pointer;display:flex;align-items:center;justify-content:center}
+.life-count-b:active{transform:scale(.9)}
+.life-count-v{font-size:38px;font-weight:800;line-height:1;min-width:48px;text-align:center;letter-spacing:-1px}
 /* AI suggestions modal */
 .life-thinking{text-align:center;color:var(--ht);padding:30px 12px;font-size:14px;animation:lifePulse 1.4s ease-in-out infinite}
 @keyframes lifePulse{0%,100%{opacity:.5}50%{opacity:1}}
@@ -512,6 +523,7 @@ body.life-mode .ct{padding:0;background:#0a0b10}
 .life-cap{font-size:3.1px;font-weight:700;fill:#EDEAE0;text-anchor:middle;dominant-baseline:central;opacity:.9}
 .life-cap-hub{font-size:3.4px;opacity:.95}
 .life-sub{font-size:2.5px;fill:#EDEAE0;text-anchor:middle;dominant-baseline:central;opacity:.5}
+.life-badge{font-size:2.7px;font-weight:800;fill:#0c0c18;text-anchor:middle;dominant-baseline:central}
 .life-ripple{animation:lifeRipple .7s ease-out forwards;transform-box:fill-box;transform-origin:center}
 @keyframes lifeRipple{0%{transform:scale(1);stroke-opacity:.9}100%{transform:scale(3.2);stroke-opacity:0}}
 /* iOS-style edit wiggle (transform-box:view-box → transform-origin is in viewBox units) */
@@ -1358,18 +1370,18 @@ body.no-scroll .mx{touch-action:pan-y}
 <!-- Load JS -->
 <!-- Load order: data (lang.js) → engines (theme.js, auth.js, weather.js) → main (app.js). -->
 <!-- All share globals; extracted modules use `var`/`function` declarations so they're true window-scope. -->
-<script src="/static/lang.js?v=247"></script>
-<script src="/static/theme.js?v=247"></script>
-<script src="/static/auth.js?v=247"></script>
-<script src="/static/weather.js?v=247"></script>
-<script src="/static/words.js?v=247"></script>
-<script src="/static/plants.js?v=247"></script>
-<script src="/static/trainings.js?v=247"></script>
-<script src="/static/money.js?v=247"></script>
-<script src="/static/tasks.js?v=247"></script>
-<script src="/static/cooking.js?v=247"></script>
-<script src="/static/news.js?v=247"></script>
-<script src="/static/settings.js?v=247"></script>
-<script src="/static/app.js?v=247"></script>
+<script src="/static/lang.js?v=248"></script>
+<script src="/static/theme.js?v=248"></script>
+<script src="/static/auth.js?v=248"></script>
+<script src="/static/weather.js?v=248"></script>
+<script src="/static/words.js?v=248"></script>
+<script src="/static/plants.js?v=248"></script>
+<script src="/static/trainings.js?v=248"></script>
+<script src="/static/money.js?v=248"></script>
+<script src="/static/tasks.js?v=248"></script>
+<script src="/static/cooking.js?v=248"></script>
+<script src="/static/news.js?v=248"></script>
+<script src="/static/settings.js?v=248"></script>
+<script src="/static/app.js?v=248"></script>
 </body>
 </html>
