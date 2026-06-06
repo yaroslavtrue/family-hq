@@ -4691,7 +4691,13 @@ async def life_challenge_suggest(body: ChallengeSuggestBody, user=Depends(get_uf
 
 
 # ─── Debug & Serve ───────────────────────────────────────────────────────
-APP_VERSION = "v8.63.2"
+APP_VERSION = "v8.63.3"
+# v8.63.3 — Life perf #4 (measured): a benchmark (220→8000 nodes) showed the
+#           continuous CSS scale/rotate animations (.life-breathe core pulse,
+#           .life-idle wiggle) were the dominant cost — a transform animation
+#           inside the glow's layer re-rasters the whole gradient every frame
+#           (29fps → 145fps when removed). Dropped both; the position float (a
+#           cheap composite) is the only ambient motion now. Edit-mode wiggle kept.
 # v8.63.2 — Life: avatars draggable again (persistent avatar groups now carry the
 #           .life-node hit target + track the finger 1:1, incl. the bond line).
 #           (Journey already pauses the sim — it's not a perf cost.)

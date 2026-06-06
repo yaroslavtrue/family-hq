@@ -861,7 +861,7 @@ function _lifeNodeSvg(n){
   if(n.type==="hub"){
     if(_lifeData && _lifeData.scope === "family"){
       var bond = Math.max(0, Math.min(1, _lifeData.bond || 0));
-      var gC = '<circle class="life-glow life-breathe-slow" cx="'+n.x+'" cy="'+n.y+'" r="'+(glowR*(0.85+bond*0.5))+'" fill="url(#'+_lifeGradId(n.color)+')" opacity="'+(0.5+bond*0.5).toFixed(2)+'"/>';
+      var gC = '<circle class="life-glow" cx="'+n.x+'" cy="'+n.y+'" r="'+(glowR*(0.85+bond*0.5))+'" fill="url(#'+_lifeGradId(n.color)+')" opacity="'+(0.5+bond*0.5).toFixed(2)+'"/>';
       return '<g class="life-node" data-id="'+n.id+'">'+gC+'</g>';
     }
     var glow = '<circle class="life-glow" cx="'+n.x+'" cy="'+n.y+'" r="'+glowR+'" fill="url(#'+_lifeGradId(n.color)+')"/>';
@@ -919,19 +919,20 @@ function _lifeNodeSvg(n){
   // The glow (big radial-gradient circle) is STATIC — re-rasterising a scaling
   // gradient every frame for every node was the main FPS sink. Only the small
   // solid core breathes, which keeps the "alive" pulse at a fraction of the cost.
+  // NB: no per-frame scale/rotate animation on the core — measured to be the
+  // dominant FPS cost. A transform animation INSIDE the layer that holds the
+  // radial-gradient glow forces the whole layer (gradient included) to re-raster
+  // every frame. The gentle position float (cheap composite) provides the "alive"
+  // motion instead; the glow stays static.
   var content =
     '<circle class="life-glow" cx="'+n.x+'" cy="'+n.y+'" r="'+glowR+'" fill="url(#'+_lifeGradId(n.color)+')" opacity="'+glowOpacity.toFixed(2)+'"/>'+
-    '<circle class="life-core life-breathe" '+bd+' cx="'+n.x+'" cy="'+n.y+'" r="'+n.r+'" fill="'+coreCol+'" fill-opacity="'+fillOpacity.toFixed(2)+'" stroke="'+coreCol+'" stroke-width="'+ringW+'"'+dash+'/>'+
+    '<circle class="life-core" cx="'+n.x+'" cy="'+n.y+'" r="'+n.r+'" fill="'+coreCol+'" fill-opacity="'+fillOpacity.toFixed(2)+'" stroke="'+coreCol+'" stroke-width="'+ringW+'"'+dash+'/>'+
     badges + label + cap;
-  // Wiggle / grow live on an INNER group so they never fight the outer group's
-  // translate (drag / orbit / the smooth edit-mode relayout). Editable nodes
-  // wiggle gently at rest (.life-idle) and harder in edit mode (.life-wiggle).
-  // Seeds scale-grow in place — the spring slides them out from the centre while
-  // the inner scale makes them grow along the way.
+  // Edit mode keeps the iOS-style wiggle (a temporary mode). Normal mode has NO
+  // continuous CSS animation (the float is the only motion) → no per-frame raster.
   var editable = (n.type==="area" || n.type==="habit");
-  if(editable){
-    var wcls = _lifeEditMode ? "life-wiggle" : "life-idle";
-    content = '<g class="'+wcls+'" style="animation-delay:-'+(delay*0.5).toFixed(2)+'s;transform-origin:'+n.x+'px '+n.y+'px">'+content+'</g>';
+  if(editable && _lifeEditMode){
+    content = '<g class="life-wiggle" style="animation-delay:-'+(delay*0.5).toFixed(2)+'s;transform-origin:'+n.x+'px '+n.y+'px">'+content+'</g>';
   } else if(isSeed){
     content = '<g class="life-grow" style="transform-box:view-box;transform-origin:'+n.x+'px '+n.y+'px">'+content+'</g>';
   }
