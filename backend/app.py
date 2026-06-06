@@ -4691,7 +4691,12 @@ async def life_challenge_suggest(body: ChallengeSuggestBody, user=Depends(get_uf
 
 
 # ─── Debug & Serve ───────────────────────────────────────────────────────
-APP_VERSION = "v8.63.3"
+APP_VERSION = "v8.63.4"
+# v8.63.4 — Life: nodes no longer jerk on entering the tab (the post-mount
+#           relayout rebuilt and snapped positions back to the ring; rebuilds now
+#           preserve current node positions and ease). Weather widget: auto-resume
+#           the muted bg video on pause so the WebView's ▶ tap-to-play overlay
+#           doesn't appear.
 # v8.63.3 — Life perf #4 (measured): a benchmark (220→8000 nodes) showed the
 #           continuous CSS scale/rotate animations (.life-breathe core pulse,
 #           .life-idle wiggle) were the dominant cost — a transform animation

@@ -622,9 +622,16 @@ function _lifeFloatify(nd){
   return nd;
 }
 
+// Capture/restore current node positions by id so a rebuild (e.g. the post-mount
+// relayout, or add/delete) eases from where things were instead of snapping back
+// to the ring — that snap was the "jerk on entering the Life tab".
+function _lifeCapturePos(){ var p={}; (_lifeNodes||[]).forEach(function(n){ p[n.id]={x:n.x,y:n.y}; }); return p; }
+function _lifeRestorePos(prev){ if(!prev) return; _lifeNodes.forEach(function(n){ var q=prev[n.id]; if(q){ n.x=q.x; n.y=q.y; } }); }
+
 // ─── Build: constellation (L0) ────────────────────────────────
 function _lifeBuildConstellation(){
   if(!_lifeData) return;
+  var _prev = _lifeCapturePos();
   if(_lifeRAF){ cancelAnimationFrame(_lifeRAF); _lifeRAF=null; } // drop any stale loop
   _lifeComputeVb();
   var cx = _lifeCx(), cy = _lifeCy();
@@ -679,6 +686,7 @@ function _lifeBuildConstellation(){
     _lifeAvEdges = [["_hub","_av0"], ["_hub","_av1"], ["_av0","_av1"]];
     _lifeOrbiting = true;
   }
+  _lifeRestorePos(_prev);   // keep existing nodes where they were → no snap on rebuild
   _lifeDraw();
   _lifeSetHint(isFam ? tr("life_hint_family") : tr("life_hint_personal"));
   // Continuous gentle float (organic drift) — also keeps edges centre-to-centre.
@@ -689,6 +697,7 @@ function _lifeBuildConstellation(){
 function _lifeBuildArea(){
   var area = _lifeData && (_lifeData.areas||[]).find(function(x){return x.id===_lifeAreaId});
   if(!area) return;
+  var _prev = _lifeCapturePos();
   if(_lifeRAF){ cancelAnimationFrame(_lifeRAF); _lifeRAF=null; }
   _lifeOrbiting = false; _lifeAvEdges = [];
   _lifeComputeVb();
@@ -721,6 +730,7 @@ function _lifeBuildArea(){
     _lifeNodes.push(_lifeFloatify({id:"_ideas", type:"ideas", hx:ip.x, hy:ip.y, x:ip.x, y:ip.y, vx:0, vy:0, r:5.4, color:area.color}));
   }
   _lifeEdges = _lifeNodes.filter(function(nd){return nd.id!=="_hub"}).map(function(nd){return ["_hub", nd.id]});
+  _lifeRestorePos(_prev);   // keep existing nodes where they were → no snap on rebuild
   _lifeDraw();
   _lifeSetHint(past ? tr("life_past_ro") : (events.length ? tr("life_hint_events") : tr("life_hint_events_empty")));
   _lifeFloatOn = true; _lifeStartSim();   // gentle float + keeps edges synced

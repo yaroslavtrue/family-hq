@@ -812,7 +812,7 @@ var h='<p style="color:var(--ht);font-size:14px;margin:0 0 4px;font-weight:500">
 var w=D.weather;
 if(w&&w.days){var cat=FX.wCat(w.label);
 // Try a video background loop (in /static/weather/{cat}.mp4). Falls back silently to the CSS gradient + particle layers if file missing / 404 / offline-uncached.
-var _vd='<video class="wbg-vd" autoplay muted loop playsinline preload="metadata" onloadeddata="this.classList.add(\'loaded\');this.parentNode.classList.add(\'has-video\')" onerror="this.remove()"><source src="/static/weather/'+cat+'.mp4" type="video/mp4"></video><div class="wbg-vd-scrim"></div>';
+var _vd='<video class="wbg-vd" autoplay muted loop playsinline webkit-playsinline disablepictureinpicture preload="metadata" onloadeddata="this.classList.add(\'loaded\');this.parentNode.classList.add(\'has-video\');this.play&&this.play().catch(function(){})" onpause="var v=this;setTimeout(function(){v.isConnected&&v.play&&v.play().catch(function(){})},60)" onerror="this.remove()"><source src="/static/weather/'+cat+'.mp4" type="video/mp4"></video><div class="wbg-vd-scrim"></div>';
 // Skip today in the right-side mini-forecast (today is the big temperature on the left)
 var _next=(w.days||[]).slice(1,4);
 var _city=w.city||"Belgrade";

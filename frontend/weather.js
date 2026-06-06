@@ -51,7 +51,7 @@ function renderWeatherPage() {
   // Today's daily summary (days[0]) covers the whole day's dominant weather and may differ from "now".
   var today = days[0];
   var cat = FX.wCat(w.label);
-  var vdHtml = '<video class="wbg-vd" autoplay muted loop playsinline preload="metadata" onloadeddata="this.classList.add(\'loaded\');this.parentNode.classList.add(\'has-video\')" onerror="this.remove()"><source src="/static/weather/' + cat + '.mp4" type="video/mp4"></video><div class="wbg-vd-scrim"></div>';
+  var vdHtml = '<video class="wbg-vd" autoplay muted loop playsinline webkit-playsinline disablepictureinpicture preload="metadata" onloadeddata="this.classList.add(\'loaded\');this.parentNode.classList.add(\'has-video\');this.play&&this.play().catch(function(){})" onpause="var v=this;setTimeout(function(){v.isConnected&&v.play&&v.play().catch(function(){})},60)" onerror="this.remove()"><source src="/static/weather/' + cat + '.mp4" type="video/mp4"></video><div class="wbg-vd-scrim"></div>';
   var h = '<div class="wx-hero wbg wbg-' + cat + '">' + vdHtml;
   h += '<div class="wx-hero-ico" style="filter:drop-shadow(0 2px 4px rgba(0,0,0,.35))">' + wIconAnim(w.label, 72, true) + '</div>';
   h += '<div class="wx-hero-tx" style="text-shadow:0 1px 3px rgba(0,0,0,.5)"><div class="wx-hero-lb" style="color:rgba(255,255,255,.7)">' + tr("g_today") + '</div>';
