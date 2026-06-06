@@ -29,12 +29,12 @@ def test_bot_info_shape(anon_client):
 
 def test_migration_applied_to_latest(app_module, temp_db):
     """schema_version table should be at the latest migration after migrate() ran in conftest.
-    Bumped to v40 in v8.62.0 (Life event tracker: life_events table)."""
+    Bumped to v41 in v8.63.0 (Life: pinned events carry over)."""
     import sqlite3
     con = sqlite3.connect(temp_db)
     ver = con.execute("SELECT version FROM schema_version").fetchone()[0]
     con.close()
-    assert ver == 40, f"Expected schema v40, got v{ver}"
+    assert ver == 41, f"Expected schema v41, got v{ver}"
 
 
 def test_bundle_shape(client_as):

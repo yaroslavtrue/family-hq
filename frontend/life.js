@@ -29,6 +29,14 @@ var _lifeRAF = null;
 var _lifeEls = null;       // {id: <g> element}
 var _lifeIndexMap = null;  // {id: node}
 var _lifeEdgeEls = [];     // [{el, a:node, b:node}]
+// Persistent avatar layer — SVG <image>s are built once per (view·scope·owner)
+// signature and only moved, so node/edge rebuilds (edit/month/add/delete) never
+// recreate them → no decode flash.
+var _lifeAvSig = null, _lifeAvEls = null;
+// Organic layout: a stable random jitter per node (breaks the rigid cross) and a
+// continuous slow drift (nodes gently float, edges following from centre to centre).
+var _lifeJitter = {};
+var _lifeFloatOn = false;
 var _lifeDrag = null;           // {id, moved}
 var _lifeLongTimer = null;
 var _lifeSettleUntil = 0;
@@ -109,7 +117,7 @@ function lifeMount(){
 }
 
 function lifeUnmount(){
-  _lifeEditMode = false; _lifeJourney = false; _lifeChall = false;
+  _lifeEditMode = false; _lifeJourney = false; _lifeChall = false; _lifeFloatOn = false;
   if(_lifeRAF){ cancelAnimationFrame(_lifeRAF); _lifeRAF = null; }
   if(_lifeLongTimer){ clearTimeout(_lifeLongTimer); _lifeLongTimer = null; }
   if(_lifeBgTimer){ clearTimeout(_lifeBgTimer); _lifeBgTimer = null; }
@@ -239,6 +247,7 @@ function _lifeToggleJourney(){
   hp(_lifeJourney ? "med" : "light");
   var jv = document.getElementById("life-journey"), svg = document.getElementById("life-svg");
   if(_lifeJourney){
+    _lifeFloatOn = false;
     if(_lifeRAF){ cancelAnimationFrame(_lifeRAF); _lifeRAF = null; }  // pause the graph
     _lifeEditMode = false; _lifeChall = false; _lifeView = "constellation"; _lifeAreaId = null;
     var cv0 = document.getElementById("life-chall"); if(cv0) cv0.style.display = "none";
@@ -322,6 +331,7 @@ function _lifeToggleChall(){
   var cv = document.getElementById("life-chall"), svg = document.getElementById("life-svg");
   var jv = document.getElementById("life-journey");
   if(_lifeChall){
+    _lifeFloatOn = false;
     if(_lifeRAF){ cancelAnimationFrame(_lifeRAF); _lifeRAF = null; }
     _lifeEditMode = false; _lifeJourney = false; _lifeView = "constellation"; _lifeAreaId = null;
     if(jv) jv.style.display = "none";
@@ -589,10 +599,26 @@ function _lifeRing(n, startDeg){
   return out;
 }
 
-// Node radius from brightness (0..1) + a gentle count bump.
+// Node radius: small base, +5% per distinct event (gentle growth), capped.
 function _lifeNodeR(brightness, count){
-  var base = 5.2, glow = (brightness||0) * 3.4, bump = Math.min(1.6, Math.log((count||0)+1)*1.1);
-  return base + glow + bump;
+  var base = 5.0;
+  return base * Math.min(1.7, 1 + 0.05*(count||0));
+}
+// Stable per-node random jitter + drift phase → breaks the rigid cross layout and
+// gives each node its own floating rhythm. Cached by id so it doesn't jump on redraw.
+function _lifeJit(id){
+  if(!_lifeJitter[id]) _lifeJitter[id] = {
+    dx:(Math.random()-0.5)*5.2, dy:(Math.random()-0.5)*5.2,
+    ph:Math.random()*6.283, amp:0.9+Math.random()*0.7
+  };
+  return _lifeJitter[id];
+}
+// Apply jitter + float fields to a freshly-built satellite node (in place).
+function _lifeFloatify(nd){
+  var j=_lifeJit(nd.id);
+  nd.hx += j.dx; nd.hy += j.dy; nd.x = nd.hx; nd.y = nd.hy;
+  nd.bhx = nd.hx; nd.bhy = nd.hy; nd.phase = j.ph; nd.driftA = j.amp;
+  return nd;
 }
 
 // ─── Build: constellation (L0) ────────────────────────────────
@@ -618,15 +644,15 @@ function _lifeBuildConstellation(){
     emoji: "", bright: isFam ? (_lifeData.bond||0) : 0.5,
   });
   areas.forEach(function(a, i){
-    _lifeNodes.push({
+    _lifeNodes.push(_lifeFloatify({
       id:a.id, type:"area", hx:pts[i].x, hy:pts[i].y, x:pts[i].x, y:pts[i].y, vx:0, vy:0,
       r:_lifeNodeR(a.brightness, (a.event_count!=null?a.event_count:a.habit_count)), color:a.color,
       label:a.name, emoji:a.emoji, bright:a.brightness, count:(a.event_count!=null?a.event_count:a.habit_count), is_custom:a.is_custom,
-    });
+    }));
   });
   if(addSphere){
     var sp = pts[n-1];
-    _lifeNodes.push({id:"_addarea", type:"addarea", hx:sp.x, hy:sp.y, x:sp.x, y:sp.y, vx:0, vy:0, r:5.6, color:"#A9A48F"});
+    _lifeNodes.push(_lifeFloatify({id:"_addarea", type:"addarea", hx:sp.x, hy:sp.y, x:sp.x, y:sp.y, vx:0, vy:0, r:5.6, color:"#A9A48F"}));
   }
   _lifeEdges = _lifeNodes.filter(function(nd){return nd.id!=="_hub" && nd.type!=="avatar"}).map(function(nd){return ["_hub", nd.id]});
   _lifeAvEdges = [];
@@ -654,8 +680,8 @@ function _lifeBuildConstellation(){
   }
   _lifeDraw();
   _lifeSetHint(isFam ? tr("life_hint_family") : tr("life_hint_personal"));
-  // Family runs a continuous (cheap) sim for the orbit + avatar springs.
-  if(_lifeOrbiting) _lifeStartSim();
+  // Continuous gentle float (organic drift) — also keeps edges centre-to-centre.
+  _lifeFloatOn = true; _lifeStartSim();
 }
 
 // ─── Build: inside an area (L1) ───────────────────────────────
@@ -681,21 +707,22 @@ function _lifeBuildArea(){
   });
   events.forEach(function(ev, i){
     var cnt = ev.count||1;
-    _lifeNodes.push({
+    _lifeNodes.push(_lifeFloatify({
       id:"h"+ev.id, hid:ev.id, type:"habit", hx:pts[i].x, hy:pts[i].y, x:pts[i].x, y:pts[i].y, vx:0, vy:0,
-      r: 5.0 + Math.min(4.2, Math.log(cnt)*2.4), color:area.color,
-      label:ev.name, emoji:ev.emoji||"•", bright:Math.min(1,(cnt)/5), count:cnt,
-    });
+      r: 5.0 * Math.min(1.5, 1 + 0.06*(cnt-1)), color:area.color,
+      label:ev.name, emoji:ev.emoji||"•", bright:Math.min(1,0.2+0.12*(cnt-1)), count:cnt, pinned:!!ev.pinned,
+    }));
   });
   if(withSeeds){
     var ap = pts[n-2];
-    _lifeNodes.push({id:"_add", type:"add", hx:ap.x, hy:ap.y, x:ap.x, y:ap.y, vx:0, vy:0, r:5.4, color:area.color});
+    _lifeNodes.push(_lifeFloatify({id:"_add", type:"add", hx:ap.x, hy:ap.y, x:ap.x, y:ap.y, vx:0, vy:0, r:5.4, color:area.color}));
     var ip = pts[n-1];
-    _lifeNodes.push({id:"_ideas", type:"ideas", hx:ip.x, hy:ip.y, x:ip.x, y:ip.y, vx:0, vy:0, r:5.4, color:area.color});
+    _lifeNodes.push(_lifeFloatify({id:"_ideas", type:"ideas", hx:ip.x, hy:ip.y, x:ip.x, y:ip.y, vx:0, vy:0, r:5.4, color:area.color}));
   }
   _lifeEdges = _lifeNodes.filter(function(nd){return nd.id!=="_hub"}).map(function(nd){return ["_hub", nd.id]});
   _lifeDraw();
   _lifeSetHint(past ? tr("life_past_ro") : (events.length ? tr("life_hint_events") : tr("life_hint_events_empty")));
+  _lifeFloatOn = true; _lifeStartSim();   // gentle float + keeps edges synced
 }
 
 var _lifeEdges = [];      // drawn gray spokes (hub → satellites)
@@ -710,29 +737,39 @@ var _lifeBond = 0;
 function _lifeSetHint(t){ var el=document.getElementById("life-hint"); if(el) el.textContent = t||""; }
 
 // ─── SVG draw ─────────────────────────────────────────────────
+// Persistent skeleton: defs / edges / nodes / avatars live in their own groups.
+// Only edges + nodes (+ defs) get rebuilt on a redraw; the avatar layer is kept
+// so its <image>s never re-decode (no flicker on edit / month / add / delete).
 function _lifeDraw(){
   var svg = document.getElementById("life-svg"); if(!svg) return;
   svg.setAttribute("viewBox", "0 0 100 "+_lifeVbH);
-  var NS = "http://www.w3.org/2000/svg";
+  if(!document.getElementById("life-nodes-g")){
+    svg.innerHTML = '<defs id="life-defs-g"></defs><g id="life-edges-g"></g><g id="life-nodes-g"></g><g id="life-av-g"></g>';
+    _lifeAvSig = null;  // skeleton was reset → force avatar rebuild
+  }
+  var defsEl = document.getElementById("life-defs-g");
+  var edgesEl = document.getElementById("life-edges-g");
+  var nodesEl = document.getElementById("life-nodes-g");
+  var avEl = document.getElementById("life-av-g");
+
+  // Anchor each node's DRAW position (the sim translates the <g> by current − anchor).
+  _lifeNodes.forEach(function(n){ n.ox = n.x; n.oy = n.y; });
+
   // defs: one radial gradient per distinct color for cheap glow
   var colors = {}; _lifeNodes.forEach(function(n){ colors[n.color]=1 });
-  var defs = '<defs>';
+  var defs = '';
   Object.keys(colors).forEach(function(c){
-    defs += '<radialGradient id="'+_lifeGradId(c)+'"><stop offset="0%" stop-color="'+c+'" stop-opacity="0.55"/><stop offset="70%" stop-color="'+c+'" stop-opacity="0.10"/><stop offset="100%" stop-color="'+c+'" stop-opacity="0"/></radialGradient>';
+    defs += '<radialGradient id="'+_lifeGradId(c)+'"><stop offset="0%" stop-color="'+c+'" stop-opacity="0.50"/><stop offset="68%" stop-color="'+c+'" stop-opacity="0.08"/><stop offset="100%" stop-color="'+c+'" stop-opacity="0"/></radialGradient>';
   });
-  defs += '</defs>';
-  // Anchor each node's DRAW position (the sim translates the <g> by current −
-  // anchor; for orbiting avatars the home moves, so we must remember where the
-  // element was actually rendered).
-  _lifeNodes.forEach(function(n){ n.ox = n.x; n.oy = n.y; });
-  // edges (gray spokes)
+  defsEl.innerHTML = defs;
+
+  // edges (gray spokes — always centre-to-centre)
   var eh = '';
   _lifeEdges.forEach(function(e){
     var a=_lifeNodeById(e[0]), b=_lifeNodeById(e[1]); if(!a||!b) return;
     var strength = Math.max(a.bright||0, b.bright||0);
-    eh += '<line class="life-edge" x1="'+a.x+'" y1="'+a.y+'" x2="'+b.x+'" y2="'+b.y+'" stroke-opacity="'+(0.12+strength*0.4).toFixed(2)+'" data-a="'+e[0]+'" data-b="'+e[1]+'"/>';
+    eh += '<line class="life-edge" x1="'+a.x+'" y1="'+a.y+'" x2="'+b.x+'" y2="'+b.y+'" stroke-opacity="'+(0.10+strength*0.35).toFixed(2)+'" data-a="'+e[0]+'" data-b="'+e[1]+'"/>';
   });
-  // bond line between the two family avatars (glow + core), updated each frame.
   if(_lifeOrbiting){
     var a0=_lifeNodeById("_av0"), a1=_lifeNodeById("_av1");
     if(a0&&a1){
@@ -741,38 +778,74 @@ function _lifeDraw(){
       eh += '<line id="life-bondcore" x1="'+a0.x+'" y1="'+a0.y+'" x2="'+a1.x+'" y2="'+a1.y+'" stroke="#E06A8A" stroke-width="'+(0.5+b*1.1).toFixed(2)+'" stroke-opacity="'+(0.45+b*0.5).toFixed(2)+'" stroke-linecap="round"/>';
     }
   }
-  // nodes
+  edgesEl.innerHTML = eh;
+
+  // nodes (avatar images are NOT here — they live in the persistent av layer)
   var nh = '';
-  _lifeNodes.forEach(function(n, i){
-    nh += _lifeNodeSvg(n, i);
-  });
-  svg.innerHTML = defs + '<g id="life-edges">'+eh+'</g><g id="life-nodes">'+nh+'</g>';
-  // Cache element + node lookups for the sim loop (avoid per-frame querySelector).
+  _lifeNodes.forEach(function(n){ nh += _lifeNodeSvg(n); });
+  nodesEl.innerHTML = nh;
+
+  // caches (no per-frame querySelector in the sim loop)
   _lifeIndexMap = {}; _lifeEls = {}; _lifeEdgeEls = [];
   _lifeNodes.forEach(function(n){
     _lifeIndexMap[n.id] = n;
-    _lifeEls[n.id] = svg.querySelector('.life-node[data-id="'+n.id+'"]');
+    _lifeEls[n.id] = nodesEl.querySelector('.life-node[data-id="'+n.id+'"]');
   });
-  svg.querySelectorAll(".life-edge").forEach(function(ln){
+  edgesEl.querySelectorAll(".life-edge").forEach(function(ln){
     _lifeEdgeEls.push({el:ln, a:_lifeIndexMap[ln.getAttribute("data-a")], b:_lifeIndexMap[ln.getAttribute("data-b")]});
   });
+
+  _lifeRenderAvatars(avEl);   // build (if sig changed) + position the avatar layer
   _lifeBindPointer(svg);
+}
+
+// Build the avatar layer only when its signature (view·scope·who·size) changes;
+// otherwise reuse the existing <image> elements and just reposition them.
+function _lifeRenderAvatars(avEl){
+  if(!avEl) return;
+  var desired = [];
+  if(_lifeView !== "area" && _lifeData){
+    if(_lifeData.scope === "family"){
+      var av0=_lifeIndexMap["_av0"], av1=_lifeIndexMap["_av1"];
+      if(av0 && av0.member) desired.push({node:"_av0", m:av0.member, r:av0.r});
+      if(av1 && av1.member) desired.push({node:"_av1", m:av1.member, r:av1.r});
+    } else {
+      var hub=_lifeIndexMap["_hub"];
+      if(hub) desired.push({node:"_hub", m:_lifeMember(_lifeOwner), r:hub.r});
+    }
+  }
+  var sig = desired.map(function(d){ return d.node+":"+((d.m&&d.m.user_id)||"x")+":"+Math.round(d.r) }).join("|");
+  if(sig !== _lifeAvSig){
+    _lifeAvSig = sig; _lifeAvEls = {};
+    var html = '';
+    desired.forEach(function(d){ html += '<g class="life-av" data-node="'+d.node+'">'+_lifeAvatarSvg(d.m, 0, 0, d.r)+'</g>'; });
+    avEl.innerHTML = html;
+    desired.forEach(function(d){ _lifeAvEls[d.node] = avEl.querySelector('.life-av[data-node="'+d.node+'"]'); });
+  }
+  _lifeMoveAvatars();
+}
+// Avatars are drawn centred at (0,0) → place each at its node's centre.
+function _lifeMoveAvatars(){
+  if(!_lifeAvEls) return;
+  for(var nid in _lifeAvEls){
+    var n=_lifeIndexMap[nid], el=_lifeAvEls[nid];
+    if(n && el) el.setAttribute("transform","translate("+n.x.toFixed(2)+" "+n.y.toFixed(2)+")");
+  }
 }
 
 function _lifeGradId(c){ return "grad_"+c.replace(/[^a-z0-9]/gi,""); }
 function _lifeNodeById(id){ if(_lifeIndexMap && _lifeIndexMap[id]) return _lifeIndexMap[id]; for(var i=0;i<_lifeNodes.length;i++) if(_lifeNodes[i].id===id) return _lifeNodes[i]; return null; }
 
 function _lifeNodeSvg(n){
-  var glowR = n.r * 2.5;
-  // ─── Family avatar satellites (v8.51.7) — real physics nodes. The avatar is
-  // drawn at the node's own position; the spring sim moves the <g> via translate
-  // (pure translation → stays upright, no counter-rotation needed). ───
+  var glowR = n.r * 2.4;
+  // ─── Family avatar satellites — the IMAGE lives in the persistent avatar layer
+  // (drawn separately so it never re-decodes). The node <g> is just a hit/anchor
+  // target so edges + the bond line have a centre to follow. ───
   if(n.type==="avatar"){
-    return '<g class="life-node" data-id="'+n.id+'">'+_lifeAvatarSvg(n.member, n.x, n.y, n.r)+'</g>';
+    return '<g class="life-node" data-id="'+n.id+'"></g>';
   }
-  // ─── Center hub: personal → owner avatar; family → bond-scaled glow only
-  // (the two avatars are separate physics nodes; the bond line is drawn in
-  // _lifeDraw and updated each frame). ───
+  // ─── Center hub: personal → glow only (the owner avatar is drawn in the
+  // persistent layer on top); family → bond-scaled glow only. ───
   if(n.type==="hub"){
     if(_lifeData && _lifeData.scope === "family"){
       var bond = Math.max(0, Math.min(1, _lifeData.bond || 0));
@@ -780,12 +853,16 @@ function _lifeNodeSvg(n){
       return '<g class="life-node" data-id="'+n.id+'">'+gC+'</g>';
     }
     var glow = '<circle class="life-glow" cx="'+n.x+'" cy="'+n.y+'" r="'+glowR+'" fill="url(#'+_lifeGradId(n.color)+')"/>';
-    var av = _lifeAvatarSvg(_lifeMember(_lifeOwner), n.x, n.y, n.r);
-    return '<g class="life-node" data-id="'+n.id+'">'+glow+av+'</g>';
+    return '<g class="life-node" data-id="'+n.id+'">'+glow+'</g>';
   }
   var isSeed = (n.type==="add" || n.type==="ideas" || n.type==="addarea");  // dashed placeholders
   var dash = isSeed ? ' stroke-dasharray="2 2"' : '';
-  var fillOpacity = isSeed ? 0.04 : (0.18 + (n.bright||0)*0.5);
+  var br = n.bright || 0;
+  // Dimmer + desaturated by default; fills/saturates as the node gains events.
+  var fillOpacity = isSeed ? 0.04 : (0.05 + br*0.32);
+  var glowOpacity = isSeed ? 0.5 : (0.18 + br*0.55);
+  // Desaturate the core toward grey at low brightness (saturation grows with use).
+  var coreCol = isSeed ? n.color : ('color-mix(in srgb,'+n.color+' '+Math.round(32+br*56)+'%, #6f6f72)');
   var ringW = isSeed ? 0.6 : 0.7;
   // breathing delay varies per node for an organic feel
   var delay = ((n.x*7+n.y*3)%40)/10;
@@ -816,20 +893,24 @@ function _lifeNodeSvg(n){
     }
   }
   // Count badge on re-lived events (count ≥ 2) — top-right of the satellite.
-  var doneRing = '';
+  var badges = '';
   if(n.type==="habit" && (n.count||1) > 1){
     var bx=n.x+n.r*0.78, by=n.y-n.r*0.78;
-    doneRing = '<circle cx="'+bx+'" cy="'+by+'" r="2.6" fill="'+n.color+'" stroke="#0c0c18" stroke-width="0.5"/>'+
+    badges += '<circle cx="'+bx+'" cy="'+by+'" r="2.6" fill="'+n.color+'" stroke="#0c0c18" stroke-width="0.5"/>'+
                '<text class="life-badge" x="'+bx+'" y="'+(by+0.15)+'">'+(n.count||1)+'</text>';
+  }
+  // Pin badge — top-left, marks events that carry over to next month.
+  if(n.type==="habit" && n.pinned){
+    badges += '<text class="life-emoji" x="'+(n.x-n.r*0.82)+'" y="'+(n.y-n.r*0.78)+'" style="font-size:3.4px">📌</text>';
   }
   var bd = 'style="animation-delay:-'+delay.toFixed(2)+'s"';
   // The glow (big radial-gradient circle) is STATIC — re-rasterising a scaling
   // gradient every frame for every node was the main FPS sink. Only the small
   // solid core breathes, which keeps the "alive" pulse at a fraction of the cost.
   var content =
-    '<circle class="life-glow" cx="'+n.x+'" cy="'+n.y+'" r="'+glowR+'" fill="url(#'+_lifeGradId(n.color)+')"/>'+
-    '<circle class="life-core life-breathe" '+bd+' cx="'+n.x+'" cy="'+n.y+'" r="'+n.r+'" fill="'+n.color+'" fill-opacity="'+fillOpacity.toFixed(2)+'" stroke="'+n.color+'" stroke-width="'+ringW+'"'+dash+'/>'+
-    doneRing + label + cap;
+    '<circle class="life-glow" cx="'+n.x+'" cy="'+n.y+'" r="'+glowR+'" fill="url(#'+_lifeGradId(n.color)+')" opacity="'+glowOpacity.toFixed(2)+'"/>'+
+    '<circle class="life-core life-breathe" '+bd+' cx="'+n.x+'" cy="'+n.y+'" r="'+n.r+'" fill="'+coreCol+'" fill-opacity="'+fillOpacity.toFixed(2)+'" stroke="'+coreCol+'" stroke-width="'+ringW+'"'+dash+'/>'+
+    badges + label + cap;
   // Wiggle / grow live on an INNER group so they never fight the outer group's
   // translate (drag / orbit / the smooth edit-mode relayout). Editable nodes
   // wiggle gently at rest (.life-idle) and harder in edit mode (.life-wiggle).
@@ -995,16 +1076,17 @@ function _lifeOpenArea(areaId){
   _lifeLoadArea(areaId);     // fills habits
 }
 
-// ─── Spring sim (runs only while dragging / settling) ─────────
+// ─── Spring sim — runs continuously for a gentle "floating" feel ──────────
 function _lifeStartSim(){
   if(_lifeRAF) return;
   var step = function(){
     var dragging = !!(_lifeDrag && _lifeDrag.moved);
     var settling = Date.now() < _lifeSettleUntil;
-    // Stiffer springs + a little less damping → the constellation follows a
-    // dragged node briskly and settles fast, instead of crawling back.
-    var kHome = 0.045, kEdge = 0.024, damp = 0.82, dt = 1;
+    // Soft springs + high damping → nodes drift toward home and glide elastically
+    // when you pull one, like they're floating in water (no rigid snap).
+    var kHome = 0.020, kEdge = 0.012, damp = 0.90, dt = 1;
     var energy = 0;
+    var t = Date.now();
     // Family orbit: advance the angle and move the two avatars' home anchors
     // around the hub's CURRENT position, so the spring sim makes them chase the
     // orbit (and the dragged hub) with a little elastic lag.
@@ -1012,9 +1094,18 @@ function _lifeStartSim(){
       _lifeOrbitAngle += 0.005;  // ~21s per turn (spring lag makes it feel calmer)
       var hub = _lifeNodeById("_hub");
       var av0 = _lifeNodeById("_av0"), av1 = _lifeNodeById("_av1");
-      if(hub && av0){ av0.hx = hub.x + _lifeOrbitR*Math.cos(_lifeOrbitAngle);        av0.hy = hub.y + _lifeOrbitR*Math.sin(_lifeOrbitAngle); }
-      if(hub && av1){ av1.hx = hub.x + _lifeOrbitR*Math.cos(_lifeOrbitAngle+Math.PI); av1.hy = hub.y + _lifeOrbitR*Math.sin(_lifeOrbitAngle+Math.PI); }
+      if(hub && av0){ av0.bhx = hub.x + _lifeOrbitR*Math.cos(_lifeOrbitAngle);        av0.bhy = hub.y + _lifeOrbitR*Math.sin(_lifeOrbitAngle); }
+      if(hub && av1){ av1.bhx = hub.x + _lifeOrbitR*Math.cos(_lifeOrbitAngle+Math.PI); av1.bhy = hub.y + _lifeOrbitR*Math.sin(_lifeOrbitAngle+Math.PI); }
     }
+    // Continuous slow drift: each node's home gently floats around its base
+    // position (organic, never static). Edges follow because they read centres.
+    _lifeNodes.forEach(function(n){
+      if(n.bhx==null){ n.bhx=n.hx; n.bhy=n.hy; }
+      if(n.id==="_hub"){ n.hx=n.bhx; n.hy=n.bhy; return; }  // centre stays put
+      var ph = n.phase || 0, amp = (n.driftA!=null? n.driftA : 1.1);
+      n.hx = n.bhx + Math.sin(t*0.00045 + ph)*amp;
+      n.hy = n.bhy + Math.cos(t*0.00038 + ph*1.3)*amp;
+    });
     // forces
     _lifeNodes.forEach(function(n){ n.fx=0; n.fy=0; });
     _lifeNodes.forEach(function(n){
@@ -1042,7 +1133,7 @@ function _lifeStartSim(){
       energy += Math.abs(n.vx)+Math.abs(n.vy);
     });
     _lifeApplyPositions();
-    if(dragging || settling || _lifeOrbiting || energy > 0.04){
+    if(_lifeFloatOn || dragging || settling || _lifeOrbiting || energy > 0.04){
       _lifeRAF = requestAnimationFrame(step);
     } else {
       _lifeRAF = null;
@@ -1061,12 +1152,13 @@ function _lifeApplyPositions(){
     var ax = (n.ox==null?n.hx:n.ox), ay = (n.oy==null?n.hy:n.oy);
     g.setAttribute("transform","translate("+(n.x-ax).toFixed(2)+" "+(n.y-ay).toFixed(2)+")");
   });
-  // gray spoke edges follow their (cached) endpoints
+  // gray spoke edges follow their (cached) endpoints — always centre-to-centre
   for(var i=0;i<_lifeEdgeEls.length;i++){
     var e=_lifeEdgeEls[i];
     if(e.a){ e.el.setAttribute("x1",e.a.x.toFixed(2)); e.el.setAttribute("y1",e.a.y.toFixed(2)); }
     if(e.b){ e.el.setAttribute("x2",e.b.x.toFixed(2)); e.el.setAttribute("y2",e.b.y.toFixed(2)); }
   }
+  _lifeMoveAvatars();   // persistent avatar layer tracks its nodes
   // bond line tracks the two avatars
   if(_lifeOrbiting){
     var a0=_lifeNodeById("_av0"), a1=_lifeNodeById("_av1");
@@ -1156,6 +1248,9 @@ async function _lifeOpenEvent(eid){
   h += '</div>';
   h += '<div class="life-d-l" style="text-align:center;margin-top:-4px">'+tr("life_count_lbl")+'</div>';
   if(!past){
+    var pinOn = !!ev.pinned;
+    h += '<button class="btn btn-s" id="life-pin-btn" style="margin-top:14px;background:'+(pinOn?col:'transparent')+';color:'+(pinOn?'#fff':'var(--tx)')+';border:1px solid '+(pinOn?col:'var(--bd)')+'" onclick="_lifeTogglePin('+eid+')">📌 '+(pinOn?tr("life_pinned"):tr("life_pin"))+'</button>';
+    h += '<div class="life-d-l" style="text-align:center;margin-top:6px">'+tr("life_pin_hint")+'</div>';
     h += '<div style="display:flex;gap:8px;margin-top:14px">';
     h += '<button class="btn btn-s" style="flex:1;background:transparent;color:var(--tx);border:1px solid var(--bd)" onclick="_lifeEditEvent('+eid+')">✏️ '+tr("btn_edit")+'</button>';
     h += '<button class="btn btn-s" style="flex:1;background:transparent;color:var(--ac);border:1px solid color-mix(in srgb,var(--ac) 40%,transparent)" onclick="_lifeDeleteEvent('+eid+')">🗑 '+tr("btn_delete")+'</button>';
@@ -1163,6 +1258,18 @@ async function _lifeOpenEvent(eid){
   }
   h += '</div>';
   oMC(tr("life_event"), h, {ic:"life"});
+}
+async function _lifeTogglePin(eid){
+  var ev = _lifeAreaHabits.find(function(x){return x.id===eid}); if(!ev) return;
+  var want = !ev.pinned;
+  hp("light");
+  var r = await A("POST","/api/life/events/"+eid+"/pin", {pinned:want});
+  if(!r || r.id==null){ toast(tr("ts_error")); return }
+  ev.pinned = r.pinned;
+  var b=document.getElementById("life-pin-btn");
+  var area=(_lifeData.areas||[]).find(function(x){return x.id===_lifeAreaId}); var col=area?area.color:"var(--pr)";
+  if(b){ b.style.background=r.pinned?col:"transparent"; b.style.color=r.pinned?"#fff":"var(--tx)"; b.style.borderColor=r.pinned?col:"var(--bd)"; b.innerHTML='📌 '+(r.pinned?tr("life_pinned"):tr("life_pin")); }
+  _lifeBuildArea();   // refresh the pin badge on the node
 }
 async function _lifeEventDelta(eid, delta){
   var r = await A("POST","/api/life/events/"+eid+"/bump", {delta:delta});

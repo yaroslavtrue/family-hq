@@ -898,6 +898,8 @@ def migrate(db_path):
         # of existing habits into current-month events. habits/habit_logs kept
         # dormant (no destructive drop).
         lambda c: _migrate_life_events(c),
+        # v41: pin an event so it carries over to next month (survives the reset).
+        lambda c: safe_add_col(c, "life_events", "pinned", "INTEGER DEFAULT 0"),
     ]
 
     for i, mig in enumerate(migrations):

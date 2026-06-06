@@ -22,10 +22,10 @@ def test_create_event_and_node_fill(client_as):
     eid = r.json()["id"]
     assert r.json()["count"] == 1 and r.json()["area_id"] == "health"
 
-    # Node fills: 1 distinct event → brightness 0.2 (1/5).
+    # Node fills gently: 1 distinct event → brightness 0.15 (+15%/event).
     s = client.get("/api/life/summary").json()
     health = next(a for a in s["areas"] if a["id"] == "health")
-    assert health["event_count"] == 1 and health["brightness"] == 0.2
+    assert health["event_count"] == 1 and health["brightness"] == 0.15
 
     # Re-live it → counter grows; still ONE distinct event (node fill unchanged).
     assert client.post(f"/api/life/events/{eid}/bump", json={"delta": 1}).json()["count"] == 2
@@ -44,7 +44,7 @@ def test_create_event_and_node_fill(client_as):
     client.post("/api/life/events", json={"area_id": "health", "name": "Run"})
     s = client.get("/api/life/summary").json()
     health = next(a for a in s["areas"] if a["id"] == "health")
-    assert health["event_count"] == 2 and health["brightness"] == 0.4
+    assert health["event_count"] == 2 and health["brightness"] == 0.3
 
 
 def test_node_override_set_and_clear(client_as):
@@ -173,7 +173,7 @@ def test_journey_stats(client_as):
     assert j["stats"]["total_count"] == 4     # 3 + 1 taps
     assert j["stats"]["top_event"] == "Walk" and j["stats"]["top_count"] == 3
     health = next(a for a in j["areas"] if a["id"] == "health")
-    assert health["event_count"] == 2 and health["brightness"] == 0.4
+    assert health["event_count"] == 2 and health["brightness"] == 0.3
 
 
 def test_challenges_are_score_only(client_as):
@@ -184,6 +184,31 @@ def test_challenges_are_score_only(client_as):
         "title": "Old style", "kind": "count", "target": 3, "area_id": "health", "period_days": 7})
     assert r.status_code == 200, r.text
     assert r.json()["kind"] == "score"
+
+
+def test_pin_carry_over(client_as, db_conn):
+    """A pinned event rolls into the current month (count reset, still pinned);
+    the old row is demoted so it rolls exactly once."""
+    client = client_as(user_id=845, family_id=1)
+    eid = client.post("/api/life/events", json={"area_id": "health", "name": "Stretch"}).json()["id"]
+    client.post(f"/api/life/events/{eid}/bump", json={"delta": 1})  # count 2
+    p = client.post(f"/api/life/events/{eid}/pin", json={"pinned": True}).json()
+    assert p["pinned"] is True
+
+    # Simulate the month ending: shove this row into a past month.
+    db_conn.execute("UPDATE life_events SET ym='2000-01' WHERE id=?", (eid,))
+    db_conn.commit()
+
+    # Opening the current month rolls the pinned event forward (fresh count 1).
+    evs = client.get("/api/life/events?area_id=health").json()["events"]
+    assert len(evs) == 1 and evs[0]["name"] == "Stretch"
+    assert evs[0]["count"] == 1 and evs[0]["pinned"] is True
+    assert evs[0]["id"] != eid  # a fresh current-month copy
+
+    # Old row demoted → it won't roll again (no duplicate on re-open).
+    assert db_conn.execute("SELECT pinned FROM life_events WHERE id=?", (eid,)).fetchone()[0] == 0
+    again = client.get("/api/life/events?area_id=health").json()["events"]
+    assert len(again) == 1
 
 
 def test_month_isolation(client_as, db_conn):

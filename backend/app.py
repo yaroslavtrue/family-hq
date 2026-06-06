@@ -3827,10 +3827,44 @@ def _life_event_view(ev: dict) -> dict:
         "name": ev.get("name") or "",
         "emoji": ev.get("emoji") or "",
         "count": int(ev.get("count") or 1),
+        "pinned": bool(ev.get("pinned") or 0),
         "ym": ev.get("ym"),
         "created_at": ev.get("created_at"),
         "last_at": ev.get("last_at"),
     }
+
+
+def _life_roll_pinned(db, family_id: int, owner: str, ym: str):
+    """Carry pinned events forward into the current month. A pinned event from a
+    previous month is copied into `ym` (count reset to 1, still pinned) unless an
+    event with the same name already exists there; the old row is then demoted
+    (pinned=0) so it rolls exactly once — deleting the new copy won't resurrect it.
+    Only ever rolls INTO the live current month."""
+    if ym != _life_cur_ym():
+        return
+    try:
+        rows = db.execute(
+            "SELECT * FROM life_events WHERE family_id=? AND owner=? AND pinned=1 AND ym!=?",
+            (family_id, owner, ym)).fetchall()
+    except Exception:
+        return
+    if not rows:
+        return
+    now = datetime.now(ZoneInfo(TIMEZONE)).isoformat()
+    changed = False
+    for r in rows:
+        exists = db.execute(
+            "SELECT 1 FROM life_events WHERE family_id=? AND owner=? AND ym=? AND area_id=? AND name=?",
+            (family_id, owner, ym, r["area_id"], r["name"])).fetchone()
+        if not exists:
+            db.execute(
+                "INSERT INTO life_events (family_id, owner, area_id, name, emoji, ym, count, created_at, last_at, pinned) "
+                "VALUES (?,?,?,?,?,?,1,?,?,1)",
+                (family_id, owner, r["area_id"], r["name"], r["emoji"], ym, now, now))
+        db.execute("UPDATE life_events SET pinned=0 WHERE id=?", (r["id"],))
+        changed = True
+    if changed:
+        db.commit()
 
 
 @app.get("/api/life/summary")
@@ -3842,6 +3876,7 @@ def life_summary(owner: str | None = None, ym: str | None = None,
     f = user["family_id"]
     owner = _life_resolve_owner(owner, user, db)
     ym = ym or _life_cur_ym()
+    _life_roll_pinned(db, f, owner, ym)
     ulang = _life_user_lang(db, user["id"])  # display names follow the viewer's language
     areas = _life_effective_areas(db, f, owner, ulang)
     out = []
@@ -3849,7 +3884,7 @@ def life_summary(owner: str | None = None, ym: str | None = None,
         cnt = db.execute(
             "SELECT COUNT(*) c FROM life_events WHERE family_id=? AND owner=? AND area_id=? AND ym=?",
             (f, owner, a["id"], ym)).fetchone()["c"]
-        brightness = round(min(1.0, cnt / 5.0), 2)  # node "fills up" toward ~5 distinct events
+        brightness = round(min(1.0, 0.15 * cnt), 2)  # +15% per distinct event (gentle fill)
         out.append({
             "id": a["id"],
             "name": a["name"], "emoji": a["emoji"], "color": a["color"],
@@ -3880,6 +3915,7 @@ def life_events_list(owner: str | None = None, area_id: str | None = None, ym: s
     f = user["family_id"]
     owner = _life_resolve_owner(owner, user, db)
     ym = ym or _life_cur_ym()
+    _life_roll_pinned(db, f, owner, ym)
     q = "SELECT * FROM life_events WHERE family_id=? AND owner=? AND ym=?"
     params = [f, owner, ym]
     if area_id:
@@ -3969,6 +4005,22 @@ def life_event_delete(eid: int, user=Depends(get_uf), db=Depends(get_db)):
     db.execute("DELETE FROM life_events WHERE id=?", (eid,))
     db.commit()
     return {"ok": True}
+
+
+class EventPin(BaseModel):
+    pinned: bool = True
+
+
+@app.post("/api/life/events/{eid}/pin")
+def life_event_pin(eid: int, body: EventPin, user=Depends(get_uf), db=Depends(get_db)):
+    """Pin/unpin an event → pinned events carry over into next month."""
+    f = user["family_id"]
+    row = db.execute("SELECT * FROM life_events WHERE id=? AND family_id=?", (eid, f)).fetchone()
+    if not row:
+        raise HTTPException(404)
+    db.execute("UPDATE life_events SET pinned=? WHERE id=?", (1 if body.pinned else 0, eid))
+    db.commit()
+    return _life_event_view(dict(db.execute("SELECT * FROM life_events WHERE id=?", (eid,)).fetchone()))
 
 
 class NodeOverride(BaseModel):
@@ -4159,6 +4211,7 @@ def life_journey(owner: str | None = None, ym: str | None = None, days: int = 30
     ym = ym or _life_cur_ym()
     ulang = _life_user_lang(db, user["id"])
 
+    _life_roll_pinned(db, f, owner, ym)
     events = [dict(e) for e in db.execute(
         "SELECT * FROM life_events WHERE family_id=? AND owner=? AND ym=?", (f, owner, ym)).fetchall()]
 
@@ -4166,7 +4219,7 @@ def life_journey(owner: str | None = None, ym: str | None = None, days: int = 30
     out_areas = []
     for a in areas:
         cnt = sum(1 for e in events if e["area_id"] == a["id"])
-        bright = round(min(1.0, cnt / 5.0), 2)
+        bright = round(min(1.0, 0.15 * cnt), 2)
         out_areas.append({"id": a["id"], "name": a["name"], "emoji": a["emoji"],
                           "color": a["color"], "brightness": bright,
                           "habit_count": cnt, "event_count": cnt})
@@ -4638,7 +4691,11 @@ async def life_challenge_suggest(body: ChallengeSuggestBody, user=Depends(get_uf
 
 
 # ─── Debug & Serve ───────────────────────────────────────────────────────
-APP_VERSION = "v8.62.3"
+APP_VERSION = "v8.63.0"
+# v8.63.0 — Life: pinned events (carry over to next month, schema v41 + roll-
+#           forward), gentler node fill (brightness +15%/event, size +5%/event,
+#           dimmer/desaturated baseline), persistent SVG avatars (no flicker),
+#           floaty springs + organic chaos/drift, edges always centre-to-centre.
 # v8.62.3 — Life perf pass #2: the big radial-gradient GLOW circles are now static
 #           (only the small solid core breathes) — re-rasterising scaling gradients
 #           per node every frame was the real FPS sink. Avatar images preloaded so
