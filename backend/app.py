@@ -4691,7 +4691,10 @@ async def life_challenge_suggest(body: ChallengeSuggestBody, user=Depends(get_uf
 
 
 # ─── Debug & Serve ───────────────────────────────────────────────────────
-APP_VERSION = "v8.63.1"
+APP_VERSION = "v8.63.2"
+# v8.63.2 — Life: avatars draggable again (persistent avatar groups now carry the
+#           .life-node hit target + track the finger 1:1, incl. the bond line).
+#           (Journey already pauses the sim — it's not a perf cost.)
 # v8.63.1 — Life perf #3: the continuous float sim was re-rastering every node's
 #           radial-gradient glow every frame. Throttle the ambient sim to ~30fps
 #           (drag stays 60fps via the pointer handler), GPU-composite node/avatar

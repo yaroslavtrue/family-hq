@@ -819,7 +819,9 @@ function _lifeRenderAvatars(avEl){
   if(sig !== _lifeAvSig){
     _lifeAvSig = sig; _lifeAvEls = {};
     var html = '';
-    desired.forEach(function(d){ html += '<g class="life-av" data-node="'+d.node+'">'+_lifeAvatarSvg(d.m, 0, 0, d.r)+'</g>'; });
+    // class life-node + data-id so the pointer handler grabs the avatar and drags
+    // its underlying physics node (avatars are draggable again).
+    desired.forEach(function(d){ html += '<g class="life-av life-node" data-node="'+d.node+'" data-id="'+d.node+'">'+_lifeAvatarSvg(d.m, 0, 0, d.r)+'</g>'; });
     avEl.innerHTML = html;
     desired.forEach(function(d){ _lifeAvEls[d.node] = avEl.querySelector('.life-av[data-node="'+d.node+'"]'); });
   }
@@ -1190,9 +1192,20 @@ function _lifeApplyPositions(){
 // Light update for a single dragged node + its edges — used on every pointermove
 // so the finger tracks 1:1 without re-touching the whole graph each event.
 function _lifeMoveDragged(nd){
-  var g = _lifeEls && _lifeEls[nd.id]; if(!g) return;
-  var ax=(nd.ox==null?nd.hx:nd.ox), ay=(nd.oy==null?nd.hy:nd.oy);
-  g.setAttribute("transform","translate("+(nd.x-ax).toFixed(2)+" "+(nd.y-ay).toFixed(2)+")");
+  var g = _lifeEls && _lifeEls[nd.id]; if(g){
+    var ax=(nd.ox==null?nd.hx:nd.ox), ay=(nd.oy==null?nd.hy:nd.oy);
+    g.setAttribute("transform","translate("+(nd.x-ax).toFixed(2)+" "+(nd.y-ay).toFixed(2)+")");
+  }
+  // If this node carries an avatar (persistent layer), move it 1:1 too.
+  if(_lifeAvEls && _lifeAvEls[nd.id]) _lifeAvEls[nd.id].setAttribute("transform","translate("+nd.x.toFixed(2)+" "+nd.y.toFixed(2)+")");
+  // bond line follows a dragged avatar live
+  if(_lifeOrbiting && (nd.id==="_av0"||nd.id==="_av1")){
+    var other = nd.id==="_av0" ? "_av1" : "_av0", o=_lifeIndexMap[other];
+    ["life-bondglow","life-bondcore"].forEach(function(id){
+      var ln=document.getElementById(id); if(!ln||!o) return;
+      ln.setAttribute(nd.id==="_av0"?"x1":"x2", nd.x.toFixed(2)); ln.setAttribute(nd.id==="_av0"?"y1":"y2", nd.y.toFixed(2));
+    });
+  }
   for(var i=0;i<_lifeEdgeEls.length;i++){
     var e=_lifeEdgeEls[i];
     if(e.a===nd){ e.el.setAttribute("x1",nd.x.toFixed(2)); e.el.setAttribute("y1",nd.y.toFixed(2)); }
