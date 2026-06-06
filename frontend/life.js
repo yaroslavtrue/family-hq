@@ -29,7 +29,6 @@ var _lifeRAF = null;
 var _lifeEls = null;       // {id: <g> element}
 var _lifeIndexMap = null;  // {id: node}
 var _lifeEdgeEls = [];     // [{el, a:node, b:node}]
-var _lifeBusy = false;     // true while dragging/settling → breathing paused
 var _lifeDrag = null;           // {id, moved}
 var _lifeLongTimer = null;
 var _lifeSettleUntil = 0;
@@ -88,9 +87,17 @@ function rLife(){
 }
 
 // Called by app.js after the shell is in the DOM (and on lazy-load completion).
+var _lifeAvatarsPreloaded = false;
 function lifeMount(){
   if(tab !== "life") return;
   if(!_lifeOwner) _lifeOwner = String((fS && fS.my_id) || (D.members[0] && D.members[0].user_id) || "");
+  // Warm the avatar image cache once so the SVG <image> elements (which get
+  // recreated whenever the graph redraws — edit toggle, month/owner switch) paint
+  // instantly from cache instead of flashing while they re-decode.
+  if(!_lifeAvatarsPreloaded){
+    _lifeAvatarsPreloaded = true;
+    (D.members||[]).forEach(function(m){ if(m && m.photo_url){ var im=new Image(); im.decoding="sync"; im.src=m.photo_url; } });
+  }
   if(!_lifeResizeBound){ _lifeResizeBound = function(){ _lifeRelayout() }; window.addEventListener("resize", _lifeResizeBound); }
   _lifeRenderTopBar();
   _lifeSizeStage();
@@ -769,10 +776,10 @@ function _lifeNodeSvg(n){
   if(n.type==="hub"){
     if(_lifeData && _lifeData.scope === "family"){
       var bond = Math.max(0, Math.min(1, _lifeData.bond || 0));
-      var gC = '<circle class="life-glow life-breathe" cx="'+n.x+'" cy="'+n.y+'" r="'+(glowR*(0.85+bond*0.5))+'" fill="url(#'+_lifeGradId(n.color)+')" opacity="'+(0.5+bond*0.5).toFixed(2)+'"/>';
+      var gC = '<circle class="life-glow life-breathe-slow" cx="'+n.x+'" cy="'+n.y+'" r="'+(glowR*(0.85+bond*0.5))+'" fill="url(#'+_lifeGradId(n.color)+')" opacity="'+(0.5+bond*0.5).toFixed(2)+'"/>';
       return '<g class="life-node" data-id="'+n.id+'">'+gC+'</g>';
     }
-    var glow = '<circle class="life-glow life-breathe" cx="'+n.x+'" cy="'+n.y+'" r="'+glowR+'" fill="url(#'+_lifeGradId(n.color)+')"/>';
+    var glow = '<circle class="life-glow" cx="'+n.x+'" cy="'+n.y+'" r="'+glowR+'" fill="url(#'+_lifeGradId(n.color)+')"/>';
     var av = _lifeAvatarSvg(_lifeMember(_lifeOwner), n.x, n.y, n.r);
     return '<g class="life-node" data-id="'+n.id+'">'+glow+av+'</g>';
   }
@@ -816,8 +823,11 @@ function _lifeNodeSvg(n){
                '<text class="life-badge" x="'+bx+'" y="'+(by+0.15)+'">'+(n.count||1)+'</text>';
   }
   var bd = 'style="animation-delay:-'+delay.toFixed(2)+'s"';
+  // The glow (big radial-gradient circle) is STATIC — re-rasterising a scaling
+  // gradient every frame for every node was the main FPS sink. Only the small
+  // solid core breathes, which keeps the "alive" pulse at a fraction of the cost.
   var content =
-    '<circle class="life-glow life-breathe" '+bd+' cx="'+n.x+'" cy="'+n.y+'" r="'+glowR+'" fill="url(#'+_lifeGradId(n.color)+')"/>'+
+    '<circle class="life-glow" cx="'+n.x+'" cy="'+n.y+'" r="'+glowR+'" fill="url(#'+_lifeGradId(n.color)+')"/>'+
     '<circle class="life-core life-breathe" '+bd+' cx="'+n.x+'" cy="'+n.y+'" r="'+n.r+'" fill="'+n.color+'" fill-opacity="'+fillOpacity.toFixed(2)+'" stroke="'+n.color+'" stroke-width="'+ringW+'"'+dash+'/>'+
     doneRing + label + cap;
   // Wiggle / grow live on an INNER group so they never fight the outer group's
@@ -991,10 +1001,6 @@ function _lifeStartSim(){
   var step = function(){
     var dragging = !!(_lifeDrag && _lifeDrag.moved);
     var settling = Date.now() < _lifeSettleUntil;
-    // Pause ambient breathing/idle-wiggle while actually interacting (drag/settle)
-    // — that's when their constant SVG repaint steals frames. Toggle only on change.
-    var busy = dragging || settling;
-    if(busy !== _lifeBusy){ _lifeBusy = busy; var stg=document.querySelector(".life-stage"); if(stg) stg.classList.toggle("life-busy", busy); }
     // Stiffer springs + a little less damping → the constellation follows a
     // dragged node briskly and settles fast, instead of crawling back.
     var kHome = 0.045, kEdge = 0.024, damp = 0.82, dt = 1;
@@ -1040,7 +1046,6 @@ function _lifeStartSim(){
       _lifeRAF = requestAnimationFrame(step);
     } else {
       _lifeRAF = null;
-      if(_lifeBusy){ _lifeBusy=false; var s2=document.querySelector(".life-stage"); if(s2) s2.classList.remove("life-busy"); } // resume breathing
     }
   };
   _lifeRAF = requestAnimationFrame(step);

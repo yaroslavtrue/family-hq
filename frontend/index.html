@@ -517,11 +517,9 @@ body.life-mode .ct{padding:0;background:#0a0b10}
    "background" for the long-press edit-mode gesture; cores stay tappable. */
 .life-glow{pointer-events:none}
 .life-breathe{animation:lifeBreathe 4.6s ease-in-out infinite}
-@keyframes lifeBreathe{0%,100%{transform:scale(1)}50%{transform:scale(1.04)}}
-/* While the spring sim runs (drag/settle/orbit) pause the ambient breathing &
-   idle-wiggle animations — ~2 animated radial-gradient circles per node forcing
-   constant SVG repaint is the main frame-rate cost during interaction. */
-.life-busy .life-breathe,.life-busy .life-idle{animation:none}
+@keyframes lifeBreathe{0%,100%{transform:scale(1)}50%{transform:scale(1.06)}}
+/* Single focal element (family heart) — a slow gentle pulse, cheap (one node). */
+.life-breathe-slow{animation:lifeBreathe 6s ease-in-out infinite}
 .life-core,.life-glow{transform-box:fill-box;transform-origin:center}
 .life-emoji{font-size:4.6px;text-anchor:middle;dominant-baseline:central}
 .life-add-plus{font-size:6px;font-weight:700;fill:#EDEAE0;text-anchor:middle;dominant-baseline:central;opacity:.7}
@@ -1375,18 +1373,18 @@ body.no-scroll .mx{touch-action:pan-y}
 <!-- Load JS -->
 <!-- Load order: data (lang.js) → engines (theme.js, auth.js, weather.js) → main (app.js). -->
 <!-- All share globals; extracted modules use `var`/`function` declarations so they're true window-scope. -->
-<script src="/static/lang.js?v=250"></script>
-<script src="/static/theme.js?v=250"></script>
-<script src="/static/auth.js?v=250"></script>
-<script src="/static/weather.js?v=250"></script>
-<script src="/static/words.js?v=250"></script>
-<script src="/static/plants.js?v=250"></script>
-<script src="/static/trainings.js?v=250"></script>
-<script src="/static/money.js?v=250"></script>
-<script src="/static/tasks.js?v=250"></script>
-<script src="/static/cooking.js?v=250"></script>
-<script src="/static/news.js?v=250"></script>
-<script src="/static/settings.js?v=250"></script>
-<script src="/static/app.js?v=250"></script>
+<script src="/static/lang.js?v=251"></script>
+<script src="/static/theme.js?v=251"></script>
+<script src="/static/auth.js?v=251"></script>
+<script src="/static/weather.js?v=251"></script>
+<script src="/static/words.js?v=251"></script>
+<script src="/static/plants.js?v=251"></script>
+<script src="/static/trainings.js?v=251"></script>
+<script src="/static/money.js?v=251"></script>
+<script src="/static/tasks.js?v=251"></script>
+<script src="/static/cooking.js?v=251"></script>
+<script src="/static/news.js?v=251"></script>
+<script src="/static/settings.js?v=251"></script>
+<script src="/static/app.js?v=251"></script>
 </body>
 </html>

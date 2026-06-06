@@ -4638,7 +4638,12 @@ async def life_challenge_suggest(body: ChallengeSuggestBody, user=Depends(get_uf
 
 
 # ─── Debug & Serve ───────────────────────────────────────────────────────
-APP_VERSION = "v8.62.2"
+APP_VERSION = "v8.62.3"
+# v8.62.3 — Life perf pass #2: the big radial-gradient GLOW circles are now static
+#           (only the small solid core breathes) — re-rasterising scaling gradients
+#           per node every frame was the real FPS sink. Avatar images preloaded so
+#           SVG <image> recreation (edit/month/owner) paints from cache, no flash.
+#           Breathing restored during drag (no more pause).
 # v8.62.2 — Life perf pass: persistent top-bar avatar chips (no re-decode/flash on
 #           month/mode switch), pause ambient breathing during drag (the main
 #           repaint cost), cache DOM node/edge refs for the sim loop (no per-frame
