@@ -4691,7 +4691,13 @@ async def life_challenge_suggest(body: ChallengeSuggestBody, user=Depends(get_uf
 
 
 # ─── Debug & Serve ───────────────────────────────────────────────────────
-APP_VERSION = "v8.63.0"
+APP_VERSION = "v8.63.1"
+# v8.63.1 — Life perf #3: the continuous float sim was re-rastering every node's
+#           radial-gradient glow every frame. Throttle the ambient sim to ~30fps
+#           (drag stays 60fps via the pointer handler), GPU-composite node/avatar
+#           groups (will-change:transform) so a move re-composites the cached glow
+#           instead of repainting it, and precompute the desaturated core colour in
+#           JS (no per-paint color-mix()).
 # v8.63.0 — Life: pinned events (carry over to next month, schema v41 + roll-
 #           forward), gentler node fill (brightness +15%/event, size +5%/event,
 #           dimmer/desaturated baseline), persistent SVG avatars (no flicker),

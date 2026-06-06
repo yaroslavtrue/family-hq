@@ -37,6 +37,7 @@ var _lifeAvSig = null, _lifeAvEls = null;
 // continuous slow drift (nodes gently float, edges following from centre to centre).
 var _lifeJitter = {};
 var _lifeFloatOn = false;
+var _lifeStepT = 0;        // last sim-step timestamp (for the ~30fps float throttle)
 var _lifeDrag = null;           // {id, moved}
 var _lifeLongTimer = null;
 var _lifeSettleUntil = 0;
@@ -834,6 +835,15 @@ function _lifeMoveAvatars(){
 }
 
 function _lifeGradId(c){ return "grad_"+c.replace(/[^a-z0-9]/gi,""); }
+// Mix a hex colour toward grey (sat 0..1 = how much of the real colour to keep).
+// Computed in JS so the moving cores don't re-resolve a CSS color-mix() each repaint.
+function _lifeDesat(hex, sat){
+  var c = String(hex||"").replace("#",""); if(c.length===3) c=c[0]+c[0]+c[1]+c[1]+c[2]+c[2];
+  if(c.length<6) return hex;
+  var r=parseInt(c.substr(0,2),16), g=parseInt(c.substr(2,2),16), b=parseInt(c.substr(4,2),16);
+  var G=112; sat=Math.max(0,Math.min(1,sat));
+  return 'rgb('+Math.round(r*sat+G*(1-sat))+','+Math.round(g*sat+G*(1-sat))+','+Math.round(b*sat+G*(1-sat))+')';
+}
 function _lifeNodeById(id){ if(_lifeIndexMap && _lifeIndexMap[id]) return _lifeIndexMap[id]; for(var i=0;i<_lifeNodes.length;i++) if(_lifeNodes[i].id===id) return _lifeNodes[i]; return null; }
 
 function _lifeNodeSvg(n){
@@ -862,7 +872,7 @@ function _lifeNodeSvg(n){
   var fillOpacity = isSeed ? 0.04 : (0.05 + br*0.32);
   var glowOpacity = isSeed ? 0.5 : (0.18 + br*0.55);
   // Desaturate the core toward grey at low brightness (saturation grows with use).
-  var coreCol = isSeed ? n.color : ('color-mix(in srgb,'+n.color+' '+Math.round(32+br*56)+'%, #6f6f72)');
+  var coreCol = isSeed ? n.color : _lifeDesat(n.color, 0.32 + br*0.56);
   var ringW = isSeed ? 0.6 : 0.7;
   // breathing delay varies per node for an organic feel
   var delay = ((n.x*7+n.y*3)%40)/10;
@@ -1082,11 +1092,17 @@ function _lifeStartSim(){
   var step = function(){
     var dragging = !!(_lifeDrag && _lifeDrag.moved);
     var settling = Date.now() < _lifeSettleUntil;
+    // Throttle the ambient float to ~30fps. The continuous sim translates every
+    // node (each with a radial-gradient glow → a repaint), so halving the cadence
+    // halves that cost; the slow drift looks identical at 30fps. The dragged node
+    // still tracks the finger at full rate via _lifeMoveDragged on pointermove.
+    var t = Date.now();
+    if((t - _lifeStepT) < 31){ _lifeRAF = requestAnimationFrame(step); return; }
+    _lifeStepT = t;
     // Soft springs + high damping → nodes drift toward home and glide elastically
     // when you pull one, like they're floating in water (no rigid snap).
-    var kHome = 0.020, kEdge = 0.012, damp = 0.90, dt = 1;
+    var kHome = 0.026, kEdge = 0.015, damp = 0.88, dt = 1;
     var energy = 0;
-    var t = Date.now();
     // Family orbit: advance the angle and move the two avatars' home anchors
     // around the hub's CURRENT position, so the spring sim makes them chase the
     // orbit (and the dragged hub) with a little elastic lag.

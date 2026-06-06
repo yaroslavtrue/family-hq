@@ -513,6 +513,10 @@ body.life-mode .ct{padding:0;background:#0a0b10}
 /* SVG node bits (units = viewBox 0..100) */
 .life-edge{stroke:#9b96a8;pointer-events:none}
 .life-node{cursor:pointer}
+/* The float sim translates these groups every frame — promote each to its own GPU
+   layer so a move re-composites the cached glow instead of re-rasterising the
+   radial gradient (the main cost of the continuous motion). */
+.life-node,.life-av{will-change:transform}
 /* Glow halos don't catch taps → the soft empty space between cores is reliable
    "background" for the long-press edit-mode gesture; cores stay tappable. */
 .life-glow{pointer-events:none}
@@ -1373,18 +1377,18 @@ body.no-scroll .mx{touch-action:pan-y}
 <!-- Load JS -->
 <!-- Load order: data (lang.js) → engines (theme.js, auth.js, weather.js) → main (app.js). -->
 <!-- All share globals; extracted modules use `var`/`function` declarations so they're true window-scope. -->
-<script src="/static/lang.js?v=252"></script>
-<script src="/static/theme.js?v=252"></script>
-<script src="/static/auth.js?v=252"></script>
-<script src="/static/weather.js?v=252"></script>
-<script src="/static/words.js?v=252"></script>
-<script src="/static/plants.js?v=252"></script>
-<script src="/static/trainings.js?v=252"></script>
-<script src="/static/money.js?v=252"></script>
-<script src="/static/tasks.js?v=252"></script>
-<script src="/static/cooking.js?v=252"></script>
-<script src="/static/news.js?v=252"></script>
-<script src="/static/settings.js?v=252"></script>
-<script src="/static/app.js?v=252"></script>
+<script src="/static/lang.js?v=253"></script>
+<script src="/static/theme.js?v=253"></script>
+<script src="/static/auth.js?v=253"></script>
+<script src="/static/weather.js?v=253"></script>
+<script src="/static/words.js?v=253"></script>
+<script src="/static/plants.js?v=253"></script>
+<script src="/static/trainings.js?v=253"></script>
+<script src="/static/money.js?v=253"></script>
+<script src="/static/tasks.js?v=253"></script>
+<script src="/static/cooking.js?v=253"></script>
+<script src="/static/news.js?v=253"></script>
+<script src="/static/settings.js?v=253"></script>
+<script src="/static/app.js?v=253"></script>
 </body>
 </html>
