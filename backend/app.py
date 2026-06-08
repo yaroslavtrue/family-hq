@@ -4691,7 +4691,11 @@ async def life_challenge_suggest(body: ChallengeSuggestBody, user=Depends(get_uf
 
 
 # ─── Debug & Serve ───────────────────────────────────────────────────────
-APP_VERSION = "v8.63.4"
+APP_VERSION = "v8.64.0"
+# v8.64.0 — Demo mode (?demo=1): a login-free, fully-populated preview of the
+#           whole UI for design review / sharing. demo.js stubs the API helper A()
+#           with canned client-side fixtures — no auth sent, backend never touched,
+#           zero real-data exposure. Inert without the flag.
 # v8.63.4 — Life: nodes no longer jerk on entering the tab (the post-mount
 #           relayout rebuilt and snapped positions back to the ring; rebuilds now
 #           preserve current node positions and ease). Weather widget: auto-resume

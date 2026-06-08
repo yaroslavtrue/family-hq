@@ -98,6 +98,9 @@ var _assign=0,_pri="normal",_rems=[],_zRems=[],_bdRems=[],_subRems=[],zOpen={};
 
 // ─── API ────────────────────────────────────────────────────
 async function A(m,p,b){
+// Demo mode (?demo=1): serve canned fixtures entirely client-side — no network,
+// no auth, real backend untouched. See demo.js.
+if(typeof DEMO!=="undefined" && DEMO) return _demoApi(m,p,b);
 var h={"Content-Type":"application/json"};
 if(iD)h["X-Telegram-Init-Data"]=iD;
 var sess=_getSess();
@@ -694,7 +697,7 @@ function toggleMenu(){menuOpen=!menuOpen;document.getElementById("menu-overlay")
 // "Browser mode" = no Telegram initData. We use iD (not tg) because the Telegram script
 // creates window.Telegram.WebApp even outside Telegram — only initData is reliable.
 async function init(){
-if(!iD && !_getSess()){rLogin();return}
+if(!iD && !_getSess() && !(typeof DEMO!=="undefined" && DEMO)){rLogin();return}
 try{var r=await A("GET","/api/family/status");if(!r){if(!iD)rLogin();return}fS=r;
 // Restore user's preferred language so the first render is already localized.
 if(r.lang){_lang=r.lang;_rebuildLocaleArrays()}
