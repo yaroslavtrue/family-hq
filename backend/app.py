@@ -4691,7 +4691,14 @@ async def life_challenge_suggest(body: ChallengeSuggestBody, user=Depends(get_uf
 
 
 # ─── Debug & Serve ───────────────────────────────────────────────────────
-APP_VERSION = "v8.65.0"
+APP_VERSION = "v8.65.1"
+# v8.65.1 — Life family scope: the PAIR is now the centre. The hub + every area home
+#           track the avatars' midpoint (eased), so dragging the couple carries the
+#           whole graph and the pair can never detach + fly off to a corner (the old
+#           bug: avatars orbited a fixed invisible hub and drifted away). Hub pinned
+#           to the centre, excluded from drag hit-test; each member still draggable
+#           individually (a yank separates one, bond stretches, then springs back).
+#           Sim stays alive until the centre locks onto the midpoint → clean rest.
 # v8.65.0 — Life graph engine: SVG → <canvas>. The whole graph paints in ONE pass
 #           per frame (no DOM nodes, no per-node compositing layers, no per-frame
 #           gradient re-rasters). Measured: full-frame render ~0.12ms (vs the SVG
