@@ -4691,7 +4691,14 @@ async def life_challenge_suggest(body: ChallengeSuggestBody, user=Depends(get_uf
 
 
 # ─── Debug & Serve ───────────────────────────────────────────────────────
-APP_VERSION = "v8.64.3"
+APP_VERSION = "v8.65.0"
+# v8.65.0 — Life graph engine: SVG → <canvas>. The whole graph paints in ONE pass
+#           per frame (no DOM nodes, no per-node compositing layers, no per-frame
+#           gradient re-rasters). Measured: full-frame render ~0.12ms (vs the SVG
+#           pipeline's ~34ms-with-paint at high node counts); scales to hundreds of
+#           nodes. Look is 1:1 (glow sprites, cores, emoji/captions/badges/pins,
+#           avatars via image-clip, family bond line, tap ripples). Hit-testing is
+#           coordinate point-in-circle; float/decay/cache/dense-skip unchanged.
 # v8.64.3 — Life: client-side cache (summary per owner+month, events per owner+
 #           area+month) → revisiting a sphere / a seen month is instant, no request.
 #           In-place bumps/pins stay in sync; add/delete invalidate. Scalability:

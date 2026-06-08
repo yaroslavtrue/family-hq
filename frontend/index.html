@@ -384,7 +384,7 @@ body.life-mode{overflow:hidden}
    labels are SVG <text>) enters edit mode instead of selecting the glyph. */
 .life-stage{position:relative;touch-action:none;overflow:hidden;background:radial-gradient(120% 80% at 50% 38%, #14151e 0%, #0c0d12 60%, #0a0b10 100%);user-select:none;-webkit-user-select:none;-webkit-touch-callout:none}
 .life-stage text{user-select:none;-webkit-user-select:none}
-#life-svg{width:100%;height:100%;display:block;overflow:visible}
+#life-cv{position:absolute;inset:0;width:100%;height:100%;display:block;touch-action:none}
 .life-hint{position:absolute;left:0;right:0;bottom:8px;text-align:center;font-size:12px;color:rgba(237,234,224,.42);padding:0 24px;line-height:1.4;pointer-events:none;z-index:3}
 .life-journey-btn{width:34px;height:34px;border-radius:50%;background:var(--cd);border:1.5px solid var(--bd);font-size:16px;cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0}
 .life-journey-btn:active{transform:scale(.92)}
@@ -1381,19 +1381,19 @@ body.no-scroll .mx{touch-action:pan-y}
 <!-- Load JS -->
 <!-- Load order: data (lang.js) → engines (theme.js, auth.js, weather.js) → main (app.js). -->
 <!-- All share globals; extracted modules use `var`/`function` declarations so they're true window-scope. -->
-<script src="/static/demo.js?v=261"></script>
-<script src="/static/lang.js?v=261"></script>
-<script src="/static/theme.js?v=261"></script>
-<script src="/static/auth.js?v=261"></script>
-<script src="/static/weather.js?v=261"></script>
-<script src="/static/words.js?v=261"></script>
-<script src="/static/plants.js?v=261"></script>
-<script src="/static/trainings.js?v=261"></script>
-<script src="/static/money.js?v=261"></script>
-<script src="/static/tasks.js?v=261"></script>
-<script src="/static/cooking.js?v=261"></script>
-<script src="/static/news.js?v=261"></script>
-<script src="/static/settings.js?v=261"></script>
-<script src="/static/app.js?v=261"></script>
+<script src="/static/demo.js?v=262"></script>
+<script src="/static/lang.js?v=262"></script>
+<script src="/static/theme.js?v=262"></script>
+<script src="/static/auth.js?v=262"></script>
+<script src="/static/weather.js?v=262"></script>
+<script src="/static/words.js?v=262"></script>
+<script src="/static/plants.js?v=262"></script>
+<script src="/static/trainings.js?v=262"></script>
+<script src="/static/money.js?v=262"></script>
+<script src="/static/tasks.js?v=262"></script>
+<script src="/static/cooking.js?v=262"></script>
+<script src="/static/news.js?v=262"></script>
+<script src="/static/settings.js?v=262"></script>
+<script src="/static/app.js?v=262"></script>
 </body>
 </html>
