@@ -4691,7 +4691,14 @@ async def life_challenge_suggest(body: ChallengeSuggestBody, user=Depends(get_uf
 
 
 # ─── Debug & Serve ───────────────────────────────────────────────────────
-APP_VERSION = "v8.65.1"
+APP_VERSION = "v8.65.2"
+# v8.65.2 — Life family scope: the pair now RETURNS to the centre (same elastic logic
+#           as personal), instead of staying where dropped and magnetising the area
+#           nodes to it (the v8.65.1 "movable centre" overshot the ask). Hub is fixed
+#           at centre; avatars orbit it and spring back to their homes; areas keep
+#           their fixed ring. A return-to-home guard keeps the sim alive until a
+#           displaced pair has fully glided back, so it can't freeze off-centre when
+#           the float decays mid-return.
 # v8.65.1 — Life family scope: the PAIR is now the centre. The hub + every area home
 #           track the avatars' midpoint (eased), so dragging the couple carries the
 #           whole graph and the pair can never detach + fly off to a corner (the old

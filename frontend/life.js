@@ -671,19 +671,15 @@ function _lifeBuildConstellation(){
     emoji: "", bright: isFam ? (_lifeData.bond||0) : 0.5,
   });
   areas.forEach(function(a, i){
-    var nd = _lifeFloatify({
+    _lifeNodes.push(_lifeFloatify({
       id:a.id, type:"area", hx:pts[i].x, hy:pts[i].y, x:pts[i].x, y:pts[i].y, vx:0, vy:0,
       r:_lifeNodeR(a.brightness, (a.event_count!=null?a.event_count:a.habit_count)), color:a.color,
       label:a.name, emoji:a.emoji, bright:a.brightness, count:(a.event_count!=null?a.event_count:a.habit_count), is_custom:a.is_custom,
-    });
-    nd.cox = nd.hx - cx; nd.coy = nd.hy - cy;   // offset from centre → tracks the pair (family)
-    _lifeNodes.push(nd);
+    }));
   });
   if(addSphere){
     var sp = pts[n-1];
-    var nadd = _lifeFloatify({id:"_addarea", type:"addarea", hx:sp.x, hy:sp.y, x:sp.x, y:sp.y, vx:0, vy:0, r:5.6, color:"#A9A48F"});
-    nadd.cox = nadd.hx - cx; nadd.coy = nadd.hy - cy;
-    _lifeNodes.push(nadd);
+    _lifeNodes.push(_lifeFloatify({id:"_addarea", type:"addarea", hx:sp.x, hy:sp.y, x:sp.x, y:sp.y, vx:0, vy:0, r:5.6, color:"#A9A48F"}));
   }
   _lifeEdges = _lifeNodes.filter(function(nd){return nd.id!=="_hub" && nd.type!=="avatar"}).map(function(nd){return ["_hub", nd.id]});
   _lifeAvEdges = [];
@@ -708,7 +704,6 @@ function _lifeBuildConstellation(){
     // (the inter-avatar spring is what makes them feel connected).
     _lifeAvEdges = [["_hub","_av0"], ["_hub","_av1"], ["_av0","_av1"]];
     _lifeOrbiting = true;
-    _lifeCenter = null;   // re-init the centre from the (restored) pair midpoint
   }
   _lifeRestorePos(_prev);   // keep existing nodes where they were → no snap on rebuild
   _lifeDraw();
@@ -768,12 +763,10 @@ var _lifeOrbiting = false;
 var _lifeOrbitAngle = -Math.PI/2;
 var _lifeOrbitR = 7;
 var _lifeBond = 0;
-// Family: the constellation centre = the avatars' midpoint (eased). The hub + all
-// area homes track it, so the PAIR is literally the centre — drag the couple and
-// the whole graph follows; it can never visually detach. null → re-init from the
-// current midpoint on the next sim frame (set on every family rebuild).
-var _lifeCenter = null;
-var _lifeCenterOff = 0;   // |midpoint − centre| this frame; keeps the sim running until it converges
+// Largest avatar displacement from its orbit home this frame. Keeps the sim alive
+// until a dragged/displaced pair has fully glided back to the centre (so it can't
+// freeze off-centre when the ambient float decays mid-return).
+var _lifePairOff = 0;
 
 function _lifeSetHint(t){ var el=document.getElementById("life-hint"); if(el) el.textContent = t||""; }
 
@@ -1176,30 +1169,18 @@ function _lifeStartSim(){
     // when you pull one, like they're floating in water (no rigid snap).
     var kHome = 0.026, kEdge = 0.015, damp = 0.88, dt = 1;
     var energy = 0;
-    // Family orbit: advance the angle and move the two avatars' home anchors
-    // around the hub's CURRENT position, so the spring sim makes them chase the
-    // orbit (and the dragged hub) with a little elastic lag.
-    // Family: the PAIR is the centre. Ease the constellation centre toward the
-    // avatars' midpoint, then anchor the hub, the orbit homes AND every area home to
-    // it — so dragging the couple carries the whole graph and the hub can never
-    // detach from the pair. A quick yank on one avatar still separates it (the centre
-    // lags, the bond stretches), then it springs back. Runs whenever the sim runs
-    // (incl. drag/settle) so areas track a dragged pair; only the gentle rotation is
-    // gated by `floating`.
+    // Family: the two avatars orbit the FIXED centre hub and spring back to it just
+    // like any node returns to its home — same elastic feel as personal scope (drag
+    // one, it glides back; the graph never permanently relocates and the areas never
+    // get magnetised to a dragged avatar). The orbit homes are recomputed EVERY frame
+    // (even when asleep) so a displaced avatar always has a valid anchor around the
+    // centre to return to; only the gentle rotation is gated by `floating`.
     if(_lifeOrbiting){
       var hubN=_lifeIndexMap["_hub"], av0=_lifeIndexMap["_av0"], av1=_lifeIndexMap["_av1"];
       if(hubN && av0 && av1){
         if(floating) _lifeOrbitAngle += 0.005;   // ~21s per turn
-        var mx=(av0.x+av1.x)/2, my=(av0.y+av1.y)/2;
-        if(!_lifeCenter) _lifeCenter={x:mx, y:my};
-        _lifeCenter.x += (mx - _lifeCenter.x)*0.12;
-        _lifeCenter.y += (my - _lifeCenter.y)*0.12;
-        _lifeCenterOff = Math.hypot(mx-_lifeCenter.x, my-_lifeCenter.y);  // keeps the sim alive until centre locks on
-        var Cx=_lifeCenter.x, Cy=_lifeCenter.y;
-        hubN.x=hubN.bhx=Cx; hubN.y=hubN.bhy=Cy;                                      // hub pinned to centre
-        av0.bhx=Cx+_lifeOrbitR*Math.cos(_lifeOrbitAngle);        av0.bhy=Cy+_lifeOrbitR*Math.sin(_lifeOrbitAngle);
-        av1.bhx=Cx+_lifeOrbitR*Math.cos(_lifeOrbitAngle+Math.PI); av1.bhy=Cy+_lifeOrbitR*Math.sin(_lifeOrbitAngle+Math.PI);
-        for(var _ai=0;_ai<_lifeNodes.length;_ai++){ var _nn=_lifeNodes[_ai]; if(_nn.cox!=null){ _nn.bhx=Cx+_nn.cox; _nn.bhy=Cy+_nn.coy; } }
+        av0.bhx=hubN.x+_lifeOrbitR*Math.cos(_lifeOrbitAngle);        av0.bhy=hubN.y+_lifeOrbitR*Math.sin(_lifeOrbitAngle);
+        av1.bhx=hubN.x+_lifeOrbitR*Math.cos(_lifeOrbitAngle+Math.PI); av1.bhy=hubN.y+_lifeOrbitR*Math.sin(_lifeOrbitAngle+Math.PI);
       }
     }
     // Slow drift while awake; once the window passes, homes hold at their base so
@@ -1234,15 +1215,23 @@ function _lifeStartSim(){
     });
     _lifeNodes.forEach(function(n){
       if(_lifeDrag && _lifeDrag.id===n.id && dragging) return;
-      if(n.id==="_hub" && _lifeOrbiting){ n.vx=0; n.vy=0; return; }  // hub is pinned to the pair's centre
+      if(n.id==="_hub" && _lifeOrbiting){ n.vx=0; n.vy=0; return; }  // hub stays put at the fixed centre
       n.vx=(n.vx+n.fx)*damp; n.vy=(n.vy+n.fy)*damp;
       n.x += n.vx*dt; n.y += n.vy*dt;
       energy += Math.abs(n.vx)+Math.abs(n.vy);
     });
     _lifeApplyPositions();
-    // Keep running while floating, interacting, or still settling. Once asleep AND
-    // the graph has come to rest, STOP — a static frame costs zero GPU paint.
-    if(floating || dragging || settling || energy > 0.04 || (_lifeOrbiting && _lifeCenterOff > 0.4)){
+    // How far the pair still is from its centre homes — used to keep the loop alive
+    // until a displaced couple has fully returned (the float can decay mid-return).
+    _lifePairOff = 0;
+    if(_lifeOrbiting && !dragging){
+      var _p0=_lifeIndexMap["_av0"], _p1=_lifeIndexMap["_av1"];
+      if(_p0) _lifePairOff = Math.max(_lifePairOff, Math.hypot(_p0.x-_p0.bhx, _p0.y-_p0.bhy));
+      if(_p1) _lifePairOff = Math.max(_lifePairOff, Math.hypot(_p1.x-_p1.bhx, _p1.y-_p1.bhy));
+    }
+    // Keep running while floating, interacting, settling, OR the pair is still gliding
+    // home. Once asleep AND everything has come to rest, STOP (a static frame is free).
+    if(floating || dragging || settling || energy > 0.04 || _lifePairOff > 0.8){
       _lifeRAF = requestAnimationFrame(step);
     } else {
       _lifeRAF = null;
