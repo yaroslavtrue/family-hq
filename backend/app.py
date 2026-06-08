@@ -4691,7 +4691,12 @@ async def life_challenge_suggest(body: ChallengeSuggestBody, user=Depends(get_uf
 
 
 # ─── Debug & Serve ───────────────────────────────────────────────────────
-APP_VERSION = "v8.64.1"
+APP_VERSION = "v8.64.2"
+# v8.64.2 — Life FPS: the float now DECAYS to rest. Measured (live, via demo mode):
+#           the JS sim is ~0.085ms/frame — negligible; the mobile drop is the
+#           perpetual GPU repaint of a never-resting float on a high-DPR phone.
+#           Now it floats ~4.5s after arrival/interaction, then settles to a static
+#           frame (zero paint at idle). Any touch re-wakes it.
 # v8.64.1 — Life: the .life-top bar (back/month) no longer tucks under the sticky
 #           header when you add events — the page scroller (documentElement) is
 #           locked in Life and every (re)build pins scrollTop to 0. Demo fixtures

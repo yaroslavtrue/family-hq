@@ -38,6 +38,14 @@ var _lifeAvSig = null, _lifeAvEls = null;
 var _lifeJitter = {};
 var _lifeFloatOn = false;
 var _lifeStepT = 0;        // last sim-step timestamp (for the ~30fps float throttle)
+// The float DECAYS to rest: it animates for a few seconds after you arrive or
+// interact, then the graph settles to a static frame (zero GPU paint at idle).
+// Measured root cause of the mobile FPS drop: the JS sim is trivial (~0.085ms/
+// frame), but a perpetual float = perpetual full-screen repaint, which a high-DPR
+// phone GPU can't always sustain. Stopping at rest removes that cost entirely.
+var _lifeFloatUntil = 0;
+var _LIFE_FLOAT_MS = 4500;
+function _lifeWakeFloat(){ _lifeFloatUntil = Date.now() + _LIFE_FLOAT_MS; if(_lifeFloatOn && !_lifeRAF) _lifeStartSim(); }
 var _lifeDrag = null;           // {id, moved}
 var _lifeLongTimer = null;
 var _lifeSettleUntil = 0;
@@ -695,7 +703,7 @@ function _lifeBuildConstellation(){
   _lifeDraw();
   _lifeSetHint(isFam ? tr("life_hint_family") : tr("life_hint_personal"));
   // Continuous gentle float (organic drift) — also keeps edges centre-to-centre.
-  _lifeFloatOn = true; _lifeStartSim();
+  _lifeFloatOn = true; _lifeWakeFloat();
 }
 
 // ─── Build: inside an area (L1) ───────────────────────────────
@@ -738,7 +746,7 @@ function _lifeBuildArea(){
   _lifeRestorePos(_prev);   // keep existing nodes where they were → no snap on rebuild
   _lifeDraw();
   _lifeSetHint(past ? tr("life_past_ro") : (events.length ? tr("life_hint_events") : tr("life_hint_events_empty")));
-  _lifeFloatOn = true; _lifeStartSim();   // gentle float + keeps edges synced
+  _lifeFloatOn = true; _lifeWakeFloat();   // gentle float + keeps edges synced
 }
 
 var _lifeEdges = [];      // drawn gray spokes (hub → satellites)
@@ -961,6 +969,7 @@ function _lifeNodeSvg(n){
 // ─── Pointer: bg long-press (edit mode) · node tap / drag / long-press ──
 function _lifeBindPointer(svg){
   svg.onpointerdown = function(ev){
+    _lifeWakeFloat();   // any touch re-wakes the float (and restarts the sim if it had rested)
     var g = ev.target.closest && ev.target.closest(".life-node");
     var p = _lifeToSvg(svg, ev.clientX, ev.clientY);
     if(!g){
@@ -1121,6 +1130,8 @@ function _lifeStartSim(){
     var t = Date.now();
     if((t - _lifeStepT) < 31){ _lifeRAF = requestAnimationFrame(step); return; }
     _lifeStepT = t;
+    // Floating is "awake" only for a short window after arrival/interaction.
+    var floating = _lifeFloatOn && (t < _lifeFloatUntil);
     // Soft springs + high damping → nodes drift toward home and glide elastically
     // when you pull one, like they're floating in water (no rigid snap).
     var kHome = 0.026, kEdge = 0.015, damp = 0.88, dt = 1;
@@ -1128,18 +1139,19 @@ function _lifeStartSim(){
     // Family orbit: advance the angle and move the two avatars' home anchors
     // around the hub's CURRENT position, so the spring sim makes them chase the
     // orbit (and the dragged hub) with a little elastic lag.
-    if(_lifeOrbiting){
+    if(_lifeOrbiting && floating){
       _lifeOrbitAngle += 0.005;  // ~21s per turn (spring lag makes it feel calmer)
       var hub = _lifeNodeById("_hub");
       var av0 = _lifeNodeById("_av0"), av1 = _lifeNodeById("_av1");
       if(hub && av0){ av0.bhx = hub.x + _lifeOrbitR*Math.cos(_lifeOrbitAngle);        av0.bhy = hub.y + _lifeOrbitR*Math.sin(_lifeOrbitAngle); }
       if(hub && av1){ av1.bhx = hub.x + _lifeOrbitR*Math.cos(_lifeOrbitAngle+Math.PI); av1.bhy = hub.y + _lifeOrbitR*Math.sin(_lifeOrbitAngle+Math.PI); }
     }
-    // Continuous slow drift: each node's home gently floats around its base
-    // position (organic, never static). Edges follow because they read centres.
+    // Slow drift while awake; once the window passes, homes hold at their base so
+    // the nodes ease to a static rest (then the loop below stops painting).
     _lifeNodes.forEach(function(n){
       if(n.bhx==null){ n.bhx=n.hx; n.bhy=n.hy; }
       if(n.id==="_hub"){ n.hx=n.bhx; n.hy=n.bhy; return; }  // centre stays put
+      if(!floating){ n.hx=n.bhx; n.hy=n.bhy; return; }      // settle to base when asleep
       var ph = n.phase || 0, amp = (n.driftA!=null? n.driftA : 1.1);
       n.hx = n.bhx + Math.sin(t*0.00045 + ph)*amp;
       n.hy = n.bhy + Math.cos(t*0.00038 + ph*1.3)*amp;
@@ -1171,7 +1183,9 @@ function _lifeStartSim(){
       energy += Math.abs(n.vx)+Math.abs(n.vy);
     });
     _lifeApplyPositions();
-    if(_lifeFloatOn || dragging || settling || _lifeOrbiting || energy > 0.04){
+    // Keep running while floating, interacting, or still settling. Once asleep AND
+    // the graph has come to rest, STOP — a static frame costs zero GPU paint.
+    if(floating || dragging || settling || energy > 0.04){
       _lifeRAF = requestAnimationFrame(step);
     } else {
       _lifeRAF = null;
