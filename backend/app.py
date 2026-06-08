@@ -4691,7 +4691,12 @@ async def life_challenge_suggest(body: ChallengeSuggestBody, user=Depends(get_uf
 
 
 # ─── Debug & Serve ───────────────────────────────────────────────────────
-APP_VERSION = "v8.64.2"
+APP_VERSION = "v8.64.3"
+# v8.64.3 — Life: client-side cache (summary per owner+month, events per owner+
+#           area+month) → revisiting a sphere / a seen month is instant, no request.
+#           In-place bumps/pins stay in sync; add/delete invalidate. Scalability:
+#           dense spheres (>18 nodes) skip the ambient float (settle straight to a
+#           static frame) so a big graph never does perpetual paint.
 # v8.64.2 — Life FPS: the float now DECAYS to rest. Measured (live, via demo mode):
 #           the JS sim is ~0.085ms/frame — negligible; the mobile drop is the
 #           perpetual GPU repaint of a never-resting float on a high-DPR phone.

@@ -568,18 +568,41 @@ function _lifeBack(){
 }
 
 // ─── Data ─────────────────────────────────────────────────────
+// In-memory cache keyed by owner+month (summary) / owner+area+month (events).
+// Revisiting a sphere or switching back to a month you've seen renders instantly
+// with no request. Mutations keep it in sync (in-place) or invalidate it.
+var _lifeCache = { sum:{}, ev:{} };
+function _lifeSumKey(){ return _lifeOwner+"|"+_lifeYMv(); }
+function _lifeEvKey(area){ return _lifeOwner+"|"+area+"|"+_lifeYMv(); }
+function _lifeInvalidateSummary(){ _lifeCache.sum = {}; }   // event_count changed → bond/brightness stale
+
 async function _lifeLoadSummary(){
+  var key = _lifeSumKey();
+  if(_lifeCache.sum[key]){
+    _lifeData = _lifeCache.sum[key];
+    if(_lifeData.cur_ym) _lifeCurYMStr = _lifeData.cur_ym;
+    if(tab==="life" && _lifeView==="constellation") _lifeBuildConstellation();
+    return;
+  }
   var d = await A("GET","/api/life/summary?owner="+encodeURIComponent(_lifeOwner)+"&ym="+_lifeYMv());
   if(!d || !d.areas){ return }
+  _lifeCache.sum[key] = d;
   _lifeData = d;
   if(d.cur_ym) _lifeCurYMStr = d.cur_ym;
   if(tab==="life" && _lifeView==="constellation") _lifeBuildConstellation();
 }
 
 async function _lifeLoadArea(areaId){
+  var key = _lifeEvKey(areaId);
+  if(_lifeCache.ev[key]){
+    _lifeAreaHabits = _lifeCache.ev[key];   // same ref → in-place bumps/pins stay in sync
+    if(tab==="life" && _lifeView==="area") _lifeBuildArea();
+    return;
+  }
   var d = await A("GET","/api/life/events?owner="+encodeURIComponent(_lifeOwner)+"&area_id="+encodeURIComponent(areaId)+"&ym="+_lifeYMv());
   if(d && d.cur_ym) _lifeCurYMStr = d.cur_ym;
   _lifeAreaHabits = (d && d.events) || [];
+  _lifeCache.ev[key] = _lifeAreaHabits;
   if(tab==="life" && _lifeView==="area") _lifeBuildArea();
 }
 
@@ -703,7 +726,7 @@ function _lifeBuildConstellation(){
   _lifeDraw();
   _lifeSetHint(isFam ? tr("life_hint_family") : tr("life_hint_personal"));
   // Continuous gentle float (organic drift) — also keeps edges centre-to-centre.
-  _lifeFloatOn = true; _lifeWakeFloat();
+  _lifeFloatOn = (_lifeNodes.length <= 18); if(_lifeFloatOn) _lifeWakeFloat(); else _lifeStartSim();
 }
 
 // ─── Build: inside an area (L1) ───────────────────────────────
@@ -746,7 +769,7 @@ function _lifeBuildArea(){
   _lifeRestorePos(_prev);   // keep existing nodes where they were → no snap on rebuild
   _lifeDraw();
   _lifeSetHint(past ? tr("life_past_ro") : (events.length ? tr("life_hint_events") : tr("life_hint_events_empty")));
-  _lifeFloatOn = true; _lifeWakeFloat();   // gentle float + keeps edges synced
+  _lifeFloatOn = (_lifeNodes.length <= 18); if(_lifeFloatOn) _lifeWakeFloat(); else _lifeStartSim();   // gentle float + keeps edges synced
 }
 
 var _lifeEdges = [];      // drawn gray spokes (hub → satellites)
@@ -1279,6 +1302,7 @@ async function _lifeSaveEvent(){
   }
   if(!r || !r.id){ toast(tr("ts_save_failed")); return }
   hp("ok"); cMo(); _lifeEventDraft=null;
+  delete _lifeCache.ev[_lifeEvKey(_lifeAreaId)]; _lifeInvalidateSummary();  // refetch w/ server id
   await _lifeLoadArea(_lifeAreaId);
   _lifeLoadSummary(); // refresh node fill for when we go back
 }
@@ -1353,6 +1377,8 @@ async function _lifeDeleteEvent(eid){
   if(!r || !r.ok){ toast(tr("ts_error")); return }
   hp("warn"); cMo();
   _lifeAreaHabits = _lifeAreaHabits.filter(function(x){return x.id!==eid});
+  _lifeCache.ev[_lifeEvKey(_lifeAreaId)] = _lifeAreaHabits;  // re-point cache to the new array
+  _lifeInvalidateSummary();
   _lifeBuildArea(); _lifeLoadSummary();
 }
 
