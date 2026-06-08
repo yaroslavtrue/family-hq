@@ -102,14 +102,15 @@ function _demoBundle(){
       days:[ {date:_demoDate(0),label:"Clear",max:24,min:14}, {date:_demoDate(1),label:"Partly",max:23,min:13},
              {date:_demoDate(2),label:"Rain",max:19,min:12}, {date:_demoDate(3),label:"Clear",max:25,min:15} ] },
     tasks: [
-      { id:1, title:"Pay rent", done:false, due:_demoDate(1), assigned_to:425342813, priority:"high" },
-      { id:2, title:"Buy groceries", done:false, due:_demoDate(0), assigned_to:5063035495, priority:"normal" },
-      { id:3, title:"Call plumber", done:false, due:_demoDate(3), assigned_to:425342813, priority:"low" },
-      { id:4, title:"Water the plants", done:true, due:_demoDate(-1), assigned_to:425342813, priority:"normal" }
+      { id:1, text:"Pay rent", done:false, due_date:_demoDate(1), assigned_to:425342813, priority:"high" },
+      { id:2, text:"Buy groceries", done:false, due_date:_demoDate(0), assigned_to:425342813, priority:"normal" },
+      { id:3, text:"Call plumber", done:false, due_date:_demoDate(3), assigned_to:425342813, priority:"low" },
+      { id:5, text:"Book vacation", done:false, due_date:_demoDate(2), assigned_to:425342813, priority:"normal" },
+      { id:4, text:"Water the plants", done:true, due_date:_demoDate(-1), assigned_to:425342813, priority:"normal" }
     ],
     recurring: [], shopping:[{id:1,name:"Milk",bought:false,qty:"2"},{id:2,name:"Bread",bought:false,qty:"1"}],
-    folders: [], events:[{id:1,title:"Dentist",date:_demoDate(2),time:"10:00"},{id:2,title:"Movie night",date:_demoDate(0),time:"20:00"}],
-    birthdays:[{id:1,name:"Mom",date:_demoDate(5),emoji:"🎂"}], subs:[{id:1,name:"Netflix",amount:12,currency:"EUR",next:_demoDate(6)}],
+    folders: [], events:[{id:1,text:"Dentist",event_date:_demoDate(2)+" 10:00"},{id:2,text:"Movie night",event_date:_demoDate(0)+" 20:00"}],
+    birthdays:[{id:1,name:"Mom",days_until:5,emoji:"🎂"}], subs:[{id:1,name:"Netflix",amount:12,currency:"EUR",days_until:6,emoji:"🎬"}],
     zones:[], subtasks_task:{}, subtasks_event:{}, tx_items:{},
     categories:[{id:"food",name:"Food",emoji:"🍔"},{id:"transport",name:"Transport",emoji:"🚕"},{id:"fun",name:"Fun",emoji:"🎉"}],
     transactions:[

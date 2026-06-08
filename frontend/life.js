@@ -99,6 +99,10 @@ function rLife(){
 var _lifeAvatarsPreloaded = false;
 function lifeMount(){
   if(tab !== "life") return;
+  // Lock the page scroller (the documentElement, not just body) — Life is a fixed
+  // full-screen canvas; any page scroll slides the absolute .life-top under the
+  // sticky header. Overlays (Journey/Challenges) scroll internally, unaffected.
+  try{ document.documentElement.style.overflow="hidden"; window.scrollTo(0,0); }catch(e){}
   if(!_lifeOwner) _lifeOwner = String((fS && fS.my_id) || (D.members[0] && D.members[0].user_id) || "");
   // Warm the avatar image cache once so the SVG <image> elements (which get
   // recreated whenever the graph redraws — edit toggle, month/owner switch) paint
@@ -118,6 +122,7 @@ function lifeMount(){
 }
 
 function lifeUnmount(){
+  try{ document.documentElement.style.overflow=""; }catch(e){}   // restore page scroll
   _lifeEditMode = false; _lifeJourney = false; _lifeChall = false; _lifeFloatOn = false;
   if(_lifeRAF){ cancelAnimationFrame(_lifeRAF); _lifeRAF = null; }
   if(_lifeLongTimer){ clearTimeout(_lifeLongTimer); _lifeLongTimer = null; }
@@ -808,6 +813,10 @@ function _lifeDraw(){
 
   _lifeRenderAvatars(avEl);   // build (if sig changed) + position the avatar layer
   _lifeBindPointer(svg);
+  // Belt-and-suspenders: keep the page pinned to the top on every (re)build, so a
+  // stray focus/programmatic scroll (e.g. the add-event input) can't leave the
+  // .life-top bar tucked under the sticky header.
+  try{ document.documentElement.scrollTop=0; document.body.scrollTop=0; }catch(e){}
 }
 
 // Build the avatar layer only when its signature (view·scope·who·size) changes;

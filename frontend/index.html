@@ -330,6 +330,10 @@ body.words-mode .ct{padding-top:max(10px, calc(env(safe-area-inset-top, 0px) + 6
 /* Keeps the familiar global header. The graph lives in a dark "night sky"
    panel below a slim Me/partner/Family filter row. */
 body.life-mode .ct{padding:0;background:#0a0b10}
+/* Life is a fixed full-screen canvas — never let the PAGE scroll, or the absolute
+   .life-top (back/month bar, z:3) slides up under the sticky header (.hd, z:10).
+   The Journey/Challenges overlays scroll internally, so this doesn't affect them. */
+body.life-mode{overflow:hidden}
 .life-wrap{position:relative;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
 /* Filter row floats OVER the canvas (top-right) — no separate black strip.
    pointer-events pass through the empty bar to the canvas; only chips catch taps. */
@@ -1377,19 +1381,19 @@ body.no-scroll .mx{touch-action:pan-y}
 <!-- Load JS -->
 <!-- Load order: data (lang.js) → engines (theme.js, auth.js, weather.js) → main (app.js). -->
 <!-- All share globals; extracted modules use `var`/`function` declarations so they're true window-scope. -->
-<script src="/static/demo.js?v=257"></script>
-<script src="/static/lang.js?v=257"></script>
-<script src="/static/theme.js?v=257"></script>
-<script src="/static/auth.js?v=257"></script>
-<script src="/static/weather.js?v=257"></script>
-<script src="/static/words.js?v=257"></script>
-<script src="/static/plants.js?v=257"></script>
-<script src="/static/trainings.js?v=257"></script>
-<script src="/static/money.js?v=257"></script>
-<script src="/static/tasks.js?v=257"></script>
-<script src="/static/cooking.js?v=257"></script>
-<script src="/static/news.js?v=257"></script>
-<script src="/static/settings.js?v=257"></script>
-<script src="/static/app.js?v=257"></script>
+<script src="/static/demo.js?v=259"></script>
+<script src="/static/lang.js?v=259"></script>
+<script src="/static/theme.js?v=259"></script>
+<script src="/static/auth.js?v=259"></script>
+<script src="/static/weather.js?v=259"></script>
+<script src="/static/words.js?v=259"></script>
+<script src="/static/plants.js?v=259"></script>
+<script src="/static/trainings.js?v=259"></script>
+<script src="/static/money.js?v=259"></script>
+<script src="/static/tasks.js?v=259"></script>
+<script src="/static/cooking.js?v=259"></script>
+<script src="/static/news.js?v=259"></script>
+<script src="/static/settings.js?v=259"></script>
+<script src="/static/app.js?v=259"></script>
 </body>
 </html>

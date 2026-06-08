@@ -4691,7 +4691,12 @@ async def life_challenge_suggest(body: ChallengeSuggestBody, user=Depends(get_uf
 
 
 # ─── Debug & Serve ───────────────────────────────────────────────────────
-APP_VERSION = "v8.64.0"
+APP_VERSION = "v8.64.1"
+# v8.64.1 — Life: the .life-top bar (back/month) no longer tucks under the sticky
+#           header when you add events — the page scroller (documentElement) is
+#           locked in Life and every (re)build pins scrollTop to 0. Demo fixtures
+#           filled out (correct task/event/sub/birthday field names → Home Upcoming
+#           is populated; no empty spots).
 # v8.64.0 — Demo mode (?demo=1): a login-free, fully-populated preview of the
 #           whole UI for design review / sharing. demo.js stubs the API helper A()
 #           with canned client-side fixtures — no auth sent, backend never touched,
