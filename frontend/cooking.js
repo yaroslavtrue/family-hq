@@ -120,7 +120,7 @@ function _ckBodyHtml(){
   var cur = fS && fS.currency || "EUR";
   if(!filtered.length){
     if(!list.length){
-      return '<div class="emp" style="padding:50px 14px"><div class="emp-i" style="font-size:46px">🍜</div><div class="emp-t">'+tr("ck_no_dishes_t")+'</div><div style="font-size:13px;color:var(--ht);margin-top:6px">'+tr("ck_no_dishes_s")+'</div></div>';
+      return emCta("🍜",tr("ck_no_dishes_t"),tr("ck_no_dishes_s"),"_ckOpenAdd()",tr("btn_add"));
     }
     // Favorites filter on but nothing matches → guide the user back.
     if(_ckFavOnly && !(_ckSearch||"").trim()){

@@ -46,7 +46,7 @@ h+='<div class="st st-mn"><div class="st-ico tone-ok">'+icon("trendUp",16,2.2)+'
 h+='<div class="st st-mn"><div class="st-ico tone-ac">'+icon("trendDown",16,2.2)+'</div><div class="st-lb">'+tr("m_expense_label")+'</div><div class="st-vl neg">'+_tv(tExp)+'</div></div>';
 h+='<div class="st st-mn"><div class="st-ico tone-pr">'+icon("wallet",16,2.2)+'</div><div class="st-lb">'+tr("m_balance_label")+'</div><div class="st-vl '+(bal===null?"":(bal>=0?"pos":"neg"))+'">'+_bv(bal)+'</div></div>';
 h+='</div>';
-if(!txs.length)return h+em(icon("wallet",48,1.8),tr("es_no_txs_t"),tr("es_no_txs_s"));
+if(!txs.length)return h+emCta(icon("wallet",48,1.8),tr("es_no_txs_t"),tr("es_no_txs_s"),"oMo()",tr("btn_add"));
 // Member filter row
 h+='<div class="fb2"><button class="fi '+(!filt?"a":"")+'" onclick="filt=null;ren()">'+tr("g_filter_all")+'</button>';
 D.members.forEach(function(m){h+='<button class="fi '+(filt===m.user_id?"a":"")+'" style="padding:3px 6px;display:inline-flex;align-items:center" onclick="filt='+m.user_id+';ren()">'+mAv(m.user_id,22)+'</button>'});h+='</div>';

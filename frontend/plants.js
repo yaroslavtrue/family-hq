@@ -81,7 +81,7 @@ function rPlants(){
   h+='</div>';
   // ─── Main card ────────────────────────────────────
   if(!cur){
-    h+='<div class="emp" style="padding:50px 14px"><div class="emp-i" style="font-size:46px">🪴</div><div class="emp-t">'+tr("pl_no_plants_t")+'</div><div style="font-size:13px;color:var(--ht);margin-top:6px">'+tr("pl_no_plants_s")+'</div></div>';
+    h+='<div style="padding:8px 4px">'+emCta("🪴",tr("pl_no_plants_t"),tr("pl_no_plants_s"),"_plOpenAdd()",tr("pl_add"))+'</div>';
   }else{
     var _curCt=_plState.coverVer[cur.id]||(cur.last_watered?Date.parse(cur.last_watered)||"":"x");
     var imgUrl=cur.has_image?'/static/plants/'+cur.id+'.jpg?t='+_curCt:'';

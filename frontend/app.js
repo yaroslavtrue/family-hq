@@ -304,6 +304,11 @@ if(lbl.indexOf("🌤")>=0)return night?"night":"clear";
 return "cloud"}
 };
 function em(i,t,s){return '<div class="emp"><div class="emp-i">'+i+'</div><div class="emp-t">'+t+'</div><div>'+s+'</div></div>'}
+// Tappable empty-state placeholder: tap anywhere to run `onclick` (the create flow).
+// `btn` = CTA label (defaults to a localized "Add"). Used for fresh-account empty sections.
+function emCta(i,t,s,onclick,btn){return '<div class="emp emp-cta" role="button" tabindex="0" onclick="'+onclick+'">'+
+  '<div class="emp-i">'+i+'</div><div class="emp-t">'+t+'</div>'+(s?'<div>'+s+'</div>':'')+
+  '<div class="emp-add"><b>+</b> '+(btn||tr("btn_add"))+'</div></div>'}
 function td(){const d=new Date();return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0")}
 // Locale-aware date name arrays. Initially populated with English; rebuilt by
 // _rebuildLocaleArrays() whenever _lang changes (called on boot after family/status
@@ -914,7 +919,7 @@ if(searchQ)items=items.filter(function(x){return matchQ(x.item)});
 var folderTotal=0;items.forEach(function(x){if(x.price&&(shopFold==="stock"||!x.bought))folderTotal+=x.price});
 if(folderTotal>0)h+='<div class="cat-row" style="margin-bottom:14px"><div class="cat-row-h"><span class="nm">'+tr("sh_total")+'</span><span class="vl" style="color:var(--wn)">'+folderTotal.toFixed(0)+' din.</span></div></div>';
 if(shopFold==="stock"){
-  if(!items.length)return h+em(icon("cart",48,1.8),tr("es_no_stock_t"),tr("es_no_stock_s"));
+  if(!items.length)return h+emCta(icon("cart",48,1.8),tr("es_no_stock_t"),tr("es_no_stock_s"),"oMo()",tr("btn_add"));
   h+=_scH3("ck",tr("sh_in_stock"),items.length,'<button class="at" onclick="clSh()">'+tr("sh_clear")+'</button>',"var(--ok)");
   var fMap={};D.folders.forEach(function(f){fMap[f.id]=f});var grps={};items.forEach(function(s){var k=s.folder_id||0;if(!grps[k])grps[k]=[];grps[k].push(s)});var ks=D.folders.map(function(f){return f.id}).filter(function(id){return grps[id]});if(grps[0])ks.push(0);var multi=ks.length>1||(ks.length===1&&ks[0]!==0);
   ks.forEach(function(k){var g=grps[k];if(multi){var label=k&&fMap[k]?(fMap[k].emoji+" "+es(fMap[k].name)):"Other";h+='<div class="sc" style="font-size:12px;margin-top:12px"><span class="sc-l">'+label+'<span class="sc-cnt">'+g.length+'</span></span></div>'}
@@ -922,7 +927,7 @@ if(shopFold==="stock"){
   return h
 }
 var p=items.filter(function(x){return!x.bought}),b=items.filter(function(x){return x.bought});
-if(!items.length)return h+em(icon("cart",48,1.8),tr("es_no_shop_t"),tr("es_no_shop_s"));
+if(!items.length)return h+emCta(icon("cart",48,1.8),tr("es_no_shop_t"),tr("es_no_shop_s"),"oMo()",tr("btn_add"));
 if(p.length){h+=_scH3("cart","To Buy",p.length);
   p.forEach(function(s){var qtyHtml=s.quantity?'<span class="qty">'+es(s.quantity)+'</span>':"";var prHtml=s.price?'<span style="font-size:11px;color:var(--wn);font-weight:600">'+s.price+' din.</span>':"";h+='<div class="c"><div class="cb cb-o" onclick="tgSh('+s.id+',this)"></div><div class="bd"><div class="tt">'+es(s.item)+" "+qtyHtml+'</div><div class="mt">'+es(s.added_by||"")+" "+prHtml+'</div></div><button class="bi" onclick="edShop('+s.id+')">'+I.ed+'</button><button class="bi" onclick="dSh('+s.id+')">'+I.tr+'</button></div>'})}
 if(b.length){h+=_scH3("ck",tr("sh_bought"),b.length,'<button class="at" onclick="clSh()">'+tr("sh_clear")+'</button>',"var(--ok)");
@@ -976,7 +981,7 @@ async function svBd(id){var n=document.getElementById("bd-n").value.trim();var e
 // ═══════════════════════════════════════════════════════════
 // CLEANING (hamburger page)
 // ═══════════════════════════════════════════════════════════
-function rC(){if(!D.zones.length)return em(icon("broom",48,1.8),tr("es_no_zones_t"),tr("es_no_zones_s"))+'<button class="btn" onclick="shAZ()">+ '+tr("mt_add_zone")+'</button>';
+function rC(){if(!D.zones.length)return emCta(icon("broom",48,1.8),tr("es_no_zones_t"),tr("es_no_zones_s"),"shAZ()",tr("mt_add_zone"));
 var dirty=D.zones.filter(function(z){return z.dirty}),clean=D.zones.filter(function(z){return!z.dirty});
 if(searchQ){dirty=dirty.filter(function(z){return matchQ(z.name)});clean=clean.filter(function(z){return matchQ(z.name)})}
 var h="";

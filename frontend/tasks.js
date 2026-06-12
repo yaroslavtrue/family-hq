@@ -23,7 +23,7 @@ D.members.forEach(function(m){h+='<button class="fi '+(filt===m.user_id?"a":"")+
 var all=D.tasks;if(filt)all=all.filter(function(x){return x.assigned_to===filt});
 if(searchQ)all=all.filter(function(x){return matchQ(x.text)});
 var pend=all.filter(function(x){return!x.done}),done=all.filter(function(x){return x.done});
-if(!all.length)return h+em(icon("clipboard",48,1.8),tr("es_no_tasks_t"),tr("es_no_tasks_s"));
+if(!all.length)return h+emCta(icon("clipboard",48,1.8),tr("es_no_tasks_t"),tr("es_no_tasks_s"),"oMo()",tr("btn_add"));
 // Group pending tasks into sections
 var todayStr=td();var _7d=new Date();_7d.setDate(_7d.getDate()+7);var weekStr=_7d.getFullYear()+"-"+String(_7d.getMonth()+1).padStart(2,"0")+"-"+String(_7d.getDate()).padStart(2,"0");
 var overdue=[],high=[],week=[],rest=[];
@@ -136,7 +136,7 @@ function _evtCountdown(ev, todayStr){
 }
 
 function rEvts(){
-if(!D.events.length)return em(icon("clock",48,1.8),tr("es_no_events_t"),tr("es_no_events_s"))+rEvtAddBtn();
+if(!D.events.length)return emCta(icon("clock",48,1.8),tr("es_no_events_t"),tr("es_no_events_s"),"oMoEvt()",tr("mt_add_event"));
 var evts=D.events;if(searchQ)evts=evts.filter(function(e){return matchQ(e.text)});
 if(!evts.length)return rEvtAddBtn()+em(icon("clock",48,1.8),tr("es_no_match_t"),tr("es_no_match_s"));
 // Categorize: ongoing (today between start and end), upcoming (start > today), past (end < today)
