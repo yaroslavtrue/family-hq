@@ -958,7 +958,11 @@ function _lifeDrawNode(ctx, n){
   _lifeDrawGlow(ctx, n, glowR, glowOpacity);
   // core (translucent fill + ring; dashed for the dotted "seed" placeholders)
   ctx.beginPath(); ctx.arc(n.x, n.y, n.r, 0, _LIFE_TAU);
-  ctx.globalAlpha = fillOpacity; ctx.fillStyle = coreCol; ctx.fill(); ctx.globalAlpha = 1;
+  // Fill the core with the dark stage background so the icon sits "in" the background —
+  // only the coloured ring + glyph read as accents (the glow halo still shows brightness).
+  // Seeds keep a faint coloured tint to read as dashed placeholders.
+  if(isSeed){ ctx.globalAlpha = fillOpacity; ctx.fillStyle = coreCol; ctx.fill(); ctx.globalAlpha = 1; }
+  else { ctx.fillStyle = "#0b0c11"; ctx.fill(); }
   ctx.lineWidth = ringW; ctx.strokeStyle = coreCol;
   if(isSeed) ctx.setLineDash([2,2]);
   ctx.stroke();
