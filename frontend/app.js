@@ -97,12 +97,8 @@ var _assign=0,_pri="normal",_rems=[],_zRems=[],_bdRems=[],_subRems=[],zOpen={};
 // Trainings state moved to /static/trainings.js in v8.42.0.
 
 // ─── API ────────────────────────────────────────────────────
-// API base: "" (relative) in the Telegram web app; the product API origin inside the
-// Capacitor native shell (Moya app). Backend CORS (allow_origins=*) + header auth
-// (X-Session-Token, no cookies) make the cross-origin call safe. Static assets
-// (/static/*, sw.js) stay local-bundled in the app — only A()'s /api/* calls get prefixed.
-var API_BASE=(typeof window!=="undefined"&&window.Capacitor&&typeof window.Capacitor.isNativePlatform==="function"&&window.Capacitor.isNativePlatform())?"https://api.moyafamily.com":"";
-function _apiUrl(p){return (typeof p==="string"&&p.charAt(0)==="/")?API_BASE+p:p;}
+// API_BASE + _apiUrl are defined in auth.js (loaded first) so the early auth-config
+// fetch is covered too. A() prefixes /api calls with the product origin in the native shell.
 async function A(m,p,b){
 // Demo mode (?demo=1): serve canned fixtures entirely client-side — no network,
 // no auth, real backend untouched. See demo.js.

@@ -13,6 +13,13 @@
 // since they're auth-state plumbing — used by A() in app.js AND by the
 // login flow.
 
+// ─── API base (native shell) ───────────────────────────────────────
+// In the Capacitor native shell (Moya app) all /api calls go to the product backend
+// at an absolute origin; "" on the Telegram web app (relative). Defined here (auth.js
+// loads before app.js) so the early /api/auth/config + /bot-info fetches are covered.
+var API_BASE=(typeof window!=="undefined"&&window.Capacitor&&typeof window.Capacitor.isNativePlatform==="function"&&window.Capacitor.isNativePlatform())?"https://api.moyafamily.com":"";
+function _apiUrl(p){return (typeof p==="string"&&p.charAt(0)==="/")?API_BASE+p:p;}
+
 // ─── Session token (PWA / browser auth via Telegram Login Widget) ──
 // Persistent across reloads via localStorage.
 function _getSess() {
@@ -63,7 +70,7 @@ async function _fetchBotInfo(attempts) {
   attempts = attempts || 4;
   for (var i = 0; i < attempts; i++) {
     try {
-      var r = await fetch("/api/auth/bot-info", { cache: "no-store" });
+      var r = await fetch(_apiUrl("/api/auth/bot-info"), { cache: "no-store" });
       if (r.ok) {
         var info = await r.json();
         if (info && info.bot_username) return info.bot_username;
@@ -83,7 +90,7 @@ var _resetToken = null;
 
 async function _fetchAuthCfg() {
   if (_authCfg) return _authCfg;
-  try { var r = await fetch("/api/auth/config", { cache: "no-store" }); if (r.ok) _authCfg = await r.json(); } catch (e) {}
+  try { var r = await fetch(_apiUrl("/api/auth/config"), { cache: "no-store" }); if (r.ok) _authCfg = await r.json(); } catch (e) {}
   if (!_authCfg) _authCfg = { mode: "telegram", providers: ["telegram"] };
   return _authCfg;
 }
