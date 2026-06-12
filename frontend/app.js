@@ -97,6 +97,12 @@ var _assign=0,_pri="normal",_rems=[],_zRems=[],_bdRems=[],_subRems=[],zOpen={};
 // Trainings state moved to /static/trainings.js in v8.42.0.
 
 // ─── API ────────────────────────────────────────────────────
+// API base: "" (relative) in the Telegram web app; the product API origin inside the
+// Capacitor native shell (Moya app). Backend CORS (allow_origins=*) + header auth
+// (X-Session-Token, no cookies) make the cross-origin call safe. Static assets
+// (/static/*, sw.js) stay local-bundled in the app — only A()'s /api/* calls get prefixed.
+var API_BASE=(typeof window!=="undefined"&&window.Capacitor&&typeof window.Capacitor.isNativePlatform==="function"&&window.Capacitor.isNativePlatform())?"https://api.moyafamily.com":"";
+function _apiUrl(p){return (typeof p==="string"&&p.charAt(0)==="/")?API_BASE+p:p;}
 async function A(m,p,b){
 // Demo mode (?demo=1): serve canned fixtures entirely client-side — no network,
 // no auth, real backend untouched. See demo.js.
@@ -107,7 +113,7 @@ var sess=_getSess();
 if(sess)h["X-Session-Token"]=sess;
 const o={method:m,headers:h};
 if(b)o.body=JSON.stringify(b);
-try{const r=await fetch(p,o);
+try{const r=await fetch(_apiUrl(p),o);
 // On 401: only reload if we HAD a session (it expired). If no session/initData, we should
 // already be on the login screen — reloading would cause an infinite loop.
 if(r.status===401){var hadSess=!!sess;_setSess("");if(!iD&&hadSess){location.reload();return null}}
