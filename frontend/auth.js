@@ -96,6 +96,10 @@ async function _fetchAuthCfg() {
 }
 
 async function rLogin() {
+  // Hide the bottom tab bar + FAB on the login / registration screen — otherwise they
+  // navigate to empty, unreachable tabs with no way back. Restored on the post-login reload.
+  try { var _nv = document.getElementById("nv"); if (_nv) _nv.style.display = "none"; } catch (e) {}
+  try { var _fab = document.getElementById("fab"); if (_fab) _fab.style.display = "none"; } catch (e) {}
   var cfg = await _fetchAuthCfg();
   if (cfg.mode === "accounts") return _renderAccountsLogin();
   return _renderTelegramLogin();
