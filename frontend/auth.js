@@ -20,6 +20,13 @@ function _getSess() {
 }
 function _setSess(token) {
   try { token ? localStorage.setItem("fhq_session", token) : localStorage.removeItem("fhq_session") } catch (e) {}
+  // Mirror the session token into Capacitor Preferences so the native widget
+  // (Android Glance / iOS WidgetKit) can read it from outside the WebView. No-op
+  // in the Telegram web app (window.Capacitor undefined).
+  try {
+    var P = window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.Preferences;
+    if (P) { token ? P.set({ key: "fhq_session", value: token }) : P.remove({ key: "fhq_session" }); }
+  } catch (e) {}
 }
 
 // Aggressive logout: clear localStorage + ServiceWorker registrations + caches,
@@ -28,6 +35,7 @@ function _setSess(token) {
 async function _logoutPwa() {
   try { localStorage.clear() } catch (e) {}
   try { sessionStorage.clear() } catch (e) {}
+  try { var P = window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.Preferences; if (P) P.remove({ key: "fhq_session" }); } catch (e) {}
   try {
     if (navigator.serviceWorker && navigator.serviceWorker.getRegistrations) {
       var regs = await navigator.serviceWorker.getRegistrations();

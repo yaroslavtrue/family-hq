@@ -1589,6 +1589,9 @@ setTimeout(fixVP,500);setTimeout(fixVP,1500);
 // ─── PWA: register service worker (skip inside Telegram WebView — bot already handles updates) ──
 (function(){
   if(!('serviceWorker' in navigator))return;
+  // Skip the service worker inside the Capacitor native shell: assets are bundled
+  // locally and a WebView SW only risks stale-cache bugs (see mobile/README).
+  if(window.Capacitor&&typeof window.Capacitor.isNativePlatform==="function"&&window.Capacitor.isNativePlatform())return;
   // Only register on plain http(s) — Telegram WebView uses its own caching layer.
   // We still register; SW is no-op for /api/* and harmless inside Telegram.
   window.addEventListener('load',function(){
