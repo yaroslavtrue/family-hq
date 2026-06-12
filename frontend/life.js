@@ -843,6 +843,26 @@ function _lifeGlowSprite(color){
   o.fillStyle=g; o.fillRect(0,0,S,S);
   _lifeGlowSprites[color]=oc; return oc;
 }
+// Flat-tinted emoji glyph sprite. Colour emojis ignore fillStyle, so we bake the glyph
+// once then recolour it via source-atop. Cached per glyph+colour like the glow sprites,
+// so the Life node icons can be drawn in a dark, background-toned colour (not full-colour).
+var _lifeGlyphSprites = {};
+function _lifeGlyphSprite(glyph, color){
+  var key = glyph+"|"+color;
+  if(_lifeGlyphSprites[key]) return _lifeGlyphSprites[key];
+  var P=64, S=Math.round(P*1.25), oc=document.createElement("canvas"); oc.width=oc.height=S;
+  var o=oc.getContext("2d");
+  o.textAlign="center"; o.textBaseline="middle";
+  o.font=P+'px -apple-system,"Segoe UI",system-ui,sans-serif';
+  o.fillText(glyph, S/2, S/2);
+  o.globalCompositeOperation="source-atop";
+  o.fillStyle=color; o.fillRect(0,0,S,S);
+  _lifeGlyphSprites[key]=oc; return oc;
+}
+function _lifeGlyph(ctx, glyph, x, y, px, color){
+  var d=px*1.25;
+  ctx.drawImage(_lifeGlyphSprite(glyph,color), x-d/2, y-d/2, d, d);
+}
 function _lifeDrawGlow(ctx, n, glowR, alpha){
   ctx.globalAlpha = alpha;
   ctx.drawImage(_lifeGlowSprite(n.color), n.x-glowR, n.y-glowR, glowR*2, glowR*2);
@@ -970,7 +990,7 @@ function _lifeDrawNode(ctx, n){
   // centre glyph
   if(n.type==="add" || n.type==="addarea"){ _lifeText(ctx,"+", n.x, n.y, 6, "#EDEAE0", 0.7, "700"); }
   else if(n.type==="ideas"){ _lifeText(ctx,"✨", n.x, n.y, 5, "#fff", 1); }
-  else if(n.emoji){ _lifeText(ctx, n.emoji, n.x, n.y, 4.6, "#fff", 1); }
+  else if(n.emoji){ _lifeGlyph(ctx, n.emoji, n.x, n.y, 4.6, "#3c4049"); }
   // captions
   var capY = n.y + n.r + 4.2;
   if(n.type==="ideas"){ _lifeText(ctx, tr("life_ideas"), n.x, capY, 3.1, "#EDEAE0", 0.6, "700"); }
