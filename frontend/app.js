@@ -598,7 +598,7 @@ const NV_ALL=[
   {id:"subs",       icon_name:"card"},
   {id:"settings",   icon_name:"cog"},
 ];
-const NV_DEFAULT_ORDER=["home","tasks","words","money","profile"];
+const NV_DEFAULT_ORDER=["home","tasks","life","money","profile"];
 
 // `_navTabs` is set from /api/family/status (null = use NV_DEFAULT_ORDER).
 // Mutated by saveNavTabs() in settings.js after the picker modal commits.
