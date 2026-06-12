@@ -1,0 +1,20 @@
+{
+  "name": "familyhq-mobile",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Family HQ — native shell (Capacitor) + home-screen widgets (Android now, iOS later)",
+  "type": "module",
+  "scripts": {
+    "sync:web": "node scripts/sync-web.mjs",
+    "sync": "npm run sync:web && cap sync",
+    "android:open": "npm run sync && cap open android"
+  },
+  "dependencies": {
+    "@capacitor/android": "^6.1.2",
+    "@capacitor/core": "^6.1.2",
+    "@capacitor/preferences": "^6.0.2"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "^6.1.2"
+  }
+}

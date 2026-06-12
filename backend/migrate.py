@@ -272,6 +272,27 @@ def migrate(db_path):
             theme TEXT,
             joined_at TEXT DEFAULT (datetime('now'))
         );
+        -- Productization (AUTH_MODE=accounts): app-native identity (email/Google).
+        -- Empty + unused on the Telegram instance (it resolves users via the
+        -- telegram-id-keyed family_members). On the product instance this is the
+        -- account store; family_members.user_id references users.id (fresh DB →
+        -- normal autoincrement ids, no telegram-id collisions).
+        CREATE TABLE IF NOT EXISTS users (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            email TEXT,
+            email_norm TEXT,
+            password_hash TEXT,
+            email_verified INTEGER DEFAULT 0,
+            google_sub TEXT,
+            apple_sub TEXT,
+            name TEXT,
+            photo_url TEXT,
+            created_at TEXT DEFAULT (datetime('now')),
+            last_login TEXT
+        );
+        CREATE UNIQUE INDEX IF NOT EXISTS ux_users_email_norm ON users(email_norm) WHERE email_norm IS NOT NULL;
+        CREATE UNIQUE INDEX IF NOT EXISTS ux_users_google_sub ON users(google_sub) WHERE google_sub IS NOT NULL;
+        CREATE UNIQUE INDEX IF NOT EXISTS ux_users_apple_sub ON users(apple_sub) WHERE apple_sub IS NOT NULL;
         CREATE TABLE IF NOT EXISTS tasks (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             family_id INTEGER NOT NULL,

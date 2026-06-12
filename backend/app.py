@@ -1,7 +1,7 @@
 """
 🏠 Family HQ v5 — Backend API
 """
-import os, sqlite3, hashlib, hmac, json, logging, random, re, time, secrets, shutil
+import os, sqlite3, hashlib, hmac, json, logging, random, re, time, secrets, shutil, base64
 from datetime import datetime, timedelta, date
 from calendar import monthrange
 from urllib.parse import parse_qs
@@ -9,7 +9,7 @@ from contextlib import asynccontextmanager
 from zoneinfo import ZoneInfo
 from fastapi import FastAPI, HTTPException, Depends, Request, UploadFile, File, Form
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, RedirectResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
@@ -30,6 +30,24 @@ TRELLO_FAMILY_ID = int(os.environ.get("TRELLO_FAMILY_ID", "1"))
 # Belgrade coords (default); override via env if needed
 WEATHER_LAT = float(os.environ.get("WEATHER_LAT", "44.8"))
 WEATHER_LON = float(os.environ.get("WEATHER_LON", "20.46"))
+# ─── Productization: one codebase, two deployments ───────────────────────────
+# AUTH_MODE selects this instance's identity model. The existing Telegram instance
+# runs 'telegram' (current behaviour, unchanged); the product instance sets
+# 'accounts' (email/password + Google, own fresh DB). Anything gated on
+# AUTH_MODE=='accounts' is inert here by default.
+AUTH_MODE = os.environ.get("AUTH_MODE", "telegram").strip().lower()
+# Session-token HMAC key. Defaults to BOT_TOKEN so the existing Telegram instance
+# keeps all current sessions valid with zero change; the product instance sets a
+# dedicated long random SESSION_SECRET. (Telegram initData + bot/widget login keep
+# using BOT_TOKEN — that's Telegram's protocol key, separate from session signing.)
+SESSION_SECRET = os.environ.get("SESSION_SECRET", "").strip() or BOT_TOKEN
+GOOGLE_CLIENT_ID = os.environ.get("GOOGLE_CLIENT_ID", "").strip()
+# Transactional email (verify / reset) via Resend — accounts mode. When
+# RESEND_API_KEY is unset the helper logs the link instead of sending, so the flow
+# is fully testable locally without the external service.
+RESEND_API_KEY = os.environ.get("RESEND_API_KEY", "").strip()
+MAIL_FROM = os.environ.get("MAIL_FROM", "Family HQ <onboarding@resend.dev>").strip()
+PUBLIC_BASE_URL = os.environ.get("PUBLIC_BASE_URL", "").strip().rstrip("/")
 log = logging.getLogger("uvicorn.error")
 
 def _family_weather_coords(db, family_id):
@@ -84,7 +102,7 @@ def make_session_token(user_id: int) -> str:
     """Stateless signed session token: <user_id>.<expires>.<sig>"""
     expires = int(time.time()) + SESSION_TTL
     payload = f"{user_id}.{expires}"
-    sig = hmac.new(BOT_TOKEN.encode(), payload.encode(), hashlib.sha256).hexdigest()[:32]
+    sig = hmac.new(SESSION_SECRET.encode(), payload.encode(), hashlib.sha256).hexdigest()[:32]
     return f"{payload}.{sig}"
 
 def validate_session_token(token: str):
@@ -94,7 +112,7 @@ def validate_session_token(token: str):
         user_id_s, expires_s, sig = token.split(".")
         if int(expires_s) < time.time(): return None
         payload = f"{user_id_s}.{expires_s}"
-        expected = hmac.new(BOT_TOKEN.encode(), payload.encode(), hashlib.sha256).hexdigest()[:32]
+        expected = hmac.new(SESSION_SECRET.encode(), payload.encode(), hashlib.sha256).hexdigest()[:32]
         if not hmac.compare_digest(sig, expected): return None
         return int(user_id_s)
     except: return None
@@ -104,6 +122,15 @@ def _user_from_session(token: str, db) -> dict | None:
     Family-less users land on the onboarding screen where they can join or log out."""
     uid = validate_session_token(token)
     if not uid: return None
+    if AUTH_MODE == "accounts":
+        # Product instance: identity lives in the `users` table (email/Google). A
+        # valid token whose account doesn't exist → None (401 → re-login). A real
+        # account with no family yet returns here and lands on onboarding via get_uf.
+        u = db.execute("SELECT id, name, photo_url FROM users WHERE id=?", (uid,)).fetchone()
+        if u:
+            return {"id": u["id"], "first_name": u["name"] or "User", "photo_url": u["photo_url"]}
+        return None
+    # Telegram instance (default): unchanged — resolve via family_members.
     row = db.execute("SELECT user_id, user_name, photo_url FROM family_members WHERE user_id=?", (uid,)).fetchone()
     if row:
         return {"id": row["user_id"], "first_name": row["user_name"], "photo_url": row["photo_url"]}
@@ -360,6 +387,16 @@ async def bot_info():
         log.error(f"getMe failed: {e}")
     return {"bot_username": None}
 
+@app.get("/api/auth/config")
+def auth_config():
+    """Which login providers this instance offers, so the frontend renders the right
+    options. Telegram instance → Telegram; product instance (AUTH_MODE=accounts) →
+    email + Google."""
+    if AUTH_MODE == "accounts":
+        return {"mode": "accounts", "providers": ["email", "google"],
+                "google_client_id": GOOGLE_CLIENT_ID or None}
+    return {"mode": "telegram", "providers": ["telegram"]}
+
 # ─── Bot-mediated login (alternative to widget; works with any Telegram account) ──
 _login_codes = {}  # code → {"user_id": int|None, "first_name": str, "expires": int}
 
@@ -457,6 +494,266 @@ def telegram_login(body: TelegramLoginPayload, db=Depends(get_db)):
         "joined": bool(row),
     }
 
+# ═══════════════════════════════════════════════════════════════════════════
+# ACCOUNTS AUTH (AUTH_MODE=accounts) — email/password + Google.
+# Inert on the Telegram instance: every endpoint 404s unless AUTH_MODE=='accounts'.
+# Passwords: stdlib scrypt (no extra dep). Verify/reset links: stateless HMAC tokens,
+# single-use by construction (reset binds to the current password hash; verify is a
+# one-way flip). Email via Resend; logs the link when RESEND_API_KEY is unset.
+# ═══════════════════════════════════════════════════════════════════════════
+_EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
+
+def _require_accounts():
+    if AUTH_MODE != "accounts":
+        raise HTTPException(404, "Not found")
+
+# ── Rate limiting: in-memory sliding window (single uvicorn process; fine at this
+# scale). Real client IP from the left-most X-Forwarded-For (nginx must set it). ──
+_rl_hits = {}
+def _client_ip(request):
+    xff = request.headers.get("X-Forwarded-For", "")
+    if xff: return xff.split(",")[0].strip()
+    return (request.client.host if request.client else "?")
+def _rl_one(key, limit, window):
+    now = time.time()
+    hits = [t for t in _rl_hits.get(key, ()) if now - t < window]
+    if len(hits) >= limit:
+        raise HTTPException(429, "Too many attempts — please wait and try again")
+    hits.append(now); _rl_hits[key] = hits
+def _rate(request, scope, ip_limit, window, ident=None, ident_limit=None):
+    _rl_one(f"{scope}:ip:{_client_ip(request)}", ip_limit, window)
+    if ident and ident_limit:
+        _rl_one(f"{scope}:id:{ident}", ident_limit, window)
+
+def _norm_email(e): return (e or "").strip().lower()
+
+def _hash_password(pw: str) -> str:
+    salt = secrets.token_bytes(16); n, r, p = 16384, 8, 1
+    dk = hashlib.scrypt(pw.encode(), salt=salt, n=n, r=r, p=p, dklen=32, maxmem=64*1024*1024)
+    return f"scrypt${n}${r}${p}${salt.hex()}${dk.hex()}"
+
+def _verify_password(pw: str, stored: str) -> bool:
+    try:
+        algo, n, r, p, salt_hex, hash_hex = stored.split("$")
+        if algo != "scrypt": return False
+        dk = hashlib.scrypt(pw.encode(), salt=bytes.fromhex(salt_hex), n=int(n), r=int(r), p=int(p),
+                            dklen=len(hash_hex)//2, maxmem=64*1024*1024)
+        return hmac.compare_digest(dk.hex(), hash_hex)
+    except Exception:
+        return False
+
+def _pw_binding(pwhash) -> str:
+    return hmac.new(SESSION_SECRET.encode(), ("pwbind:"+(pwhash or "")).encode(), hashlib.sha256).hexdigest()[:16]
+
+def _auth_token(purpose: str, uid: int, ttl: int, binding: str = "") -> str:
+    payload = f"{purpose}|{uid}|{int(time.time())+ttl}|{binding}"
+    p64 = base64.urlsafe_b64encode(payload.encode()).decode().rstrip("=")
+    sig = hmac.new(SESSION_SECRET.encode(), (purpose+":"+payload).encode(), hashlib.sha256).hexdigest()[:32]
+    return f"{p64}.{sig}"
+
+def _auth_token_open(purpose: str, token: str):
+    """Verify sig/expiry/purpose → (uid, binding) or None. Caller compares binding."""
+    try:
+        p64, sig = token.split(".")
+        payload = base64.urlsafe_b64decode(p64 + "=" * (-len(p64) % 4)).decode()
+        prt, uid_s, exp_s, b = payload.split("|", 3)
+        if prt != purpose or int(exp_s) < time.time(): return None
+        exp_sig = hmac.new(SESSION_SECRET.encode(), (purpose+":"+payload).encode(), hashlib.sha256).hexdigest()[:32]
+        if not hmac.compare_digest(sig, exp_sig): return None
+        return int(uid_s), b
+    except Exception:
+        return None
+
+async def _send_email(to: str, subject: str, html: str) -> bool:
+    if not RESEND_API_KEY:
+        log.warning(f"[email:dev] (RESEND_API_KEY unset, not sent) to={to} subj={subject!r}")
+        log.warning(f"[email:dev] body:\n{html}")
+        return True
+    try:
+        async with httpx.AsyncClient(timeout=10) as c:
+            resp = await c.post("https://api.resend.com/emails",
+                headers={"Authorization": f"Bearer {RESEND_API_KEY}"},
+                json={"from": MAIL_FROM, "to": [to], "subject": subject, "html": html})
+            if resp.status_code >= 300:
+                log.error(f"resend {resp.status_code}: {resp.text[:200]}"); return False
+            return True
+    except Exception as e:
+        log.error(f"resend error: {e}"); return False
+
+async def _send_verify_email(email: str, uid: int):
+    tok = _auth_token("verify", uid, 24*3600)
+    link = f"{PUBLIC_BASE_URL}/api/auth/verify?token={tok}"
+    await _send_email(email, "Verify your Family HQ email",
+        f'<p>Welcome to Family HQ! Confirm your email to get started:</p>'
+        f'<p><a href="{link}">Verify my email</a></p>'
+        f'<p style="color:#888;font-size:12px">If you didn’t sign up, you can ignore this.</p>')
+
+def _require_verified_email(user, db):
+    """Accounts mode: block family create/join until the email is verified."""
+    if AUTH_MODE != "accounts": return
+    row = db.execute("SELECT email_verified FROM users WHERE id=?", (user["id"],)).fetchone()
+    if not row or not row["email_verified"]:
+        raise HTTPException(403, "Please verify your email first")
+
+class EmailRegister(BaseModel):
+    email: str; password: str; name: str | None = None
+class EmailLogin(BaseModel):
+    email: str; password: str
+class EmailOnly(BaseModel):
+    email: str
+class ResetBody(BaseModel):
+    token: str; password: str
+class GoogleBody(BaseModel):
+    credential: str   # the Google Identity Services ID token (JWT)
+
+@app.post("/api/auth/register")
+async def auth_register(body: EmailRegister, request: Request, db=Depends(get_db)):
+    """Create an account + send a verification email. Generic response either way
+    (no account-enumeration): existing emails get a nudge mail, never a different HTTP result."""
+    _require_accounts()
+    _rate(request, "register", 8, 3600, _norm_email(body.email), 4)
+    email = _norm_email(body.email)
+    if not _EMAIL_RE.match(email) or len(email) > 254:
+        raise HTTPException(400, "Enter a valid email")
+    if not body.password or len(body.password) < 8:
+        raise HTTPException(400, "Password must be at least 8 characters")
+    existing = db.execute("SELECT id, email_verified FROM users WHERE email_norm=?", (email,)).fetchone()
+    if existing:
+        if not existing["email_verified"]:
+            await _send_verify_email(body.email.strip(), existing["id"])
+        else:
+            await _send_email(body.email.strip(), "You already have a Family HQ account",
+                '<p>You already have an account — just sign in. Forgot your password? Use “Forgot password”.</p>')
+        return {"ok": True}
+    name = (body.name or "").strip()[:60] or email.split("@")[0]
+    uid = db.execute(
+        "INSERT INTO users (email, email_norm, password_hash, email_verified, name, created_at) "
+        "VALUES (?,?,?,0,?,datetime('now'))",
+        (body.email.strip()[:254], email, _hash_password(body.password), name)).lastrowid
+    db.commit()
+    await _send_verify_email(body.email.strip(), uid)
+    return {"ok": True}
+
+@app.get("/api/auth/verify")
+def auth_verify(token: str, db=Depends(get_db)):
+    _require_accounts()
+    ok = False
+    opened = _auth_token_open("verify", token)
+    if opened:
+        uid, _ = opened
+        db.execute("UPDATE users SET email_verified=1 WHERE id=? AND email_verified=0", (uid,)); db.commit()
+        ok = bool(db.execute("SELECT 1 FROM users WHERE id=? AND email_verified=1", (uid,)).fetchone())
+    base = PUBLIC_BASE_URL or ""
+    return RedirectResponse(f"{base}/?{'verified=1' if ok else 'verify_error=1'}", status_code=303)
+
+@app.post("/api/auth/resend-verify")
+async def auth_resend_verify(body: EmailOnly, request: Request, db=Depends(get_db)):
+    _require_accounts()
+    _rate(request, "resend", 8, 3600, _norm_email(body.email), 4)
+    u = db.execute("SELECT id, email, email_verified FROM users WHERE email_norm=?", (_norm_email(body.email),)).fetchone()
+    if u and not u["email_verified"]:
+        await _send_verify_email(u["email"], u["id"])
+    return {"ok": True}
+
+@app.post("/api/auth/login")
+def auth_login(body: EmailLogin, request: Request, db=Depends(get_db)):
+    _require_accounts()
+    _rate(request, "login", 20, 900, _norm_email(body.email), 7)
+    u = db.execute("SELECT id, name, password_hash, email_verified FROM users WHERE email_norm=?",
+                   (_norm_email(body.email),)).fetchone()
+    if not u or not u["password_hash"] or not _verify_password(body.password, u["password_hash"]):
+        raise HTTPException(401, "Invalid email or password")
+    db.execute("UPDATE users SET last_login=datetime('now') WHERE id=?", (u["id"],)); db.commit()
+    joined = bool(db.execute("SELECT 1 FROM family_members WHERE user_id=?", (u["id"],)).fetchone())
+    return {"token": make_session_token(u["id"]), "user_id": u["id"], "first_name": u["name"] or "User",
+            "joined": joined, "email_verified": bool(u["email_verified"])}
+
+@app.post("/api/auth/forgot")
+async def auth_forgot(body: EmailOnly, request: Request, db=Depends(get_db)):
+    _require_accounts()
+    _rate(request, "forgot", 8, 3600, _norm_email(body.email), 4)
+    u = db.execute("SELECT id, email, password_hash FROM users WHERE email_norm=?", (_norm_email(body.email),)).fetchone()
+    if u:
+        tok = _auth_token("reset", u["id"], 3600, _pw_binding(u["password_hash"]))
+        link = f"{PUBLIC_BASE_URL}/?reset={tok}"
+        await _send_email(u["email"], "Reset your Family HQ password",
+            f'<p>Reset your password:</p><p><a href="{link}">Choose a new password</a></p>'
+            f'<p style="color:#888;font-size:12px">Link expires in 1 hour. If you didn’t ask, ignore this.</p>')
+    return {"ok": True}
+
+@app.post("/api/auth/reset")
+def auth_reset(body: ResetBody, request: Request, db=Depends(get_db)):
+    _require_accounts()
+    _rate(request, "reset", 15, 900)
+    if not body.password or len(body.password) < 8:
+        raise HTTPException(400, "Password must be at least 8 characters")
+    opened = _auth_token_open("reset", body.token)
+    if not opened:
+        raise HTTPException(400, "Invalid or expired link")
+    uid, binding = opened
+    u = db.execute("SELECT password_hash FROM users WHERE id=?", (uid,)).fetchone()
+    if not u or _pw_binding(u["password_hash"]) != binding:   # already used / password changed
+        raise HTTPException(400, "Invalid or expired link")
+    db.execute("UPDATE users SET password_hash=? WHERE id=?", (_hash_password(body.password), uid)); db.commit()
+    return {"ok": True}
+
+@app.post("/api/auth/google")
+async def auth_google(body: GoogleBody, request: Request, db=Depends(get_db)):
+    """Verify a Google ID token, then find-or-create the account and issue a session.
+    Links Google to an existing account ONLY when the Google email is verified
+    (takeover prevention)."""
+    _require_accounts()
+    _rate(request, "google", 30, 900)
+    if not GOOGLE_CLIENT_ID:
+        raise HTTPException(500, "Google sign-in not configured")
+    cred = (body.credential or "").strip()
+    if not cred:
+        raise HTTPException(400, "Missing credential")
+    # Google's tokeninfo validates the signature + expiry server-side.
+    try:
+        async with httpx.AsyncClient(timeout=10) as c:
+            resp = await c.get("https://oauth2.googleapis.com/tokeninfo", params={"id_token": cred})
+    except Exception as e:
+        log.error(f"google tokeninfo error: {e}")
+        raise HTTPException(502, "Google verification failed")
+    if resp.status_code != 200:
+        raise HTTPException(401, "Invalid Google token")
+    cl = resp.json()
+    # Checks WE must enforce (tokeninfo verified sig+exp, but not the audience).
+    if cl.get("aud") != GOOGLE_CLIENT_ID:
+        raise HTTPException(401, "Token not for this app")
+    if cl.get("iss") not in ("accounts.google.com", "https://accounts.google.com"):
+        raise HTTPException(401, "Bad token issuer")
+    sub = cl.get("sub")
+    if not sub:
+        raise HTTPException(401, "Invalid Google token")
+    email = _norm_email(cl.get("email"))
+    g_verified = str(cl.get("email_verified")).lower() == "true"
+    name = (cl.get("name") or (email.split("@")[0] if email else "User"))[:60]
+    picture = cl.get("picture")
+    u = db.execute("SELECT id FROM users WHERE google_sub=?", (sub,)).fetchone()
+    if not u and email and g_verified:
+        ex = db.execute("SELECT id FROM users WHERE email_norm=?", (email,)).fetchone()
+        if ex:  # link Google to the existing verified-email account
+            db.execute("UPDATE users SET google_sub=?, email_verified=1 WHERE id=?", (sub, ex["id"]))
+            db.commit(); u = ex
+    if not u:
+        uid = db.execute(
+            "INSERT INTO users (email, email_norm, email_verified, google_sub, name, photo_url, created_at, last_login) "
+            "VALUES (?,?,?,?,?,?,datetime('now'),datetime('now'))",
+            ((cl.get("email") or "").strip()[:254] or None,
+             (email or None) if g_verified else None,   # email_norm only when Google-verified → no collision, don't trust unverified
+             1 if g_verified else 0, sub, name, picture)
+        ).lastrowid
+        db.commit()
+    else:
+        uid = u["id"]
+        db.execute("UPDATE users SET last_login=datetime('now') WHERE id=?", (uid,)); db.commit()
+    row = db.execute("SELECT name, email_verified FROM users WHERE id=?", (uid,)).fetchone()
+    joined = bool(db.execute("SELECT 1 FROM family_members WHERE user_id=?", (uid,)).fetchone())
+    return {"token": make_session_token(uid), "user_id": uid, "first_name": row["name"] or "User",
+            "joined": joined, "email_verified": bool(row["email_verified"])}
+
 @app.get("/api/family/status")
 def family_status(user=Depends(get_user), db=Depends(get_db)):
     row = db.execute("SELECT fm.family_id, fm.lang, fm.nav_tabs, f.name, f.invite_code FROM family_members fm JOIN families f ON f.id=fm.family_id WHERE fm.user_id=?", (user["id"],)).fetchone()
@@ -516,11 +813,13 @@ def update_my_nav_tabs(body: NavTabsUpdate, user=Depends(get_uf), db=Depends(get
 def create_family(body: FamilyCreate, user=Depends(get_user), db=Depends(get_db)):
     if db.execute("SELECT 1 FROM family_members WHERE user_id=?", (user["id"],)).fetchone():
         raise HTTPException(400, "Already in a family")
+    _require_verified_email(user, db)
     code = gen_code()
     while db.execute("SELECT 1 FROM families WHERE invite_code=?", (code,)).fetchone(): code = gen_code()
     fid = db.execute("INSERT INTO families (invite_code, name) VALUES (?, ?)", (code, body.name)).lastrowid
     db.execute("INSERT INTO family_members (user_id,family_id,user_name,emoji,color,photo_url,tg_chat_id) VALUES (?,?,?,?,?,?,?)",
-        (user["id"], fid, user["first_name"], "👤", "#7c6aef", user.get("photo_url"), user["id"]))
+        (user["id"], fid, user["first_name"], "👤", "#7c6aef", user.get("photo_url"),
+         (None if AUTH_MODE == "accounts" else user["id"])))
     for i, (n, ic) in enumerate([("Kitchen","🍳"),("Bathroom","🚿"),("Bedroom","🛏"),("Living Room","🛋"),("Balcony","🌿"),("Office","💻")]):
         zid = db.execute("INSERT INTO cleaning_zones (family_id,name,icon,sort_order) VALUES (?,?,?,?)", (fid, n, ic, i)).lastrowid
         for t in ["Dust surfaces", "Vacuum/sweep", "Mop floor", "Clean mirrors"]:
@@ -535,10 +834,12 @@ def create_family(body: FamilyCreate, user=Depends(get_user), db=Depends(get_db)
 def join_family(body: FamilyJoin, user=Depends(get_user), db=Depends(get_db)):
     if db.execute("SELECT 1 FROM family_members WHERE user_id=?", (user["id"],)).fetchone():
         raise HTTPException(400, "Already in a family")
+    _require_verified_email(user, db)
     fam = db.execute("SELECT id, name FROM families WHERE invite_code=?", (body.code.strip().upper(),)).fetchone()
     if not fam: raise HTTPException(404, "Invalid code")
     db.execute("INSERT INTO family_members (user_id,family_id,user_name,emoji,color,photo_url,tg_chat_id) VALUES (?,?,?,?,?,?,?)",
-        (user["id"], fam["id"], user["first_name"], "😊", "#e0689a", user.get("photo_url"), user["id"]))
+        (user["id"], fam["id"], user["first_name"], "😊", "#e0689a", user.get("photo_url"),
+         (None if AUTH_MODE == "accounts" else user["id"])))
     db.commit(); return {"family_id": fam["id"], "name": fam["name"]}
 
 @app.post("/api/family/leave")
@@ -4887,6 +5188,20 @@ def serve_index():
     r = FileResponse(os.path.join(FRONTEND_DIR, "index.html"))
     r.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
     return r
+
+# Public legal pages — required by the Google OAuth consent screen + Google Play.
+def _serve_legal(name):
+    fp = os.path.join(FRONTEND_DIR, name)
+    if not os.path.isfile(fp): raise HTTPException(404)
+    r = FileResponse(fp, media_type="text/html")
+    r.headers["Cache-Control"] = "public, max-age=3600"
+    return r
+
+@app.get("/privacy")
+def serve_privacy(): return _serve_legal("privacy.html")
+
+@app.get("/terms")
+def serve_terms(): return _serve_legal("terms.html")
 
 # PWA manifest at /manifest.json (preferred by spec) — also accessible via /static/manifest.json
 @app.get("/manifest.json")

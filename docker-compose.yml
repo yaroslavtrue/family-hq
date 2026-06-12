@@ -34,3 +34,32 @@ services:
       # Dish photos (Cooking tab, v8.48.0). One image per dish; URL /api/dishes/<id>/image.
       # Bind-mounted so deletes/uploads survive container rebuilds.
       - ./frontend/dishes:/app/frontend/dishes
+
+  # ─── Product instance (AUTH_MODE=accounts) — email/Google sign-up ───────────
+  # SAME image/code as `app`, but a SEPARATE entity: own port, own DB, own upload
+  # dirs (so the two instances never share user data), and its own auth/email/Google
+  # secrets. The Telegram instance above is untouched. Vars come from .env (see the
+  # `product` block in .env.example). Starts only when AUTH_MODE etc. are set.
+  product:
+    build: .
+    restart: always
+    ports:
+      - "8101:8000"
+    environment:
+      - AUTH_MODE=accounts
+      - DB_PATH=/data/product.db
+      - SESSION_SECRET=${PRODUCT_SESSION_SECRET}      # long random, MUST stay stable
+      - BOT_TOKEN=${PRODUCT_BOT_TOKEN:-product-no-telegram}  # non-default → disables the dev auth fallback; no bot here
+      - PUBLIC_BASE_URL=${PRODUCT_PUBLIC_BASE_URL}    # https://<product-domain>
+      - RESEND_API_KEY=${RESEND_API_KEY}
+      - MAIL_FROM=${MAIL_FROM}
+      - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      - TZ=${TZ:-Europe/Belgrade}
+    volumes:
+      - ./data-product:/data
+      - ./frontend/weather:/app/frontend/weather        # shared (generic loop videos, read-only content)
+      - ./data-product/words:/app/frontend/words        # product users' uploads — kept separate
+      - ./data-product/plants:/app/frontend/plants
+      - ./data-product/workouts:/app/frontend/workouts
+      - ./data-product/dishes:/app/frontend/dishes
