@@ -845,7 +845,7 @@ h+='<div class="sc">'+tr("g_calendar")+'</div>';
 h+='<div class="cal-strip" onclick="openCalModal()" id="cal-strip"></div>';
 setTimeout(function(){loadCalStrip()},0);
 // Plants widget — horizontal scroll of plants with status. Only renders if any exist.
-h+=_rPlantsWidget();
+h+=_rPlantsWidget()||_rPlantsGhost();
 // Active Life challenges — scoreboard widget (async; empties itself if none).
 h+='<div id="life-wg-home"></div>';
 setTimeout(function(){_lifeWidget("life-wg-home")},0);
@@ -905,7 +905,6 @@ if(totalUp){
 }
 // Ghost outlines for empty Home sections — invite a fresh account to fill them in.
 var _gh='';
-if(!(D.plants||[]).length)_gh+=homeGhost("🪴",tr("pl_no_plants_t"),tr("pl_no_plants_s"),"go('plants')");
 if(!(D.tasks||[]).length)_gh+=homeGhost("📋",tr("es_no_tasks_t"),tr("es_no_tasks_s"),"go('tasks')");
 if(!(D.events||[]).length)_gh+=homeGhost("📅",tr("es_no_events_t"),tr("es_no_events_s"),"go('events')");
 if(_gh)h+=_gh;

@@ -61,6 +61,18 @@ function _rPlantsWidget(){
   return h;
 }
 
+// Home placeholder when there are no plants: a row of dashed circles in the same style
+// as the live plant avatars, tappable to add the first plant.
+function _rPlantsGhost(){
+  var h='<div class="sc"><span class="sc-l">'+tr("pl_no_plants_t")+'</span></div>';
+  h+='<div class="hpw" onclick="_plOpenAdd()" style="cursor:pointer">';
+  h+='<div class="hpw-track">';
+  h+='<div class="hpw-item hpw-item-ghost"><div class="hpw-av hpw-av-add">'+icon("pl",24,2.5)+'</div><div class="hpw-name" style="color:var(--pr)">'+tr("pl_add")+'</div></div>';
+  for(var i=0;i<3;i++){h+='<div class="hpw-item hpw-item-ghost"><div class="hpw-av hpw-av-ghost"><span class="hpw-ph" style="opacity:.4">🪴</span></div><div class="hpw-name hpw-name-ghost">···</div></div>';}
+  h+='</div></div>';
+  return h;
+}
+
 function rPlants(){
   var list=D.plants||[];
   var thirstyN=list.filter(function(p){return p.status==="thirsty"}).length;
