@@ -36,6 +36,9 @@ WEATHER_LON = float(os.environ.get("WEATHER_LON", "20.46"))
 # 'accounts' (email/password + Google, own fresh DB). Anything gated on
 # AUTH_MODE=='accounts' is inert here by default.
 AUTH_MODE = os.environ.get("AUTH_MODE", "telegram").strip().lower()
+# Default theme for members who haven't picked one: the warm light "Moya" theme on the
+# product instance (accounts), the original "midnight" on the Telegram instance (unchanged).
+DEFAULT_THEME = "moya" if AUTH_MODE == "accounts" else "midnight"
 # Session-token HMAC key. Defaults to BOT_TOKEN so the existing Telegram instance
 # keeps all current sessions valid with zero change; the product instance sets a
 # dedicated long random SESSION_SECRET. (Telegram initData + bot/widget login keep
@@ -1367,7 +1370,7 @@ def get_settings(user=Depends(get_uf), db=Depends(get_db)):
     row = db.execute("SELECT * FROM settings WHERE family_id=?", (user["family_id"],)).fetchone()
     if not row:
         db.execute("INSERT INTO settings (family_id) VALUES (?)", (user["family_id"],)); db.commit()
-        return {"family_id": user["family_id"], "theme": "midnight", "digest_time": "09:00"}
+        return {"family_id": user["family_id"], "theme": DEFAULT_THEME, "digest_time": "09:00"}
     return dict(row)
 
 @app.patch("/api/settings")
@@ -2509,7 +2512,7 @@ async def bundle(user=Depends(get_uf), db=Depends(get_db)):
     if not srow:
         db.execute("INSERT INTO settings (family_id) VALUES (?)", (f,))
         db.commit()
-        settings = {"family_id": f, "theme": "midnight", "digest_time": "09:00"}
+        settings = {"family_id": f, "theme": DEFAULT_THEME, "digest_time": "09:00"}
     else:
         settings = dict(srow)
     # Per-member theme override (theme is per-user, not family-shared)
@@ -2517,7 +2520,7 @@ async def bundle(user=Depends(get_uf), db=Depends(get_db)):
     if m_theme_row and m_theme_row["theme"]:
         settings["theme"] = m_theme_row["theme"]
     elif not settings.get("theme"):
-        settings["theme"] = "midnight"
+        settings["theme"] = DEFAULT_THEME
 
     # Family status
     frow = db.execute(
