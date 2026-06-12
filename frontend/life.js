@@ -982,7 +982,7 @@ function _lifeDrawNode(ctx, n){
   // only the coloured ring + glyph read as accents (the glow halo still shows brightness).
   // Seeds keep a faint coloured tint to read as dashed placeholders.
   if(isSeed){ ctx.globalAlpha = fillOpacity; ctx.fillStyle = coreCol; ctx.fill(); ctx.globalAlpha = 1; }
-  else { ctx.fillStyle = "#0b0c11"; ctx.fill(); }
+  else { ctx.fillStyle = "#0a0b10"; ctx.fill(); }
   ctx.lineWidth = ringW; ctx.strokeStyle = coreCol;
   if(isSeed) ctx.setLineDash([2,2]);
   ctx.stroke();
