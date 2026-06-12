@@ -309,6 +309,9 @@ function em(i,t,s){return '<div class="emp"><div class="emp-i">'+i+'</div><div c
 function emCta(i,t,s,onclick,btn){return '<div class="emp emp-cta" role="button" tabindex="0" onclick="'+onclick+'">'+
   '<div class="emp-i">'+i+'</div><div class="emp-t">'+t+'</div>'+(s?'<div>'+s+'</div>':'')+
   '<div class="emp-add"><b>+</b> '+(btn||tr("btn_add"))+'</div></div>'}
+// Ghost section card for the Home screen: a faint outline of a section that's empty
+// (so it's normally hidden). Tap → open that section (where its empty-state CTA adds).
+function homeGhost(ico,title,sub,onclick){return '<div class="ghost-card" role="button" tabindex="0" onclick="'+onclick+'"><div class="ghost-ic">'+ico+'</div><div class="ghost-tx"><div class="ghost-tt">'+title+'</div><div class="ghost-sb">'+sub+'</div></div><div class="ghost-add">+</div></div>'}
 function td(){const d=new Date();return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0")}
 // Locale-aware date name arrays. Initially populated with English; rebuilt by
 // _rebuildLocaleArrays() whenever _lang changes (called on boot after family/status
@@ -900,6 +903,12 @@ if(totalUp){
   h+=_upGroup('💳 '+tr("g_subscriptions"),'var(--pr)',upSubs);
   h+=_upGroup('🎂 '+tr("g_birthdays"),'var(--wn)',upBdays);
 }
+// Ghost outlines for empty Home sections — invite a fresh account to fill them in.
+var _gh='';
+if(!(D.plants||[]).length)_gh+=homeGhost("🪴",tr("pl_no_plants_t"),tr("pl_no_plants_s"),"go('plants')");
+if(!(D.tasks||[]).length)_gh+=homeGhost("📋",tr("es_no_tasks_t"),tr("es_no_tasks_s"),"go('tasks')");
+if(!(D.events||[]).length)_gh+=homeGhost("📅",tr("es_no_events_t"),tr("es_no_events_s"),"go('events')");
+if(_gh)h+=_gh;
 return h}
 async function svRec(id){var text=document.getElementById("f-t").value.trim();if(!text)return;var rr=document.getElementById("rr").value;if(rr==="weekly:"){var days=[];document.querySelectorAll("#wd .ob.s").forEach(function(b){days.push(b.textContent)});rr="weekly:"+days.join(",")}else if(rr==="monthly:"){rr="monthly:"+(document.getElementById("f-md")?document.getElementById("f-md").value:"1")}await A("PUT","/api/recurring/"+id,{text:text,assigned_to:_assign||null,rrule:rr,active:window._recActive});cMo();hp();await load();if(_calEditCb){var cb=_calEditCb;_calEditCb=null;cb()}}
 
