@@ -2519,7 +2519,9 @@ async def bundle(user=Depends(get_uf), db=Depends(get_db)):
     m_theme_row = db.execute("SELECT theme FROM family_members WHERE user_id=?", (user["id"],)).fetchone()
     if m_theme_row and m_theme_row["theme"]:
         settings["theme"] = m_theme_row["theme"]
-    elif not settings.get("theme"):
+    elif AUTH_MODE == "accounts" or not settings.get("theme"):
+        # Accounts/product: members who never picked a theme default to Moya, ignoring the
+        # legacy `settings.theme` column-default 'midnight'. Explicit picks still win above.
         settings["theme"] = DEFAULT_THEME
 
     # Family status
