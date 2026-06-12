@@ -728,7 +728,7 @@ D.plants=b.plants||[];
 if(D.dishes===undefined)D.dishes=[];
 // Sync Words state from member data so Settings can read it without opening Words first.
 try{_wordsInitMode()}catch(e){}
-if(D.settings.theme)aT(D.settings.theme);ren()}
+aT(D.settings.theme||"moya");ren()}
 
 // ─── Render ─────────────────────────────────────────────────
 var _firstHomeRender=true;
