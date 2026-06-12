@@ -335,6 +335,11 @@ body.life-mode .ct{padding:0;background:#0a0b10}
    The Journey/Challenges overlays scroll internally, so this doesn't affect them. */
 body.life-mode{overflow:hidden}
 .life-wrap{position:relative;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
+/* Life is always a dark "space" stage, so give its chrome (chips, journey/challenge buttons,
+   challenge cards…) dark surfaces regardless of the app theme — otherwise var(--cd) is white
+   on the Moya light theme and the emoji buttons get a white box. The header stays themed (it's
+   outside .life-wrap). */
+.life-wrap{--bg:#0a0b10;--sf:#11131c;--cd:#171a26;--bd:rgba(255,255,255,0.12);--tx:#edeae0;--ht:#9a9aae;--pg:rgba(255,255,255,0.06)}
 /* Filter row floats OVER the canvas (top-right) — no separate black strip.
    pointer-events pass through the empty bar to the canvas; only chips catch taps. */
 .life-top{position:absolute;top:0;left:0;right:0;display:flex;align-items:center;gap:10px;padding:10px 14px;z-index:3;pointer-events:none}
