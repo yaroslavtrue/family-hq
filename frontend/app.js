@@ -112,7 +112,11 @@ if(b)o.body=JSON.stringify(b);
 try{const r=await fetch(_apiUrl(p),o);
 // On 401: only reload if we HAD a session (it expired). If no session/initData, we should
 // already be on the login screen — reloading would cause an infinite loop.
-if(r.status===401){var hadSess=!!sess;_setSess("");if(!iD&&hadSess){location.reload();return null}}
+// Auth guard: a 401 on any PROTECTED endpoint (not /api/auth/*) means the session is
+// missing/expired → clear it and bounce to the login/register screen. Auth endpoints
+// fall through so their bad-credentials 401 is handled by the calling form. Telegram (iD)
+// uses initData, not a session, so it's exempt.
+if(r.status===401&&!iD&&p.indexOf("/api/auth/")!==0){_setSess("");if(typeof rLogin==="function")rLogin();return null}
 const j=await r.json();
 if(dbgOn){dbgLog.push(m+" "+p+" → "+r.status);if(dbgLog.length>50)dbgLog.shift();var el=document.getElementById("dbg");if(el)el.textContent=dbgLog.slice(-10).join("\n")}
 if(!r.ok)return null;return j}catch(e){if(dbgOn){dbgLog.push("ERR "+m+" "+p+": "+e.message)}return null}}

@@ -101,6 +101,7 @@ async function rLogin() {
   // navigate to empty, unreachable tabs with no way back. Restored on the post-login reload.
   try { var _nv = document.getElementById("nv"); if (_nv) _nv.style.display = "none"; } catch (e) {}
   try { var _fab = document.getElementById("fab"); if (_fab) _fab.style.display = "none"; } catch (e) {}
+  try { var _hr = document.querySelector(".hd-r"); if (_hr) _hr.style.display = "none"; } catch (e) {}   // hide header search + hamburger
   var cfg = await _fetchAuthCfg();
   if (cfg.mode === "accounts") return _renderAccountsLogin();
   return _renderTelegramLogin();
@@ -369,7 +370,11 @@ async function onTelegramAuth(user) {
 
 // ─── Onboarding: user is authenticated but not in a family yet ──
 function rOnb() {
+  // Same chrome lockout as the login screen — no bottom nav / FAB / hamburger while the
+  // user has no family yet (they'd otherwise open empty, unrecoverable tabs).
   document.getElementById("fab").classList.add("hidden");
+  try { var _nv = document.getElementById("nv"); if (_nv) _nv.style.display = "none"; } catch (e) {}
+  try { var _hr = document.querySelector(".hd-r"); if (_hr) _hr.style.display = "none"; } catch (e) {}
   document.querySelectorAll(".ni").forEach(function (e) { e.style.opacity = ".3" });
   // Show currently authenticated user_id (from session token) so user can see who they're logged in as
   var currentUid = "";
@@ -394,6 +399,7 @@ async function doCr() {
   cMo(); hp();
   fS = { joined: true, invite_code: r.invite_code, name: r.name, members: [] };
   document.querySelectorAll(".ni").forEach(function (e) { e.style.opacity = "1" });
+  try { var _nv = document.getElementById("nv"); if (_nv) _nv.style.display = ""; var _hr = document.querySelector(".hd-r"); if (_hr) _hr.style.display = ""; } catch (e) {}
   oMC("Family Created! 🎉", '<div style="text-align:center"><div style="font-size:14px;color:var(--ht);margin-bottom:12px">Share this code:</div><div class="cd2"><div class="ct2">' + r.invite_code + '</div><div class="cl2">Invite Code</div></div><button class="btn" onclick="cMo();load()">Got it!</button></div>', { ic: "user" })
 }
 
@@ -405,5 +411,6 @@ async function doJn() {
   cMo(); hp();
   fS = { joined: true, name: r.name };
   document.querySelectorAll(".ni").forEach(function (e) { e.style.opacity = "1" });
+  try { var _nv = document.getElementById("nv"); if (_nv) _nv.style.display = ""; var _hr = document.querySelector(".hd-r"); if (_hr) _hr.style.display = ""; } catch (e) {}
   await load();
 }
