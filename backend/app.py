@@ -933,15 +933,15 @@ async def toggle_task(tid: int, user=Depends(get_uf), db=Depends(get_db)):
     return {"ok": True}
 
 @app.post("/api/tasks/{tid}/done")
-async def mark_task_done(tid: int, user=Depends(get_uf), db=Depends(get_db)):
-    """Mark a task complete (idempotent set-done). POST alias of the toggle for the
-    Android home-screen widget — Java's HttpURLConnection cannot send PATCH."""
+async def widget_toggle_task(tid: int, user=Depends(get_uf), db=Depends(get_db)):
+    """Toggle a task's done flag. POST alias of the PATCH `…/toggle` for the Android
+    home-screen widget (Java's HttpURLConnection cannot send PATCH)."""
     t = db.execute("SELECT text, done FROM tasks WHERE id=? AND family_id=?", (tid, user["family_id"])).fetchone()
     if not t: raise HTTPException(404, "Not found")
+    db.execute("UPDATE tasks SET done=CASE WHEN done=0 THEN 1 ELSE 0 END WHERE id=? AND family_id=?", (tid, user["family_id"])); db.commit()
     if not t["done"]:
-        db.execute("UPDATE tasks SET done=1 WHERE id=? AND family_id=?", (tid, user["family_id"])); db.commit()
         await notify_all(user["family_id"], f"✅ *{user['first_name']}* completed: *{t['text']}*", db)
-    return {"ok": True}
+    return {"ok": True, "done": (0 if t["done"] else 1)}
 
 @app.delete("/api/tasks/{tid}")
 def del_task(tid: int, user=Depends(get_uf), db=Depends(get_db)):
@@ -2435,9 +2435,9 @@ def agenda(days: int = 14, user=Depends(get_uf), db=Depends(get_db)):
     ts, te = today.isoformat(), end.isoformat()
     out = []
 
-    def add(iid, date, tm, title, emoji, typ):
+    def add(iid, date, tm, title, emoji, typ, done=False):
         out.append({"id": iid, "date": date, "time": tm or "", "title": title or "", "emoji": emoji,
-                    "type": typ, "_k": date + " " + (tm or "00:00")})
+                    "type": typ, "done": bool(done), "_k": date + " " + (tm or "00:00")})
 
     # Events overlapping the window (pinned to start day, or today if already running)
     for r in db.execute("SELECT id,text,event_date,end_date FROM events WHERE family_id=? AND event_date IS NOT NULL", (f,)).fetchall():
@@ -2449,10 +2449,11 @@ def agenda(days: int = 14, user=Depends(get_uf), db=Depends(get_db)):
         tm = full.split(" ")[1][:5] if " " in full else ""
         add(r["id"], s if s >= ts else ts, tm, r["text"], "📅", "event")
 
-    # Open tasks with a due date
-    for r in db.execute("SELECT id,text,due_date,priority FROM tasks WHERE family_id=? AND due_date IS NOT NULL AND done=0 AND due_date>=? AND due_date<=?", (f, ts, te)).fetchall():
+    # Tasks with a due date in range — including DONE ones (the widget shows them
+    # struck-through with a checked box rather than dropping them off).
+    for r in db.execute("SELECT id,text,due_date,priority,done FROM tasks WHERE family_id=? AND due_date IS NOT NULL AND due_date>=? AND due_date<=?", (f, ts, te)).fetchall():
         d = (r["due_date"] or "").split(" ")[0]
-        add(r["id"], d, "", r["text"], "⚠️" if r["priority"] == "high" else "📋", "task")
+        add(r["id"], d, "", r["text"], "⚠️" if r["priority"] == "high" else "📋", "task", bool(r["done"]))
 
     # Recurring task occurrences
     day_map = {"mon": 0, "tue": 1, "wed": 2, "thu": 3, "fri": 4, "sat": 5, "sun": 6}

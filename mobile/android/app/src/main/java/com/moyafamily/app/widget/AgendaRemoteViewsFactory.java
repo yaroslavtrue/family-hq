@@ -2,6 +2,7 @@ package com.moyafamily.app.widget;
 
 import android.content.Context;
 import android.content.Intent;
+import android.graphics.Paint;
 import android.view.View;
 import android.widget.RemoteViews;
 import android.widget.RemoteViewsService;
@@ -84,9 +85,20 @@ public class AgendaRemoteViewsFactory implements RemoteViewsService.RemoteViewsF
         JSONObject it = items.get(pos);
         String type = it.optString("type", "");
         int id = it.optInt("id", 0);
+        boolean done = it.optBoolean("done", false);
         rv.setTextViewText(R.id.row_emoji, it.optString("emoji", "•"));
         rv.setTextViewText(R.id.row_title, it.optString("title", ""));
         rv.setTextViewText(R.id.row_sub, formatWhen(it.optString("date", ""), it.optString("time", "")));
+
+        // Completed → strike-through + dimmed; otherwise normal. Set BOTH branches —
+        // rows are recycled, so stale paint/colour must be cleared each time.
+        if (done) {
+            rv.setInt(R.id.row_title, "setPaintFlags", Paint.STRIKE_THRU_TEXT_FLAG | Paint.ANTI_ALIAS_FLAG);
+            rv.setTextColor(R.id.row_title, 0xFF9A8C7C);
+        } else {
+            rv.setInt(R.id.row_title, "setPaintFlags", Paint.ANTI_ALIAS_FLAG);
+            rv.setTextColor(R.id.row_title, 0xFF2A1D12);
+        }
 
         // Whole row → open the in-app detail popup (showCalEv) for this item.
         Intent open = new Intent()
@@ -95,15 +107,18 @@ public class AgendaRemoteViewsFactory implements RemoteViewsService.RemoteViewsF
                 .putExtra(AgendaWidgetProvider.EXTRA_ID, id);
         rv.setOnClickFillInIntent(R.id.row_root, open);
 
-        // One-off tasks → a ✓ that marks the task done in the background (no app open).
+        // Tasks → a checkbox that toggles done in the background (no app open).
+        // Checked tasks show a ✓ in the square; unchecked show an empty box.
         if ("task".equals(type)) {
             rv.setViewVisibility(R.id.row_check, View.VISIBLE);
+            rv.setTextViewText(R.id.row_check, done ? "✓" : "");
             Intent toggle = new Intent()
                     .putExtra(AgendaWidgetProvider.EXTRA_ACTION, "toggle")
                     .putExtra(AgendaWidgetProvider.EXTRA_ID, id);
             rv.setOnClickFillInIntent(R.id.row_check, toggle);
         } else {
             rv.setViewVisibility(R.id.row_check, View.GONE);
+            rv.setTextViewText(R.id.row_check, "");
         }
         return rv;
     }

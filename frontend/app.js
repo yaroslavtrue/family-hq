@@ -728,7 +728,14 @@ async function _checkWidgetOpen(){
     if(type&&id&&typeof showCalEv==="function")showCalEv(type,id);
   }catch(e){}
 }
-try{document.addEventListener("visibilitychange",function(){if(!document.hidden)_checkWidgetOpen()})}catch(e){}
+// On resume: refresh data so the app reflects external changes (e.g. a task marked
+// done from the widget), then handle any pending widget deep-link.
+function _onResume(){
+  if(!(fS&&fS.joined))return;
+  try{ if(!document.querySelector("#mo.op")&&typeof load==="function") load(); }catch(e){}
+  _checkWidgetOpen();
+}
+try{document.addEventListener("visibilitychange",function(){if(!document.hidden)_onResume()})}catch(e){}
 
 async function init(){
 if(!iD && !_getSess() && !(typeof DEMO!=="undefined" && DEMO)){rLogin();return}

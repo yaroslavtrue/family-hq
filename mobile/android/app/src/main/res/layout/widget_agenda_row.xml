@@ -45,13 +45,14 @@
          A 38dp rounded square — bigger, clearly tappable. -->
     <TextView
         android:id="@+id/row_check"
-        android:layout_width="38dp"
-        android:layout_height="38dp"
+        android:layout_width="26dp"
+        android:layout_height="26dp"
         android:layout_marginStart="8dp"
         android:layout_marginLeft="8dp"
         android:gravity="center"
         android:background="@drawable/widget_check_box"
         android:textColor="#3FA36A"
-        android:textSize="20sp"
+        android:textStyle="bold"
+        android:textSize="15sp"
         android:visibility="gone" />
 </LinearLayout>

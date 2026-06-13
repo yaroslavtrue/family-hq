@@ -62,11 +62,11 @@ public class AgendaWidgetProvider extends AppWidgetProvider {
                 PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
         rv.setOnClickPendingIntent(R.id.widget_title, openPi);
 
-        // Date → refresh the list.
+        // Sync icon (↻) → refresh the list.
         Intent refresh = new Intent(ctx, AgendaWidgetProvider.class).setAction(ACTION_REFRESH);
         PendingIntent refPi = PendingIntent.getBroadcast(ctx, 0, refresh,
                 PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
-        rv.setOnClickPendingIntent(R.id.widget_date, refPi);
+        rv.setOnClickPendingIntent(R.id.widget_sync, refPi);
 
         mgr.updateAppWidget(id, rv);
         mgr.notifyAppWidgetViewDataChanged(id, R.id.agenda_list);
