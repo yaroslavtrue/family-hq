@@ -11,13 +11,13 @@ public class MainActivity extends BridgeActivity {
     // back to the home screen). The widget re-fetches from the server, so it always
     // shows the latest state.
     @Override
-    protected void onResume() {
+    public void onResume() {
         super.onResume();
         refreshAgendaWidget();
     }
 
     @Override
-    protected void onStop() {
+    public void onStop() {
         super.onStop();
         refreshAgendaWidget();
     }
