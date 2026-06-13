@@ -1047,11 +1047,13 @@ function setProfMember(uid){_profMember=uid;_profStats=null;hp("sel");ren()}
 function rProfile(){
 if(!_profStats){loadProfileStats();return '<div class="emp"><div class="emp-i" style="font-size:32px">⏳</div><div>Loading...</div></div>'}
 var s=_profStats,h='';
-// Member switcher
+// Member switcher — only meaningful with 2+ members; hidden in single mode.
+if((D.members||[]).length>1){
 h+='<div class="fb2" style="margin-bottom:14px">';
 h+='<button class="fi '+(!_profMember?"a":"")+'" onclick="setProfMember(null)" style="display:inline-flex;align-items:center;gap:5px">'+icon("user",14,2.2)+'Family</button>';
 D.members.forEach(function(m){h+='<button class="fi '+(_profMember===m.user_id?"a":"")+'" style="display:inline-flex;align-items:center;gap:5px" onclick="setProfMember('+m.user_id+')">'+mAv(m.user_id,18)+es(m.user_name)+'</button>'});
 h+='</div>';
+}
 // Selected-member hero block
 if(_profMember){var m=D.members.find(function(x){return x.user_id===_profMember});
   if(m)h+='<div class="prof-hero">'+mAv(m.user_id,64)+'<div class="prof-hero-bd"><div class="prof-hero-nm">'+es(m.user_name)+'</div><div class="prof-hero-sub">Personal stats</div><div class="prof-hero-strip" style="background:'+m.color+'"></div></div></div>'}

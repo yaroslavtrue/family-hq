@@ -31,12 +31,14 @@ if(_trainMember!==null){
   h+='<div class="tr-greet"><div><div class="tr-greet-hi">Hi, '+es(meName)+'!</div><div class="tr-greet-sub">Ready for a workout?</div></div></div>';
 }
 // ─── Member switcher pills ────────────────────────
+if((D.members||[]).length>1){
 h+='<div class="fb2" style="margin-bottom:18px">';
 D.members.forEach(function(m){
   h+='<button class="fi '+(_trainMember===m.user_id?"a":"")+'" style="display:inline-flex;align-items:center;gap:5px" onclick="setTrainMember('+m.user_id+')">'+mAv(m.user_id,18)+es(m.user_name)+'</button>';
 });
 h+='<button class="fi '+(_trainMember===null?"a":"")+'" onclick="setTrainMember(null)" style="display:inline-flex;align-items:center;gap:5px">'+icon("user",14,2.2)+'Family</button>';
 h+='</div>';
+}
 
 // Family compare view: 2 columns showing each member's week
 if(_trainMember===null){

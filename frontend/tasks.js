@@ -18,8 +18,10 @@ var taskTab = "active";
 function rT(){var h='<div class="tabs"><button class="tab '+(taskTab==="active"?"a":"")+'" onclick="taskTabSet(\'active\')"><span style="display:inline-flex;align-items:center;gap:6px">'+icon("clipboard",13,2.2)+tr("g_active")+'</span></button><button class="tab '+(taskTab==="recurring"?"a":"")+'" onclick="taskTabSet(\'recurring\')"><span style="display:inline-flex;align-items:center;gap:6px">'+icon("refresh",13,2.2)+tr("g_recurring")+'</span></button><button class="tab '+(taskTab==="events"?"a":"")+'" onclick="taskTabSet(\'events\')"><span style="display:inline-flex;align-items:center;gap:6px">'+icon("clock",13,2.2)+tr("g_events")+'</span></button></div>';
 if(taskTab==="recurring")return h+rRecur();
 if(taskTab==="events")return h+rEvts();
+if((D.members||[]).length>1){
 h+='<div class="fb2"><button class="fi '+(!filt?"a":"")+'" onclick="filt=null;ren()">'+tr("g_filter_all")+'</button>';
 D.members.forEach(function(m){h+='<button class="fi '+(filt===m.user_id?"a":"")+'" style="padding:3px 6px;display:inline-flex;align-items:center" onclick="filt='+m.user_id+';ren()">'+mAv(m.user_id,22)+'</button>'});h+='</div>';
+}
 var all=D.tasks;if(filt)all=all.filter(function(x){return x.assigned_to===filt});
 if(searchQ)all=all.filter(function(x){return matchQ(x.text)});
 var pend=all.filter(function(x){return!x.done}),done=all.filter(function(x){return x.done});

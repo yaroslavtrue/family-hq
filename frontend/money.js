@@ -47,9 +47,11 @@ h+='<div class="st st-mn"><div class="st-ico tone-ac">'+icon("trendDown",16,2.2)
 h+='<div class="st st-mn"><div class="st-ico tone-pr">'+icon("wallet",16,2.2)+'</div><div class="st-lb">'+tr("m_balance_label")+'</div><div class="st-vl '+(bal===null?"":(bal>=0?"pos":"neg"))+'">'+_bv(bal)+'</div></div>';
 h+='</div>';
 if(!txs.length)return h+emCta(icon("wallet",48,1.8),tr("es_no_txs_t"),tr("es_no_txs_s"),"oMo()",tr("btn_add"));
-// Member filter row
+// Member filter row — hidden in single mode (1 member).
+if((D.members||[]).length>1){
 h+='<div class="fb2"><button class="fi '+(!filt?"a":"")+'" onclick="filt=null;ren()">'+tr("g_filter_all")+'</button>';
 D.members.forEach(function(m){h+='<button class="fi '+(filt===m.user_id?"a":"")+'" style="padding:3px 6px;display:inline-flex;align-items:center" onclick="filt='+m.user_id+';ren()">'+mAv(m.user_id,22)+'</button>'});h+='</div>';
+}
 // Transaction rows as .lc cards: category emoji on tinted gradient (green for income, coral for expense), description as title, date + member as meta, signed amount pill on the right
 txs.forEach(function(tx){
   var cat=cats[tx.category_id];
@@ -243,7 +245,7 @@ if(!D.subs.length)return em(icon("card",48,1.8),tr("es_no_subs_t"),tr("es_no_sub
 var items=D.subs;if(searchQ)items=items.filter(function(s){return matchQ(s.name)});
 var totalEur=0;items.forEach(function(s){totalEur+=(s.amount_eur||0)});
 var h=rSubAddBtn()+'<div class="c" style="border-left:3px solid var(--wn)"><div class="bd"><div class="tt" style="font-weight:700">'+tr("m_monthly_total")+'</div><div class="mt" style="font-size:16px;color:var(--wn);font-weight:800">€'+totalEur.toFixed(2)+'</div></div></div>';
-h+='<div class="fb2"><button class="fi '+(filt===null?"a":"")+'" onclick="filt=null;ren()">'+tr("g_filter_all")+'</button>';D.members.forEach(function(m){h+='<button class="fi '+(filt===m.user_id?"a":"")+'" style="padding:3px 6px;display:inline-flex;align-items:center" onclick="filt='+m.user_id+';ren()">'+mAv(m.user_id,22)+'</button>'});h+='</div>';
+if((D.members||[]).length>1){h+='<div class="fb2"><button class="fi '+(filt===null?"a":"")+'" onclick="filt=null;ren()">'+tr("g_filter_all")+'</button>';D.members.forEach(function(m){h+='<button class="fi '+(filt===m.user_id?"a":"")+'" style="padding:3px 6px;display:inline-flex;align-items:center" onclick="filt='+m.user_id+';ren()">'+mAv(m.user_id,22)+'</button>'});h+='</div>';}
 if(filt)items=items.filter(function(s){return s.assigned_to===filt});
 items.forEach(function(s){var daysTxt=s.days_until===0?"Today":s.days_until===1?"Tomorrow":"in "+s.days_until+"d";
 var tone=s.days_until===0?"tone-ac":s.days_until<=2?"tone-wn":"";
