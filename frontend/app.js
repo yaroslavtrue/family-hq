@@ -712,6 +712,24 @@ function toggleMenu(){menuOpen=!menuOpen;document.getElementById("menu-overlay")
 // ─── Onboarding ─────────────────────────────────────────────
 // "Browser mode" = no Telegram initData. We use iD (not tg) because the Telegram script
 // creates window.Telegram.WebApp even outside Telegram — only initData is reliable.
+// Deep-link from the home-screen agenda widget: it stashes "type:id" in
+// CapacitorStorage (fhq_open); here we open the matching showCalEv() detail popup
+// (same menu as tapping in the in-app calendar). Runs on cold start (init) and on
+// resume (visibilitychange), so warm taps work too.
+async function _checkWidgetOpen(){
+  if(!(window.Capacitor&&window.Capacitor.Plugins&&window.Capacitor.Plugins.Preferences))return;
+  if(!(fS&&fS.joined))return;
+  try{
+    var P=window.Capacitor.Plugins.Preferences;
+    var r=await P.get({key:"fhq_open"});
+    var v=r&&r.value; if(!v)return;
+    var ix=v.indexOf(":"); await P.remove({key:"fhq_open"}); if(ix<0)return;
+    var type=v.slice(0,ix), id=parseInt(v.slice(ix+1),10);
+    if(type&&id&&typeof showCalEv==="function")showCalEv(type,id);
+  }catch(e){}
+}
+try{document.addEventListener("visibilitychange",function(){if(!document.hidden)_checkWidgetOpen()})}catch(e){}
+
 async function init(){
 if(!iD && !_getSess() && !(typeof DEMO!=="undefined" && DEMO)){rLogin();return}
 try{var r=await A("GET","/api/family/status");if(!r){if(!iD)rLogin();return}fS=r;
@@ -726,6 +744,7 @@ if(r.joined){document.querySelectorAll(".ni").forEach(function(e){e.style.opacit
   var _startedTour=(typeof tourMaybe==="function")&&tourMaybe(tab);
   // What's New — show once after first paint if the user hasn't seen the latest release yet.
   if(!_startedTour&&typeof maybeShowWhatsNew==="function")maybeShowWhatsNew();
+  if(typeof _checkWidgetOpen==="function")_checkWidgetOpen();   // agenda-widget deep-link → showCalEv
 }else rOnb()}catch(e){document.getElementById("ct").innerHTML='<pre style="color:red">'+e.message+'</pre>'}}
 
 

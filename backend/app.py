@@ -932,6 +932,17 @@ async def toggle_task(tid: int, user=Depends(get_uf), db=Depends(get_db)):
     if t and not t["done"]: await notify_all(user["family_id"], f"✅ *{user['first_name']}* completed: *{t['text']}*", db)
     return {"ok": True}
 
+@app.post("/api/tasks/{tid}/done")
+async def mark_task_done(tid: int, user=Depends(get_uf), db=Depends(get_db)):
+    """Mark a task complete (idempotent set-done). POST alias of the toggle for the
+    Android home-screen widget — Java's HttpURLConnection cannot send PATCH."""
+    t = db.execute("SELECT text, done FROM tasks WHERE id=? AND family_id=?", (tid, user["family_id"])).fetchone()
+    if not t: raise HTTPException(404, "Not found")
+    if not t["done"]:
+        db.execute("UPDATE tasks SET done=1 WHERE id=? AND family_id=?", (tid, user["family_id"])); db.commit()
+        await notify_all(user["family_id"], f"✅ *{user['first_name']}* completed: *{t['text']}*", db)
+    return {"ok": True}
+
 @app.delete("/api/tasks/{tid}")
 def del_task(tid: int, user=Depends(get_uf), db=Depends(get_db)):
     db.execute("DELETE FROM task_reminders WHERE task_id=? AND family_id=?", (tid, user["family_id"]))
@@ -2424,28 +2435,28 @@ def agenda(days: int = 14, user=Depends(get_uf), db=Depends(get_db)):
     ts, te = today.isoformat(), end.isoformat()
     out = []
 
-    def add(date, tm, title, emoji, typ):
-        out.append({"date": date, "time": tm or "", "title": title or "", "emoji": emoji,
+    def add(iid, date, tm, title, emoji, typ):
+        out.append({"id": iid, "date": date, "time": tm or "", "title": title or "", "emoji": emoji,
                     "type": typ, "_k": date + " " + (tm or "00:00")})
 
     # Events overlapping the window (pinned to start day, or today if already running)
-    for r in db.execute("SELECT text,event_date,end_date FROM events WHERE family_id=? AND event_date IS NOT NULL", (f,)).fetchall():
+    for r in db.execute("SELECT id,text,event_date,end_date FROM events WHERE family_id=? AND event_date IS NOT NULL", (f,)).fetchall():
         full = r["event_date"] or ""
         s = full.split(" ")[0]
         e = (r["end_date"] or full).split(" ")[0]
         if e < ts or s > te:
             continue
         tm = full.split(" ")[1][:5] if " " in full else ""
-        add(s if s >= ts else ts, tm, r["text"], "📅", "event")
+        add(r["id"], s if s >= ts else ts, tm, r["text"], "📅", "event")
 
     # Open tasks with a due date
-    for r in db.execute("SELECT text,due_date,priority FROM tasks WHERE family_id=? AND due_date IS NOT NULL AND done=0 AND due_date>=? AND due_date<=?", (f, ts, te)).fetchall():
+    for r in db.execute("SELECT id,text,due_date,priority FROM tasks WHERE family_id=? AND due_date IS NOT NULL AND done=0 AND due_date>=? AND due_date<=?", (f, ts, te)).fetchall():
         d = (r["due_date"] or "").split(" ")[0]
-        add(d, "", r["text"], "⚠️" if r["priority"] == "high" else "📋", "task")
+        add(r["id"], d, "", r["text"], "⚠️" if r["priority"] == "high" else "📋", "task")
 
     # Recurring task occurrences
     day_map = {"mon": 0, "tue": 1, "wed": 2, "thu": 3, "fri": 4, "sat": 5, "sun": 6}
-    for r in db.execute("SELECT text,rrule FROM recurring_tasks WHERE family_id=? AND active=1", (f,)).fetchall():
+    for r in db.execute("SELECT id,text,rrule FROM recurring_tasks WHERE family_id=? AND active=1", (f,)).fetchall():
         rrule = r["rrule"] or ""
         d = today
         while d <= end:
@@ -2458,22 +2469,22 @@ def agenda(days: int = 14, user=Depends(get_uf), db=Depends(get_db)):
                 except Exception:
                     pass
             if match:
-                add(d.isoformat(), "", r["text"], "🔁", "recurring")
+                add(r["id"], d.isoformat(), "", r["text"], "🔁", "recurring")
             d += timedelta(days=1)
 
     # Birthdays mapped to this / next year (window may cross Dec→Jan)
-    for r in db.execute("SELECT name,emoji,birth_date FROM birthdays WHERE family_id=?", (f,)).fetchall():
+    for r in db.execute("SELECT id,name,emoji,birth_date FROM birthdays WHERE family_id=?", (f,)).fetchall():
         bd = r["birth_date"]
         if not bd or len(bd) < 10:
             continue
         for yr in (today.year, today.year + 1):
             cand = f"{yr}-{bd[5:]}"
             if ts <= cand <= te:
-                add(cand, "", r["name"], r["emoji"] or "🎂", "birthday")
+                add(r["id"], cand, "", r["name"], r["emoji"] or "🎂", "birthday")
                 break
 
     # Subscription charges (billing_day in the window's months)
-    for r in db.execute("SELECT name,emoji,billing_day FROM subscriptions WHERE family_id=?", (f,)).fetchall():
+    for r in db.execute("SELECT id,name,emoji,billing_day FROM subscriptions WHERE family_id=?", (f,)).fetchall():
         bd = r["billing_day"] or 1
         seen = set()
         for cy, cm in [(today.year, today.month), (end.year, end.month)]:
@@ -2483,7 +2494,7 @@ def agenda(days: int = 14, user=Depends(get_uf), db=Depends(get_db)):
             _, mx = monthrange(cy, cm)
             ds = f"{cy}-{cm:02d}-{min(bd, mx):02d}"
             if ts <= ds <= te:
-                add(ds, "", r["name"], r["emoji"] or "💳", "subscription")
+                add(r["id"], ds, "", r["name"], r["emoji"] or "💳", "subscription")
 
     out.sort(key=lambda x: x["_k"])
     for it in out:

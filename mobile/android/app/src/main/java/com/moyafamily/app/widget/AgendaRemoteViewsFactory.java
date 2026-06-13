@@ -1,6 +1,8 @@
 package com.moyafamily.app.widget;
 
 import android.content.Context;
+import android.content.Intent;
+import android.view.View;
 import android.widget.RemoteViews;
 import android.widget.RemoteViewsService;
 
@@ -80,9 +82,29 @@ public class AgendaRemoteViewsFactory implements RemoteViewsService.RemoteViewsF
         RemoteViews rv = new RemoteViews(ctx.getPackageName(), R.layout.widget_agenda_row);
         if (pos < 0 || pos >= items.size()) return rv;
         JSONObject it = items.get(pos);
+        String type = it.optString("type", "");
+        int id = it.optInt("id", 0);
         rv.setTextViewText(R.id.row_emoji, it.optString("emoji", "•"));
         rv.setTextViewText(R.id.row_title, it.optString("title", ""));
         rv.setTextViewText(R.id.row_sub, formatWhen(it.optString("date", ""), it.optString("time", "")));
+
+        // Whole row → open the in-app detail popup (showCalEv) for this item.
+        Intent open = new Intent()
+                .putExtra(AgendaWidgetProvider.EXTRA_ACTION, "open")
+                .putExtra(AgendaWidgetProvider.EXTRA_TYPE, type)
+                .putExtra(AgendaWidgetProvider.EXTRA_ID, id);
+        rv.setOnClickFillInIntent(R.id.row_root, open);
+
+        // One-off tasks → a ✓ that marks the task done in the background (no app open).
+        if ("task".equals(type)) {
+            rv.setViewVisibility(R.id.row_check, View.VISIBLE);
+            Intent toggle = new Intent()
+                    .putExtra(AgendaWidgetProvider.EXTRA_ACTION, "toggle")
+                    .putExtra(AgendaWidgetProvider.EXTRA_ID, id);
+            rv.setOnClickFillInIntent(R.id.row_check, toggle);
+        } else {
+            rv.setViewVisibility(R.id.row_check, View.GONE);
+        }
         return rv;
     }
 
