@@ -229,12 +229,20 @@ function _gLogoSvg() {
 }
 function _renderGoogleNativeBtn() {
   var el = document.getElementById("g-btn"); if (!el) return;
-  el.innerHTML = '<button type="button" onclick="_googleNativeSignIn()" style="display:inline-flex;align-items:center;justify-content:center;gap:10px;width:100%;padding:12px;border-radius:14px;border:1.5px solid var(--bd);background:var(--cd);color:var(--tx);font-size:15px;font-weight:600;cursor:pointer;font-family:inherit">' + _gLogoSvg() + 'Continue with Google</button>';
+  el.style.width = "100%";   // the #g-btn wrapper is centered → force full width to match the Sign-in button
+  el.innerHTML = '<button type="button" onclick="_googleNativeSignIn()" style="display:flex;align-items:center;justify-content:center;gap:10px;width:100%;padding:14px;border-radius:14px;border:1.5px solid var(--bd);background:var(--cd);color:var(--tx);font-size:15px;font-weight:600;cursor:pointer;font-family:inherit">' + _gLogoSvg() + 'Continue with Google</button>';
 }
 async function _googleNativeSignIn() {
   var GA = window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.GoogleAuth;
   if (!GA || typeof GA.signIn !== "function") { _authMsg("Google sign-in unavailable in this build"); return; }
   _authMsg("");
+  // codetrix v3 quirk: load() is a no-op, the GoogleSignInClient is only built in
+  // initialize(). Calling signIn() first NPEs on a null client (crashed the app).
+  // clientId = the Web OAuth id (also the backend's GOOGLE_CLIENT_ID → idToken aud matches).
+  if (typeof GA.initialize === "function") {
+    try { await GA.initialize({ clientId: (_authCfg && _authCfg.google_client_id) || undefined, scopes: ["profile", "email"], grantOfflineAccess: false }); }
+    catch (e) { /* idempotent; client may already be built */ }
+  }
   var res;
   try { res = await GA.signIn(); }
   catch (e) {
