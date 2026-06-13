@@ -7,6 +7,9 @@ import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
 import android.net.Uri;
+import android.os.Handler;
+import android.os.Looper;
+import android.view.View;
 import android.widget.RemoteViews;
 
 import com.moyafamily.app.MainActivity;
@@ -76,9 +79,35 @@ public class AgendaWidgetProvider extends AppWidgetProvider {
     public void onReceive(Context ctx, Intent intent) {
         super.onReceive(ctx, intent);
         if (ACTION_REFRESH.equals(intent.getAction())) {
-            AppWidgetManager mgr = AppWidgetManager.getInstance(ctx);
-            int[] ids = mgr.getAppWidgetIds(new ComponentName(ctx, AgendaWidgetProvider.class));
-            for (int id : ids) updateWidget(ctx, mgr, id);
+            final Context appCtx = ctx.getApplicationContext();
+            final AppWidgetManager mgr = AppWidgetManager.getInstance(appCtx);
+            final int[] ids = mgr.getAppWidgetIds(new ComponentName(appCtx, AgendaWidgetProvider.class));
+            // Show a spinner right away (clear confirmation the tap registered), then refetch.
+            for (int id : ids) {
+                RemoteViews spin = new RemoteViews(appCtx.getPackageName(), R.layout.widget_agenda);
+                spin.setViewVisibility(R.id.widget_sync, View.GONE);
+                spin.setViewVisibility(R.id.widget_sync_progress, View.VISIBLE);
+                mgr.partiallyUpdateAppWidget(id, spin);
+            }
+            mgr.notifyAppWidgetViewDataChanged(ids, R.id.agenda_list);
+            // Keep it spinning ~1.2s, then swap back to ↻. goAsync() keeps the receiver
+            // alive for the delayed restore.
+            final android.content.BroadcastReceiver.PendingResult pr = goAsync();
+            new Handler(Looper.getMainLooper()).postDelayed(new Runnable() {
+                @Override
+                public void run() {
+                    try {
+                        for (int id : ids) {
+                            RemoteViews back = new RemoteViews(appCtx.getPackageName(), R.layout.widget_agenda);
+                            back.setViewVisibility(R.id.widget_sync_progress, View.GONE);
+                            back.setViewVisibility(R.id.widget_sync, View.VISIBLE);
+                            mgr.partiallyUpdateAppWidget(id, back);
+                        }
+                    } finally {
+                        pr.finish();
+                    }
+                }
+            }, 1200);
         } else if (ACTION_ITEM.equals(intent.getAction())) {
             String act = intent.getStringExtra(EXTRA_ACTION);
             final int itemId = intent.getIntExtra(EXTRA_ID, 0);

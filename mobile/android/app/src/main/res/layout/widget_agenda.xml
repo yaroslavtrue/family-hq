@@ -44,6 +44,18 @@
             android:paddingRight="2dp"
             android:paddingTop="2dp"
             android:paddingBottom="2dp" />
+
+        <!-- Spinner shown for ~1.2s after a refresh tap, then swapped back to ↻ -->
+        <ProgressBar
+            android:id="@+id/widget_sync_progress"
+            style="?android:attr/progressBarStyleSmall"
+            android:layout_width="20dp"
+            android:layout_height="20dp"
+            android:layout_marginLeft="4dp"
+            android:layout_marginStart="4dp"
+            android:indeterminate="true"
+            android:indeterminateTint="#F2631C"
+            android:visibility="gone" />
     </LinearLayout>
 
     <FrameLayout
