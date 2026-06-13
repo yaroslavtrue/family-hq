@@ -56,6 +56,11 @@ services:
       - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID}
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
       - TZ=${TZ:-Europe/Belgrade}
+      # Push notifications (FCM). FCM_SA_PATH points at the service-account key
+      # mounted via ./data-product:/data (so the key file never enters git/env).
+      # Unset → fcm.configured() is False → push is a no-op (same as the Telegram app).
+      - FCM_PROJECT_ID=${FCM_PROJECT_ID:-}
+      - FCM_SA_PATH=${FCM_SA_PATH:-}
     volumes:
       - ./data-product:/data
       - ./frontend/weather:/app/frontend/weather        # shared (generic loop videos, read-only content)

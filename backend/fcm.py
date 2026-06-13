@@ -34,11 +34,21 @@ def _project_id():
 
 
 def _service_account():
-    """Parse FCM_SA_JSON (raw JSON content) once. Returns dict or None."""
+    """Parse the service account once. Source is either FCM_SA_JSON (raw JSON
+    content) or FCM_SA_PATH (a file path — preferred for big keys, avoids env
+    escaping). Returns dict or None."""
     global _sa
     if _sa is not None:
         return _sa or None
     raw = (os.environ.get("FCM_SA_JSON", "") or "").strip()
+    if not raw:
+        path = (os.environ.get("FCM_SA_PATH", "") or "").strip()
+        if path:
+            try:
+                with open(path, "r", encoding="utf-8") as f:
+                    raw = f.read().strip()
+            except Exception as e:
+                log.error(f"FCM_SA_PATH read error: {e}")
     if not raw:
         _sa = False
         return None
