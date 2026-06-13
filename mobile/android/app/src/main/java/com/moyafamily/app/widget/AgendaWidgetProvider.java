@@ -17,6 +17,7 @@ import com.moyafamily.app.R;
 
 import java.net.URL;
 import java.text.SimpleDateFormat;
+import java.util.Calendar;
 import java.util.Date;
 import java.util.Locale;
 
@@ -42,8 +43,7 @@ public class AgendaWidgetProvider extends AppWidgetProvider {
 
     static void updateWidget(Context ctx, AppWidgetManager mgr, int id) {
         RemoteViews rv = new RemoteViews(ctx.getPackageName(), R.layout.widget_agenda);
-        rv.setTextViewText(R.id.widget_date,
-                new SimpleDateFormat("EEE, d MMM", Locale.getDefault()).format(new Date()));
+        fillWeekStrip(rv);
 
         // Collection adapter — unique Intent per widget id (Uri data forces distinct extras).
         Intent svc = new Intent(ctx, AgendaWidgetService.class);
@@ -73,6 +73,32 @@ public class AgendaWidgetProvider extends AppWidgetProvider {
 
         mgr.updateAppWidget(id, rv);
         mgr.notifyAppWidgetViewDataChanged(id, R.id.agenda_list);
+    }
+
+    // Fill the Mon–Sun week strip with day labels + numbers; today gets the orange circle.
+    private static void fillWeekStrip(RemoteViews rv) {
+        int[] wd = {R.id.wd0, R.id.wd1, R.id.wd2, R.id.wd3, R.id.wd4, R.id.wd5, R.id.wd6};
+        int[] wn = {R.id.wn0, R.id.wn1, R.id.wn2, R.id.wn3, R.id.wn4, R.id.wn5, R.id.wn6};
+        String[] names = {"MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN"};
+        Calendar cal = Calendar.getInstance();
+        int dow = cal.get(Calendar.DAY_OF_WEEK);                       // SUN=1 … SAT=7
+        int back = (dow == Calendar.SUNDAY) ? 6 : (dow - Calendar.MONDAY);
+        cal.add(Calendar.DAY_OF_MONTH, -back);                         // Monday of this week
+        Calendar today = Calendar.getInstance();
+        for (int i = 0; i < 7; i++) {
+            rv.setTextViewText(wd[i], names[i]);
+            rv.setTextViewText(wn[i], String.valueOf(cal.get(Calendar.DAY_OF_MONTH)));
+            boolean isToday = cal.get(Calendar.YEAR) == today.get(Calendar.YEAR)
+                    && cal.get(Calendar.DAY_OF_YEAR) == today.get(Calendar.DAY_OF_YEAR);
+            if (isToday) {
+                rv.setInt(wn[i], "setBackgroundResource", R.drawable.widget_today_bg);
+                rv.setTextColor(wn[i], 0xFFFFFFFF);
+            } else {
+                rv.setInt(wn[i], "setBackgroundResource", 0);
+                rv.setTextColor(wn[i], 0xFF2A1D12);
+            }
+            cal.add(Calendar.DAY_OF_MONTH, 1);
+        }
     }
 
     @Override

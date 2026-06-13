@@ -987,7 +987,7 @@ body.life-mode{overflow:hidden}
    When video is in, particles fade out and a soft scrim is added to .wbg-vd-scrim for text legibility. */
 .wbg-vd{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;z-index:0;opacity:0;transition:opacity .8s ease;pointer-events:none;border-radius:inherit}
 .wbg-vd.loaded{opacity:1}
-.wbg-vd-scrim{position:absolute;inset:0;z-index:1;background:linear-gradient(180deg,rgba(0,0,0,.12) 0%,rgba(0,0,0,.42) 100%);opacity:0;transition:opacity .8s ease;pointer-events:none;border-radius:inherit}
+.wbg-vd-scrim{position:absolute;inset:0;z-index:1;background:linear-gradient(180deg,rgba(0,0,0,0) 48%,rgba(0,0,0,.30) 100%);opacity:0;transition:opacity .8s ease;pointer-events:none;border-radius:inherit}
 .wbg.has-video::before,.wbg.has-video::after{opacity:0;transition:opacity .8s ease}
 .wbg.has-video .wbg-vd-scrim{opacity:1}
 /* Clear / Sunny — warm dawn-to-sky gradient with sun glow */
@@ -1426,20 +1426,20 @@ body.no-scroll .mx{touch-action:pan-y}
 <!-- Load JS -->
 <!-- Load order: data (lang.js) → engines (theme.js, auth.js, weather.js) → main (app.js). -->
 <!-- All share globals; extracted modules use `var`/`function` declarations so they're true window-scope. -->
-<script src="/static/demo.js?v=275"></script>
-<script src="/static/lang.js?v=275"></script>
-<script src="/static/theme.js?v=275"></script>
-<script src="/static/auth.js?v=275"></script>
-<script src="/static/weather.js?v=275"></script>
-<script src="/static/words.js?v=275"></script>
-<script src="/static/plants.js?v=275"></script>
-<script src="/static/trainings.js?v=275"></script>
-<script src="/static/money.js?v=275"></script>
-<script src="/static/tasks.js?v=275"></script>
-<script src="/static/cooking.js?v=275"></script>
-<script src="/static/news.js?v=275"></script>
-<script src="/static/settings.js?v=275"></script>
-<script src="/static/tour.js?v=275"></script>
-<script src="/static/app.js?v=275"></script>
+<script src="/static/demo.js?v=276"></script>
+<script src="/static/lang.js?v=276"></script>
+<script src="/static/theme.js?v=276"></script>
+<script src="/static/auth.js?v=276"></script>
+<script src="/static/weather.js?v=276"></script>
+<script src="/static/words.js?v=276"></script>
+<script src="/static/plants.js?v=276"></script>
+<script src="/static/trainings.js?v=276"></script>
+<script src="/static/money.js?v=276"></script>
+<script src="/static/tasks.js?v=276"></script>
+<script src="/static/cooking.js?v=276"></script>
+<script src="/static/news.js?v=276"></script>
+<script src="/static/settings.js?v=276"></script>
+<script src="/static/tour.js?v=276"></script>
+<script src="/static/app.js?v=276"></script>
 </body>
 </html>

@@ -25,34 +25,38 @@ import java.util.Locale;
 import javax.net.ssl.HttpsURLConnection;
 
 /**
- * Fetches the agenda feed and turns each item into a widget row. onDataSetChanged()
- * runs on a background (binder) thread, so the synchronous network call is allowed.
- * The session token is read from Capacitor's "CapacitorStorage" SharedPreferences,
- * where the web app mirrors `fhq_session` (see frontend/auth.js _setSess).
+ * Builds the agenda list. Items come from /api/agenda (already sorted) and are grouped
+ * by day with a header row (TODAY / TOMORROW / "WED 16 JUN") before each day's items —
+ * mirroring the in-app calendar. Two view types: a header (String) and an item (JSONObject).
+ * onDataSetChanged() runs on a background thread, so the synchronous network call is fine.
+ * The session token is read from Capacitor's "CapacitorStorage" SharedPreferences (fhq_session).
  */
 public class AgendaRemoteViewsFactory implements RemoteViewsService.RemoteViewsFactory {
     private static final String API = "https://api.moyafamily.com/api/agenda?days=14";
     private final Context ctx;
-    private final List<JSONObject> items = new ArrayList<>();
+    // Each row is a String (day header) or a JSONObject (agenda item).
+    private final List<Object> rows = new ArrayList<>();
 
     AgendaRemoteViewsFactory(Context ctx) {
         this.ctx = ctx;
     }
 
     @Override public void onCreate() {}
-    @Override public void onDestroy() { items.clear(); }
-    @Override public int getCount() { return items.size(); }
+    @Override public void onDestroy() { rows.clear(); }
+    @Override public int getCount() { return rows.size(); }
     @Override public long getItemId(int p) { return p; }
-    @Override public boolean hasStableIds() { return true; }
-    @Override public int getViewTypeCount() { return 1; }
+    @Override public boolean hasStableIds() { return false; }
+    @Override public int getViewTypeCount() { return 2; }   // header + item
     @Override public RemoteViews getLoadingView() { return null; }
 
     @Override
     public void onDataSetChanged() {
-        items.clear();
+        rows.clear();
         String token = ctx.getSharedPreferences("CapacitorStorage", Context.MODE_PRIVATE)
                 .getString("fhq_session", null);
         if (token == null || token.isEmpty()) return;
+
+        List<JSONObject> items = new ArrayList<>();
         HttpsURLConnection c = null;
         try {
             c = (HttpsURLConnection) new URL(API).openConnection();
@@ -72,23 +76,51 @@ public class AgendaRemoteViewsFactory implements RemoteViewsService.RemoteViewsF
                 }
             }
         } catch (Exception ignored) {
-            // Network/parse failure → leave the list empty (the empty view shows).
         } finally {
             if (c != null) c.disconnect();
+        }
+
+        // Group by day: a header row whenever the date changes.
+        String last = null;
+        for (JSONObject it : items) {
+            String date = it.optString("date", "");
+            if (!date.equals(last)) {
+                rows.add(headerLabel(date));
+                last = date;
+            }
+            rows.add(it);
         }
     }
 
     @Override
     public RemoteViews getViewAt(int pos) {
+        if (pos < 0 || pos >= rows.size()) {
+            return new RemoteViews(ctx.getPackageName(), R.layout.widget_agenda_row);
+        }
+        Object row = rows.get(pos);
+
+        if (row instanceof String) {
+            RemoteViews h = new RemoteViews(ctx.getPackageName(), R.layout.widget_agenda_header);
+            h.setTextViewText(R.id.row_header, (String) row);
+            return h;
+        }
+
+        JSONObject it = (JSONObject) row;
         RemoteViews rv = new RemoteViews(ctx.getPackageName(), R.layout.widget_agenda_row);
-        if (pos < 0 || pos >= items.size()) return rv;
-        JSONObject it = items.get(pos);
         String type = it.optString("type", "");
         int id = it.optInt("id", 0);
         boolean done = it.optBoolean("done", false);
+        String time = it.optString("time", "");
+
         rv.setTextViewText(R.id.row_emoji, it.optString("emoji", "•"));
         rv.setTextViewText(R.id.row_title, it.optString("title", ""));
-        rv.setTextViewText(R.id.row_sub, formatWhen(it.optString("date", ""), it.optString("time", "")));
+        // Sub line shows the time (events); hidden when there's none.
+        if (!time.isEmpty()) {
+            rv.setViewVisibility(R.id.row_sub, View.VISIBLE);
+            rv.setTextViewText(R.id.row_sub, time);
+        } else {
+            rv.setViewVisibility(R.id.row_sub, View.GONE);
+        }
 
         // Completed → strike-through + dimmed; otherwise normal. Set BOTH branches —
         // rows are recycled, so stale paint/colour must be cleared each time.
@@ -108,7 +140,6 @@ public class AgendaRemoteViewsFactory implements RemoteViewsService.RemoteViewsF
         rv.setOnClickFillInIntent(R.id.row_root, open);
 
         // Tasks → a checkbox that toggles done in the background (no app open).
-        // Checked tasks show a ✓ in the square; unchecked show an empty box.
         if ("task".equals(type)) {
             rv.setViewVisibility(R.id.row_check, View.VISIBLE);
             rv.setTextViewText(R.id.row_check, done ? "✓" : "");
@@ -123,21 +154,19 @@ public class AgendaRemoteViewsFactory implements RemoteViewsService.RemoteViewsF
         return rv;
     }
 
-    private String formatWhen(String date, String time) {
+    // "TODAY" / "TOMORROW" / "WED 16 JUN" for the group header.
+    private String headerLabel(String date) {
         try {
-            SimpleDateFormat in = new SimpleDateFormat("yyyy-MM-dd", Locale.US);
-            Date d = in.parse(date);
+            Date d = new SimpleDateFormat("yyyy-MM-dd", Locale.US).parse(date);
             Calendar c0 = midnight(Calendar.getInstance());
             Calendar cd = Calendar.getInstance();
             cd.setTime(d);
             cd = midnight(cd);
             long diff = Math.round((cd.getTimeInMillis() - c0.getTimeInMillis()) / 86400000.0);
-            String label;
-            if (diff == 0) label = "Today";
-            else if (diff == 1) label = "Tomorrow";
-            else label = new SimpleDateFormat("EEE d MMM", Locale.getDefault()).format(d);
-            if (time != null && !time.isEmpty()) label += " · " + time;
-            return label;
+            if (diff == 0) return "TODAY";
+            if (diff == 1) return "TOMORROW";
+            return new SimpleDateFormat("EEE d MMM", Locale.getDefault())
+                    .format(d).toUpperCase(Locale.getDefault());
         } catch (Exception e) {
             return date;
         }
