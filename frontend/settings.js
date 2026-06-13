@@ -57,6 +57,8 @@ h+=_setRow({ico:"palette",iconStyle:thStyle,title:tr("th_"+cTheme)||curTh.n,subt
 var navIds=_currentNavIds();
 var navPreview=navIds.map(function(id){return tr("nav_"+id)}).join(" · ");
 h+=_setRow({ico:"list",acc:"acc-pr",title:tr("set_bottom_nav"),subtitle:navPreview+" ("+navIds.length+")",onclick:"openNavPicker()"});
+h+='<div class="sc"><span class="sc-l">'+tr("set_weather")+'</span></div>';
+h+=_setRow({iconCustom:'<span style="font-size:20px">📍</span>',acc:"acc-pr",title:tr("set_weather_city"),subtitle:es((D.settings&&D.settings.weather_city)||"Belgrade"),onclick:"openWeatherCityCfg()"});
 h+='<div class="sc"><span class="sc-l">'+tr("set_notifications")+'</span></div>';
 h+=_setRow({ico:"bl",acc:"acc-wn",title:tr("set_morning_digest"),subtitle:(D.settings.digest_time||"09:00")+" · "+tr("set_morning_digest_sub"),onclick:"openDigestCfg()"});
 var nExp=D.categories.filter(function(c){return c.type==="expense"}).length;
@@ -82,6 +84,90 @@ h+=_setRow({iconCustom:'<span style="font-size:20px">🧭</span>',acc:"acc-pr",t
 h+='<div class="sc"><span class="sc-l">'+tr("set_developer")+'</span></div>';
 h+=_setRow({ico:"debug",acc:"acc-ac",title:tr("set_debug")+" "+(dbgOn?"ON":"OFF"),onclick:"dbgOn=!dbgOn;document.getElementById(\'dbg\').classList.toggle(\'hidden\',!dbgOn);ren()"});
 h+='<div style="margin-top:18px;text-align:center;font-size:11px;color:var(--ht);letter-spacing:.3px">Moya 0.5</div>';return h}
+
+// ─── Weather location (city for the weather widget) ──────────────────
+// First launch (native app): offer to use the device location to set the family's
+// weather city. Asked once (with a rationale before the OS prompt). A manual
+// override lives in Settings → Weather. Backend already stores weather_lat/lon/city.
+function _locMaybeAsk(){
+  if(typeof _isNativeApp!=="function"||!_isNativeApp())return;
+  if(!(typeof fS!=="undefined"&&fS&&fS.joined))return;
+  try{ if(localStorage.getItem("moya_loc_asked")==="1")return; }catch(e){}
+  if(D&&D.settings&&D.settings.weather_lat!=null)return;                 // already configured
+  if(document.querySelector("#mo.op")||document.getElementById("tour-root"))return; // don't stack
+  setTimeout(_locShowRationale,800);
+}
+function _locShowRationale(){
+  if(document.querySelector("#mo.op")||document.getElementById("tour-root"))return;
+  oMC(tr("loc_title"),
+    '<div style="text-align:center;padding:2px 2px 0">'+
+    '<div style="font-size:44px;margin-bottom:10px">📍</div>'+
+    '<div style="font-size:14px;color:var(--ht);line-height:1.5;margin-bottom:18px">'+tr("loc_body")+'</div>'+
+    '<button class="btn" onclick="_locAllow()">'+tr("loc_allow")+'</button>'+
+    '<button class="btn btn-s" style="margin-top:8px" onclick="_locDismiss()">'+tr("loc_later")+'</button>'+
+    '</div>',{ic:"pin"});
+}
+function _locDismiss(){ try{localStorage.setItem("moya_loc_asked","1")}catch(e){} cMo(); }
+async function _locAllow(){ try{localStorage.setItem("moya_loc_asked","1")}catch(e){} cMo(); await _locDetect(true); }
+
+async function _locDetect(showFeedback){
+  var G=window.Capacitor&&window.Capacitor.Plugins&&window.Capacitor.Plugins.Geolocation;
+  if(!G||typeof G.getCurrentPosition!=="function"){ if(showFeedback)toast(tr("loc_unavailable")); return; }
+  if(showFeedback)toast("📍 …");
+  try{
+    try{ await G.requestPermissions({permissions:["location"]}); }catch(e){}
+    var pos=await G.getCurrentPosition({enableHighAccuracy:false,timeout:12000,maximumAge:600000});
+    var lat=pos&&pos.coords&&pos.coords.latitude, lon=pos&&pos.coords&&pos.coords.longitude;
+    if(lat==null||lon==null){ if(showFeedback)toast(tr("loc_failed")); return; }
+    var city=await _reverseGeocode(lat,lon);
+    await A("PATCH","/api/settings",{weather_lat:lat,weather_lon:lon,weather_city:city||""});
+    await load();
+    if(showFeedback)toast("📍 "+(city||tr("loc_done")));
+  }catch(e){ if(showFeedback)toast(tr("loc_failed")); }
+}
+// lat/lon → city name (free, no key, CORS-enabled).
+async function _reverseGeocode(lat,lon){
+  try{
+    var lng=(_lang==="ru")?"ru":"en";
+    var r=await fetch("https://api.bigdatacloud.net/data/reverse-geocode-client?latitude="+lat+"&longitude="+lon+"&localityLanguage="+lng,{cache:"no-store"});
+    if(r.ok){ var d=await r.json(); return d.city||d.locality||d.principalSubdivision||d.countryName||""; }
+  }catch(e){}
+  return "";
+}
+
+// Settings → Weather city: auto-detect button (native) + free city search.
+function openWeatherCityCfg(){
+  var cur=(D.settings&&D.settings.weather_city)||"Belgrade";
+  var detectBtn=(typeof _isNativeApp==="function"&&_isNativeApp())
+    ? '<button class="btn btn-s" style="margin-bottom:12px" onclick="cMo();_locDetect(true)">📍 '+tr("loc_detect")+'</button>' : '';
+  oMC(tr("set_weather_city"),
+    '<div class="lc" style="margin-bottom:14px"><div class="lc-i acc-pr"><span style="font-size:20px">📍</span></div><div class="lc-bd"><div class="lc-tt">'+es(cur)+'</div><div class="lc-mt">'+tr("set_weather_city_cur")+'</div></div></div>'+
+    detectBtn+
+    '<input class="inp" id="wc-q" placeholder="'+tr("set_weather_city_ph")+'" oninput="_wcSearch(this.value)" autocomplete="off">'+
+    '<div id="wc-res" style="margin-top:6px"></div>',{ic:"pin"});
+}
+var _wcT=null;
+function _wcSearch(q){
+  q=(q||"").trim(); if(_wcT)clearTimeout(_wcT);
+  var el=document.getElementById("wc-res"); if(!el)return;
+  if(q.length<2){ el.innerHTML=""; return; }
+  _wcT=setTimeout(async function(){
+    try{
+      var r=await fetch("https://geocoding-api.open-meteo.com/v1/search?count=6&language="+(_lang==="ru"?"ru":"en")+"&name="+encodeURIComponent(q));
+      var d=await r.json(); var list=(d&&d.results)||[];
+      var el2=document.getElementById("wc-res"); if(!el2)return;
+      el2.innerHTML=list.map(function(c){
+        var sub=[c.admin1,c.country].filter(Boolean).map(es).join(" · ");
+        var nm=es(c.name).replace(/\\/g,"").replace(/'/g,"’");
+        return '<div class="lc lc-tap" onclick="_wcPick('+c.latitude+','+c.longitude+',\''+nm+'\')"><div class="lc-i"><span style="font-size:18px">📍</span></div><div class="lc-bd"><div class="lc-tt">'+es(c.name)+'</div><div class="lc-mt">'+sub+'</div></div></div>';
+      }).join("");
+    }catch(e){}
+  },300);
+}
+async function _wcPick(lat,lon,name){
+  await A("PATCH","/api/settings",{weather_lat:lat,weather_lon:lon,weather_city:name});
+  cMo(); if(typeof hp==="function")hp(); await load(); toast("📍 "+name);
+}
 async function setTh(id){
   if(id==="custom"){
     // Tapping Custom in the picker opens the editor (saves happen there). Also apply right away.
