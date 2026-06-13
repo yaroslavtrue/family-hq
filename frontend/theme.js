@@ -11,7 +11,7 @@
 // pipeline. Only the engine moves here.
 
 var TH = {
-  moya:     {n:"Moya",e:"🧡",bg:"#fef5ec",sf:"#fff8f0",cd:"#ffffff",bd:"rgba(0,0,0,0.09)",tx:"#2a1d12",ht:"#80705f",pr:"#f2631c",pg:"rgba(242,99,28,0.12)",ac:"#fb3b4e",ok:"#3fa36a",wn:"#f5a623",gd:"linear-gradient(135deg,#e9550f,#ff8a3d)",gtx:"#fff",l:1},
+  moya:     {n:"Moya",e:"🧡",bg:"#fef5ec",sf:"#fff8f0",cd:"#ffffff",bd:"rgba(0,0,0,0.09)",tx:"#2a1d12",ht:"#80705f",pr:"#f2631c",pg:"rgba(242,99,28,0.12)",ac:"#fb3b4e",ok:"#3fa36a",wn:"#f5a623",gd:"linear-gradient(135deg,#e9550f,#fb7a28)",gtx:"#fff",l:1},
   midnight: {n:"Midnight",e:"🌙",bg:"#0f0f1a",sf:"#1a1a2f",cd:"#212140",bd:"rgba(255,255,255,0.10)",tx:"#e8e6f0",ht:"#9f9dba",pr:"#7c6aef",pg:"rgba(124,106,239,0.15)",ac:"#ef6a7a",ok:"#5cd6a0",wn:"#f0c45a",gd:"linear-gradient(135deg,#5a4cd0,#7c6aef)",gtx:"#fff",l:0},
   dawn:     {n:"Dawn",e:"🌅",bg:"#faf7f2",sf:"#fff8f0",cd:"#ffffff",bd:"rgba(0,0,0,0.10)",tx:"#2d2a24",ht:"#7a7066",pr:"#d4783c",pg:"rgba(212,120,60,0.12)",ac:"#c44d56",ok:"#4a9e6e",wn:"#c9982a",gd:"linear-gradient(135deg,#b85e1e,#d4783c)",gtx:"#fff",l:1},
   forest:   {n:"Forest",e:"🌲",bg:"#0d1a14",sf:"#142420",cd:"#1c3329",bd:"rgba(255,255,255,0.10)",tx:"#d4e8dc",ht:"#85b59a",pr:"#4ec98b",pg:"rgba(78,201,139,0.12)",ac:"#e87461",ok:"#4ec98b",wn:"#d4b84a",gd:"linear-gradient(135deg,#2e9c63,#4ec98b)",gtx:"#fff",l:0},
