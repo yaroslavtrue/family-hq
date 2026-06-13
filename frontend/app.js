@@ -1,5 +1,5 @@
 // ═══════════════════════════════════════════════════════════════
-// 🏠 Family HQ v6.1 — Frontend Logic
+// 🏠 Moya v6.1 — Frontend Logic
 // ═══════════════════════════════════════════════════════════════
 
 // Telegram WebApp handle + initData. Declared as `var` (not const) so /static/auth.js
@@ -574,7 +574,7 @@ async function aSu(t,pid){var i=document.getElementById("si-"+t+"-"+pid);if(!i||
 // NAVIGATION — customizable per-member bottom nav (v8.47.0) + hamburger
 // ═══════════════════════════════════════════════════════════
 // TT — tab title/subtitle catalog. Used by go() to set the header per tab.
-const TT={home:{i:"home",t:"Family HQ",s:"Everything at a glance"},tasks:{i:"clipboard",t:"Tasks",s:"Manage & assign"},shop:{i:"cart",t:"Shopping",s:"Shared list"},trainings:{i:"dumbbell",t:"Trainings",s:"Workouts & progress"},words:{i:"book",t:"Words",s:"Vocabulary learning"},plants:{i:"flower",t:"Plants",s:"Care & watering"},cooking:{i:"chef",t:"Cooking",s:"Dishes & ingredient costs"},
+const TT={home:{i:"home",t:"Moya",s:"Everything at a glance"},tasks:{i:"clipboard",t:"Tasks",s:"Manage & assign"},shop:{i:"cart",t:"Shopping",s:"Shared list"},trainings:{i:"dumbbell",t:"Trainings",s:"Workouts & progress"},words:{i:"book",t:"Words",s:"Vocabulary learning"},plants:{i:"flower",t:"Plants",s:"Care & watering"},cooking:{i:"chef",t:"Cooking",s:"Dishes & ingredient costs"},
 life:{i:"life",t:"Life",s:"Your living balance"},money:{i:"dollar",t:"Money",s:"Budget & subs"},profile:{i:"user",t:"Profile",s:"Personal stats"},events:{i:"clock",t:"Events",s:"Schedule"},birthdays:{i:"cake",t:"Birthdays",s:"Never forget"},clean:{i:"broom",t:"Cleaning",s:"Apartment zones"},settings:{i:"cog",t:"Settings",s:"Customize"},subs:{i:"card",t:"Subscriptions",s:"Monthly payments"}};
 
 // NV_ALL — every tab that's eligible for the bottom nav. Per-icon `sv` field

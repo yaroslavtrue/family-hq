@@ -1,5 +1,5 @@
 // ═══════════════════════════════════════════════════════════════
-// 🏠 Family HQ — Auth + Onboarding (extracted from app.js in v8.37.0)
+// 🏠 Moya — Auth + Onboarding (extracted from app.js in v8.37.0)
 // ═══════════════════════════════════════════════════════════════
 // Login flow (rLogin → bot deep-link OR Telegram widget) + family
 // onboarding (rOnb → Create / Join with invite code).
@@ -120,7 +120,7 @@ function _renderAccountsLogin() {
   var banner = "";
   if (_qp("verified")) banner = '<div style="color:var(--ok);font-size:13px;margin:6px 0 2px">✓ Email verified — please sign in.</div>';
   else if (_qp("verify_error")) banner = '<div style="color:var(--ac);font-size:13px;margin:6px 0 2px">This verification link is invalid or expired.</div>';
-  var h = '<div class="onb"><div class="onb-e">🏠</div><div class="onb-t">Family HQ</div>' + banner;
+  var h = '<div class="onb"><div class="onb-e">🏠</div><div class="onb-t">Moya</div>' + banner;
   if (_authView === "login") {
     h += '<div class="onb-s">Sign in to your account.</div>'
        + _inp("ae", "email", "Email", "email") + _inp("ap", "password", "Password", "current-password")
@@ -130,7 +130,7 @@ function _renderAccountsLogin() {
        + '<a style="color:var(--pr);cursor:pointer" onclick="_setAuthView(\'forgot\')">Forgot password?</a>'
        + '<a style="color:var(--pr);cursor:pointer" onclick="_setAuthView(\'register\')">Create account</a></div>';
   } else if (_authView === "register") {
-    h += '<div class="onb-s">Create your Family HQ account.</div>'
+    h += '<div class="onb-s">Create your Moya account.</div>'
        + _inp("an", "text", "Your name", "name") + _inp("ae", "email", "Email", "email") + _inp("ap", "password", "Password (min 8)", "new-password")
        + '<button class="btn" onclick="doEmailRegister()">Create account</button>'
        + '<div id="g-btn" style="margin-top:14px;display:flex;justify-content:center"></div>'
@@ -223,7 +223,7 @@ async function _renderTelegramLogin() {
   var bot = await _fetchBotInfo();
   var h = '<div class="onb"><div class="onb-e">🔐</div>' +
     '<div class="onb-t">Sign in with Telegram</div>' +
-    '<div class="onb-s">Family HQ uses your Telegram account so all data stays in sync.</div>';
+    '<div class="onb-s">Moya uses your Telegram account so all data stays in sync.</div>';
   if (!bot) {
     h += '<div style="color:var(--ac);font-size:13px;text-align:center;padding:16px">⚠️ ' + tr("auth_bot_not_configured") + '. Try opening this app from inside Telegram.</div>';
     h += '<button class="onb-b s2" style="margin-top:6px" onclick="rLogin()">↻ ' + tr("btn_retry") + '</button>';
@@ -329,7 +329,7 @@ function rOnb() {
     try { var parts = _getSess().split("."); if (parts.length >= 2) currentUid = '<div style="font-size:11px;color:var(--ht);margin-top:8px;font-family:monospace">Signed in (#' + parts[0] + ')</div>' } catch (e) {}
   }
   var pwaLogout = (!iD && _getSess()) ? '<div style="margin-top:24px;padding-top:16px;border-top:1px solid var(--bd);text-align:center"><div style="font-size:12px;color:var(--ht);margin-bottom:10px">Wrong account?</div><button class="onb-b s2" style="background:transparent;border:1.5px solid var(--ac);color:var(--ac)" onclick="_logoutPwa()">Sign out & try different account</button></div>' : '';
-  document.getElementById("ct").innerHTML = '<div class="onb"><div class="onb-ico">' + icon("user", 44, 2) + '</div><div class="onb-t">Welcome to Family HQ</div><div class="onb-s">Create a new family or join an existing one with an invite code.</div>' + currentUid + '<div style="height:18px"></div><button class="onb-b p" onclick="shCr()">' + icon("pl", 16, 2.5) + '<span style="margin-left:6px">Create Family</span></button><div style="color:var(--ht);font-size:13px;margin:10px 0;letter-spacing:.5px;text-transform:uppercase;font-weight:600">or</div><button class="onb-b s2" onclick="shJn()"><span style="margin-right:4px">Join with Code</span></button>' + pwaLogout + '</div>'
+  document.getElementById("ct").innerHTML = '<div class="onb"><div class="onb-ico">' + icon("user", 44, 2) + '</div><div class="onb-t">Welcome to Moya</div><div class="onb-s">Create a new family or join an existing one with an invite code.</div>' + currentUid + '<div style="height:18px"></div><button class="onb-b p" onclick="shCr()">' + icon("pl", 16, 2.5) + '<span style="margin-left:6px">Create Family</span></button><div style="color:var(--ht);font-size:13px;margin:10px 0;letter-spacing:.5px;text-transform:uppercase;font-weight:600">or</div><button class="onb-b s2" onclick="shJn()"><span style="margin-right:4px">Join with Code</span></button>' + pwaLogout + '</div>'
 }
 
 function shCr() {

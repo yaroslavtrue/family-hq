@@ -1,13 +1,13 @@
 {
-  "name": "Family HQ",
-  "short_name": "Family HQ",
-  "description": "Family organizer — tasks, shopping, money, workouts, calendar.",
+  "name": "Moya",
+  "short_name": "Moya",
+  "description": "Your family in one warm place — tasks, calendar, money, plants and more.",
   "start_url": "/?source=pwa",
   "scope": "/",
   "display": "standalone",
   "orientation": "portrait",
-  "background_color": "#0f0f1a",
-  "theme_color": "#7c6aef",
+  "background_color": "#fef5ec",
+  "theme_color": "#f2631c",
   "lang": "en",
   "categories": ["productivity", "lifestyle"],
   "icons": [

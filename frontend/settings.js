@@ -81,7 +81,7 @@ h+=_setRow({ico:"bolt",acc:"acc-pr",title:tr("set_tips_news"),subtitle:tr("set_t
 h+=_setRow({iconCustom:'<span style="font-size:20px">🧭</span>',acc:"acc-pr",title:tr("set_replay_tour"),subtitle:tr("set_replay_tour_sub"),onclick:"replayTour()"});
 h+='<div class="sc"><span class="sc-l">'+tr("set_developer")+'</span></div>';
 h+=_setRow({ico:"debug",acc:"acc-ac",title:tr("set_debug")+" "+(dbgOn?"ON":"OFF"),onclick:"dbgOn=!dbgOn;document.getElementById(\'dbg\').classList.toggle(\'hidden\',!dbgOn);ren()"});
-h+='<div style="margin-top:18px;text-align:center;font-size:11px;color:var(--ht);letter-spacing:.3px">Family HQ v8.67.1</div>';return h}
+h+='<div style="margin-top:18px;text-align:center;font-size:11px;color:var(--ht);letter-spacing:.3px">Moya 0.5</div>';return h}
 async function setTh(id){
   if(id==="custom"){
     // Tapping Custom in the picker opens the editor (saves happen there). Also apply right away.
@@ -132,7 +132,7 @@ function _customEditorHtml(){
   var warnHtml=warns.length?'<div class="ct-warn">'+warns.map(function(w){return '<div class="ct-warn-row">⚠ '+w+'</div>'}).join('')+'</div>':'';
   // Preview tile
   var prev='<div class="ct-prev" style="background:'+p.bg+';color:'+dt.tx+';border-color:'+dt.bd+'">'+
-    '<div class="ct-prev-h">Family HQ</div>'+
+    '<div class="ct-prev-h">Moya</div>'+
     '<div class="ct-prev-s" style="color:'+dt.ht+'">Live preview of your palette</div>'+
     '<div class="ct-prev-card" style="background:'+dt.cd+'"><div class="ct-prev-row"><span class="ct-prev-ico" style="background:linear-gradient(135deg,'+_toRgba(p.pr,0.38)+','+_toRgba(p.pr,0.10)+');border:1px solid '+_toRgba(p.pr,0.45)+';color:'+p.pr+'">'+icon("clipboard",16,2.2)+'</span><span class="ct-prev-tt">Task title</span><span class="ct-prev-pill" style="background:'+_toRgba(p.pr,0.18)+';color:'+p.pr+'">High</span></div></div>'+
     '<div class="ct-prev-chips"><span class="ct-prev-chip" style="background:'+_toRgba(p.pr,0.16)+';color:'+p.pr+';border:1px solid '+_toRgba(p.pr,0.5)+'">Primary</span><span class="ct-prev-chip" style="background:'+_toRgba(p.ac,0.16)+';color:'+p.ac+';border:1px solid '+_toRgba(p.ac,0.5)+'">Alert</span><span class="ct-prev-chip" style="background:'+_toRgba(p.ok,0.16)+';color:'+p.ok+';border:1px solid '+_toRgba(p.ok,0.5)+'">Success</span></div>'+

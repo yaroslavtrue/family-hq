@@ -1,5 +1,5 @@
 // ═══════════════════════════════════════════════════════════════
-// 📣 Family HQ — What's New + release timeline (v8.49.0)
+// 📣 Moya — What's New + release timeline (v8.49.0)
 // ═══════════════════════════════════════════════════════════════
 // Single source of truth for user-facing release notes. Loaded BEFORE app.js.
 // On init, app.js calls maybeShowWhatsNew() — if the user has never seen the
@@ -183,12 +183,12 @@ var WHATS_NEW = [
     title_en: "Vocabulary tab",
     title_ru: "Раздел «Слова»",
     items_en: [
-      "English ↔ Russian vocabulary trainer right inside Family HQ.",
+      "English ↔ Russian vocabulary trainer right inside Moya.",
       "Per-user progress (new / learning / learned) — independent for each direction.",
       "Add custom words via the Telegram bot.",
     ],
     items_ru: [
-      "Учим English ↔ Русский прямо в Family HQ.",
+      "Учим English ↔ Русский прямо в Moya.",
       "Личный прогресс (new / learning / learned), отдельно для каждого направления.",
       "Добавляй свои слова через Telegram-бота.",
     ],
