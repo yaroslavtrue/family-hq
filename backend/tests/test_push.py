@@ -131,6 +131,15 @@ def test_fcm_send_dead_on_unregistered(monkeypatch):
     assert asyncio.run(fcm.send("TKN", "T", "B")) == "dead"
 
 
+def test_fcm_send_dead_on_invalid_token(monkeypatch):
+    fcm = _force_configured(monkeypatch)
+    class _Client:
+        async def post(self, *a, **k):
+            return _Resp(400, '{"error":{"status":"INVALID_ARGUMENT","message":"The registration token is not a valid FCM registration token"}}')
+    monkeypatch.setattr(fcm, "_http", lambda: _Client())
+    assert asyncio.run(fcm.send("garbage", "T", "B")) == "dead"
+
+
 def test_fcm_send_skip_when_unconfigured(monkeypatch):
     from backend import fcm
     monkeypatch.delenv("FCM_PROJECT_ID", raising=False)

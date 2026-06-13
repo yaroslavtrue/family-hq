@@ -158,9 +158,13 @@ async def send(token: str, title: str, body: str, data: dict | None = None) -> s
         resp = await _http().post(url, headers={"Authorization": f"Bearer {at}"}, json=payload)
         if resp.status_code == 200:
             return "ok"
-        # 404 NOT_FOUND or 400/403 with UNREGISTERED → token is dead.
+        # Token is permanently dead → prune it:
+        #  - 404 NOT_FOUND / UNREGISTERED  (was valid, app uninstalled or token rotated)
+        #  - 400 INVALID_ARGUMENT naming the registration token (malformed/never-valid)
         txt = resp.text or ""
-        if resp.status_code == 404 or "UNREGISTERED" in txt or "registration-token-not-registered" in txt:
+        if (resp.status_code == 404 or "UNREGISTERED" in txt
+                or "registration-token-not-registered" in txt
+                or "not a valid FCM registration token" in txt):
             return "dead"
         log.error(f"FCM send {resp.status_code}: {txt[:200]}")
         return "error"
