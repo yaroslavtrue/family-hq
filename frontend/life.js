@@ -858,8 +858,10 @@ function _lifeText(ctx, s, x, y, px, color, alpha, weight){
   ctx.globalAlpha = 1;
 }
 // ── Per-frame paint — the whole graph in one pass, no DOM ──────
+var _lifeTxCol="#2a1d12";   // canvas caption colour, read from the theme (--tx) each frame
 function _lifeRender(){
   var ctx = _lifeCtx || _lifeCanvasSetup(); if(!ctx) return;
+  _lifeTxCol=(getComputedStyle(document.body).getPropertyValue('--tx')||'').trim()||"#2a1d12";
   ctx.save(); ctx.setTransform(1,0,0,1,0,0); ctx.clearRect(0,0,_lifeCvW,_lifeCvH); ctx.restore();
   _lifeDrawEdges(ctx);
   _lifeDrawBond(ctx);
@@ -964,19 +966,19 @@ function _lifeDrawNode(ctx, n){
   ctx.stroke();
   if(isSeed) ctx.setLineDash([]);
   // centre glyph
-  if(n.type==="add" || n.type==="addarea"){ _lifeText(ctx,"+", n.x, n.y, 6, "#EDEAE0", 0.7, "700"); }
+  if(n.type==="add" || n.type==="addarea"){ _lifeText(ctx,"+", n.x, n.y, 6, _lifeTxCol, 0.7, "700"); }
   else if(n.type==="ideas"){ _lifeText(ctx,"✨", n.x, n.y, 5, "#fff", 1); }
   else if(n.emoji){ _lifeText(ctx, n.emoji, n.x, n.y, 4.6, "#fff", 1); }
   // captions
   var capY = n.y + n.r + 4.2;
-  if(n.type==="ideas"){ _lifeText(ctx, tr("life_ideas"), n.x, capY, 3.1, "#EDEAE0", 0.6, "700"); }
-  else if(n.type==="addarea"){ _lifeText(ctx, tr("life_new_sphere"), n.x, capY, 3.1, "#EDEAE0", 0.6, "700"); }
+  if(n.type==="ideas"){ _lifeText(ctx, tr("life_ideas"), n.x, capY, 3.1, _lifeTxCol, 0.6, "700"); }
+  else if(n.type==="addarea"){ _lifeText(ctx, tr("life_new_sphere"), n.x, capY, 3.1, _lifeTxCol, 0.6, "700"); }
   else if(n.type!=="add"){
     var nm = n.label || ""; if(nm.length>14) nm = nm.slice(0,13)+"…";
     var hubCap = (n.type==="hub" || n.type==="areahub");
-    _lifeText(ctx, nm, n.x, capY, hubCap?3.4:3.1, "#EDEAE0", hubCap?0.95:0.9, "700");
-    if(n.type==="area"){ _lifeText(ctx, Math.round(br*100)+"%", n.x, capY+3.4, 2.5, "#EDEAE0", 0.5); }
-    if(n.type==="habit" && (n.count||1)>1){ _lifeText(ctx, "×"+(n.count||1), n.x, capY+3.4, 2.5, "#EDEAE0", 0.5); }
+    _lifeText(ctx, nm, n.x, capY, hubCap?3.4:3.1, _lifeTxCol, hubCap?0.95:0.9, "700");
+    if(n.type==="area"){ _lifeText(ctx, Math.round(br*100)+"%", n.x, capY+3.4, 2.5, _lifeTxCol, 0.5); }
+    if(n.type==="habit" && (n.count||1)>1){ _lifeText(ctx, "×"+(n.count||1), n.x, capY+3.4, 2.5, _lifeTxCol, 0.5); }
   }
   // count badge (re-lived events, top-right)
   if(n.type==="habit" && (n.count||1)>1){

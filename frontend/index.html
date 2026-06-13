@@ -331,23 +331,20 @@ body.words-mode .ct{padding-top:max(10px, calc(env(safe-area-inset-top, 0px) + 6
 /* ─── Life — balance network (v8.51.0; header restored v8.51.1) ── */
 /* Keeps the familiar global header. The graph lives in a dark "night sky"
    panel below a slim Me/partner/Family filter row. */
-body.life-mode .ct{padding:0;background:#0a0b10}
+body.life-mode .ct{padding:0;background:var(--bg)}
 /* Life is a fixed full-screen canvas — never let the PAGE scroll, or the absolute
    .life-top (back/month bar, z:3) slides up under the sticky header (.hd, z:10).
    The Journey/Challenges overlays scroll internally, so this doesn't affect them. */
 body.life-mode{overflow:hidden}
 .life-wrap{position:relative;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
-/* Life is always a dark "space" stage, so give its chrome (chips, journey/challenge buttons,
-   challenge cards…) dark surfaces regardless of the app theme — otherwise var(--cd) is white
-   on the Moya light theme and the emoji buttons get a white box. The header stays themed (it's
-   outside .life-wrap). */
-.life-wrap{--bg:#0a0b10;--sf:#11131c;--cd:#171a26;--bd:rgba(255,255,255,0.12);--tx:#edeae0;--ht:#9a9aae;--pg:rgba(255,255,255,0.06)}
+/* Life now follows the app theme (light on Moya, dark on dark themes). Its chrome and the
+   canvas captions read --cd/--bd/--tx/--ht like the rest of the app. */
 /* Filter row floats OVER the canvas (top-right) — no separate black strip.
    pointer-events pass through the empty bar to the canvas; only chips catch taps. */
 .life-top{position:absolute;top:0;left:0;right:0;display:flex;align-items:center;gap:10px;padding:10px 14px;z-index:3;pointer-events:none}
 .life-top > *{pointer-events:auto}
 #life-top-main{display:flex;align-items:center;gap:10px;flex:1;min-width:0}
-.life-areaname{font-size:15px;font-weight:700;color:#EDEAE0;text-shadow:0 1px 4px rgba(0,0,0,.6)}
+.life-areaname{font-size:15px;font-weight:700;color:var(--tx)}
 .life-chips{display:flex;align-items:center;gap:6px}
 .life-chip{display:inline-flex;align-items:center;justify-content:center;width:36px;height:36px;border-radius:50%;background:var(--cd);border:1.5px solid var(--bd);cursor:pointer;padding:0;transition:transform .12s,border-color .15s;font-size:16px;overflow:hidden}
 .life-chip .av,.life-chip .av-em{border-radius:50%}
@@ -358,11 +355,11 @@ body.life-mode{overflow:hidden}
 .life-back{width:34px;height:34px;border-radius:12px;background:var(--cd);border:1px solid var(--bd);color:var(--tx);font-size:24px;line-height:1;cursor:pointer;display:flex;align-items:center;justify-content:center}
 .life-back:active{transform:scale(.92)}
 /* Month switcher (calendar-style, on the night-sky top bar) */
-.life-mnav{display:inline-flex;align-items:center;gap:4px;background:rgba(20,20,34,.55);border:1px solid rgba(255,255,255,.12);border-radius:13px;padding:2px}
-.life-mnav-b{width:26px;height:26px;border:none;background:none;color:#EDEAE0;font-size:17px;line-height:1;cursor:pointer;border-radius:9px;display:flex;align-items:center;justify-content:center}
-.life-mnav-b:active{background:rgba(255,255,255,.1)}
+.life-mnav{display:inline-flex;align-items:center;gap:4px;background:var(--cd);border:1px solid var(--bd);border-radius:13px;padding:2px}
+.life-mnav-b{width:26px;height:26px;border:none;background:none;color:var(--tx);font-size:17px;line-height:1;cursor:pointer;border-radius:9px;display:flex;align-items:center;justify-content:center}
+.life-mnav-b:active{background:var(--pg)}
 .life-mnav-b.off{opacity:.28;pointer-events:none}
-.life-mnav-l{font-size:12px;font-weight:700;color:#EDEAE0;min-width:96px;text-align:center;text-transform:capitalize;letter-spacing:.2px}
+.life-mnav-l{font-size:12px;font-weight:700;color:var(--tx);min-width:96px;text-align:center;text-transform:capitalize;letter-spacing:.2px}
 /* Event detail counter (− value +) */
 .life-count{display:flex;align-items:center;justify-content:center;gap:18px;margin:14px 0 2px}
 .life-count-b{width:40px;height:40px;border-radius:12px;border:1px solid var(--bd);background:var(--cd);color:var(--tx);font-size:22px;font-weight:700;line-height:1;cursor:pointer;display:flex;align-items:center;justify-content:center}
@@ -385,60 +382,60 @@ body.life-mode{overflow:hidden}
 .life-colors{display:flex;flex-wrap:wrap;gap:10px;margin-top:4px}
 .life-color{width:34px;height:34px;border-radius:50%;border:2px solid transparent;cursor:pointer;padding:0;transition:transform .12s}
 .life-color:active{transform:scale(.9)}
-.life-color.on{box-shadow:0 0 0 2px var(--bg),0 0 0 4px #fff}
+.life-color.on{box-shadow:0 0 0 2px var(--bg),0 0 0 4px var(--tx)}
 /* Full-bleed night-sky canvas — no frame, edge to edge, fills to the nav. */
 /* Disable text selection + the iOS long-press callout so holding a node (emoji
    labels are SVG <text>) enters edit mode instead of selecting the glyph. */
-.life-stage{position:relative;touch-action:none;overflow:hidden;background:radial-gradient(120% 80% at 50% 38%, #14151e 0%, #0c0d12 60%, #0a0b10 100%);user-select:none;-webkit-user-select:none;-webkit-touch-callout:none}
+.life-stage{position:relative;touch-action:none;overflow:hidden;background:radial-gradient(120% 80% at 50% 36%, var(--sf) 0%, var(--bg) 62%);user-select:none;-webkit-user-select:none;-webkit-touch-callout:none}
 .life-stage text{user-select:none;-webkit-user-select:none}
 #life-cv{position:absolute;inset:0;width:100%;height:100%;display:block;touch-action:none}
-.life-hint{position:absolute;left:0;right:0;bottom:8px;text-align:center;font-size:12px;color:rgba(237,234,224,.42);padding:0 24px;line-height:1.4;pointer-events:none;z-index:3}
+.life-hint{position:absolute;left:0;right:0;bottom:8px;text-align:center;font-size:12px;color:var(--ht);padding:0 24px;line-height:1.4;pointer-events:none;z-index:3}
 .life-journey-btn{width:34px;height:34px;border-radius:50%;background:var(--cd);border:1.5px solid var(--bd);font-size:16px;cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0}
 .life-journey-btn:active{transform:scale(.92)}
 /* Journey stats panel — scrollable overlay on the night-sky stage */
 /* padding-top clears the absolute filter row (.life-top) that floats over the stage */
-.life-journey{position:absolute;inset:0;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:58px 16px max(28px,env(safe-area-inset-bottom,0px));z-index:2;color:#EDEAE0}
-.life-jload{text-align:center;color:rgba(237,234,224,.45);padding:60px 0;font-size:24px;animation:lifePulse 1.4s ease-in-out infinite}
+.life-journey{position:absolute;inset:0;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:58px 16px max(28px,env(safe-area-inset-bottom,0px));z-index:2;color:var(--tx)}
+.life-jload{text-align:center;color:var(--ht);padding:60px 0;font-size:24px;animation:lifePulse 1.4s ease-in-out infinite}
 .life-jhero{text-align:center;padding:8px 0 18px}
 .life-jbal{font-size:54px;font-weight:800;letter-spacing:-1px;line-height:1}
-.life-jlabel{font-size:13px;color:rgba(237,234,224,.6);font-weight:600;margin-top:4px}
-.life-jsec{font-size:11px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;color:rgba(237,234,224,.5);margin:18px 2px 8px}
-.life-jspark-wrap{height:60px;background:rgba(255,255,255,.03);border-radius:14px;padding:8px;border:1px solid rgba(255,255,255,.06);overflow:hidden;margin-bottom:8px;box-sizing:border-box}
+.life-jlabel{font-size:13px;color:var(--ht);font-weight:600;margin-top:4px}
+.life-jsec{font-size:11px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;color:var(--ht);margin:18px 2px 8px}
+.life-jspark-wrap{height:60px;background:var(--cd);border-radius:14px;padding:8px;border:1px solid var(--bd);overflow:hidden;margin-bottom:8px;box-sizing:border-box}
 .life-spark{width:100%;height:100%;display:block}
 .life-jstats{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:4px}
-.life-jstat{background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.07);border-radius:14px;padding:14px}
+.life-jstat{background:var(--cd);border:1px solid var(--bd);border-radius:14px;padding:14px}
 .life-jstat-v{font-size:24px;font-weight:800;line-height:1}
-.life-jstat-l{font-size:11px;color:rgba(237,234,224,.55);margin-top:4px}
+.life-jstat-l{font-size:11px;color:var(--ht);margin-top:4px}
 .life-jbars{display:flex;flex-direction:column;gap:10px}
 .life-jbar{display:flex;align-items:center;gap:10px}
 .life-jbar-name{flex:0 0 38%;font-size:13px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.life-jbar-track{flex:1;height:8px;border-radius:4px;background:rgba(255,255,255,.08);overflow:hidden}
+.life-jbar-track{flex:1;height:8px;border-radius:4px;background:color-mix(in srgb,var(--bd) 60%,transparent);overflow:hidden}
 .life-jbar-fill{height:100%;border-radius:4px;transition:width .5s ease}
-.life-jbar-pct{flex:0 0 34px;text-align:right;font-size:12px;font-weight:700;color:rgba(237,234,224,.7)}
-.life-jempty{text-align:center;color:rgba(237,234,224,.45);padding:30px 16px;font-size:13px;line-height:1.5}
+.life-jbar-pct{flex:0 0 34px;text-align:right;font-size:12px;font-weight:700;color:var(--ht)}
+.life-jempty{text-align:center;color:var(--ht);padding:30px 16px;font-size:13px;line-height:1.5}
 /* Challenges (Phase 3) */
-.life-chtabs{display:flex;gap:6px;margin-bottom:12px;background:rgba(255,255,255,.05);padding:4px;border-radius:12px}
-.life-chtab{flex:1;padding:8px;border:none;background:transparent;color:rgba(237,234,224,.6);font-size:13px;font-weight:700;border-radius:9px;cursor:pointer}
-.life-chtab.on{background:rgba(255,255,255,.12);color:#EDEAE0}
+.life-chtabs{display:flex;gap:6px;margin-bottom:12px;background:color-mix(in srgb,var(--tx) 6%,transparent);padding:4px;border-radius:12px}
+.life-chtab{flex:1;padding:8px;border:none;background:transparent;color:var(--ht);font-size:13px;font-weight:700;border-radius:9px;cursor:pointer}
+.life-chtab.on{background:var(--cd);color:var(--tx)}
 .life-chacts{display:flex;gap:8px;margin-bottom:14px}
-.life-chbtn{flex:1;display:inline-flex;align-items:center;justify-content:center;gap:6px;padding:11px;border-radius:13px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);color:#EDEAE0;font-size:13px;font-weight:700;cursor:pointer}
+.life-chbtn{flex:1;display:inline-flex;align-items:center;justify-content:center;gap:6px;padding:11px;border-radius:13px;background:var(--cd);border:1px solid var(--bd);color:var(--tx);font-size:13px;font-weight:700;cursor:pointer}
 .life-chbtn:active{transform:scale(.97)}
 .life-chbtn-ai{background:color-mix(in srgb,var(--pr) 24%,transparent);border-color:color-mix(in srgb,var(--pr) 45%,transparent);color:#fff}
-.life-chcard{background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);border-radius:16px;padding:13px;margin-bottom:10px}
+.life-chcard{background:var(--cd);border:1px solid var(--bd);border-radius:16px;padding:13px;margin-bottom:10px}
 .life-chcard-top{display:flex;align-items:center;gap:11px}
-.life-chcard-em{width:40px;height:40px;border-radius:12px;background:rgba(255,255,255,.06);display:flex;align-items:center;justify-content:center;font-size:21px;flex-shrink:0}
+.life-chcard-em{width:40px;height:40px;border-radius:12px;background:var(--pg);display:flex;align-items:center;justify-content:center;font-size:21px;flex-shrink:0}
 .life-chcard-bd{flex:1;min-width:0}
-.life-chcard-t{font-size:14px;font-weight:700;color:#EDEAE0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.life-chcard-s{font-size:11.5px;color:rgba(237,234,224,.55);margin-top:1px}
-.life-chcard-x{flex-shrink:0;width:30px;height:30px;border-radius:8px;background:transparent;border:none;color:rgba(237,234,224,.5);cursor:pointer;display:flex;align-items:center;justify-content:center}
+.life-chcard-t{font-size:14px;font-weight:700;color:var(--tx);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.life-chcard-s{font-size:11.5px;color:var(--ht);margin-top:1px}
+.life-chcard-x{flex-shrink:0;width:30px;height:30px;border-radius:8px;background:transparent;border:none;color:var(--ht);cursor:pointer;display:flex;align-items:center;justify-content:center}
 .life-chcard-x:active{transform:scale(.9);color:#C77D7D}
 .life-chprog{display:flex;align-items:center;gap:10px;margin-top:11px}
-.life-chprog-track{flex:1;height:8px;border-radius:4px;background:rgba(255,255,255,.08);overflow:hidden}
+.life-chprog-track{flex:1;height:8px;border-radius:4px;background:color-mix(in srgb,var(--bd) 60%,transparent);overflow:hidden}
 .life-chprog-fill{height:100%;border-radius:4px;transition:width .5s ease}
-.life-chprog-r{flex-shrink:0;font-size:13px;color:rgba(237,234,224,.7)}
-.life-chprog-r b{color:#EDEAE0}
+.life-chprog-r{flex-shrink:0;font-size:13px;color:var(--ht)}
+.life-chprog-r b{color:var(--tx)}
 .life-chcard-foot{margin-top:8px}
-.life-chstate{font-size:11px;font-weight:700;color:rgba(237,234,224,.5)}
+.life-chstate{font-size:11px;font-weight:700;color:var(--ht)}
 /* Participant chips in the create-challenge modal — flex so avatar+name align */
 .life-pchip{display:inline-flex;align-items:center;gap:6px;padding-left:7px;line-height:1}
 .life-pchip .av,.life-pchip .av-em{width:20px;height:20px;border-radius:50%;flex-shrink:0}
@@ -449,8 +446,8 @@ body.life-mode{overflow:hidden}
 .life-score{display:flex;flex-direction:column;gap:9px;margin-top:12px}
 .life-score-row{display:flex;align-items:center;gap:10px}
 .life-score-row .av,.life-score-row .av-em{width:26px;height:26px;border-radius:50%;flex-shrink:0}
-.life-score-name{flex:1;min-width:0;font-size:13px;font-weight:600;color:#EDEAE0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.life-score-b{width:30px;height:30px;border-radius:9px;border:1px solid rgba(255,255,255,.14);background:rgba(255,255,255,.06);color:#EDEAE0;font-size:18px;font-weight:700;line-height:1;cursor:pointer;flex-shrink:0;display:flex;align-items:center;justify-content:center}
+.life-score-name{flex:1;min-width:0;font-size:13px;font-weight:600;color:var(--tx);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.life-score-b{width:30px;height:30px;border-radius:9px;border:1px solid var(--bd);background:var(--cd);color:var(--tx);font-size:18px;font-weight:700;line-height:1;cursor:pointer;flex-shrink:0;display:flex;align-items:center;justify-content:center}
 .life-score-b:active{transform:scale(.9)}
 .life-score-v{min-width:30px;text-align:center;font-size:22px;font-weight:800;flex-shrink:0}
 /* Life challenge widget on Home/Profile (themed — football-scoreboard feel) */
@@ -537,10 +534,10 @@ body.life-mode{overflow:hidden}
 .life-breathe-slow{animation:lifeBreathe 6s ease-in-out infinite}
 .life-core,.life-glow{transform-box:fill-box;transform-origin:center}
 .life-emoji{font-size:4.6px;text-anchor:middle;dominant-baseline:central}
-.life-add-plus{font-size:6px;font-weight:700;fill:#EDEAE0;text-anchor:middle;dominant-baseline:central;opacity:.7}
-.life-cap{font-size:3.1px;font-weight:700;fill:#EDEAE0;text-anchor:middle;dominant-baseline:central;opacity:.9}
+.life-add-plus{font-size:6px;font-weight:700;fill:var(--tx);text-anchor:middle;dominant-baseline:central;opacity:.7}
+.life-cap{font-size:3.1px;font-weight:700;fill:var(--tx);text-anchor:middle;dominant-baseline:central;opacity:.9}
 .life-cap-hub{font-size:3.4px;opacity:.95}
-.life-sub{font-size:2.5px;fill:#EDEAE0;text-anchor:middle;dominant-baseline:central;opacity:.5}
+.life-sub{font-size:2.5px;fill:var(--tx);text-anchor:middle;dominant-baseline:central;opacity:.5}
 .life-badge{font-size:2.7px;font-weight:800;fill:#0c0c18;text-anchor:middle;dominant-baseline:central}
 .life-ripple{animation:lifeRipple .7s ease-out forwards;transform-box:fill-box;transform-origin:center}
 @keyframes lifeRipple{0%{transform:scale(1);stroke-opacity:.9}100%{transform:scale(3.2);stroke-opacity:0}}
@@ -1428,20 +1425,20 @@ body.no-scroll .mx{touch-action:pan-y}
 <!-- Load JS -->
 <!-- Load order: data (lang.js) → engines (theme.js, auth.js, weather.js) → main (app.js). -->
 <!-- All share globals; extracted modules use `var`/`function` declarations so they're true window-scope. -->
-<script src="/static/demo.js?v=277"></script>
-<script src="/static/lang.js?v=277"></script>
-<script src="/static/theme.js?v=277"></script>
-<script src="/static/auth.js?v=277"></script>
-<script src="/static/weather.js?v=277"></script>
-<script src="/static/words.js?v=277"></script>
-<script src="/static/plants.js?v=277"></script>
-<script src="/static/trainings.js?v=277"></script>
-<script src="/static/money.js?v=277"></script>
-<script src="/static/tasks.js?v=277"></script>
-<script src="/static/cooking.js?v=277"></script>
-<script src="/static/news.js?v=277"></script>
-<script src="/static/settings.js?v=277"></script>
-<script src="/static/tour.js?v=277"></script>
-<script src="/static/app.js?v=277"></script>
+<script src="/static/demo.js?v=278"></script>
+<script src="/static/lang.js?v=278"></script>
+<script src="/static/theme.js?v=278"></script>
+<script src="/static/auth.js?v=278"></script>
+<script src="/static/weather.js?v=278"></script>
+<script src="/static/words.js?v=278"></script>
+<script src="/static/plants.js?v=278"></script>
+<script src="/static/trainings.js?v=278"></script>
+<script src="/static/money.js?v=278"></script>
+<script src="/static/tasks.js?v=278"></script>
+<script src="/static/cooking.js?v=278"></script>
+<script src="/static/news.js?v=278"></script>
+<script src="/static/settings.js?v=278"></script>
+<script src="/static/tour.js?v=278"></script>
+<script src="/static/app.js?v=278"></script>
 </body>
 </html>
