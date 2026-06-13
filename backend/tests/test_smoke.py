@@ -16,7 +16,7 @@ def test_ping_returns_version(anon_client):
 def test_serve_index(anon_client):
     r = anon_client.get("/")
     assert r.status_code == 200
-    assert "Family HQ" in r.text  # title or header
+    assert "Moya" in r.text  # title / header (rebranded from "Family HQ")
 
 
 def test_bot_info_shape(anon_client):
@@ -29,12 +29,12 @@ def test_bot_info_shape(anon_client):
 
 def test_migration_applied_to_latest(app_module, temp_db):
     """schema_version table should be at the latest migration after migrate() ran in conftest.
-    Bumped to v41 in v8.63.0 (Life: pinned events carry over)."""
+    Bumped to v42 (push_tokens for FCM push notifications)."""
     import sqlite3
     con = sqlite3.connect(temp_db)
     ver = con.execute("SELECT version FROM schema_version").fetchone()[0]
     con.close()
-    assert ver == 41, f"Expected schema v41, got v{ver}"
+    assert ver == 42, f"Expected schema v42, got v{ver}"
 
 
 def test_bundle_shape(client_as):

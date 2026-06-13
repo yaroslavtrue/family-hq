@@ -173,8 +173,9 @@ async def get_uf(r: Request, db=Depends(get_db)):
 
 # ─── Notify ──────────────────────────────────────────────────────────────
 async def notify_all(fid, msg, db):
-    for m in db.execute("SELECT tg_chat_id FROM family_members WHERE family_id=? AND tg_chat_id IS NOT NULL", (fid,)).fetchall():
-        await sched._send(m["tg_chat_id"], msg)
+    # Delegate to the scheduler's notifier so instant notifications use the same
+    # Telegram + push (FCM) channels. Push is a no-op when FCM isn't configured.
+    await sched._notify_all(fid, msg, db)
 
 # ─── Generic partial-update helper ───────────────────────────────────────
 # Coerce assigned_to / member_id / category_id / folder_id where 0 means "unassigned"
@@ -756,6 +757,40 @@ async def auth_google(body: GoogleBody, request: Request, db=Depends(get_db)):
     joined = bool(db.execute("SELECT 1 FROM family_members WHERE user_id=?", (uid,)).fetchone())
     return {"token": make_session_token(uid), "user_id": uid, "first_name": row["name"] or "User",
             "joined": joined, "email_verified": bool(row["email_verified"])}
+
+# ─── Push notifications (FCM) — accounts/product instance ─────────────────────
+class PushRegister(BaseModel):
+    token: str
+    platform: str = "android"
+class PushUnregister(BaseModel):
+    token: str
+
+@app.post("/api/push/register")
+def push_register(body: PushRegister, request: Request, user=Depends(get_user), db=Depends(get_db)):
+    """Store (or refresh) this device's FCM token for the logged-in user. The
+    presence of a row is the per-device 'push enabled' flag."""
+    tok = (body.token or "").strip()
+    if not tok:
+        raise HTTPException(400, "Missing token")
+    _rate(request, "push_reg", 60, 3600, str(user["id"]), 30)
+    plat = (body.platform or "android").strip()[:16] or "android"
+    # A token is globally unique to one device; re-registering moves it to the
+    # current user and refreshes last_seen.
+    db.execute("""
+        INSERT INTO push_tokens (user_id, token, platform, last_seen) VALUES (?,?,?,datetime('now'))
+        ON CONFLICT(token) DO UPDATE SET user_id=excluded.user_id, platform=excluded.platform, last_seen=datetime('now')
+    """, (user["id"], tok, plat))
+    db.commit()
+    return {"ok": True}
+
+@app.post("/api/push/unregister")
+def push_unregister(body: PushUnregister, user=Depends(get_user), db=Depends(get_db)):
+    """Remove this device's token (master toggle off / logout)."""
+    tok = (body.token or "").strip()
+    if tok:
+        db.execute("DELETE FROM push_tokens WHERE token=? AND user_id=?", (tok, user["id"]))
+        db.commit()
+    return {"ok": True}
 
 @app.get("/api/family/status")
 def family_status(user=Depends(get_user), db=Depends(get_db)):

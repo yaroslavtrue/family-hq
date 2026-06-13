@@ -8,6 +8,7 @@ from zoneinfo import ZoneInfo
 import httpx, logging
 
 from backend import weather as wx
+from backend import fcm
 from backend.words_of_day import WORDS as WORD_LIST
 
 log = logging.getLogger("uvicorn.error")
@@ -94,18 +95,38 @@ async def _send(chat_id, text, parse_mode="Markdown", reply_markup=None):
     except Exception as e:
         log.error(f"Send error: {e}")
 
+async def _push(con, sql, params, msg, data=None):
+    """Parallel push channel: deliver the same reminder to any registered device
+    tokens, then prune any that FCM reports as unregistered. No-op when FCM isn't
+    configured (Telegram instance), so this is safe to call from every notify path."""
+    if not fcm.configured(): return
+    rows = con.execute(sql, params).fetchall()
+    if not rows: return
+    title, body = fcm.split_title_body(msg)
+    dead = []
+    for r in rows:
+        if await fcm.send(r["token"], title, body, data) == "dead":
+            dead.append(r["token"])
+    for t in dead:
+        con.execute("DELETE FROM push_tokens WHERE token=?", (t,))
+    if dead: con.commit()
+
 async def _notify_all(fid, msg, con=None):
     close = con is None
     if close: con = _con()
     for m in con.execute("SELECT tg_chat_id FROM family_members WHERE family_id=? AND tg_chat_id IS NOT NULL", (fid,)).fetchall():
         await _send(m["tg_chat_id"], msg)
+    await _push(con,
+        "SELECT pt.token FROM push_tokens pt JOIN family_members fm ON fm.user_id=pt.user_id WHERE fm.family_id=?",
+        (fid,), msg)
     if close: con.close()
 
 async def _notify_user(uid, msg, con=None):
     close = con is None
     if close: con = _con()
     m = con.execute("SELECT tg_chat_id FROM family_members WHERE user_id=?", (uid,)).fetchone()
-    if m: await _send(m["tg_chat_id"], msg)
+    if m and m["tg_chat_id"]: await _send(m["tg_chat_id"], msg)
+    await _push(con, "SELECT token FROM push_tokens WHERE user_id=?", (uid,), msg)
     if close: con.close()
 
 # ─── Task Reminders (every minute) ──────────────────────────────────────

@@ -60,6 +60,12 @@ h+=_setRow({ico:"list",acc:"acc-pr",title:tr("set_bottom_nav"),subtitle:navPrevi
 h+='<div class="sc"><span class="sc-l">'+tr("set_weather")+'</span></div>';
 h+=_setRow({iconCustom:'<span style="font-size:20px">📍</span>',acc:"acc-pr",title:tr("set_weather_city"),subtitle:es((D.settings&&D.settings.weather_city)||"Belgrade"),onclick:"openWeatherCityCfg()"});
 h+='<div class="sc"><span class="sc-l">'+tr("set_notifications")+'</span></div>';
+// Push master toggle — native app only (FCM). Token presence = enabled.
+if(typeof _isNativeApp==="function"&&_isNativeApp()){
+  var _pon=(typeof _pushIsOn==="function"&&_pushIsOn());
+  var _pcol=_pon?"pr":"ht";
+  h+=_setRow({ico:"bl",acc:"acc-pr",title:tr("set_notifs_push"),subtitle:tr("set_notifs_push_sub"),onclick:"_pushToggle()",right:'<span class="lc-rt" style="background:color-mix(in srgb,var(--'+_pcol+') 16%,transparent);color:var(--'+_pcol+')">'+(_pon?tr("push_on"):tr("push_off"))+'</span>'});
+}
 h+=_setRow({ico:"bl",acc:"acc-wn",title:tr("set_morning_digest"),subtitle:(D.settings.digest_time||"09:00")+" · "+tr("set_morning_digest_sub"),onclick:"openDigestCfg()"});
 var nExp=D.categories.filter(function(c){return c.type==="expense"}).length;
 var nInc=D.categories.filter(function(c){return c.type==="income"}).length;

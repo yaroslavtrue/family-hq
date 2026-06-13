@@ -921,6 +921,20 @@ def migrate(db_path):
         lambda c: _migrate_life_events(c),
         # v41: pin an event so it carries over to next month (survives the reset).
         lambda c: safe_add_col(c, "life_events", "pinned", "INTEGER DEFAULT 0"),
+        # v42: push notifications (accounts/product instance). One row per device
+        # token; presence of a row = "push enabled" for that device. Inert on the
+        # Telegram instance (no accounts users register tokens, FCM env unset).
+        lambda c: c.executescript("""
+            CREATE TABLE IF NOT EXISTS push_tokens (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id INTEGER NOT NULL,
+                token TEXT NOT NULL UNIQUE,
+                platform TEXT DEFAULT 'android',
+                created_at TEXT DEFAULT (datetime('now')),
+                last_seen TEXT DEFAULT (datetime('now'))
+            );
+            CREATE INDEX IF NOT EXISTS idx_push_tokens_user ON push_tokens(user_id);
+        """),
     ]
 
     for i, mig in enumerate(migrations):

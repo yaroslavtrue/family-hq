@@ -753,6 +753,7 @@ if(r.joined){document.querySelectorAll(".ni").forEach(function(e){e.style.opacit
   if(!_startedTour&&typeof maybeShowWhatsNew==="function")maybeShowWhatsNew();
   if(typeof _checkWidgetOpen==="function")_checkWidgetOpen();   // agenda-widget deep-link → showCalEv
   if(typeof _locMaybeAsk==="function")_locMaybeAsk();           // first-launch: location → weather city
+  if(typeof _pushMaybeInit==="function")_pushMaybeInit();       // first-launch: push notifications (FCM)
 }else rOnb()}catch(e){document.getElementById("ct").innerHTML='<pre style="color:red">'+e.message+'</pre>'}}
 
 
