@@ -2410,6 +2410,86 @@ def calendar_items(month: str | None = None, user=Depends(get_uf), db=Depends(ge
 
     return {"month": sel, "vis_start": vs, "vis_end": ve, "items": items}
 
+
+@app.get("/api/agenda")
+def agenda(days: int = 14, user=Depends(get_uf), db=Depends(get_db)):
+    """Flat, chronologically sorted feed of upcoming calendar items (events, tasks
+    due, recurring occurrences, birthdays, subscription charges) for the next `days`
+    days. Lightweight, mode-agnostic (resolves family via get_uf) — powers the Android
+    home-screen agenda widget. Capped at 30 rows."""
+    f = user["family_id"]
+    days = max(1, min(int(days or 14), 60))
+    today = datetime.now(ZoneInfo(TIMEZONE)).date()
+    end = today + timedelta(days=days)
+    ts, te = today.isoformat(), end.isoformat()
+    out = []
+
+    def add(date, tm, title, emoji, typ):
+        out.append({"date": date, "time": tm or "", "title": title or "", "emoji": emoji,
+                    "type": typ, "_k": date + " " + (tm or "00:00")})
+
+    # Events overlapping the window (pinned to start day, or today if already running)
+    for r in db.execute("SELECT text,event_date,end_date FROM events WHERE family_id=? AND event_date IS NOT NULL", (f,)).fetchall():
+        full = r["event_date"] or ""
+        s = full.split(" ")[0]
+        e = (r["end_date"] or full).split(" ")[0]
+        if e < ts or s > te:
+            continue
+        tm = full.split(" ")[1][:5] if " " in full else ""
+        add(s if s >= ts else ts, tm, r["text"], "📅", "event")
+
+    # Open tasks with a due date
+    for r in db.execute("SELECT text,due_date,priority FROM tasks WHERE family_id=? AND due_date IS NOT NULL AND done=0 AND due_date>=? AND due_date<=?", (f, ts, te)).fetchall():
+        d = (r["due_date"] or "").split(" ")[0]
+        add(d, "", r["text"], "⚠️" if r["priority"] == "high" else "📋", "task")
+
+    # Recurring task occurrences
+    day_map = {"mon": 0, "tue": 1, "wed": 2, "thu": 3, "fri": 4, "sat": 5, "sun": 6}
+    for r in db.execute("SELECT text,rrule FROM recurring_tasks WHERE family_id=? AND active=1", (f,)).fetchall():
+        rrule = r["rrule"] or ""
+        d = today
+        while d <= end:
+            match = rrule == "daily"
+            if rrule.startswith("weekly:"):
+                match = d.weekday() in [day_map.get(x.strip(), -1) for x in rrule.split(":")[1].split(",")]
+            elif rrule.startswith("monthly:"):
+                try:
+                    match = d.day == int(rrule.split(":")[1])
+                except Exception:
+                    pass
+            if match:
+                add(d.isoformat(), "", r["text"], "🔁", "recurring")
+            d += timedelta(days=1)
+
+    # Birthdays mapped to this / next year (window may cross Dec→Jan)
+    for r in db.execute("SELECT name,emoji,birth_date FROM birthdays WHERE family_id=?", (f,)).fetchall():
+        bd = r["birth_date"]
+        if not bd or len(bd) < 10:
+            continue
+        for yr in (today.year, today.year + 1):
+            cand = f"{yr}-{bd[5:]}"
+            if ts <= cand <= te:
+                add(cand, "", r["name"], r["emoji"] or "🎂", "birthday")
+                break
+
+    # Subscription charges (billing_day in the window's months)
+    for r in db.execute("SELECT name,emoji,billing_day FROM subscriptions WHERE family_id=?", (f,)).fetchall():
+        bd = r["billing_day"] or 1
+        seen = set()
+        for cy, cm in [(today.year, today.month), (end.year, end.month)]:
+            if (cy, cm) in seen:
+                continue
+            seen.add((cy, cm))
+            _, mx = monthrange(cy, cm)
+            ds = f"{cy}-{cm:02d}-{min(bd, mx):02d}"
+            if ts <= ds <= te:
+                add(ds, "", r["name"], r["emoji"] or "💳", "subscription")
+
+    out.sort(key=lambda x: x["_k"])
+    for it in out:
+        it.pop("_k", None)
+    return {"today": today.isoformat(), "count": len(out), "items": out[:30]}
+
 # ═════════════════════════════════════════════════════════════════════════
 # BUNDLE (all data in one request)
 # ═════════════════════════════════════════════════════════════════════════
