@@ -95,7 +95,7 @@ window.LANG = {
     life_color: "Color", life_delete_sphere: "Delete sphere",
     life_delete_sphere_confirm: "Delete this sphere and all its habits?",
     // Page headers (title + subtitle)
-    tt_home_t: "Moya", tt_home_s: "Everything at a glance",
+    tt_home_t: "Moya Family", tt_home_s: "Everything at a glance",
     tt_tasks_t: "Tasks", tt_tasks_s: "Manage & assign",
     tt_shop_t: "Shopping", tt_shop_s: "Shared list",
     tt_trainings_t: "Trainings", tt_trainings_s: "Workouts & progress",
@@ -467,7 +467,7 @@ window.LANG = {
     life_new_sphere: "Новая сфера", life_add_sphere: "Добавить сферу", life_sphere_ph: "напр. Путешествия",
     life_color: "Цвет", life_delete_sphere: "Удалить сферу",
     life_delete_sphere_confirm: "Удалить сферу и все её привычки?",
-    tt_home_t: "Moya", tt_home_s: "Всё в одном месте",
+    tt_home_t: "Moya Family", tt_home_s: "Всё в одном месте",
     tt_tasks_t: "Задачи", tt_tasks_s: "Управление и назначение",
     tt_shop_t: "Покупки", tt_shop_s: "Общий список",
     tt_trainings_t: "Тренировки", tt_trainings_s: "Сессии и прогресс",
