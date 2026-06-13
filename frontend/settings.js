@@ -78,9 +78,10 @@ if(_pwaPrompt){
 // Tips & News (v8.49.0) — opens release timeline from /static/news.js.
 h+='<div class="sc"><span class="sc-l">'+tr("set_about")+'</span></div>';
 h+=_setRow({ico:"bolt",acc:"acc-pr",title:tr("set_tips_news"),subtitle:tr("set_tips_news_sub"),onclick:"showAllNews()"});
+h+=_setRow({iconCustom:'<span style="font-size:20px">🧭</span>',acc:"acc-pr",title:tr("set_replay_tour"),subtitle:tr("set_replay_tour_sub"),onclick:"replayTour()"});
 h+='<div class="sc"><span class="sc-l">'+tr("set_developer")+'</span></div>';
 h+=_setRow({ico:"debug",acc:"acc-ac",title:tr("set_debug")+" "+(dbgOn?"ON":"OFF"),onclick:"dbgOn=!dbgOn;document.getElementById(\'dbg\').classList.toggle(\'hidden\',!dbgOn);ren()"});
-h+='<div style="margin-top:18px;text-align:center;font-size:11px;color:var(--ht);letter-spacing:.3px">Family HQ v8.49.0</div>';return h}
+h+='<div style="margin-top:18px;text-align:center;font-size:11px;color:var(--ht);letter-spacing:.3px">Family HQ v8.67.0</div>';return h}
 async function setTh(id){
   if(id==="custom"){
     // Tapping Custom in the picker opens the editor (saves happen there). Also apply right away.

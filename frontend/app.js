@@ -681,7 +681,9 @@ if(tabId==="life"){
   var _hadLife=(typeof rLife==="function");
   _ensureLife(function(){ if(!_hadLife && tab==="life") ren(); });
 }
-ren();hp("sel")}
+ren();hp("sel");
+// First-visit coachmark tour for this view (plays once per page; no-op if seen).
+if(typeof tourMaybe==="function")tourMaybe(tabId)}
 
 // Dynamic <script> loader for life.js — loaded once, on demand.
 var _lifeLoading=false,_lifeReady=(typeof rLife==="function");
@@ -715,8 +717,11 @@ if(r.lang){_lang=r.lang;_rebuildLocaleArrays()}
 if(r.nav_tabs!==undefined)_navTabs=r.nav_tabs;
 _buildNav();
 if(r.joined){document.querySelectorAll(".ni").forEach(function(e){e.style.opacity="1"});await load();
+  // First-run coachmark tour of the Home screen (plays once). If it starts, we
+  // hold the What's New popup so we don't stack two first-run dialogs.
+  var _startedTour=(typeof tourMaybe==="function")&&tourMaybe(tab);
   // What's New — show once after first paint if the user hasn't seen the latest release yet.
-  if(typeof maybeShowWhatsNew==="function")maybeShowWhatsNew();
+  if(!_startedTour&&typeof maybeShowWhatsNew==="function")maybeShowWhatsNew();
 }else rOnb()}catch(e){document.getElementById("ct").innerHTML='<pre style="color:red">'+e.message+'</pre>'}}
 
 
@@ -897,7 +902,7 @@ function _upGroup(label,color,arr){
   return out;
 }
 if(totalUp){
-  h+='<div class="sc"><span class="sc-l">'+tr("g_upcoming_7")+'<span class="sc-cnt">'+totalUp+'</span></span></div>';
+  h+='<div class="sc" data-tour="up"><span class="sc-l">'+tr("g_upcoming_7")+'<span class="sc-cnt">'+totalUp+'</span></span></div>';
   h+=_upGroup('📋 '+tr("g_tasks"),'var(--pr)',upTasks);
   h+=_upGroup('📅 '+tr("g_events"),'var(--ok)',upEvents);
   h+=_upGroup('💳 '+tr("g_subscriptions"),'var(--pr)',upSubs);

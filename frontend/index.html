@@ -926,6 +926,30 @@ body.life-mode{overflow:hidden}
 /* Hamburger menu */
 .menu-ov{position:fixed;inset:0;background:rgba(0,0,0,.4);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);z-index:45;opacity:0;pointer-events:none;transition:opacity .25s}
 .menu-ov.open{opacity:1;pointer-events:auto}
+/* ── Coachmark tour (tour.js) ───────────────────────────────── */
+#tour-root{position:fixed;inset:0;z-index:100000;pointer-events:none;font-family:inherit}
+#tour-catch{position:absolute;inset:0;pointer-events:auto;background:transparent}
+#tour-hole{position:absolute;border-radius:16px;box-sizing:border-box;pointer-events:none;outline:2px solid color-mix(in srgb,var(--pr) 85%,#fff);outline-offset:2px;box-shadow:0 0 0 9999px rgba(7,6,12,.66);transition:top .32s cubic-bezier(.4,0,.2,1),left .32s cubic-bezier(.4,0,.2,1),width .32s cubic-bezier(.4,0,.2,1),height .32s cubic-bezier(.4,0,.2,1)}
+#tour-hole::after{content:'';position:absolute;inset:-2px;border-radius:inherit;box-shadow:0 0 0 4px color-mix(in srgb,var(--pr) 26%,transparent),0 0 24px 5px color-mix(in srgb,var(--pr) 42%,transparent);animation:tourPulse 2s ease-in-out infinite}
+@keyframes tourPulse{0%,100%{opacity:.5}50%{opacity:1}}
+#tour-arrow{position:absolute;color:var(--pr);pointer-events:none;filter:drop-shadow(0 3px 6px color-mix(in srgb,var(--pr) 45%,transparent));animation:tourBob 1.5s ease-in-out infinite}
+#tour-arrow svg{display:block;width:38px;height:48px}
+#tour-arrow.down{transform:scaleY(-1);animation:tourBobDown 1.5s ease-in-out infinite}
+@keyframes tourBob{0%,100%{transform:translateY(0)}50%{transform:translateY(-7px)}}
+@keyframes tourBobDown{0%,100%{transform:scaleY(-1) translateY(0)}50%{transform:scaleY(-1) translateY(-7px)}}
+#tour-card{position:absolute;width:300px;max-width:calc(100vw - 28px);background:var(--sf);color:var(--tx);border:1px solid var(--bd);border-radius:20px;box-shadow:0 18px 50px rgba(0,0,0,.42);padding:18px 18px 14px;pointer-events:auto;transition:top .32s cubic-bezier(.4,0,.2,1),left .32s cubic-bezier(.4,0,.2,1)}
+.tour-ic{width:42px;height:42px;border-radius:13px;background:var(--pg);display:grid;place-items:center;font-size:23px;margin-bottom:11px}
+.tour-t{font-size:17px;font-weight:800;letter-spacing:-.3px;margin-bottom:5px;color:var(--tx)}
+.tour-b{font-size:13.5px;line-height:1.5;color:var(--ht)}
+.tour-ft{display:flex;align-items:center;gap:6px;margin-top:16px}
+.tour-dots{display:flex;gap:5px;flex:1;align-items:center}
+.tour-dot{width:6px;height:6px;border-radius:50%;background:var(--bd);transition:width .2s,background .2s}
+.tour-dot.a{background:var(--pr);width:18px;border-radius:3px}
+.tour-bk{background:transparent;border:none;color:var(--ht);font-size:13px;font-weight:600;cursor:pointer;padding:8px 10px;font-family:inherit}
+.tour-nx{background:var(--gd);color:var(--gtx,#fff);border:none;border-radius:12px;padding:9px 18px;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit;transition:transform .15s}
+.tour-nx:active{transform:scale(.96)}
+.tour-skip{position:absolute;top:11px;right:13px;background:transparent;border:none;color:var(--ht);font-size:12px;font-weight:600;cursor:pointer;opacity:.7;font-family:inherit;padding:4px 6px}
+@media (prefers-reduced-motion:reduce){#tour-hole,#tour-card{transition:none}#tour-arrow,#tour-hole::after{animation:none}}
 .menu-p{position:absolute;top:0;right:0;width:260px;height:100%;background:var(--sf);transform:translateX(100%);transition:transform .3s cubic-bezier(.2,.9,.3,1);padding:20px;padding-top:60px;box-shadow:-8px 0 32px rgba(0,0,0,.3)}
 .menu-ov.open .menu-p{transform:translateX(0)}
 .menu-h{font-size:17px;font-weight:700;margin-bottom:16px;color:var(--ht)}
@@ -1402,19 +1426,20 @@ body.no-scroll .mx{touch-action:pan-y}
 <!-- Load JS -->
 <!-- Load order: data (lang.js) → engines (theme.js, auth.js, weather.js) → main (app.js). -->
 <!-- All share globals; extracted modules use `var`/`function` declarations so they're true window-scope. -->
-<script src="/static/demo.js?v=266"></script>
-<script src="/static/lang.js?v=266"></script>
-<script src="/static/theme.js?v=266"></script>
-<script src="/static/auth.js?v=266"></script>
-<script src="/static/weather.js?v=266"></script>
-<script src="/static/words.js?v=266"></script>
-<script src="/static/plants.js?v=266"></script>
-<script src="/static/trainings.js?v=266"></script>
-<script src="/static/money.js?v=266"></script>
-<script src="/static/tasks.js?v=266"></script>
-<script src="/static/cooking.js?v=266"></script>
-<script src="/static/news.js?v=266"></script>
-<script src="/static/settings.js?v=266"></script>
-<script src="/static/app.js?v=266"></script>
+<script src="/static/demo.js?v=267"></script>
+<script src="/static/lang.js?v=267"></script>
+<script src="/static/theme.js?v=267"></script>
+<script src="/static/auth.js?v=267"></script>
+<script src="/static/weather.js?v=267"></script>
+<script src="/static/words.js?v=267"></script>
+<script src="/static/plants.js?v=267"></script>
+<script src="/static/trainings.js?v=267"></script>
+<script src="/static/money.js?v=267"></script>
+<script src="/static/tasks.js?v=267"></script>
+<script src="/static/cooking.js?v=267"></script>
+<script src="/static/news.js?v=267"></script>
+<script src="/static/settings.js?v=267"></script>
+<script src="/static/tour.js?v=267"></script>
+<script src="/static/app.js?v=267"></script>
 </body>
 </html>

@@ -241,7 +241,7 @@ window.LANG = {
     // Theme names
     th_midnight: "Midnight", th_dawn: "Dawn", th_forest: "Forest", th_ocean: "Ocean",
     th_rose: "Rosé", th_chalk: "Chalk", th_onyx: "Onyx", th_lavender: "Lavender",
-    th_sunset: "Sunset", th_custom: "Custom",
+    th_sunset: "Sunset", th_moya: "Moya", th_custom: "Custom",
     // Words / Vocabulary tab
     wd_session_complete: "Session complete!",
     wd_next_session: "Next session",
@@ -301,6 +301,8 @@ window.LANG = {
     set_about: "About",
     set_tips_news: "Tips & News",
     set_tips_news_sub: "What's new — release history",
+    set_replay_tour: "Take the tour again",
+    set_replay_tour_sub: "Replay the guided walkthrough",
     // Cooking (v8.48.0)
     ck_total_all: "Total cost of all dishes",
     ck_search_ph: "Search dishes...",
@@ -588,7 +590,7 @@ window.LANG = {
     mo_short_9: "Сен", mo_short_10: "Окт", mo_short_11: "Ноя", mo_short_12: "Дек",
     th_midnight: "Полночь", th_dawn: "Рассвет", th_forest: "Лес", th_ocean: "Океан",
     th_rose: "Роза", th_chalk: "Мел", th_onyx: "Оникс", th_lavender: "Лаванда",
-    th_sunset: "Закат", th_custom: "Своя",
+    th_sunset: "Закат", th_moya: "Moya", th_custom: "Своя",
     wd_session_complete: "Сессия завершена!",
     wd_next_session: "Следующая сессия",
     wd_correct_of: "{n} из {total} правильно",
@@ -643,6 +645,8 @@ window.LANG = {
     set_about: "О приложении",
     set_tips_news: "Советы и новости",
     set_tips_news_sub: "Что нового — история обновлений",
+    set_replay_tour: "Пройти тур заново",
+    set_replay_tour_sub: "Повторить пошаговый гайд",
     // Cooking (v8.48.0)
     ck_total_all: "Общая стоимость блюд",
     ck_search_ph: "Поиск блюд...",
