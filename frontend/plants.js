@@ -37,8 +37,14 @@ function _plStatusLabel(s){return s==="thirsty"?tr("pl_thirsty"):(s==="soon"?tr(
 function _plStatusColor(s){return s==="thirsty"?"var(--ac)":(s==="soon"?"var(--wn)":"var(--ok)")}
 
 function _rPlantsWidget(){
-  var list=D.plants||[];
-  if(!list.length)return"";
+  var src=D.plants||[];
+  if(!src.length)return"";
+  // Surface plants that need attention first: thirsty, then "water soon", then the
+  // rest in their existing order. Array.sort is stable, so healthy plants keep order.
+  var _rank={thirsty:0,soon:1};
+  var list=src.slice().sort(function(a,b){
+    return (_rank[a.status]!=null?_rank[a.status]:2)-(_rank[b.status]!=null?_rank[b.status]:2);
+  });
   var thirstyN=list.filter(function(p){return p.status==="thirsty"}).length;
   var head='Plants';
   var subHead=thirstyN?'<span class="hpw-sub">'+thirstyN+(thirstyN===1?" wants":" want")+' water</span>':'';
