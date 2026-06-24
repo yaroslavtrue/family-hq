@@ -1509,7 +1509,11 @@ async def create_transaction(body: TransactionCreate, user=Depends(get_uf), db=D
         cr = db.execute("SELECT emoji, name FROM categories WHERE id=? AND family_id=?", (body.category_id, user["family_id"])).fetchone()
         if cr: cat = f" {cr['emoji']} {cr['name']}"
     sign = "💸" if body.type == "expense" else "💰"
-    await notify_all(user["family_id"], f"{sign} *{user['first_name']}*: {body.amount} {body.currency}{cat}", db)
+    # Include the transaction name (description). Strip Markdown-control chars so a
+    # stray * / _ / ` / [ in user text can't unbalance the Markdown and fail the send.
+    desc = re.sub(r"[*_`\[\]]", "", (body.description or "").strip())
+    desc_part = f" — {desc}" if desc else ""
+    await notify_all(user["family_id"], f"{sign} *{user['first_name']}*: {body.amount} {body.currency}{desc_part}{cat}", db)
     return {"ok": True}
 
 @app.put("/api/transactions/{tid}")
