@@ -69,7 +69,7 @@ txs.forEach(function(tx){
   h+='<div class="lc-i '+icoCls+'">'+emoji+'</div>';
   h+='<div class="lc-bd"><div class="lc-tt">'+title+'</div><div class="lc-mt">'+(tx.description?catName+' · ':'')+meta+' '+mChip(tx.member_id,true)+riBadge+'</div></div>';
   h+='<span class="lc-rt '+amtPillCls+'">'+sign+tx.amount+' '+tx.currency+'</span>';
-  h+='<button class="bi" onclick="openReceipt('+tx.id+')" title="Split receipt" style="margin-left:4px">'+icon("receipt",15,2)+'</button>';
+  h+='<button class="bi" onclick="openReceipt('+tx.id+')" title="Split receipt">'+icon("receipt",15,2)+'</button>';
   h+='<button class="bi" onclick="edTx('+tx.id+')">'+I.ed+'</button>';
   h+='<button class="bi" onclick="dlTx('+tx.id+')">'+I.tr+'</button>';
   h+='</div>';

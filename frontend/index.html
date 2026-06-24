@@ -131,6 +131,10 @@ body{font-family:'Hanken Grotesk',-apple-system,sans-serif;background:var(--bg);
 
 /* Buttons */
 .bi{background:none;border:none;color:var(--ht);cursor:pointer;padding:6px;min-width:40px;min-height:40px;border-radius:8px;display:flex;align-items:center;justify-content:center;transition:color .2s}.bi svg{width:15px;height:15px}
+/* Trailing action buttons inside list rows hug together (and sit tight to the amount
+   pill) so the title keeps its width instead of truncating early on dense rows like Money.
+   Vertical touch target stays 40px; only horizontal footprint shrinks. */
+.lc .bi{min-width:34px;margin-left:-8px}
 .btn{width:100%;padding:14px;border-radius:14px;background:var(--gd);color:var(--gtx,#fff);border:none;font-size:15px;font-weight:600;cursor:pointer;margin-top:4px;font-family:inherit;text-shadow:0 1px 2px rgba(0,0,0,.22);box-shadow:0 4px 16px color-mix(in srgb,var(--pr) 30%,transparent);transition:transform .15s,box-shadow .15s}
 .btn:active{transform:scale(.98);box-shadow:0 2px 8px color-mix(in srgb,var(--pr) 25%,transparent)}
 .btn-s{background:var(--cd);color:var(--tx);border:1.5px solid var(--bd);box-shadow:none;text-shadow:none}
@@ -1425,21 +1429,21 @@ body.no-scroll .mx{touch-action:pan-y}
 <!-- Load JS -->
 <!-- Load order: data (lang.js) → engines (theme.js, auth.js, weather.js) → main (app.js). -->
 <!-- All share globals; extracted modules use `var`/`function` declarations so they're true window-scope. -->
-<script src="/static/demo.js?v=282"></script>
-<script src="/static/lang.js?v=282"></script>
-<script src="/static/theme.js?v=282"></script>
-<script src="/static/auth.js?v=282"></script>
-<script src="/static/weather.js?v=282"></script>
-<script src="/static/words.js?v=282"></script>
-<script src="/static/plants.js?v=282"></script>
-<script src="/static/trainings.js?v=282"></script>
-<script src="/static/money.js?v=282"></script>
-<script src="/static/tasks.js?v=282"></script>
-<script src="/static/cooking.js?v=282"></script>
-<script src="/static/news.js?v=282"></script>
-<script src="/static/settings.js?v=282"></script>
-<script src="/static/tour.js?v=282"></script>
-<script src="/static/push.js?v=282"></script>
-<script src="/static/app.js?v=282"></script>
+<script src="/static/demo.js?v=283"></script>
+<script src="/static/lang.js?v=283"></script>
+<script src="/static/theme.js?v=283"></script>
+<script src="/static/auth.js?v=283"></script>
+<script src="/static/weather.js?v=283"></script>
+<script src="/static/words.js?v=283"></script>
+<script src="/static/plants.js?v=283"></script>
+<script src="/static/trainings.js?v=283"></script>
+<script src="/static/money.js?v=283"></script>
+<script src="/static/tasks.js?v=283"></script>
+<script src="/static/cooking.js?v=283"></script>
+<script src="/static/news.js?v=283"></script>
+<script src="/static/settings.js?v=283"></script>
+<script src="/static/tour.js?v=283"></script>
+<script src="/static/push.js?v=283"></script>
+<script src="/static/app.js?v=283"></script>
 </body>
 </html>
