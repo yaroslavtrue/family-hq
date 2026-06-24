@@ -52,7 +52,10 @@ if((D.members||[]).length>1){
 h+='<div class="fb2"><button class="fi '+(!filt?"a":"")+'" onclick="filt=null;ren()">'+tr("g_filter_all")+'</button>';
 D.members.forEach(function(m){h+='<button class="fi '+(filt===m.user_id?"a":"")+'" style="padding:3px 6px;display:inline-flex;align-items:center" onclick="filt='+m.user_id+';ren()">'+mAv(m.user_id,22)+'</button>'});h+='</div>';
 }
-// Transaction rows as .lc cards: category emoji on tinted gradient (green for income, coral for expense), description as title, date + member as meta, signed amount pill on the right
+// Transaction cards (.txc): distinct zones so the title never competes with the
+// amount + buttons. Left: category emoji tile. Middle column: name / date /
+// category+receipt+member. Right column: amount pill stacked over the action
+// buttons (split + edit). Delete lives in the edit modal now (left of Save).
 txs.forEach(function(tx){
   var cat=cats[tx.category_id];
   var isInc=tx.type==="income";
@@ -61,17 +64,20 @@ txs.forEach(function(tx){
   var icoCls=isInc?"acc-ok":"acc-ac";
   var emoji=cat?cat.emoji:(isInc?"💰":"💸");
   var catName=cat?cat.name:(isInc?"Income":"Expense");
-  var title=tx.description?es(tx.description):catName;
-  var meta=fD(tx.date).full;
+  var title=tx.description?es(tx.description):es(catName);
   var riCnt=(D.txItems||{})[tx.id]?D.txItems[tx.id].length:0;
-  var riBadge=riCnt?' <span class="pdate" style="background:color-mix(in srgb,var(--pr) 14%,transparent);color:var(--pr)">'+icon("receipt",10,2)+riCnt+'</span>':"";
-  h+='<div class="lc">';
+  var riBadge=riCnt?'<span class="pdate" style="background:color-mix(in srgb,var(--pr) 14%,transparent);color:var(--pr)">'+icon("receipt",10,2)+riCnt+'</span>':"";
+  h+='<div class="txc">';
   h+='<div class="lc-i '+icoCls+'">'+emoji+'</div>';
-  h+='<div class="lc-bd"><div class="lc-tt">'+title+'</div><div class="lc-mt">'+(tx.description?catName+' · ':'')+meta+' '+mChip(tx.member_id,true)+riBadge+'</div></div>';
-  h+='<span class="lc-rt '+amtPillCls+'">'+sign+tx.amount+' '+tx.currency+'</span>';
-  h+='<button class="bi" onclick="openReceipt('+tx.id+')" title="Split receipt">'+icon("receipt",15,2)+'</button>';
-  h+='<button class="bi" onclick="edTx('+tx.id+')">'+I.ed+'</button>';
-  h+='<button class="bi" onclick="dlTx('+tx.id+')">'+I.tr+'</button>';
+  h+='<div class="txc-mid">';
+  h+=  '<div class="txc-name">'+title+'</div>';
+  h+=  '<div class="txc-date">'+fD(tx.date).full+'</div>';
+  h+=  '<div class="txc-cat">'+(tx.description?'<span class="txc-catn">'+es(catName)+'</span>':'')+mChip(tx.member_id,true)+riBadge+'</div>';
+  h+='</div>';
+  h+='<div class="txc-side">';
+  h+=  '<span class="lc-rt '+amtPillCls+'">'+sign+tx.amount+' '+tx.currency+'</span>';
+  h+=  '<div class="txc-acts"><button class="bi" onclick="openReceipt('+tx.id+')" title="Split receipt">'+icon("receipt",15,2)+'</button><button class="bi" onclick="edTx('+tx.id+')">'+I.ed+'</button></div>';
+  h+='</div>';
   h+='</div>';
 });
 return h}
@@ -80,7 +86,7 @@ async function dlTx(id){hp();await A("DELETE","/api/transactions/"+id);_moneySum
 function edTx(id){var tx=D.transactions.find(function(x){return x.id===id});if(!tx)return;_assign=tx.member_id||0;
 var catOpts=D.categories.filter(function(c){return c.type===tx.type}).map(function(c){return '<button class="ob '+(tx.category_id===c.id?"s":"")+'" onclick="window._txCat='+c.id+';this.parentNode.querySelectorAll(\'.ob\').forEach(function(b){b.classList.remove(\'s\')});this.classList.add(\'s\')">'+c.emoji+" "+es(c.name)+'</button>'}).join("");
 window._txCat=tx.category_id||0;window._txType=tx.type;
-oMC(tr("m_edit_tx"),'<div class="dr"><div><div class="dl">'+tr("f_amount")+'</div><input class="inp" id="tx-a" type="number" step="0.01" value="'+tx.amount+'"></div><div><div class="dl">'+tr("f_currency")+'</div><select id="tx-c"><option value="RSD"'+(tx.currency==="RSD"?" selected":"")+'>din. RSD</option><option value="EUR"'+(tx.currency==="EUR"?" selected":"")+'>€ EUR</option><option value="USD"'+(tx.currency==="USD"?" selected":"")+'>$ USD</option><option value="GBP"'+(tx.currency==="GBP"?" selected":"")+'>£ GBP</option><option value="RUB"'+(tx.currency==="RUB"?" selected":"")+'>₽ RUB</option></select></div></div><div class="lb">'+tr("f_description")+'</div><input class="inp" id="tx-d" value="'+es(tx.description||"")+'"><div class="lb">'+tr("f_category")+'</div><div class="or">'+catOpts+'</div><div class="lb">'+tr("f_date")+'</div><input type="date" id="tx-dt" value="'+tx.date+'"><div class="lb">'+tr("g_who")+'</div>'+assignPk("txm",tx.member_id)+'<button class="btn" onclick="svTx('+id+')">Save</button>',{ic:"wallet"})}
+oMC(tr("m_edit_tx"),'<div class="dr"><div><div class="dl">'+tr("f_amount")+'</div><input class="inp" id="tx-a" type="number" step="0.01" value="'+tx.amount+'"></div><div><div class="dl">'+tr("f_currency")+'</div><select id="tx-c"><option value="RSD"'+(tx.currency==="RSD"?" selected":"")+'>din. RSD</option><option value="EUR"'+(tx.currency==="EUR"?" selected":"")+'>€ EUR</option><option value="USD"'+(tx.currency==="USD"?" selected":"")+'>$ USD</option><option value="GBP"'+(tx.currency==="GBP"?" selected":"")+'>£ GBP</option><option value="RUB"'+(tx.currency==="RUB"?" selected":"")+'>₽ RUB</option></select></div></div><div class="lb">'+tr("f_description")+'</div><input class="inp" id="tx-d" value="'+es(tx.description||"")+'"><div class="lb">'+tr("f_category")+'</div><div class="or">'+catOpts+'</div><div class="lb">'+tr("f_date")+'</div><input type="date" id="tx-dt" value="'+tx.date+'"><div class="lb">'+tr("g_who")+'</div>'+assignPk("txm",tx.member_id)+'<div style="display:flex;gap:10px;margin-top:4px"><button class="btn btn-s" style="flex:0 0 auto;color:var(--ac);border-color:color-mix(in srgb,var(--ac) 35%,transparent)" onclick="cMo();dlTx('+id+')">'+tr("btn_delete")+'</button><button class="btn" style="flex:1" onclick="svTx('+id+')">'+tr("btn_save")+'</button></div>',{ic:"wallet"})}
 async function svTx(id){var a=parseFloat(document.getElementById("tx-a").value);var c=document.getElementById("tx-c").value;var d=document.getElementById("tx-d").value.trim();var dt=document.getElementById("tx-dt").value;if(!a)return;await A("PUT","/api/transactions/"+id,{amount:a,currency:c,description:d,date:dt,category_id:window._txCat||null,member_id:_assign||null});cMo();hp();_moneySummary=null;_anaCache={};await load()}
 
 // ─── Digest config modal ─────────────────────────────────────
