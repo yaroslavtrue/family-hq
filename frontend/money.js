@@ -325,13 +325,6 @@ function _anaTilesHtml(){
   h+='<div class="st st-mn"><div class="st-ico tone-ac">'+icon("trendDown",16,2.2)+'</div><div class="st-lb">'+tr("m_expense_label")+'</div><div class="st-vl neg">€'+s.expense.toFixed(0)+'</div></div>';
   h+='<div class="st st-mn"><div class="st-ico tone-pr">'+icon("wallet",16,2.2)+'</div><div class="st-lb">'+tr("m_balance_label")+'</div><div class="st-vl '+(s.balance>=0?"pos":"neg")+'">'+(s.balance<0?"−€":"€")+Math.abs(s.balance).toFixed(0)+'</div></div>';
   h+='</div>';
-  // v8.50.0: show the carried-over opening balance + this month's net delta so
-  // it's clear the balance is a running account total, not a monthly figure.
-  if(s.opening_balance!=null){
-    var net=s.net!=null?s.net:(s.income-s.expense);
-    var netStr=(net>=0?"+€":"−€")+Math.abs(net).toFixed(0);
-    h+='<div class="cat-row" style="margin-bottom:14px;margin-top:6px"><div class="cat-row-h"><span class="nm">'+icon("wallet",14,2.2)+' '+tr("m_carried_over")+'</span><span class="vl" style="color:var(--ht)">'+(s.opening_balance<0?"−€":"€")+Math.abs(s.opening_balance).toFixed(0)+' <span style="opacity:.6">·</span> '+tr("m_this_month")+' '+netStr+'</span></div></div>';
-  }
   if(s.subs_eur)h+='<div class="cat-row" style="margin-bottom:14px;margin-top:6px"><div class="cat-row-h"><span class="nm">'+icon("card",14,2.2)+' Subscriptions this month</span><span class="vl" style="color:var(--pr)">€'+s.subs_eur.toFixed(0)+'</span></div></div>';
   return h;
 }
