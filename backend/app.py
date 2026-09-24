@@ -803,7 +803,8 @@ def family_status(user=Depends(get_user), db=Depends(get_db)):
     if row["nav_tabs"]:
         try: nav_tabs = _json_mod.loads(row["nav_tabs"])
         except Exception: nav_tabs = None
-    return {"joined": True, "family_id": row["family_id"], "name": row["name"], "invite_code": row["invite_code"], "members": members, "my_id": user["id"], "lang": (row["lang"] or "en"), "nav_tabs": nav_tabs}
+    return {"joined": True, "family_id": row["family_id"], "name": row["name"], "invite_code": row["invite_code"], "members": members, "my_id": user["id"], "lang": (row["lang"] or "en"), "nav_tabs": nav_tabs,
+            "accounts": AUTH_MODE == "accounts"}
 
 
 class LangUpdate(BaseModel):
@@ -883,6 +884,95 @@ def join_family(body: FamilyJoin, user=Depends(get_user), db=Depends(get_db)):
 @app.post("/api/family/leave")
 def leave_family(user=Depends(get_user), db=Depends(get_db)):
     db.execute("DELETE FROM family_members WHERE user_id=?", (user["id"],)); db.commit()
+    return {"ok": True}
+
+# ─── Account deletion (accounts/product instance; Google Play requirement) ────
+# Rule: the account + everything personal goes. If the user is the LAST member of
+# their family, the whole family goes with it (nobody is left to own that data).
+# Otherwise the shared family data stays for the remaining members and only
+# the leaver's references are detached (assignments → unassigned).
+def _tables_with_col(db, col):
+    out = []
+    for (t,) in db.execute("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'").fetchall():
+        if any(c[1] == col for c in db.execute(f"PRAGMA table_info({t})").fetchall()):
+            out.append(t)
+    return out
+
+def _rm_files(dirpath, ids):
+    for i in ids:
+        fp = os.path.join(dirpath, f"{i}.jpg")
+        try:
+            if os.path.isfile(fp): os.remove(fp)
+        except Exception as e:
+            log.warning(f"account delete: could not remove {fp}: {e}")
+
+def _purge_family(db, fid):
+    """Delete a family and ALL its rows. Child tables without family_id are cleared
+    via their parent first; then every table carrying a family_id column is swept
+    generically, so tables added later are covered without touching this code."""
+    ids = lambda sql: [r[0] for r in db.execute(sql, (fid,)).fetchall()]
+    plant_ids = ids("SELECT id FROM plants WHERE family_id=?")
+    photo_ids = ids("SELECT ph.id FROM plant_photos ph JOIN plants p ON p.id=ph.plant_id WHERE p.family_id=?")
+    dish_ids = ids("SELECT id FROM dishes WHERE family_id=?")
+    tmpl_ids = ids("SELECT id FROM workout_templates WHERE family_id=?")
+    # Children keyed only by their parent id.
+    db.execute("DELETE FROM plant_waterings WHERE plant_id IN (SELECT id FROM plants WHERE family_id=?)", (fid,))
+    db.execute("DELETE FROM plant_photos WHERE plant_id IN (SELECT id FROM plants WHERE family_id=?)", (fid,))
+    db.execute("DELETE FROM dish_ingredients WHERE dish_id IN (SELECT id FROM dishes WHERE family_id=?)", (fid,))
+    db.execute("DELETE FROM habit_logs WHERE habit_id IN (SELECT id FROM habits WHERE family_id=?)", (fid,))
+    db.execute("DELETE FROM template_exercises WHERE template_id IN (SELECT id FROM workout_templates WHERE family_id=?)", (fid,))
+    db.execute("DELETE FROM workout_sets WHERE workout_exercise_id IN (SELECT we.id FROM workout_exercises we JOIN workouts w ON w.id=we.workout_id WHERE w.family_id=?)", (fid,))
+    db.execute("DELETE FROM workout_exercises WHERE workout_id IN (SELECT id FROM workouts WHERE family_id=?)", (fid,))
+    member_ids = ids("SELECT user_id FROM family_members WHERE family_id=?")
+    for uid in member_ids:
+        db.execute("DELETE FROM word_progress WHERE user_id=?", (uid,))
+    for t in _tables_with_col(db, "family_id"):
+        db.execute(f"DELETE FROM {t} WHERE family_id=?", (fid,))
+    db.execute("DELETE FROM families WHERE id=?", (fid,))
+    return lambda: (_rm_files(PLANTS_IMG_DIR, plant_ids), _rm_files(PLANTS_TIMELINE_DIR, photo_ids),
+                    _rm_files(DISHES_IMG_DIR, dish_ids), _rm_files(WORKOUTS_IMG_DIR, tmpl_ids))
+
+def _purge_member(db, uid, fid):
+    """Remove one member's personal data from a family that lives on."""
+    owner = str(uid)
+    db.execute("DELETE FROM habit_logs WHERE habit_id IN (SELECT id FROM habits WHERE family_id=? AND owner=?)", (fid, owner))
+    for t in ("habits", "life_events", "life_areas", "life_challenges", "node_overrides"):
+        db.execute(f"DELETE FROM {t} WHERE family_id=? AND owner=?", (fid, owner))
+    db.execute("DELETE FROM workout_sets WHERE workout_exercise_id IN (SELECT we.id FROM workout_exercises we JOIN workouts w ON w.id=we.workout_id WHERE w.family_id=? AND w.member_id=?)", (fid, uid))
+    db.execute("DELETE FROM workout_exercises WHERE workout_id IN (SELECT id FROM workouts WHERE family_id=? AND member_id=?)", (fid, uid))
+    db.execute("DELETE FROM workouts WHERE family_id=? AND member_id=?", (fid, uid))
+    db.execute("DELETE FROM love_points WHERE family_id=? AND (from_user=? OR to_user=?)", (fid, uid, uid))
+    db.execute("DELETE FROM word_progress WHERE user_id=?", (uid,))
+    for t in ("tasks", "recurring_tasks", "subscriptions", "cleaning_zones", "cleaning_tasks"):
+        db.execute(f"UPDATE {t} SET assigned_to=NULL WHERE family_id=? AND assigned_to=?", (fid, uid))
+    db.execute("UPDATE transactions SET member_id=NULL WHERE family_id=? AND member_id=?", (fid, uid))
+    db.execute("UPDATE workout_templates SET member_id=NULL WHERE family_id=? AND member_id=?", (fid, uid))
+    db.execute("DELETE FROM family_members WHERE user_id=?", (uid,))
+
+@app.delete("/api/account")
+def delete_account(user=Depends(get_user), db=Depends(get_db)):
+    """Permanently delete the signed-in account. Irreversible; the client confirms."""
+    _require_accounts()
+    uid = user["id"]
+    if not db.execute("SELECT 1 FROM users WHERE id=?", (uid,)).fetchone():
+        raise HTTPException(404, "Account not found")
+    cleanup = None
+    try:
+        row = db.execute("SELECT family_id FROM family_members WHERE user_id=?", (uid,)).fetchone()
+        if row:
+            fid = row["family_id"]
+            others = db.execute("SELECT COUNT(*) c FROM family_members WHERE family_id=? AND user_id!=?", (fid, uid)).fetchone()["c"]
+            if others: _purge_member(db, uid, fid)
+            else: cleanup = _purge_family(db, fid)
+        db.execute("DELETE FROM push_tokens WHERE user_id=?", (uid,))
+        db.execute("DELETE FROM users WHERE id=?", (uid,))
+        db.commit()
+    except Exception as e:
+        db.rollback()
+        log.error(f"account delete failed uid={uid}: {e}")
+        raise HTTPException(500, "Could not delete the account")
+    if cleanup: cleanup()   # files only after the rows are gone for good
+    log.info(f"account deleted uid={uid} family_purged={bool(cleanup)}")
     return {"ok": True}
 
 # ═════════════════════════════════════════════════════════════════════════

@@ -37,6 +37,7 @@ if(fS&&fS.joined){
   h+='<div style="margin:14px 0 22px;display:flex;gap:8px"><button class="btn btn-s" style="font-size:13px;flex:1" onclick="if(confirm(\''+tr("set_leave_family")+'?\'))leaveFam()">'+tr("set_leave_family")+'</button>'+
   (!iD&&_getSess()?'<button class="btn btn-s" style="font-size:13px;flex:1;background:transparent;border:1.5px solid var(--bd);color:var(--tx)" onclick="_logoutPwa()">Log out</button>':'')+
   '</div>';
+  if(fS.accounts)h+='<div style="margin:-10px 0 22px;text-align:center"><button class="btn btn-s" style="font-size:13px;background:transparent;border:0;color:#e5484d" onclick="delAccount()">'+tr("set_delete_account")+'</button></div>';
 }
 // ─── Language picker (per-member, v8.32.0) ─────────────────────────
 // Two big buttons EN/RU; current one filled with theme primary, the other outlined.
@@ -292,6 +293,16 @@ h+='<button class="btn btn-s" onclick="cMo();addCat(\''+_catTab+'\')">+ Add Cate
 return h}
 async function syncTrello(){var btn=document.getElementById("trello-btn");if(btn)btn.textContent="Syncing...";try{await A("POST","/api/trello/sync");await load();toast("✓ Trello synced")}catch(e){toast("Trello sync failed")}if(btn)btn.textContent="Sync Now"}
 async function leaveFam(){await A("POST","/api/family/leave");location.reload()}
+// Account deletion (accounts instance; Google Play requirement). Two confirms: the
+// second one spells out that the last member takes the whole family with them.
+async function delAccount(){
+  var last=(fS&&fS.members||[]).length<=1;
+  if(!confirm(tr("set_delete_q")))return;
+  if(!confirm(tr(last?"set_delete_last":"set_delete_member")))return;
+  var r=await A("DELETE","/api/account");
+  if(!r||!r.ok){toast(tr("set_delete_fail"));return}
+  _logoutPwa();   // server already dropped this user's push tokens
+}
 function edMe(uid,name,emoji,color){oMC("Edit Profile",'<input class="inp" id="me-n" value="'+name+'" placeholder="Name"><div class="dr"><div><div class="dl">Emoji</div><input class="inp" id="me-e" value="'+emoji+'" style="text-align:center;font-size:24px"></div><div><div class="dl">Color</div><input type="color" id="me-c" value="'+color+'" style="width:100%;height:48px;border-radius:12px;border:none;cursor:pointer"></div></div><button class="btn" onclick="svMe('+uid+')">Save</button>',{ic:"user"})}
 async function svMe(uid){var n=document.getElementById("me-n").value.trim();var e=document.getElementById("me-e").value.trim();var c=document.getElementById("me-c").value;if(!n)return;await A("PATCH","/api/members/"+uid,{user_name:n,emoji:e,color:c});cMo();hp();await load()}
 
